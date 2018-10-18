@@ -20,10 +20,12 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
+import org.elasticsearch.client.rollup.StartRollupJobRequest;
 
 import java.io.IOException;
 
@@ -44,6 +46,18 @@ final class RollupRequestConverters {
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRollupJobRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request startJob(final StartRollupJobRequest startRollupJobRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("rollup")
+            .addPathPartAsIs("job")
+            .addPathPart(startRollupJobRequest.getJobId())
+            .addPathPart("_start")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         return request;
     }
 

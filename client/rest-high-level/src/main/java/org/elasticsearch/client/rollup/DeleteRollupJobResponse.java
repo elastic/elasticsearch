@@ -29,8 +29,10 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 public class DeleteRollupJobResponse extends AcknowledgedResponse {
 
+    private static final String PARSE_FIELD_NAME = "acknowledged";
+
     public DeleteRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+        super(acknowledged, PARSE_FIELD_NAME);
     }
 
     public static DeleteRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
@@ -41,6 +43,6 @@ public class DeleteRollupJobResponse extends AcknowledgedResponse {
         = new ConstructingObjectParser<>("delete_rollup_job_response", true,
         args -> new DeleteRollupJobResponse((boolean) args[0]));
     static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("acknowledged"));
+        PARSER.declareBoolean(constructorArg(), new ParseField(PARSE_FIELD_NAME));
     }
 }

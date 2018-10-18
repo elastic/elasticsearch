@@ -28,14 +28,16 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
+import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.IndexerState;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
-import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
-import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
+import org.elasticsearch.client.rollup.StartRollupJobRequest;
+import org.elasticsearch.client.rollup.StartRollupJobResponse;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
 import org.elasticsearch.client.rollup.job.config.GroupConfig;
 import org.elasticsearch.client.rollup.job.config.MetricConfig;
@@ -59,11 +61,11 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -143,7 +145,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         PutRollupJobRequest putRollupJobRequest =
             new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
         final RollupClient rollupClient = highLevelClient().rollup();
-        PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
+        execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
         DeleteRollupJobRequest deleteRollupJobRequest = new DeleteRollupJobRequest(id);
         DeleteRollupJobResponse deleteRollupJobResponse = highLevelClient().rollup()
             .deleteRollupJob(deleteRollupJobRequest, RequestOptions.DEFAULT);
@@ -157,8 +159,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertThat(responseException.status().getStatus(), is(404));
     }
 
-    @SuppressWarnings("unchecked")
-    public void testPutAndGetRollupJob() throws Exception {
+    public void testPutStartAndGetRollupJob() throws Exception {
         // TODO expand this to also test with histogram and terms?
         final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
@@ -171,9 +172,9 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
         assertTrue(response.isAcknowledged());
 
-        // TODO Replace this with the Rollup Start Job API
-        Response startResponse = client().performRequest(new Request("POST", "/_xpack/rollup/job/" + id + "/_start"));
-        assertEquals(RestStatus.OK.getStatus(), startResponse.getHttpResponse().getStatusLine().getStatusCode());
+        StartRollupJobRequest startRequest = new StartRollupJobRequest(id);
+        StartRollupJobResponse startResponse = execute(startRequest, rollupClient::startRollupJob, rollupClient::startRollupJobAsync);
+        assertTrue(startResponse.isAcknowledged());
 
         assertBusy(() -> {
             SearchResponse searchResponse = highLevelClient().search(new SearchRequest(rollupIndex), RequestOptions.DEFAULT);

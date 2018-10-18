@@ -299,10 +299,12 @@ include::migration/get-assistance.asciidoc[]
 The Java High Level REST Client supports the following Rollup APIs:
 
 * <<java-rest-high-x-pack-rollup-put-job>>
+* <<{upid}-rollup-start-job>>
 * <<{upid}-rollup-delete-job>>
 * <<java-rest-high-x-pack-rollup-get-job>>
 
 include::rollup/put_job.asciidoc[]
+include::rollup/start_job.asciidoc[]
 include::rollup/delete_job.asciidoc[]
 include::rollup/get_job.asciidoc[]
 

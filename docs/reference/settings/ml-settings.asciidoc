@@ -91,3 +91,7 @@ of nodes have already been provisioned. When a job is opened with this
 setting set at `>0` and there are no nodes that can accept the job, then
 the job will stay in the `OPENING` state until a new ML node is added to the
 cluster and the job is assigned to run on that node.
++
+IMPORTANT: This setting assumes some external process is capable of adding ML nodes
+to the cluster. This setting is only useful when used in conjunction with
+such an external process.

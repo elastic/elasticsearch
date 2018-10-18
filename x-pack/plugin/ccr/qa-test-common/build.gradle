@@ -1,0 +1,8 @@
+apply plugin: 'elasticsearch.build'
+
+archivesBaseName = 'ccr-qa-test-common'
+test.enabled = false
+
+dependencies {
+    compile project(':test:framework')
+}

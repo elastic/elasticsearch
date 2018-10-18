@@ -254,6 +254,13 @@ public class AllocationService extends AbstractComponent {
                 // operation which make these copies stale
                 routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
                 metaDataBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
+                // update settings version for each index
+                for (final String index : indices) {
+                    final IndexMetaData indexMetaData = metaDataBuilder.get(index);
+                    final IndexMetaData.Builder indexMetaDataBuilder =
+                            new IndexMetaData.Builder(indexMetaData).settingsVersion(1 + indexMetaData.getSettingsVersion());
+                    metaDataBuilder.put(indexMetaDataBuilder);
+                }
                 logger.info("updating number_of_replicas to [{}] for indices {}", numberOfReplicas, indices);
             }
             final ClusterState fixedState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build())

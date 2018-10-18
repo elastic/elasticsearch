@@ -65,7 +65,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
-            DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
+            DOUBLE_FIELD_NAME, DATE_FIELD_NAME, JSON_FIELD_NAME);
         Object value;
         if (isTextField(fieldName)) {
             int terms = randomIntBetween(0, 3);
@@ -404,7 +404,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
         expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
     }
-    
+
     private static class MockGraphAnalyzer extends Analyzer {
 
         CannedBinaryTokenStream tokenStream;

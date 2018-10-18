@@ -93,4 +93,4 @@ whereWithInAndMultipleValuesAndNegation
 SELECT last_name l FROM "test_emp" WHERE emp_no NOT IN (10000, 10001, 10002, 999) ORDER BY emp_no LIMIT 5;
 
 whereWithInAndComplexFunctions
-SELECT last_name l FROM "test_emp" WHERE emp_no NOT IN (10000, abs(2 - 10003), 10002, 999) AND lcase(first_name) IN ('sumant', 'mary', 'Patricio', 'NoMatch') ORDER BY emp_no LIMIT 5;
+SELECT last_name l FROM "test_emp" WHERE emp_no NOT IN (10000, abs(2 - 10003), 10002, 999) AND lcase(first_name) IN ('sumant', 'mary', 'patricio', 'No''Match') ORDER BY emp_no LIMIT 5;

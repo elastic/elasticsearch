@@ -140,7 +140,7 @@ public class In extends NamedExpression implements ScriptWeaver {
                 rightParams.add(rightScript.params());
             } else {
                 if (e instanceof String) {
-                    sj.add(scriptPrefix + "'" + e + "'");
+                    sj.add(scriptPrefix + '"' + e + '"');
                 } else {
                     sj.add(scriptPrefix + e.toString());
                 }

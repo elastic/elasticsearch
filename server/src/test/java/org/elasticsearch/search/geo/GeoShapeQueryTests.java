@@ -22,6 +22,7 @@ package org.elasticsearch.search.geo;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -534,7 +535,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertEquals(1, response.getHits().getTotalHits());
     }
 
-    public void testIssue34418() throws IOException {
+    // Test for issue #34418
+    public void testEnvelopeSpanningDateline() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
             .startObject("doc")
                 .startObject("properties")
@@ -557,34 +559,45 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             "\"type\": \"Point\"\r\n" + "}}";
         client().index(new IndexRequest("test", "doc", "3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
 
-        final GeoShapeQueryBuilder query;
-
-        if (randomBoolean()) {
-            query = QueryBuilders.geoShapeQuery(
+        @SuppressWarnings("unchecked") CheckedSupplier<GeoShapeQueryBuilder, IOException> querySupplier = randomFrom(
+            () -> QueryBuilders.geoShapeQuery(
                 "geo",
                 new EnvelopeBuilder(new Coordinate(-21, 44), new Coordinate(-39, 9))
-            ).relation(ShapeRelation.WITHIN);
-        } else {
-            XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
-                .startObject("geo")
+            ).relation(ShapeRelation.WITHIN),
+            () -> {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                    .startObject("geo")
                     .startObject("shape")
-                        .field("type", "envelope")
-                        .startArray("coordinates")
-                            .startArray().value(-21).value(44).endArray()
-                            .startArray().value(-39).value(9).endArray()
-                        .endArray()
+                    .field("type", "envelope")
+                    .startArray("coordinates")
+                    .startArray().value(-21).value(44).endArray()
+                    .startArray().value(-39).value(9).endArray()
+                    .endArray()
                     .endObject()
                     .field("relation", "within")
-                .endObject()
-            .endObject();
-            try (XContentParser parser = createParser(builder)){
-                parser.nextToken();
-                query = GeoShapeQueryBuilder.fromXContent(parser);
+                    .endObject()
+                    .endObject();
+                try (XContentParser parser = createParser(builder)){
+                    parser.nextToken();
+                    return GeoShapeQueryBuilder.fromXContent(parser);
+                }
+            },
+            () -> {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                    .startObject("geo")
+                    .field("shape", "BBOX (-21, -39, 44, 9)")
+                    .field("relation", "within")
+                    .endObject()
+                    .endObject();
+                try (XContentParser parser = createParser(builder)){
+                    parser.nextToken();
+                    return GeoShapeQueryBuilder.fromXContent(parser);
+                }
             }
-        }
+        );
 
         SearchResponse response = client().prepareSearch("test")
-            .setQuery(query)
+            .setQuery(querySupplier.get())
             .execute().actionGet();
         assertEquals(2, response.getHits().getTotalHits());
         assertNotEquals("1", response.getHits().getAt(0).getId());

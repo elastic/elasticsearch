@@ -36,12 +36,16 @@ import com.ibm.icu.util.ULocale;
 
 /**
  * An ICU based collation token filter. There are two ways to configure collation:
- * <p>The first is simply specifying the locale (defaults to the default locale). The {@code language}
- * parameter is the lowercase two-letter ISO-639 code. An additional {@code country} and {@code variant}
+ * <p>The first is simply specifying the locale (defaults to the default
+ * locale). The {@code language} parameter is the lowercase two-letter
+ * ISO-639 code. An additional {@code country} and {@code variant}
  * can be provided.
- * <p>The second option is to specify collation rules as defined in the <a href="http://www.icu-project.org/userguide/Collate_Customization.html">
- * Collation customization</a> chapter in icu docs. The {@code rules} parameter can either embed the rules definition
- * in the settings or refer to an external location (preferable located under the {@code config} location, relative to it).
+ * <p>The second option is to specify collation rules as defined in the
+ * <a href="http://www.icu-project.org/userguide/Collate_Customization.html">
+ * Collation customization</a> chapter in icu docs. The {@code rules}
+ * parameter can either embed the rules definition
+ * in the settings or refer to an external location (preferable located under
+ * the {@code config} location, relative to it).
  */
 public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 

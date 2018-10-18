@@ -113,7 +113,7 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     public void testThatPutAutoFollowPatternsIsUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         final PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("leader");
+        request.setLeaderCluster("leader");
         request.setLeaderIndexPatterns(Collections.singletonList("*"));
         client().execute(
                 PutAutoFollowPatternAction.INSTANCE,

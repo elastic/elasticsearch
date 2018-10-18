@@ -771,9 +771,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         return uf;
                     }
 
-                    String normalizedName = functionRegistry.concreteFunctionName(name);
+                    String functionName = functionRegistry.resolveAlias(name);
 
-                    List<Function> list = getList(seen, normalizedName);
+                    List<Function> list = getList(seen, functionName);
                     // first try to resolve from seen functions
                     if (!list.isEmpty()) {
                         for (Function seenFunction : list) {
@@ -784,11 +784,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
 
                     // not seen before, use the registry
-                    if (!functionRegistry.functionExists(name)) {
-                        return uf.missing(normalizedName, functionRegistry.listFunctions());
+                    if (!functionRegistry.functionExists(functionName)) {
+                        return uf.missing(functionName, functionRegistry.listFunctions());
                     }
                     // TODO: look into Generator for significant terms, etc..
-                    FunctionDefinition def = functionRegistry.resolveFunction(normalizedName);
+                    FunctionDefinition def = functionRegistry.resolveFunction(functionName);
                     Function f = uf.buildResolved(timeZone, def);
 
                     list.add(f);

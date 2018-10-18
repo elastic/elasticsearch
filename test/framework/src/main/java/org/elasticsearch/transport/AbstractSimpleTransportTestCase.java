@@ -186,11 +186,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertNoPendingHandshakes(serviceB.getOriginalTransport());
         } finally {
             IOUtils.close(serviceA, serviceB, () -> {
-                try {
-                    terminate(threadPool);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+                terminate(threadPool);
             });
         }
     }

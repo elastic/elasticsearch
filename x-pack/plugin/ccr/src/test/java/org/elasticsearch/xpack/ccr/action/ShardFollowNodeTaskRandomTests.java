@@ -51,7 +51,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
     }
 
     private void startAndAssertAndStopTask(ShardFollowNodeTask task, TestRun testRun) throws Exception {
-        task.start(testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1);
+        task.start("uuid", testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1);
         assertBusy(() -> {
             ShardFollowNodeTaskStatus status = task.getStatus();
             assertThat(status.leaderGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
@@ -85,7 +85,6 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             10240,
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
-            "uuid",
             Collections.emptyMap()
         );
 
@@ -111,10 +110,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
             @Override
             protected void innerSendBulkShardOperationsRequest(
-                    List<Translog.Operation> operations,
-                    long maxSeqNoOfUpdates,
-                    Consumer<BulkShardOperationsResponse> handler,
-                    Consumer<Exception> errorHandler) {
+                String followerHistoryUUID, List<Translog.Operation> operations,
+                long maxSeqNoOfUpdates,
+                Consumer<BulkShardOperationsResponse> handler,
+                Consumer<Exception> errorHandler) {
                 for(Translog.Operation op : operations) {
                     tracker.markSeqNoAsCompleted(op.seqNo());
                 }

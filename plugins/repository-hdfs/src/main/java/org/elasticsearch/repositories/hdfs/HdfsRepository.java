@@ -82,7 +82,9 @@ public final class HdfsRepository extends BlobStoreRepository {
         uri = URI.create(uriSetting);
         if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
-                "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore", uri.getScheme(), uriSetting));
+                "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore",
+                uri.getScheme(),
+                uriSetting));
         }
         if (Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
@@ -134,7 +136,10 @@ public final class HdfsRepository extends BlobStoreRepository {
             }
         });
 
-        logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), path);
+        logger.debug("Using file-system [{}] for URI [{}], path [{}]",
+            fileContext.getDefaultFileSystem(),
+            fileContext.getDefaultFileSystem().getUri(),
+            path);
 
         try {
             return new HdfsBlobStore(fileContext, path, bufferSize, isReadOnly(), haEnabled);

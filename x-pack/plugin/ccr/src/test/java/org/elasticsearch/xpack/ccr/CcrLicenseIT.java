@@ -22,7 +22,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
-import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -88,21 +88,24 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
         latch.await();
     }
 
-    public void testThatCcrStatsAreUnavailableWithNonCompliantLicense() throws InterruptedException {
+    public void testThatFollowStatsAreUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
-        client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.StatsRequest(), new ActionListener<CcrStatsAction.StatsResponses>() {
-            @Override
-            public void onResponse(final CcrStatsAction.StatsResponses statsResponses) {
-                latch.countDown();
-                fail();
-            }
+        client().execute(
+                FollowStatsAction.INSTANCE,
+                new FollowStatsAction.StatsRequest(),
+                new ActionListener<FollowStatsAction.StatsResponses>() {
+                    @Override
+                    public void onResponse(final FollowStatsAction.StatsResponses statsResponses) {
+                        latch.countDown();
+                        fail();
+                    }
 
-            @Override
-            public void onFailure(final Exception e) {
-                assertNonCompliantLicense(e);
-                latch.countDown();
-            }
-        });
+                    @Override
+                    public void onFailure(final Exception e) {
+                        assertNonCompliantLicense(e);
+                        latch.countDown();
+                    }
+                });
 
         latch.await();
     }
@@ -110,7 +113,7 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     public void testThatPutAutoFollowPatternsIsUnavailableWithNonCompliantLicense() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         final PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("leader");
+        request.setLeaderCluster("leader");
         request.setLeaderIndexPatterns(Collections.singletonList("*"));
         client().execute(
                 PutAutoFollowPatternAction.INSTANCE,

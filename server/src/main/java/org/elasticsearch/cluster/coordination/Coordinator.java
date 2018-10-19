@@ -605,7 +605,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         synchronized (mutex) {
             if (mode == Mode.LEADER) {
                 final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
-                    .filter(coordinationState.get()::containsJoinVoteFor).collect(Collectors.toSet());
+                    .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
                 final ClusterState.VotingConfiguration newConfig = reconfigurator.reconfigure(
                     liveNodes, emptySet(), clusterState.getLastAcceptedConfiguration());
                 if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {

@@ -751,15 +751,15 @@ pipeline basis. Useful to find out which pipelines are used the most or spent th
 Appends one or more values to an existing array if the field already exists and it is an array.
 Converts a scalar to an array and appends one or more values to it if the field exists and it is a scalar.
 Creates an array containing the provided values if the field doesn't exist.
-Accepts a single value or an array of values. Settings that support <<accessing-template-fields,template values>> are annotated with ^T^.
+Accepts a single value or an array of values.
 
 [[append-options]]
 .Append Options
 [options="header"]
 |======
 | Name      | Required  | Default  | Description
-| `field`^T^   | yes       | -        | The field to be appended to
-| `value`^T^   | yes       | -        | The value to be appended
+| `field`  | yes       | -        | The field to be appended to. Supports <<accessing-template-fields,template values>>.
+| `value`  | yes       | -        | The value to be appended. Supports <<accessing-template-fields,template values>>.
 |======
 
 [source,js]
@@ -846,8 +846,7 @@ Parses dates from fields, and then uses the date or timestamp as the timestamp f
 By default, the date processor adds the parsed date as a new field called `@timestamp`. You can specify a
 different field by setting the `target_field` configuration parameter. Multiple date formats are supported
 as part of the same date processor definition. They will be used sequentially to attempt parsing the date field,
-in the same order they were defined as part of the processor definition. Settings that support
- <<accessing-template-fields,template values>> are annotated with ^T^.
+in the same order they were defined as part of the processor definition.
 
 [[date-options]]
 .Date options
@@ -857,8 +856,8 @@ in the same order they were defined as part of the processor definition. Setting
 | `field`                | yes       | -                   | The field to get the date from.
 | `target_field`         | no        | @timestamp          | The field that will hold the parsed date.
 | `formats`              | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
-| `timezone`^T^          | no        | UTC                 | The timezone to use when parsing the date.
-| `locale`^T^            | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days.
+| `timezone`        | no        | UTC                 | The timezone to use when parsing the date. Supports <<accessing-template-fields,template values>>.
+| `locale`          | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days. Supports <<accessing-template-fields,template values>>.
 |======
 
 Here is an example that adds the parsed date to the `timestamp` field based on the `initial_date` field:
@@ -918,7 +917,7 @@ First, this processor fetches the date or timestamp from a field in the document
 date formatting can be configured on how the field's value should be parsed into a date. Then this date,
 the provided index name prefix and the provided date rounding get formatted into a date math index name expression.
 Also here optionally date formatting can be specified on how the date should be formatted into a date math index name
-expression. Settings that support <<accessing-template-fields,template values>> are annotated with ^T^.
+expression.
 
 An example pipeline that points documents to a monthly index that starts with a `myindex-` prefix based on a
 date in the `date1` field:
@@ -1042,12 +1041,12 @@ understands this to mean `2016-04-01` as is explained in the <<date-math-index-n
 |======
 | Name                   | Required  | Default                      | Description
 | `field`                | yes       | -                            | The field to get the date or timestamp from.
-| `index_name_prefix`^T^ | no        | -                            | A prefix of the index name to be prepended before the printed date.
-| `date_rounding`^T^     | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
+| `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date. Supports <<accessing-template-fields,template values>>.
+| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second). Supports <<accessing-template-fields,template values>>.
 | `date_formats`         | no        | yyyy-MM-dd'T'HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
 | `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
-| `index_name_format`^T^ | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. An valid Joda pattern is expected here.
+| `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. An valid Joda pattern is expected here. Supports <<accessing-template-fields,template values>>.
 |======
 
 [[dissect-processor]]
@@ -1366,14 +1365,14 @@ a scalar field to an object field.
 === Fail Processor
 Raises an exception. This is useful for when
 you expect a pipeline to fail and want to relay a specific message
-to the requester. Settings that support <<accessing-template-fields,template values>> are annotated with ^T^.
+to the requester.
 
 [[fail-options]]
 .Fail Options
 [options="header"]
 |======
 | Name       | Required  | Default  | Description
-| `message`^T^  | yes       | -        | The error message thrown by the processor
+| `message`  | yes       | -        | The error message thrown by the processor. Supports <<accessing-template-fields,template values>>.
 |======
 
 [source,js]
@@ -2079,14 +2078,14 @@ Converts a string to its lowercase equivalent.
 
 [[remove-processor]]
 === Remove Processor
-Removes existing fields. If one field doesn't exist, an exception will be thrown. Settings that support <<accessing-template-fields,template values>> are annotated with ^T^.
+Removes existing fields. If one field doesn't exist, an exception will be thrown.
 
 [[remove-options]]
 .Remove Options
 [options="header"]
 |======
 | Name             | Required  | Default  | Description
-| `field`^T^       | yes       | -        | Fields to be removed
+| `field`          | yes       | -        | Fields to be removed. Supports <<accessing-template-fields,template values>>.
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
@@ -2117,15 +2116,14 @@ To remove multiple fields, you can use the following query:
 [[rename-processor]]
 === Rename Processor
 Renames an existing field. If the field doesn't exist or the new name is already used, an exception will be thrown.
-Settings that support <<accessing-template-fields,template values>> are annotated with ^T^.
 
 [[rename-options]]
 .Rename Options
 [options="header"]
 |======
 | Name              | Required  | Default  | Description
-| `field`^T^        | yes       | -        | The field to be renamed
-| `target_field`^T^ | yes       | -        | The new name of the field
+| `field`           | yes       | -        | The field to be renamed. Supports <<accessing-template-fields,template values>>.
+| `target_field`    | yes       | -        | The new name of the field. Supports <<accessing-template-fields,template values>>.
 | `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
@@ -2246,15 +2244,15 @@ and depending on the progress made, indexed into different indices.
 [[set-processor]]
 === Set Processor
 Sets one field and associates it with the specified value. If the field already exists,
-its value will be replaced with the provided one. Settings that support <<accessing-template-fields,template values>> are annotated with ^T^.
+its value will be replaced with the provided one.
 
 [[set-options]]
 .Set Options
 [options="header"]
 |======
 | Name       | Required  | Default  | Description
-| `field`^T^ | yes       | -        | The field to insert, upsert, or update
-| `value`^T^ | yes       | -        | The value to be set for the field
+| `field` | yes       | -        | The field to insert, upsert, or update. Supports <<accessing-template-fields,template values>>.
+| `value` | yes       | -        | The value to be set for the field. Supports <<accessing-template-fields,template values>>.
 | `override` | no        | true     | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
 |======
 

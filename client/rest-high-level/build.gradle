@@ -91,7 +91,7 @@ integTestCluster {
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
   setting 'xpack.ssl.certificate_authorities', 'testnode.crt'
   setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'
-  setting 'xpack.security.transport.ssl.truststore.password', 'testnode'
+  keystoreSetting 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
   setupCommand 'setupDummyUser',
           'bin/elasticsearch-users',
           'useradd', System.getProperty('tests.rest.cluster.username', 'test_user'),

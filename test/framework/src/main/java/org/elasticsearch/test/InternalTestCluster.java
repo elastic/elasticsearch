@@ -699,13 +699,6 @@ public final class InternalTestCluster extends TestCluster {
         return suffix;
     }
 
-    /**
-     * Returns the common node name prefix for this test cluster.
-     */
-    public String nodePrefix() {
-        return nodePrefix;
-    }
-
     @Override
     public synchronized Client client() {
         ensureOpen();
@@ -807,21 +800,6 @@ public final class InternalTestCluster extends TestCluster {
         return null; // can't happen
     }
 
-    /**
-     * Returns a random node that applies to the given predicate.
-     * The predicate can filter nodes based on the nodes settings.
-     * If all nodes are filtered out this method will return <code>null</code>
-     */
-    public synchronized Client client(final Predicate<Settings> filterPredicate) {
-        ensureOpen();
-        final NodeAndClient randomNodeAndClient =
-                getRandomNodeAndClient(nodeAndClient -> filterPredicate.test(nodeAndClient.node.settings()));
-        if (randomNodeAndClient != null) {
-            return randomNodeAndClient.client(random);
-        }
-        return null;
-    }
-
     @Override
     public synchronized void close() {
         if (this.open.compareAndSet(true, false)) {
@@ -917,7 +895,7 @@ public final class InternalTestCluster extends TestCluster {
             return clientWrapper.apply(transportClient);
         }
 
-        void resetClient() throws IOException {
+        void resetClient() {
             if (closed.get() == false) {
                 Releasables.close(nodeClient, transportClient);
                 nodeClient = null;
@@ -1396,7 +1374,7 @@ public final class InternalTestCluster extends TestCluster {
         });
     }
 
-    private void randomlyResetClients() throws IOException {
+    private void randomlyResetClients() {
         // only reset the clients on nightly tests, it causes heavy load...
         if (RandomizedTest.isNightly() && rarely(random)) {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
@@ -1663,20 +1641,6 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Restarts a random node in the cluster
-     */
-    public void restartRandomNode() throws Exception {
-        restartRandomNode(EMPTY_CALLBACK);
-    }
-
-    /**
-     * Restarts a random node in the cluster and calls the callback during restart.
-     */
-    public void restartRandomNode(RestartCallback callback) throws Exception {
-        restartRandomNode(nc -> true, callback);
-    }
-
-    /**
      * Restarts a random data node in the cluster
      */
     public void restartRandomDataNode() throws Exception {
@@ -1724,13 +1688,6 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void fullRestart() throws Exception {
         fullRestart(EMPTY_CALLBACK);
-    }
-
-    /**
-     * Restarts all nodes in a rolling restart fashion ie. only restarts on node a time.
-     */
-    public void rollingRestart() throws Exception {
-        rollingRestart(EMPTY_CALLBACK);
     }
 
     /**

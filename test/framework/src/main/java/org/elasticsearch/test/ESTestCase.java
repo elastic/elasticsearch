@@ -260,7 +260,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final Logger logger = Loggers.getLogger(getClass());
-    protected final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
     private ThreadContext threadContext;
 
     // -----------------------------------------------------------------
@@ -450,7 +449,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return "[" + name.substring(start + 1, end) + "] ";
     }
 
-    private void ensureNoWarnings() throws IOException {
+    private void ensureNoWarnings() {
         //Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
         //appropriate test
         try {
@@ -590,7 +589,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         checkIndexFailed = false;
     }
 
-    public final void ensureCheckIndexPassed() throws Exception {
+    public final void ensureCheckIndexPassed() {
         assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
     }
 
@@ -958,7 +957,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return breakSupplier.getAsBoolean();
     }
 
-    public static boolean terminate(ExecutorService... services) throws InterruptedException {
+    public static boolean terminate(ExecutorService... services) {
         boolean terminated = true;
         for (ExecutorService service : services) {
             if (service != null) {
@@ -968,7 +967,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return terminated;
     }
 
-    public static boolean terminate(ThreadPool threadPool) throws InterruptedException {
+    public static boolean terminate(ThreadPool threadPool) {
         return ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -1021,23 +1020,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static Settings.Builder settings(Version version) {
         Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
         return builder;
-    }
-
-    private static String threadName(Thread t) {
-        return "Thread[" +
-                "id=" + t.getId() +
-                ", name=" + t.getName() +
-                ", state=" + t.getState() +
-                ", group=" + groupName(t.getThreadGroup()) +
-                "]";
-    }
-
-    private static String groupName(ThreadGroup threadGroup) {
-        if (threadGroup == null) {
-            return "{null group}";
-        } else {
-            return threadGroup.getName();
-        }
     }
 
     /**

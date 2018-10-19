@@ -16,11 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.client;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.client.license.StartBasicRequest;
 import org.elasticsearch.client.license.StartBasicResponse;
+import org.elasticsearch.client.license.StartTrialRequest;
+import org.elasticsearch.client.license.StartTrialResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
@@ -31,7 +34,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -42,7 +44,13 @@ import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.empty;
 
-public class LicensingIT extends ESRestHighLevelClientTestCase {
+public class LicenseIT extends ESRestHighLevelClientTestCase {
+
+    /*
+     * todo there are some cases we can't test here because this gradle project starts the integ test cluster so that it'll generate
+     * a trial license at startup. we need to add a separate gradle project for the license-related tests so that we can start the
+     * integ test cluster without generating a trial license
+     */
 
     @BeforeClass
     public static void checkForSnapshot() {
@@ -53,6 +61,37 @@ public class LicensingIT extends ESRestHighLevelClientTestCase {
     @After
     public void rollbackToTrial() throws IOException {
         putTrialLicense();
+    }
+
+    public void testStartTrial() throws Exception {
+
+        // todo add case where we successfully start a trial - see note above
+
+        // case where we don't acknowledge trial license conditions
+        {
+            final StartTrialRequest request = new StartTrialRequest();
+            final StartTrialResponse response = highLevelClient().license().startTrial(request, RequestOptions.DEFAULT);
+
+            assertThat(response.isAcknowledged(), equalTo(false));
+            assertThat(response.isTrialWasStarted(), equalTo(false));
+            assertThat(response.getLicenseType(), nullValue());
+            assertThat(response.getErrorMessage(), equalTo("Operation failed: Needs acknowledgement."));
+            assertThat(response.getAcknowledgeHeader(), containsString("This API initiates a free 30-day trial for all platinum features"));
+            assertNotEmptyAcknowledgeMessages(response.getAcknowledgeMessages());
+        }
+
+        // case where we acknowledge, but the trial is already started at cluster startup
+        {
+            final StartTrialRequest request = new StartTrialRequest(true);
+            final StartTrialResponse response = highLevelClient().license().startTrial(request, RequestOptions.DEFAULT);
+
+            assertThat(response.isAcknowledged(), equalTo(true));
+            assertThat(response.isTrialWasStarted(), equalTo(false));
+            assertThat(response.getLicenseType(), nullValue());
+            assertThat(response.getErrorMessage(), equalTo("Operation failed: Trial was already activated."));
+            assertThat(response.getAcknowledgeHeader(), nullValue());
+            assertThat(response.getAcknowledgeMessages(), nullValue());
+        }
     }
 
     public static void putTrialLicense() throws IOException {
@@ -76,9 +115,9 @@ public class LicensingIT extends ESRestHighLevelClientTestCase {
                     .put("start_date_in_millis", "-1")
                     .put("signature",
                         "AAAABAAAAA3FXON9kGmNqmH+ASDWAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAcdKHL0BfM2uqTgT7BDuFxX5lb"
-                        + "t/bHDVJ421Wwgm5p3IMbw/W13iiAHz0hhDziF7acJbc/y65L+BKGtVC1gSSHeLDHaAD66VrjKxfc7VbGyJIAYBOdujf0rheurmaD3IcNo"
-                        + "/tWDjCdtTwrNziFkorsGcPadBP5Yc6csk3/Q74DlfiYweMBxLUfkBERwxwd5OQS6ujGvl/4bb8p5zXvOw8vMSaAXSXXnExP6lam+0934W"
-                        + "0kHvU7IGk+fCUjOaiSWKSoE4TEcAtVNYj/oRoRtfQ1KQGpdCHxTHs1BimdZaG0nBHDsvhYlVVLSvHN6QzqsHWgFDG6JJxhtU872oTRSUHA=")
+                            + "t/bHDVJ421Wwgm5p3IMbw/W13iiAHz0hhDziF7acJbc/y65L+BKGtVC1gSSHeLDHaAD66VrjKxfc7VbGyJIAYBOdujf0rheurmaD3IcNo"
+                            + "/tWDjCdtTwrNziFkorsGcPadBP5Yc6csk3/Q74DlfiYweMBxLUfkBERwxwd5OQS6ujGvl/4bb8p5zXvOw8vMSaAXSXXnExP6lam+0934W"
+                            + "0kHvU7IGk+fCUjOaiSWKSoE4TEcAtVNYj/oRoRtfQ1KQGpdCHxTHs1BimdZaG0nBHDsvhYlVVLSvHN6QzqsHWgFDG6JJxhtU872oTRSUHA=")
                     .immutableMap()))
             .endObject());
 
@@ -103,7 +142,7 @@ public class LicensingIT extends ESRestHighLevelClientTestCase {
             assertThat(response.getAcknowledgeMessage(),
                 containsString("This license update requires acknowledgement. " +
                     "To acknowledge the license, please read the following messages and call /start_basic again"));
-            assertNotEmptyAcknowledgeMessages(response);
+            assertNotEmptyAcknowledgeMessages(response.getAcknowledgeMessages());
         }
         // case where we acknowledge and the basic is started successfully
         {
@@ -117,12 +156,11 @@ public class LicensingIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    private static void assertNotEmptyAcknowledgeMessages(StartBasicResponse response) {
-        assertThat(response.getAcknowledgeMessages().entrySet(), not(empty()));
-        for (Map.Entry<String, String[]> entry : response.getAcknowledgeMessages().entrySet()) {
+    private static void assertNotEmptyAcknowledgeMessages(Map<String, String[]> acknowledgeMessages) {
+        assertThat(acknowledgeMessages.entrySet(), not(empty()));
+        for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
             assertThat(entry.getKey(), not(isEmptyOrNullString()));
-            final List<String> messages = Arrays.asList(entry.getValue());
-            for (String message : messages) {
+            for (String message : entry.getValue()) {
                 assertThat(message, not(isEmptyOrNullString()));
             }
         }

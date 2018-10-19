@@ -34,6 +34,24 @@ SELECT first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
 multipleColumnWithAliasWithAndWithoutAsWithLimit
 SELECT first_name f, last_name AS l FROM "test_emp" ORDER BY emp_no LIMIT 5;
 
+//
+// SELECT constant literals with FROM
+//
+
+constantWithLimit
+SELECT 3 FROM "test_emp" LIMIT 5;
+constantAndColumnWithLimit
+SELECT 3, first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
+constantComparisonWithLimit
+SELECT 1=1 AS bool FROM "test_emp" LIMIT 5;
+constantComparisonAndColumnWithLimit
+SELECT 1=1 AS bool, first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
+castWithLiteralWithFrom
+SELECT CAST(1 AS INT) AS constant FROM "test_emp" LIMIT 5;
+castWithLiteralAndColumnWithFrom
+SELECT CAST((CAST(languages AS BIT) OR CAST(1 AS BIT)) AS INT) AS bool FROM test_emp LIMIT 5;
+castWithColumnAndLiteralCombinedAndSelectColumnWithFrom
+SELECT CAST((CAST(languages AS BIT) OR CAST(1 AS BIT)) AS INT) AS bool, languages FROM test_emp ORDER BY languages LIMIT 5;
 
 //
 // SELECT with CAST

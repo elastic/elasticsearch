@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
@@ -223,7 +222,7 @@ class TopSuggestGroupDocsCollector extends TopSuggestDocsCollector {
         }
 
         if (suggestScoreDocs.length > 0) {
-            return new TopSuggestDocs(new TotalHits(suggestScoreDocs.length, TotalHits.Relation.EQUAL_TO), suggestScoreDocs);
+            return new TopSuggestDocs(suggestScoreDocs.length, suggestScoreDocs, suggestScoreDocs[0].score);
         } else {
             return TopSuggestDocs.EMPTY;
         }

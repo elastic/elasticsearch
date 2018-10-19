@@ -20,10 +20,15 @@
 package org.elasticsearch.index.termvectors;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.ReaderSlice;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -53,6 +58,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -98,7 +104,7 @@ public class TermVectorsService  {
         try (Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.type(), request.id(), uidTerm)
                 .version(request.version()).versionType(request.versionType()));
                 Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")) {
-            Fields topLevelFields = MultiFields.getFields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
+            Fields topLevelFields = xGetMultiFields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
             DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
@@ -151,6 +157,34 @@ public class TermVectorsService  {
         }
         return termVectorsResponse;
     }
+
+    /**
+     * @deprecated : removed in Lucene 8.0
+     * @todo switch to {@link MultiFields#getIndexedFields}
+     **/
+     private static Fields xGetMultiFields(IndexReader reader) throws IOException {
+         final List<LeafReaderContext> leaves = reader.leaves();
+         switch (leaves.size()) {
+             case 1:
+                 // already an atomic reader / reader with one leave
+                 return new LeafReaderFields(leaves.get(0).reader());
+             default:
+                 final List<Fields> fields = new ArrayList<>(leaves.size());
+                 final List<ReaderSlice> slices = new ArrayList<>(leaves.size());
+                 for (final LeafReaderContext ctx : leaves) {
+                     final LeafReader r = ctx.reader();
+                     final Fields f = new LeafReaderFields(r);
+                     fields.add(f);
+                     slices.add(new ReaderSlice(ctx.docBase, r.maxDoc(), fields.size()-1));
+                 }
+                 if (fields.size() == 1) {
+                     return fields.get(0);
+                 } else {
+                     return new MultiFields(fields.toArray(Fields.EMPTY_ARRAY),
+                         slices.toArray(ReaderSlice.EMPTY_ARRAY));
+                 }
+         }
+     }
 
     private static void handleFieldWildcards(IndexShard indexShard, TermVectorsRequest request) {
         Set<String> fieldNames = new HashSet<>();
@@ -270,7 +304,7 @@ public class TermVectorsService  {
             }
         }
         /* and read vectors from it */
-        return MultiFields.getFields(index.createSearcher().getIndexReader());
+        return xGetMultiFields(index.createSearcher().getIndexReader());
     }
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
@@ -361,4 +395,37 @@ public class TermVectorsService  {
         }
     }
 
+    /**
+     * @deprecated this is removed in Lucene 8.0
+     * @todo switch to {@link MultiFields#getIndexedFields}
+     */
+    private static class LeafReaderFields extends Fields {
+        private final LeafReader leafReader;
+        private final List<String> indexedFields;
+        LeafReaderFields(LeafReader leafReader) {
+            this.leafReader = leafReader;
+            this.indexedFields = new ArrayList<>();
+            for (FieldInfo fieldInfo : leafReader.getFieldInfos()) {
+                if (fieldInfo.getIndexOptions() != IndexOptions.NONE) {
+                    indexedFields.add(fieldInfo.name);
+                }
+            }
+            Collections.sort(indexedFields);
+        }
+
+        @Override
+        public Iterator<String> iterator() {
+            return Collections.unmodifiableList(indexedFields).iterator();
+        }
+
+        @Override
+        public int size() {
+            return indexedFields.size();
+        }
+
+        @Override
+        public Terms terms(String field) throws IOException {
+            return leafReader.terms(field);
+        }
+  }
 }

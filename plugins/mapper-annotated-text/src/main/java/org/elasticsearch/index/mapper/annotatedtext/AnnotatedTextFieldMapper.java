@@ -69,6 +69,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -365,41 +366,48 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-            if(components instanceof AnnotatedHighlighterTokenStreamComponents){
-                // already wrapped.
-                return components;
-            }
+//            if(components instanceof AnnotatedHighlighterTokenStreamComponents){
+//                // already wrapped.
+//                return components;
+//            }
             AnnotationsInjector injector = new AnnotationsInjector(components.getTokenStream());
-            return new AnnotatedHighlighterTokenStreamComponents(components.getTokenizer(), injector, this.annotations);
+            AtomicInteger readerNum = new AtomicInteger(0);
+            return new TokenStreamComponents(r -> {
+                String plainText = readToString(r);
+                AnnotatedText at = this.annotations[readerNum.getAndIncrement()];
+                assert at.textMinusMarkup.equals(plainText);
+                injector.setAnnotations(at);
+                components.getSource().accept(new StringReader(at.textMinusMarkup));
+            }, components.getTokenStream());
         }        
     }
-    private static final class AnnotatedHighlighterTokenStreamComponents extends TokenStreamComponents{
-
-        private AnnotationsInjector annotationsInjector;
-        private AnnotatedText[] annotations;
-        int readerNum = 0;
-
-        AnnotatedHighlighterTokenStreamComponents(Tokenizer source, AnnotationsInjector annotationsFilter,
-                AnnotatedText[] annotations) {
-            super(source, annotationsFilter);
-            this.annotationsInjector = annotationsFilter;
-            this.annotations = annotations;            
-        }
-
-        @Override
-        protected void setReader(Reader reader) {
-            String plainText = readToString(reader);
-            AnnotatedText at = this.annotations[readerNum++];
-            assert at.textMinusMarkup.equals(plainText);
-            // This code is reliant on the behaviour of highlighter logic - it 
-            // takes plain text multi-value fields and then calls the same analyzer 
-            // for each field value in turn. This class has cached the annotations
-            // associated with each plain-text value and are arranged in the same order
-            annotationsInjector.setAnnotations(at);
-            super.setReader(new StringReader(at.textMinusMarkup));  
-        }
-               
-    }    
+//    private static final class AnnotatedHighlighterTokenStreamComponents {
+//        private TokenStreamComponents tokenStreamComponents;
+//        private AnnotationsInjector annotationsInjector;
+//        private AnnotatedText[] annotations;
+//        int readerNum = 0;
+//
+//        AnnotatedHighlighterTokenStreamComponents(Tokenizer source, AnnotationsInjector annotationsFilter,
+//                AnnotatedText[] annotations) {
+//            super(source, annotationsFilter);
+//            this.annotationsInjector = annotationsFilter;
+//            this.annotations = annotations;
+//        }
+//
+//        @Override
+//        protected void setReader(Reader reader) {
+//            String plainText = readToString(reader);
+//            AnnotatedText at = this.annotations[readerNum++];
+//            assert at.textMinusMarkup.equals(plainText);
+//            // This code is reliant on the behaviour of highlighter logic - it
+//            // takes plain text multi-value fields and then calls the same analyzer
+//            // for each field value in turn. This class has cached the annotations
+//            // associated with each plain-text value and are arranged in the same order
+//            annotationsInjector.setAnnotations(at);
+//            super.setReader(new StringReader(at.textMinusMarkup));
+//        }
+//
+//    }
     
     
     public static final class AnnotationAnalyzerWrapper extends AnalyzerWrapper {
@@ -427,36 +435,40 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-            if(components instanceof AnnotatedTokenStreamComponents){
-                // already wrapped.
-                return components;
-            }
+//            if(components instanceof AnnotatedTokenStreamComponents){
+//                // already wrapped.
+//                return components;
+//            }
             AnnotationsInjector injector = new AnnotationsInjector(components.getTokenStream());
-            return new AnnotatedTokenStreamComponents(components.getTokenizer(), injector);
+            return new TokenStreamComponents(r -> {
+                AnnotatedText annotations = AnnotatedText.parse(readToString(r));
+                injector.setAnnotations(annotations);
+                components.getSource().accept(new StringReader(annotations.textMinusMarkup));
+            }, components.getTokenStream());
         }
       }
     
     
-    //This Analyzer is not "wrappable" because of a limitation in Lucene https://issues.apache.org/jira/browse/LUCENE-8352    
-    private static final class AnnotatedTokenStreamComponents extends TokenStreamComponents{
-        private AnnotationsInjector annotationsInjector;
-
-        AnnotatedTokenStreamComponents(Tokenizer source, AnnotationsInjector annotationsInjector) {
-            super(source, annotationsInjector);
-            this.annotationsInjector = annotationsInjector;
-        }
-
-        @Override
-        protected void setReader(Reader reader) {
-            // Sneaky code to change the content downstream components will parse.
-            // Replace the marked-up content Reader with a plain text Reader and prime the 
-            // annotations injector with the AnnotatedTokens that need to be injected 
-            // as plain-text parsing progresses.
-            AnnotatedText annotations = AnnotatedText.parse(readToString(reader));
-            annotationsInjector.setAnnotations(annotations);
-            super.setReader(new StringReader(annotations.textMinusMarkup));
-        }
-    }
+//    //This Analyzer is not "wrappable" because of a limitation in Lucene https://issues.apache.org/jira/browse/LUCENE-8352
+//    private static final class AnnotatedTokenStreamComponents extends TokenStreamComponents{
+//        private AnnotationsInjector annotationsInjector;
+//
+//        AnnotatedTokenStreamComponents(Tokenizer source, AnnotationsInjector annotationsInjector) {
+//            super(source, annotationsInjector);
+//            this.annotationsInjector = annotationsInjector;
+//        }
+//
+//        @Override
+//        protected void setReader(Reader reader) {
+//            // Sneaky code to change the content downstream components will parse.
+//            // Replace the marked-up content Reader with a plain text Reader and prime the
+//            // annotations injector with the AnnotatedTokens that need to be injected
+//            // as plain-text parsing progresses.
+//            AnnotatedText annotations = AnnotatedText.parse(readToString(reader));
+//            annotationsInjector.setAnnotations(annotations);
+//            super.setReader(new StringReader(annotations.textMinusMarkup));
+//        }
+//    }
     
     static String readToString(Reader reader) {       
         char[] arr = new char[8 * 1024];

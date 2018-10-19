@@ -193,7 +193,7 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, false);
         assertTrue(translation.query instanceof ScriptQuery);
         ScriptQuery sq = (ScriptQuery) translation.query;
-        assertEquals("params.a0==10 || params.a0==20", sq.script().toString());
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(params.a0==10 || params.a0==20)", sq.script().toString());
         assertThat(sq.script().params().toString(), startsWith("[{a=MAX(int){a->"));
     }
 }

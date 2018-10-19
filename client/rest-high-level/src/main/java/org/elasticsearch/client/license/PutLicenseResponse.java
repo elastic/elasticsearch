@@ -24,7 +24,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.common.ProtocolUtils;
+import org.elasticsearch.client.common.ProtocolUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;

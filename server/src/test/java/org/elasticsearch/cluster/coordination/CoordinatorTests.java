@@ -1035,10 +1035,10 @@ public class CoordinatorTests extends ESTestCase {
         // TODO remove this when lag detection is implemented
         void fixLag() {
             final ClusterNode leader = getAnyLeader();
-            final long leaderVersion = leader.coordinator.getApplierState().version();
+            final long leaderVersion = leader.getLastAppliedClusterState().version();
             final long minVersion = clusterNodes.stream()
                 .filter(n -> isConnectedPair(n, leader))
-                .map(n -> n.coordinator.getApplierState().version()).min(Long::compare).orElse(Long.MIN_VALUE);
+                .map(n -> n.getLastAppliedClusterState().version()).min(Long::compare).orElse(Long.MIN_VALUE);
             assert minVersion >= 0;
             if (minVersion < leaderVersion) {
                 logger.info("--> fixLag publishing a value to fix lag, leaderVersion={}, minVersion={}", leaderVersion, minVersion);

@@ -22,6 +22,17 @@ it excludes (due to `-`) all indices that start with `l`.
 This notation is very convenient and powerful as it allows both inclusion and exclusion, depending on
 the target naming convention.
 
+The same kind of patterns can also be used to query multiple indices or tables.
+
+For example:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[fromTablePatternQuoted]
+----
+
+NOTE: There is the restriction that all resolved concrete tables have the exact same mapping.
+
 * SQL `LIKE` notation
 
 The common `LIKE` statement (including escaping if needed) to match a wildcard pattern, based on one `_`

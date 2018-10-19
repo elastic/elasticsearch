@@ -70,7 +70,7 @@ public class RandomScoreFunction extends ScoreFunction {
             public double score(int docId, float subQueryScore) throws IOException {
                 int hash;
                 if (values == null) {
-                    hash = BitMixer.mix(docId, saltedSeed);
+                    hash = BitMixer.mix(ctx.docBase + docId, saltedSeed);
                 } else if (values.advanceExact(docId)) {
                     hash = StringHelper.murmurhash3_x86_32(values.nextValue(), saltedSeed);
                 } else {

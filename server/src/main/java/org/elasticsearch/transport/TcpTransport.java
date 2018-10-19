@@ -222,7 +222,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
-        this.transportLogger = new TransportLogger(settings);
+        this.transportLogger = new TransportLogger();
 
         final Settings defaultFeatures = DEFAULT_FEATURES_SETTING.get(settings);
         if (defaultFeatures == null) {
@@ -1087,7 +1087,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param bytesReference the bytes available to consume
      * @return the number of bytes consumed
      * @throws StreamCorruptedException if the message header format is not recognized
-     * @throws TcpTransport.HttpOnTransportException if the message header appears to be a HTTP message
+     * @throws TcpTransport.HttpOnTransportException if the message header appears to be an HTTP message
      * @throws IllegalArgumentException if the message length is greater that the maximum allowed frame size.
      *                                  This is dependent on the available memory.
      */
@@ -1109,7 +1109,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param networkBytes the will be read
      * @return the message decoded
      * @throws StreamCorruptedException if the message header format is not recognized
-     * @throws TcpTransport.HttpOnTransportException if the message header appears to be a HTTP message
+     * @throws TcpTransport.HttpOnTransportException if the message header appears to be an HTTP message
      * @throws IllegalArgumentException if the message length is greater that the maximum allowed frame size.
      *                                  This is dependent on the available memory.
      */
@@ -1136,7 +1136,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      * @param networkBytes the will be read
      * @return the length of the message
      * @throws StreamCorruptedException if the message header format is not recognized
-     * @throws TcpTransport.HttpOnTransportException if the message header appears to be a HTTP message
+     * @throws TcpTransport.HttpOnTransportException if the message header appears to be an HTTP message
      * @throws IllegalArgumentException if the message length is greater that the maximum allowed frame size.
      *                                  This is dependent on the available memory.
      */
@@ -1151,7 +1151,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private static int readHeaderBuffer(BytesReference headerBuffer) throws IOException {
         if (headerBuffer.get(0) != 'E' || headerBuffer.get(1) != 'S') {
             if (appearsToBeHTTP(headerBuffer)) {
-                throw new TcpTransport.HttpOnTransportException("This is not a HTTP port");
+                throw new TcpTransport.HttpOnTransportException("This is not an HTTP port");
             }
 
             throw new StreamCorruptedException("invalid internal transport message format, got ("
@@ -1492,7 +1492,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout)
+    public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout)
         throws IOException, InterruptedException {
         numHandshakes.inc();
         final long requestId = responseHandlers.newRequestId();

@@ -14,6 +14,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.io.IOException;
 
@@ -64,16 +65,14 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
      * sent to the requestor
      */
     protected Exception checkFeatureAvailable(RestRequest request) {
-        if (licenseState.isSecurityAvailable() == false) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+            return new IllegalStateException("Security is not enabled but a security rest handler is registered");
+        } else if (licenseState.isSecurityAvailable() == false) {
             return LicenseUtils.newComplianceException(XPackField.SECURITY);
-        } else if (licenseState.isSecurityEnabled() == false) {
-            if (licenseState.isTrialLicense()) {
-                return new ElasticsearchException("Security must be explicitly enabled when using a trial license. " +
-                        "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
-                        "and restart the node.");
-            } else {
-                return new IllegalStateException("Security is not enabled but a security rest handler is registered");
-            }
+        } else if (licenseState.isSecurityDisabledByTrialLicense()) {
+            return new ElasticsearchException("Security must be explicitly enabled when using a trial license. " +
+                    "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
+                    "and restart the node.");
         } else {
             return null;
         }

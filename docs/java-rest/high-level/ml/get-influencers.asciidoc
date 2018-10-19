@@ -1,18 +1,23 @@
-[[java-rest-high-x-pack-ml-get-influencers]]
+--
+:api: get-influencers
+:request: GetInfluencersRequest
+:response: GetInfluencersResponse
+--
+[id="{upid}-{api}"]
 === Get Influencers API
 
 The Get Influencers API retrieves one or more influencer results.
-It accepts a `GetInfluencersRequest` object and responds
-with a `GetInfluencersResponse` object.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
 
-[[java-rest-high-x-pack-ml-get-influencers-request]]
+[id="{upid}-{api}-request"]
 ==== Get Influencers Request
 
-A `GetInfluencersRequest` object gets created with an existing non-null `jobId`.
+A +{request}+ object gets created with an existing non-null `jobId`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing an existing `jobId`
 
@@ -21,92 +26,57 @@ The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-desc]
+include-tagged::{doc-tests-file}[{api}-desc]
 --------------------------------------------------
 <1> If `true`, the influencers are sorted in descending order. Defaults to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-end]
+include-tagged::{doc-tests-file}[{api}-end]
 --------------------------------------------------
 <1> Influencers with timestamps earlier than this time will be returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-exclude-interim]
+include-tagged::{doc-tests-file}[{api}-exclude-interim]
 --------------------------------------------------
 <1> If `true`, interim results will be excluded. Defaults to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-influencer-score]
+include-tagged::{doc-tests-file}[{api}-influencer-score]
 --------------------------------------------------
 <1> Influencers with influencer_score greater or equal than this value will be returned.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-page]
+include-tagged::{doc-tests-file}[{api}-page]
 --------------------------------------------------
 <1> The page parameters `from` and `size`. `from` specifies the number of influencers to skip.
 `size` specifies the maximum number of influencers to get. Defaults to `0` and `100` respectively.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-sort]
+include-tagged::{doc-tests-file}[{api}-sort]
 --------------------------------------------------
 <1> The field to sort influencers on. Defaults to `influencer_score`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-start]
+include-tagged::{doc-tests-file}[{api}-start]
 --------------------------------------------------
 <1> Influencers with timestamps on or after this time will be returned.
 
-[[java-rest-high-x-pack-ml-get-influencers-execution]]
-==== Execution
+include::../execution.asciidoc[]
 
-The request can be executed through the `MachineLearningClient` contained
-in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-execute]
---------------------------------------------------
-
-[[java-rest-high-x-pack-ml-get-influencers-execution-async]]
-==== Asynchronous Execution
-
-The request can also be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-execute-async]
---------------------------------------------------
-<1> The `GetInfluencersRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back with the `onResponse` method
-if the execution is successful or the `onFailure` method if the execution
-failed.
-
-A typical listener for `GetInfluencersResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-listener]
---------------------------------------------------
-<1> `onResponse` is called back when the action is completed successfully
-<2> `onFailure` is called back when some unexpected error occurs
-
-[[java-rest-high-snapshot-ml-get-influencers-response]]
+[id="{upid}-{api}-response"]
 ==== Get Influencers Response
 
-The returned `GetInfluencersResponse` contains the requested influencers:
+The returned +{response}+ contains the requested influencers:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-get-influencers-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> The count of influencers that were matched
 <2> The influencers retrieved

@@ -30,6 +30,7 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
@@ -591,7 +592,8 @@ public class Lucene {
             out.writeString(sortField.getField());
         }
         if (sortField.getComparatorSource() != null) {
-            IndexFieldData.XFieldComparatorSource comparatorSource = (IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource();
+            IndexFieldData.XFieldComparatorSource comparatorSource =
+                    (IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource();
             writeSortType(out, comparatorSource.reducedType());
             writeMissingValue(out, comparatorSource.missingValue(sortField.getReverse()));
         } else {
@@ -726,6 +728,9 @@ public class Lucene {
         } else if (reader instanceof FilterLeafReader) {
             final FilterLeafReader fReader = (FilterLeafReader) reader;
             return segmentReader(FilterLeafReader.unwrap(fReader));
+        } else if (reader instanceof FilterCodecReader) {
+            final FilterCodecReader fReader = (FilterCodecReader) reader;
+            return segmentReader(FilterCodecReader.unwrap(fReader));
         }
         // hard fail - we can't get a SegmentReader
         throw new IllegalStateException("Can not extract segment reader from given index reader [" + reader + "]");
@@ -743,31 +748,6 @@ public class Lucene {
             }
             return defaultValue;
         }
-    }
-
-    /**
-     * Return a Scorer that throws an ElasticsearchIllegalStateException
-     * on all operations with the given message.
-     */
-    public static Scorer illegalScorer(final String message) {
-        return new Scorer(null) {
-            @Override
-            public float score() throws IOException {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public int docID() {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public DocIdSetIterator iterator() {
-                throw new IllegalStateException(message);
-            }
-            @Override
-            public float getMaxScore(int upTo) throws IOException {
-                throw new IllegalStateException(message);
-            }
-        };
     }
 
     private static final class CommitPoint extends IndexCommit {

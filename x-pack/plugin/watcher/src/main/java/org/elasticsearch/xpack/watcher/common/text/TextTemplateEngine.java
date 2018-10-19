@@ -35,6 +35,10 @@ public class TextTemplateEngine extends AbstractComponent {
         String mediaType = compileParams(detectContentType(template));
         template = trimContentType(textTemplate);
 
+        if (textTemplate.isUsingMustache() == false) {
+            return template;
+        }
+
         Map<String, Object> mergedModel = new HashMap<>();
         if (textTemplate.getParams() != null) {
             mergedModel.putAll(textTemplate.getParams());

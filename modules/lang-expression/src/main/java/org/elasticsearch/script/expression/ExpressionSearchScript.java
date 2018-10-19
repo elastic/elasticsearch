@@ -25,7 +25,6 @@ import org.apache.lucene.expressions.SimpleBindings;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
-import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.SearchScript;
 
@@ -42,8 +41,6 @@ class ExpressionSearchScript implements SearchScript.LeafFactory {
     final DoubleValuesSource source;
     final ReplaceableConstDoubleValueSource specialValue; // _value
     final boolean needsScores;
-    Scorer scorer;
-    int docid;
 
     ExpressionSearchScript(Expression e, SimpleBindings b, ReplaceableConstDoubleValueSource v, boolean needsScores) {
         exprScript = e;
@@ -77,9 +74,6 @@ class ExpressionSearchScript implements SearchScript.LeafFactory {
 
             @Override
             public Object run() { return Double.valueOf(runAsDouble()); }
-
-            @Override
-            public long runAsLong() { return (long)runAsDouble(); }
 
             @Override
             public double runAsDouble() {

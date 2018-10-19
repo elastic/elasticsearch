@@ -48,6 +48,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.DayOfWeek;
@@ -264,6 +265,36 @@ public abstract class BaseXContentTestCase extends ESTestCase {
                 .startObject()
                     .array("short", new short[]{Short.MAX_VALUE, Short.MIN_VALUE})
                 .endObject());
+    }
+
+    public void testBigIntegers() throws Exception {
+        assertResult("{'bigint':null}", () -> builder().startObject().field("bigint", (BigInteger) null).endObject());
+        assertResult("{'bigint':[]}", () -> builder().startObject().array("bigint", new BigInteger[]{}).endObject());
+
+        BigInteger bigInteger = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
+        String result = "{'bigint':" + bigInteger.toString() + "}";
+        assertResult(result, () -> builder().startObject().field("bigint", bigInteger).endObject());
+
+        result = "{'bigint':[" + bigInteger.toString() + "," + bigInteger.toString() + "," + bigInteger.toString() +"]}";
+        assertResult(result, () -> builder()
+            .startObject()
+            .array("bigint", bigInteger, bigInteger, bigInteger)
+            .endObject());
+    }
+
+    public void testBigDecimals() throws Exception {
+        assertResult("{'bigdecimal':null}", () -> builder().startObject().field("bigdecimal", (BigInteger) null).endObject());
+        assertResult("{'bigdecimal':[]}", () -> builder().startObject().array("bigdecimal", new BigInteger[]{}).endObject());
+
+        BigDecimal bigDecimal = new BigDecimal("234.43");
+        String result = "{'bigdecimal':" + bigDecimal.toString() + "}";
+        assertResult(result, () -> builder().startObject().field("bigdecimal", bigDecimal).endObject());
+
+        result = "{'bigdecimal':[" + bigDecimal.toString() + "," + bigDecimal.toString() + "," + bigDecimal.toString() +"]}";
+        assertResult(result, () -> builder()
+            .startObject()
+            .array("bigdecimal", bigDecimal, bigDecimal, bigDecimal)
+            .endObject());
     }
 
     public void testStrings() throws IOException {
@@ -1107,9 +1138,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testChecksForDuplicates() throws Exception {
-        assumeTrue("Test only makes sense if XContent parser has strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-
         XContentBuilder builder = builder()
                 .startObject()
                     .field("key", 1)

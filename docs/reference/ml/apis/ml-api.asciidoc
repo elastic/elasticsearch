@@ -70,6 +70,12 @@ machine learning APIs and in advanced job configuration options in Kibana.
 * <<ml-get-influencer,Get influencers>>
 * <<ml-get-record,Get records>>
 
+[float]
+[[ml-api-file-structure-endpoint]]
+=== File Structure
+
+* <<ml-find-file-structure,Find file structure>>
+
 //ADD
 include::post-calendar-event.asciidoc[]
 include::put-calendar-job.asciidoc[]
@@ -89,6 +95,8 @@ include::delete-forecast.asciidoc[]
 include::delete-job.asciidoc[]
 include::delete-calendar-job.asciidoc[]
 include::delete-snapshot.asciidoc[]
+//FIND
+include::find-file-structure.asciidoc[]
 //FLUSH
 include::flush-job.asciidoc[]
 //FORECAST
@@ -126,3 +134,4 @@ include::update-snapshot.asciidoc[]
 //VALIDATE
 //include::validate-detector.asciidoc[]
 //include::validate-job.asciidoc[]
+

@@ -33,6 +33,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -95,11 +96,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -477,6 +477,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
+        internalEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
         internalEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
         return internalEngine;
     }
@@ -502,7 +503,7 @@ public abstract class EngineTestCase extends ESTestCase {
             @Nullable final ToLongBiFunction<Engine, Engine.Operation> seqNoForOperation,
             final EngineConfig config) {
         if (localCheckpointTrackerSupplier == null) {
-            return new InternalEngine(config) {
+            return new InternalTestEngine(config) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?
@@ -518,7 +519,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             };
         } else {
-            return new InternalEngine(config, localCheckpointTrackerSupplier) {
+            return new InternalTestEngine(config, localCheckpointTrackerSupplier) {
                 @Override
                 IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
                     return (indexWriterFactory != null) ?
@@ -574,11 +575,11 @@ public abstract class EngineTestCase extends ESTestCase {
         return new BytesArray(string.getBytes(Charset.defaultCharset()));
     }
 
-    protected static Term newUid(String id) {
+    public static Term newUid(String id) {
         return new Term("_id", Uid.encodeId(id));
     }
 
-    protected Term newUid(ParsedDocument doc) {
+    public static Term newUid(ParsedDocument doc) {
         return newUid(doc.id());
     }
 
@@ -642,7 +643,7 @@ public abstract class EngineTestCase extends ESTestCase {
                     throw new UnsupportedOperationException("unknown version type: " + versionType);
             }
             if (randomBoolean()) {
-                op = new Engine.Index(id, testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), B_1, null),
+                op = new Engine.Index(id, testParsedDocument(docId, null, testDocumentWithTextField(valuePrefix + i), SOURCE, null),
                     forReplica && i >= startWithSeqNo ? i * 2 : SequenceNumbers.UNASSIGNED_SEQ_NO,
                     forReplica && i >= startWithSeqNo && incrementTermWhenIntroducingSeqNo ? primaryTerm + 1 : primaryTerm,
                     version,
@@ -733,7 +734,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    protected void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
+    public static void concurrentlyApplyOps(List<Engine.Operation> ops, InternalEngine engine) throws InterruptedException {
         Thread[] thread = new Thread[randomIntBetween(3, 5)];
         CountDownLatch startGun = new CountDownLatch(thread.length);
         AtomicInteger offset = new AtomicInteger(-1);
@@ -775,26 +776,40 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     /**
-     * Gets all docId from the given engine.
+     * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
-    public static Set<String> getDocIds(Engine engine, boolean refresh) throws IOException {
+    public static List<DocIdSeqNoAndTerm> getDocIds(Engine engine, boolean refresh) throws IOException {
         if (refresh) {
             engine.refresh("test_get_doc_ids");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids")) {
-            Set<String> ids = new HashSet<>();
+            List<DocIdSeqNoAndTerm> docs = new ArrayList<>();
             for (LeafReaderContext leafContext : searcher.reader().leaves()) {
                 LeafReader reader = leafContext.reader();
+                NumericDocValues seqNoDocValues = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
                 Bits liveDocs = reader.getLiveDocs();
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
+                        if (primaryTermDocValues.advanceExact(i) == false) {
+                            // We have to skip non-root docs because its _id field is not stored (indexed only).
+                            continue;
+                        }
+                        final long primaryTerm = primaryTermDocValues.longValue();
                         Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
                         BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
-                        ids.add(Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length)));
+                        String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
+                        if (seqNoDocValues.advanceExact(i) == false) {
+                            throw new AssertionError("seqNoDocValues not found for doc[" + i + "] id[" + id + "]");
+                        }
+                        final long seqNo = seqNoDocValues.longValue();
+                        docs.add(new DocIdSeqNoAndTerm(id, seqNo, primaryTerm));
                     }
                 }
             }
-            return ids;
+            docs.sort(Comparator.comparing(DocIdSeqNoAndTerm::getId)
+                .thenComparingLong(DocIdSeqNoAndTerm::getSeqNo).thenComparingLong(DocIdSeqNoAndTerm::getPrimaryTerm));
+            return docs;
         }
     }
 
@@ -818,7 +833,8 @@ public abstract class EngineTestCase extends ESTestCase {
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
     public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        if (mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false) {
+        if (mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
+            || (engine instanceof InternalEngine) == false) {
             return;
         }
         final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
@@ -860,7 +876,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    protected MapperService createMapperService(String type) throws IOException {
+    public static MapperService createMapperService(String type) throws IOException {
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
             .settings(Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 
 import java.util.Objects;
@@ -39,8 +39,12 @@ public class GroupByScriptKey extends GroupByKey {
                 .order(direction().asOrder())
                 .missingBucket(true);
 
-        if (script.outputType().isNumeric()) {
-            builder.valueType(ValueType.NUMBER);
+        if (script.outputType().isInteger) {
+            builder.valueType(ValueType.LONG);
+        } else if (script.outputType().isRational) {
+            builder.valueType(ValueType.DOUBLE);
+        } else if (script.outputType().isString()) {
+            builder.valueType(ValueType.STRING);
         }
 
         return builder;

@@ -27,11 +27,11 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.QueryUtils;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
@@ -99,7 +99,7 @@ public class DocValuesSliceQueryTests extends ESTestCase {
                 public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
                     return new LeafCollector() {
                         @Override
-                        public void setScorer(Scorer scorer) throws IOException {
+                        public void setScorer(Scorable scorer) throws IOException {
                         }
 
                         @Override

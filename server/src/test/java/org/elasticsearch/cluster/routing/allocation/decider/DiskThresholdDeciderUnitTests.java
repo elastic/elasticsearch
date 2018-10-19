@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -79,7 +80,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                         .add(node_0)
@@ -108,6 +110,61 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertThat(((Decision.Single) decision).getExplanation(), containsString(
             "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=90%], using more " +
             "disk space than the maximum allowed [90.0%]"));
+    }
+
+    public void testCannotAllocateDueToLackOfDiskResources() {
+        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
+
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
+
+        final Index index = metaData.index("test").getIndex();
+
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), true, EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        DiscoveryNode node_0 = new DiscoveryNode("node_0", buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
+        DiscoveryNode node_1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Collections.emptyMap(),
+            new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
+
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsNew(metaData.index("test"))
+            .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData).routingTable(routingTable).build();
+
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+            .add(node_0)
+            .add(node_1)
+        ).build();
+
+        // actual test -- after all that bloat :)
+
+        ImmutableOpenMap.Builder<String, DiskUsage> leastAvailableUsages = ImmutableOpenMap.builder();
+        leastAvailableUsages.put("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
+        ImmutableOpenMap.Builder<String, DiskUsage> mostAvailableUsage = ImmutableOpenMap.builder();
+        final int freeBytes = randomIntBetween(20, 100);
+        mostAvailableUsage.put("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, freeBytes));
+
+        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        // way bigger than available space
+        final long shardSize = randomIntBetween(110, 1000);
+        shardSizes.put("[test][0][p]", shardSize);
+        ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages.build(), mostAvailableUsage.build(), shardSizes.build(), ImmutableOpenMap.of());
+        RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Settings.EMPTY, Collections.singleton(decider)),
+            clusterState.getRoutingNodes(), clusterState, clusterInfo, System.nanoTime());
+        allocation.debugDecision(true);
+        Decision decision = decider.canAllocate(test_0, new RoutingNode("node_0", node_0), allocation);
+        assertEquals(Decision.Type.NO, decision.type());
+
+        assertThat(decision.getExplanation(), containsString(
+            "allocating the shard to this node will bring the node above the high watermark cluster setting "
+                +"[cluster.routing.allocation.disk.watermark.high=90%] "
+                + "and cause it to have less than the minimum required [0b] of free space "
+                + "(free: [" + freeBytes + "b], estimated shard size: [" + shardSize + "b])"));
     }
 
     public void testCanRemainUsesLeastAvailableSpace() {

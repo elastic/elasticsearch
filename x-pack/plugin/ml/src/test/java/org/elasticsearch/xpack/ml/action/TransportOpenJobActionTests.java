@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -66,6 +67,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -77,14 +79,14 @@ public class TransportOpenJobActionTests extends ESTestCase {
         expectThrows(ResourceNotFoundException.class, () -> TransportOpenJobAction.validate("job_id2", mlBuilder.build()));
     }
 
-    public void testValidate_jobMarkedAsDeleted() {
+    public void testValidate_jobMarkedAsDeleting() {
         MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
         Job.Builder jobBuilder = buildJobBuilder("job_id");
-        jobBuilder.setDeleted(true);
+        jobBuilder.setDeleting(true);
         mlBuilder.putJob(jobBuilder.build(), false);
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> TransportOpenJobAction.validate("job_id", mlBuilder.build()));
-        assertEquals("Cannot open job [job_id] because it has been marked as deleted", e.getMessage());
+        assertEquals("Cannot open job [job_id] because it is being deleted", e.getMessage());
     }
 
     public void testValidate_jobWithoutVersion() {
@@ -624,6 +626,24 @@ public class TransportOpenJobActionTests extends ESTestCase {
         attributes.put("node.ml", "true");
         node = new DiscoveryNode("_node_name1", "_node_id1", ta, attributes, Collections.emptySet(), Version.CURRENT);
         assertEquals("{_node_name1}{ml.machine_memory=5}{node.ml=true}", TransportOpenJobAction.nodeNameAndMlAttributes(node));
+    }
+
+    public void testJobTaskMatcherMatch() {
+        Task nonJobTask1 = mock(Task.class);
+        Task nonJobTask2 = mock(Task.class);
+        TransportOpenJobAction.JobTask jobTask1 = new TransportOpenJobAction.JobTask("ml-1",
+                0, "persistent", "", null, null);
+        TransportOpenJobAction.JobTask jobTask2 = new TransportOpenJobAction.JobTask("ml-2",
+                1, "persistent", "", null, null);
+
+        assertThat(OpenJobAction.JobTaskMatcher.match(nonJobTask1, "_all"), is(false));
+        assertThat(OpenJobAction.JobTaskMatcher.match(nonJobTask2, "_all"), is(false));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask1, "_all"), is(true));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "_all"), is(true));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask1, "ml-1"), is(true));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-1"), is(false));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask1, "ml-2"), is(false));
+        assertThat(OpenJobAction.JobTaskMatcher.match(jobTask2, "ml-2"), is(true));
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetaData.Builder builder) {

@@ -76,7 +76,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             // Index doc but not advance local checkpoint.
             shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
                 SourceToParse.source(shard.shardId().getIndexName(), "_doc", Integer.toString(i), new BytesArray("{}"), XContentType.JSON),
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                randomBoolean() ? IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP : randomNonNegativeLong(), true);
         }
 
         long globalCheckPoint = numDocs > 0 ? randomIntBetween(0, numDocs - 1) : 0;
@@ -105,6 +105,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                     .findFirst()
                     .isPresent(),
                 is(false));
+
+            assertThat(resyncRequest.getMaxSeenAutoIdTimestampOnPrimary(), equalTo(shard.getMaxSeenAutoIdTimestamp()));
         }
         if (syncNeeded && globalCheckPoint < numDocs - 1) {
             if (shard.indexSettings.isSoftDeleteEnabled()) {
@@ -208,10 +210,18 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         assertEquals(status.hashCode(), sameStatus.hashCode());
 
         switch (randomInt(3)) {
-            case 0: task.setPhase("otherPhase"); break;
-            case 1: task.setResyncedOperations(task.getResyncedOperations() + 1); break;
-            case 2: task.setSkippedOperations(task.getSkippedOperations() + 1); break;
-            case 3: task.setTotalOperations(task.getTotalOperations() + 1); break;
+            case 0:
+                task.setPhase("otherPhase");
+                break;
+            case 1:
+                task.setResyncedOperations(task.getResyncedOperations() + 1);
+                break;
+            case 2:
+                task.setSkippedOperations(task.getSkippedOperations() + 1);
+                break;
+            case 3:
+                task.setTotalOperations(task.getTotalOperations() + 1);
+                break;
         }
 
         PrimaryReplicaSyncer.ResyncTask.Status differentStatus = task.getStatus();

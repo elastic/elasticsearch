@@ -37,25 +37,25 @@ public class BulkShardRequestInterceptor extends AbstractComponent implements Re
 
     @Override
     public void intercept(BulkShardRequest request, Authentication authentication, Role userPermissions, String action) {
-        if (licenseState.isSecurityEnabled() == false || licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
-            return;
-        }
-        IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+            IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
 
-        for (BulkItemRequest bulkItemRequest : request.items()) {
-            IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(bulkItemRequest.index());
-            if (indexAccessControl != null) {
-                boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                boolean dls = indexAccessControl.getQueries() != null;
-                if (fls || dls) {
-                    if (bulkItemRequest.request() instanceof UpdateRequest) {
-                        throw new ElasticsearchSecurityException("Can't execute a bulk request with update requests embedded if " +
+            for (BulkItemRequest bulkItemRequest : request.items()) {
+                IndicesAccessControl.IndexAccessControl indexAccessControl =
+                    indicesAccessControl.getIndexPermissions(bulkItemRequest.index());
+                if (indexAccessControl != null) {
+                    boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+                    boolean dls = indexAccessControl.getQueries() != null;
+                    if (fls || dls) {
+                        if (bulkItemRequest.request() instanceof UpdateRequest) {
+                            throw new ElasticsearchSecurityException("Can't execute a bulk request with update requests embedded if " +
                                 "field or document level security is enabled", RestStatus.BAD_REQUEST);
+                        }
                     }
                 }
-            }
-            logger.trace("intercepted bulk request for index [{}] without any update requests, continuing execution",
+                logger.trace("intercepted bulk request for index [{}] without any update requests, continuing execution",
                     bulkItemRequest.index());
+            }
         }
     }
 

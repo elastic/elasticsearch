@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SimpleCollector;
 
 import java.io.IOException;
@@ -30,12 +30,12 @@ import java.io.IOException;
  */
 public class MaxScoreCollector extends SimpleCollector {
 
-    private Scorer scorer;
+    private Scorable scorer;
     private float maxScore = Float.NEGATIVE_INFINITY;
     private boolean hasHits = false;
 
     @Override
-    public void setScorer(Scorer scorer) {
+    public void setScorer(Scorable scorer) {
         this.scorer = scorer;
     }
 

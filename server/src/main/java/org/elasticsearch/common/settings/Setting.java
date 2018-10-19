@@ -345,6 +345,11 @@ public class Setting<T> implements ToXContentObject {
         return false;
     }
 
+
+    final boolean isListSetting() {
+        return this instanceof ListSetting;
+    }
+
     boolean hasComplexMatcher() {
         return isGroupSetting();
     }
@@ -1305,7 +1310,6 @@ public class Setting<T> implements ToXContentObject {
                 }
             }
         }
-
     }
 
     static void logSettingUpdate(Setting setting, Settings current, Settings previous, Logger logger) {

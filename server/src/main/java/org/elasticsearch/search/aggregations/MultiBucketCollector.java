@@ -24,9 +24,9 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiCollector;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -174,7 +174,7 @@ public class MultiBucketCollector extends BucketCollector {
         }
 
         @Override
-        public void setScorer(Scorer scorer) throws IOException {
+        public void setScorer(Scorable scorer) throws IOException {
             if (cacheScores) {
                 scorer = new ScoreCachingWrappingScorer(scorer);
             }

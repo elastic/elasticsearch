@@ -845,8 +845,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
-        SnapshotContext snapshotContext = new SnapshotContext(shard, snapshotId, indexId, snapshotStatus, System.currentTimeMillis());
+    public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
+                              IndexShardSnapshotStatus snapshotStatus) {
+        SnapshotContext snapshotContext = new SnapshotContext(store, snapshotId, indexId, snapshotStatus, System.currentTimeMillis());
         try {
             snapshotContext.snapshot(snapshotIndexCommit);
         } catch (Exception e) {
@@ -854,7 +855,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (e instanceof IndexShardSnapshotFailedException) {
                 throw (IndexShardSnapshotFailedException) e;
             } else {
-                throw new IndexShardSnapshotFailedException(shard.shardId(), e);
+                throw new IndexShardSnapshotFailedException(store.shardId(), e);
             }
         }
     }
@@ -1157,15 +1158,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         /**
          * Constructs new context
          *
-         * @param shard          shard to be snapshotted
+         * @param store          store to be snapshotted
          * @param snapshotId     snapshot id
          * @param indexId        the id of the index being snapshotted
          * @param snapshotStatus snapshot status to report progress
          */
-        SnapshotContext(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus, long startTime) {
-            super(snapshotId, Version.CURRENT, indexId, shard.shardId());
+        SnapshotContext(Store store, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus, long startTime) {
+            super(snapshotId, Version.CURRENT, indexId, store.shardId());
             this.snapshotStatus = snapshotStatus;
-            this.store = shard.store();
+            this.store = store;
             this.startTime = startTime;
         }
 

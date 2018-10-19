@@ -41,11 +41,11 @@ public class ScriptModule {
     static {
         CORE_CONTEXTS = Stream.of(
             SearchScript.CONTEXT,
-            SearchScript.AGGS_CONTEXT,
+            AggregationScript.CONTEXT,
             ScoreScript.CONTEXT,
-            SearchScript.SCRIPT_SORT_CONTEXT,
-            SearchScript.TERMS_SET_QUERY_CONTEXT,
-            ExecutableScript.CONTEXT,
+            NumberSortScript.CONTEXT,
+            StringSortScript.CONTEXT,
+            TermsSetQueryScript.CONTEXT,
             UpdateScript.CONTEXT,
             BucketAggregationScript.CONTEXT,
             BucketAggregationSelectorScript.CONTEXT,

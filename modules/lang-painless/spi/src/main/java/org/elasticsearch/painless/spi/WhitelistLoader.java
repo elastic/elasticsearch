@@ -134,7 +134,7 @@ public final class WhitelistLoader {
     public static Whitelist loadFromResourceFiles(Class<?> resource, String... filepaths) {
         List<WhitelistClass> whitelistClasses = new ArrayList<>();
         List<WhitelistMethod> whitelistStatics = new ArrayList<>();
-        List<WhitelistBinding> whitelistBindings = new ArrayList<>();
+        List<WhitelistClassBinding> whitelistClassBindings = new ArrayList<>();
 
         // Execute a single pass through the whitelist text files.  This will gather all the
         // constructors, methods, augmented methods, and fields for each whitelisted class.
@@ -292,7 +292,7 @@ public final class WhitelistLoader {
                             whitelistStatics.add(new WhitelistMethod(origin, targetJavaClassName,
                                     methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters)));
                         } else if ("bound_to".equals(staticImportType)) {
-                            whitelistBindings.add(new WhitelistBinding(origin, targetJavaClassName,
+                            whitelistClassBindings.add(new WhitelistClassBinding(origin, targetJavaClassName,
                                     methodName, returnCanonicalTypeName, Arrays.asList(canonicalTypeNameParameters)));
                         } else {
                             throw new IllegalArgumentException("invalid static import definition: " +
@@ -392,7 +392,7 @@ public final class WhitelistLoader {
 
         ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>)resource::getClassLoader);
 
-        return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistBindings);
+        return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistClassBindings);
     }
 
     private WhitelistLoader() {}

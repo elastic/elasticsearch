@@ -175,7 +175,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
     public void testParseFileEmpty() throws Exception {
         Path empty = createTempFile();
-        Logger log = CapturingLogger.newCapturingLogger(Level.DEBUG);
+        Logger log = CapturingLogger.newCapturingLogger(Level.DEBUG, null);
         FileUserRolesStore.parseFile(empty, log);
         List<String> events = CapturingLogger.output(log.getName(), Level.DEBUG);
         assertThat(events.size(), is(1));
@@ -184,7 +184,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
     public void testParseFileWhenFileDoesNotExist() throws Exception {
         Path file = createTempDir().resolve(randomAlphaOfLength(10));
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFile(file, logger);
         assertThat(usersRoles, nullValue());
         usersRoles = FileUserRolesStore.parseFileLenient(file, logger);
@@ -199,7 +199,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, lines, StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG, null);
         try {
             FileUserRolesStore.parseFile(file, logger);
             fail("expected a parse failure");
@@ -256,7 +256,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, lines, StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG, null);
         Map<String, String[]> usersRoles = FileUserRolesStore.parseFileLenient(file, logger);
         assertThat(usersRoles, notNullValue());
         assertThat(usersRoles.isEmpty(), is(true));

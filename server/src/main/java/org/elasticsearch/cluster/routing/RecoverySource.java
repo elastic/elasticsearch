@@ -142,7 +142,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         }
 
         private ExistingStoreRecoverySource(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
                 bootstrapNewHistoryUUID = in.readBoolean();
             } else {
                 bootstrapNewHistoryUUID = false;
@@ -156,7 +156,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
                 out.writeBoolean(bootstrapNewHistoryUUID);
             }
         }

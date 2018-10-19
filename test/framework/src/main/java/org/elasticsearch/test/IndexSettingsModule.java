@@ -48,7 +48,8 @@ public class IndexSettingsModule extends AbstractModule {
     }
 
     public static IndexSettings newIndexSettings(String index, Settings settings, Setting<?>... setting) {
-        return newIndexSettings(new Index(index, settings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE)), settings, setting);
+        return newIndexSettings(new Index(index, settings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE)),
+                settings, setting);
     }
 
     public static IndexSettings newIndexSettings(Index index, Settings settings, Setting<?>... setting) {

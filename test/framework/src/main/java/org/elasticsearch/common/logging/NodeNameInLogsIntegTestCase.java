@@ -47,11 +47,16 @@ public abstract class NodeNameInLogsIntegTestCase extends ESRestTestCase {
     private static final int LINES_TO_CHECK = 10;
 
     /**
+     * The node name to expect in the logs file.
+     */
+    protected abstract org.hamcrest.Matcher<String> nodeNameMatcher();
+
+    /**
      * Open the log file. This is delegated to subclasses because the test
      * framework doesn't have permission to read from the log file but
      * subclasses can grant themselves that permission.
      */
-    protected abstract BufferedReader openReader(Path logFile) throws IOException ;
+    protected abstract BufferedReader openReader(Path logFile);
 
     public void testNodeNameIsOnAllLinesOfLog() throws IOException {
         BufferedReader logReader = openReader(getLogFile());
@@ -64,7 +69,7 @@ public abstract class NodeNameInLogsIntegTestCase extends ESRestTestCase {
             }
             String nodeName = m.group(1);
 
-            assertNotEquals("unknown", nodeName);
+            assertThat(nodeName, nodeNameMatcher());
 
             int lineNumber = 1;
             while (true) {

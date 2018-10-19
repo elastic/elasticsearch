@@ -63,7 +63,6 @@ import java.util.stream.IntStream;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsString;
@@ -298,7 +297,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             return null;
         }).when(mockIndicesAdminClient).deleteTemplate(any(DeleteIndexTemplateRequest.class), any(ActionListener.class));
 
-        final TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
+        new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
             Arrays.asList(
                 templates -> {
                     assertNull(templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template")
@@ -413,42 +412,6 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         assertThat(calculateInvocation.availablePermits(), equalTo(0));
         assertThat(updateInvocation.availablePermits(), equalTo(0));
         assertThat(finishInvocation.availablePermits(), equalTo(0));
-    }
-
-    private static final int NODE_TEST_ITERS = 100;
-
-    private DiscoveryNodes randomNodes(int dataAndMasterNodes, int clientNodes) {
-        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        String masterNodeId = null;
-        for (int i = 0; i < dataAndMasterNodes; i++) {
-            String id = randomAlphaOfLength(10) + "_" + i;
-            Set<DiscoveryNode.Role> roles;
-            if (i == 0) {
-                masterNodeId = id;
-                // The first node has to be master node
-                if (randomBoolean()) {
-                    roles = EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA);
-                } else {
-                    roles = EnumSet.of(DiscoveryNode.Role.MASTER);
-                }
-            } else {
-                if (randomBoolean()) {
-                    roles = EnumSet.of(DiscoveryNode.Role.DATA);
-                } else {
-                    roles = EnumSet.of(DiscoveryNode.Role.MASTER);
-                }
-            }
-            String node = "node_" + i;
-            builder.add(new DiscoveryNode(node, id, buildNewFakeTransportAddress(), emptyMap(), roles, randomVersion(random())));
-        }
-        builder.masterNodeId(masterNodeId);  // Node 0 is always a master node
-
-        for (int i = 0; i < clientNodes; i++) {
-            String node = "client_" + i;
-            builder.add(new DiscoveryNode(node, randomAlphaOfLength(10) + "__" + i, buildNewFakeTransportAddress(), emptyMap(),
-                EnumSet.noneOf(DiscoveryNode.Role.class), randomVersion(random())));
-        }
-        return builder.build();
     }
 
     public static MetaData randomMetaData(IndexTemplateMetaData... templates) {

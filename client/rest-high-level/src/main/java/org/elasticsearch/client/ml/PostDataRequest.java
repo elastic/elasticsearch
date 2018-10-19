@@ -38,7 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * POJO for posting data to a Machine Learning job
+ * Request to post data to a Machine Learning job
  */
 public class PostDataRequest extends ActionRequest implements ToXContentObject {
 

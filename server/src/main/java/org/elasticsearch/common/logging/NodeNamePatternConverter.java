@@ -57,21 +57,22 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
             throw new IllegalArgumentException("no options supported but options provided: "
                     + Arrays.toString(options));
         }
-        return new NodeNamePatternConverter();
+        String nodeName = NODE_NAME.get();
+        if (nodeName == null) {
+            throw new IllegalStateException("the node name hasn't been set");
+        }
+        return new NodeNamePatternConverter(nodeName);
     }
 
-    private NodeNamePatternConverter() {
+    private final String nodeName;
+
+    private NodeNamePatternConverter(String nodeName) {
         super("NodeName", "node_name");
+        this.nodeName = nodeName;
     }
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        /*
-         * We're not thrilled about this volatile read on every line logged but
-         * the alternatives are slightly terrifying and/or don't work with the
-         * security manager.
-         */
-        String nodeName = NODE_NAME.get();
-        toAppendTo.append(nodeName == null ? "unknown" : nodeName);
+        toAppendTo.append(nodeName);
     }
 }

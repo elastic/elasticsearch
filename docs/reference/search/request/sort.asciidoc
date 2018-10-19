@@ -1,7 +1,7 @@
 [[search-request-sort]]
 === Sort
 
-Allows to add one or more sort on specific fields. Each sort can be
+Allows you to add one or more sorts on specific fields. Each sort can be
 reversed as well. The sort is defined on a per field level, with special
 field name for `_score` to sort by score, and `_doc` to sort by index order.
 
@@ -127,6 +127,9 @@ field support has a `nested` sort option with the following properties:
     should match with in order for its field values to be taken into account
     by sorting. Common case is to repeat the query / filter inside the
     nested filter or query. By default no `nested_filter` is active.
+`max_children`::
+    The maximum number of children to consider per root document
+    when picking the sort value. Defaults to unlimited.
 `nested`::
     Same as top-level `nested` but applies to another nested path within the
     current nested object.
@@ -223,7 +226,7 @@ scripts and sorting by geo distance.
 ==== Missing Values
 
 The `missing` parameter specifies how docs which are missing
-the field should be treated: The `missing` value can be
+the sort field should be treated: The `missing` value can be
 set to `_last`, `_first`, or a custom value (that
 will be used for missing docs as the sort value).
 The default is `_last`.
@@ -250,7 +253,7 @@ the `nested_filter` then a missing value is used.
 ==== Ignoring Unmapped Fields
 
 By default, the search request will fail if there is no mapping
-associated with a field. The `unmapped_type` option allows to ignore
+associated with a field. The `unmapped_type` option allows you to ignore
 fields that have no mapping and not sort by them. The value of this
 parameter is used to determine what sort values to emit. Here is an
 example of how it can be used:
@@ -322,7 +325,7 @@ GET /_search
 `ignore_unmapped`::
 
     Indicates if the unmapped field should be treated as a missing value. Setting it to `true` is equivalent to specifying
-    an `unmapped_type` in the field sort. The default is `false` (unmapped field are causing the search to fail).
+    an `unmapped_type` in the field sort. The default is `false` (unmapped field cause the search to fail).
 
 NOTE: geo distance sorting does not support configurable missing values: the
 distance will always be considered equal to +Infinity+ when a document does not

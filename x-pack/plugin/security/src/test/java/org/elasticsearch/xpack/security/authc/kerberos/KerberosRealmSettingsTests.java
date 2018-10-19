@@ -27,12 +27,12 @@ public class KerberosRealmSettingsTests extends ESTestCase {
             configDir = Files.createDirectory(configDir);
         }
         final String keytabPathConfig = "config" + dir.getFileSystem().getSeparator() + "http.keytab";
-        KerberosTestCase.writeKeyTab(dir.resolve(keytabPathConfig), null);
+        KerberosRealmTestCase.writeKeyTab(dir.resolve(keytabPathConfig), null);
         final Integer maxUsers = randomInt();
         final String cacheTTL = randomLongBetween(10L, 100L) + "m";
         final boolean enableDebugLogs = randomBoolean();
         final boolean removeRealmName = randomBoolean();
-        final Settings settings = KerberosTestCase.buildKerberosRealmSettings(keytabPathConfig, maxUsers, cacheTTL, enableDebugLogs,
+        final Settings settings = KerberosRealmTestCase.buildKerberosRealmSettings(keytabPathConfig, maxUsers, cacheTTL, enableDebugLogs,
                 removeRealmName);
 
         assertThat(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(settings), equalTo(keytabPathConfig));

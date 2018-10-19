@@ -21,15 +21,14 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiCollector;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
@@ -106,10 +105,10 @@ class TopHitsAggregator extends MetricsAggregator {
         final LongObjectHashMap<LeafCollector> leafCollectors = new LongObjectHashMap<>(1);
         return new LeafBucketCollectorBase(sub, null) {
 
-            Scorer scorer;
+            Scorable scorer;
 
             @Override
-            public void setScorer(Scorer scorer) throws IOException {
+            public void setScorer(Scorable scorer) throws IOException {
                 this.scorer = scorer;
                 super.setScorer(scorer);
                 for (ObjectCursor<LeafCollector> cursor : leafCollectors.values()) {

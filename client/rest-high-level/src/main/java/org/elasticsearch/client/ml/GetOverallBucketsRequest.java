@@ -109,7 +109,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     }
 
     /**
-     * Sets the value of `top_n`.
+     * Sets the value of "top_n".
      * @param topN The number of top job bucket scores to be used in the overall_score calculation. Defaults to 1.
      */
     public void setTopN(Integer topN) {
@@ -121,7 +121,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     }
 
     /**
-     * Sets the value of `bucket_span`.
+     * Sets the value of "bucket_span".
      * @param bucketSpan The span of the overall buckets. Must be greater or equal to the largest job’s bucket_span.
      *                   Defaults to the largest job’s bucket_span.
      */
@@ -197,7 +197,7 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
     /**
      * Whether to ignore if a wildcard expression matches no jobs.
      *
-     * If this is `false`, then an error is returned when a wildcard (or `_all`) does not match any jobs
+     * If this is {@code false}, then an error is returned when a wildcard (or {@code _all}) does not match any jobs
      */
     public Boolean isAllowNoJobs() {
         return allowNoJobs;

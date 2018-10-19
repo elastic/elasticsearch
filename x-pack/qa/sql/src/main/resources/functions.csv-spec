@@ -366,6 +366,37 @@ bu             |1
 by             |1
 ;
 
+octetLengthGroupByAndOrderBy
+SELECT OCTET_LENGTH(first_name), COUNT(*) count FROM "test_emp" GROUP BY OCTET_LENGTH(first_name) ORDER BY OCTET_LENGTH(first_name) LIMIT 10;
+
+OCTET_LENGTH(first_name):i|     count:l
+3                       |4
+4                       |11
+5                       |16
+6                       |24
+7                       |19
+8                       |14
+9                       |10
+10                      |1
+11                      |1
+;
+
+octetLengthOrderByFieldWithWhere
+SELECT OCTET_LENGTH(first_name) len, first_name FROM "test_emp" WHERE OCTET_LENGTH(first_name) > 8 ORDER BY first_name LIMIT 10;
+
+len:i          |  first_name:s
+10             |Adamantios
+9              |Alejandro
+9              |Alejandro
+9              |Chirstian
+9              |Cristinel
+9              |Duangkaew
+9              |Eberhardt
+9              |Margareta
+9              |Prasadram
+11             |Sreekrishna
+;
+
 upperCasingTheSecondLetterFromTheRightFromFirstName
 SELECT CONCAT(CONCAT(SUBSTRING("first_name",1,LENGTH("first_name")-2),UCASE(LEFT(RIGHT("first_name",2),1))),RIGHT("first_name",1)) f FROM "test_emp" ORDER BY "first_name" LIMIT 10;
 
@@ -406,4 +437,27 @@ SELECT CONCAT(CONCAT(SUBSTRING("first_name",1,LENGTH("first_name")-2),UCASE(LEFT
     f:s        |c:l
 ---------------+---------------------------------------------
 AlejandRo      |2
+;
+
+
+checkColumnNameWithNestedArithmeticFunctionCallsOnTableColumn
+SELECT CHAR(emp_no % 10000) FROM "test_emp" WHERE emp_no > 10064 ORDER BY emp_no LIMIT 1;
+
+CHAR((emp_no) % 10000):s
+A
+;
+
+checkColumnNameWithComplexNestedArithmeticFunctionCallsOnTableColumn1
+SELECT CHAR(emp_no % (7000 + 3000)) FROM "test_emp" WHERE emp_no > 10065 ORDER BY emp_no LIMIT 1;
+
+CHAR((emp_no) % (7000 + 3000)):s
+B
+;
+
+
+checkColumnNameWithComplexNestedArithmeticFunctionCallsOnTableColumn2
+SELECT CHAR((emp_no % (emp_no - 1 + 1)) + 67) FROM "test_emp" WHERE emp_no > 10066 ORDER BY emp_no LIMIT 1;
+
+CHAR(((emp_no) % (((emp_no) - 1) + 1)) + 67):s
+C
 ;

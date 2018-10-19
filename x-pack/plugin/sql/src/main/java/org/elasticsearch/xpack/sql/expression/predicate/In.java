@@ -5,23 +5,27 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
-import java.util.List;
-import java.util.Objects;
-
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
-public class In extends Expression {
+import java.util.List;
+import java.util.Objects;
+
+public class In extends NamedExpression {
 
     private final Expression value;
     private final List<Expression> list;
     private final boolean nullable, foldable;
 
     public In(Location location, Expression value, List<Expression> list) {
-        super(location, CollectionUtils.combine(list, value));
+        super(location, null, CollectionUtils.combine(list, value), null);
         this.value = value;
         this.list = list;
 
@@ -66,6 +70,16 @@ public class In extends Expression {
     }
 
     @Override
+    public Attribute toAttribute() {
+        throw new SqlIllegalArgumentException("not implemented yet");
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        throw new SqlIllegalArgumentException("not implemented yet");
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(value, list);
     }
@@ -75,8 +89,7 @@ public class In extends Expression {
         if (this == obj) {
             return true;
         }
-
-        if (!super.equals(obj) || getClass() != obj.getClass()) {
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
 

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.gradle.precommit;
 
-import org.gradle.api.DefaultTask;
+import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.FileCollection;
@@ -26,22 +26,18 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.JavaExecSpec;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-public class ForbiddenApisCliTask extends DefaultTask {
+public class ForbiddenApisCliTask extends PrecommitTask {
 
     private final Logger logger = Logging.getLogger(ForbiddenApisCliTask.class);
     private FileCollection signaturesFiles;
@@ -69,14 +65,6 @@ public class ForbiddenApisCliTask extends DefaultTask {
         } else {
             this.targetCompatibility = targetCompatibility;
         }
-    }
-
-    @OutputFile
-    public File getMarkerFile() {
-        return new File(
-            new File(getProject().getBuildDir(), "precommit"),
-            getName()
-        );
     }
 
     @InputFiles
@@ -152,8 +140,8 @@ public class ForbiddenApisCliTask extends DefaultTask {
     }
 
     @TaskAction
-    public void runForbiddenApisAndWriteMarker() throws IOException {
-        getProject().javaexec((JavaExecSpec spec) -> {
+    public void runForbiddenApisAndWriteMarker() {
+        LoggedExec.javaexec(getProject(), (JavaExecSpec spec) -> {
             spec.classpath(
                 getForbiddenAPIsConfiguration(),
                 getClassPathFromSourceSet()
@@ -184,7 +172,6 @@ public class ForbiddenApisCliTask extends DefaultTask {
                 spec.args("-d", dir)
             );
         });
-        Files.write(getMarkerFile().toPath(), Collections.emptyList());
     }
 
 }

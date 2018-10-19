@@ -15,8 +15,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ApplicationPermissionTests extends ESTestCase {
@@ -101,7 +105,7 @@ public class ApplicationPermissionTests extends ESTestCase {
     }
 
     public void testMergedPermissionChecking() {
-        final ApplicationPrivilege app1ReadWrite = ApplicationPrivilege.get("app1", Sets.union(app1Read.name(), app1Write.name()), store);
+        final ApplicationPrivilege app1ReadWrite = compositePrivilege("app1", app1Read, app1Write);
         final ApplicationPermission hasPermission = buildPermission(app1ReadWrite, "allow/*");
 
         assertThat(hasPermission.grants(app1Read, "allow/1"), equalTo(true));
@@ -114,9 +118,34 @@ public class ApplicationPermissionTests extends ESTestCase {
         assertThat(hasPermission.grants(app2Read, "allow/1"), equalTo(false));
     }
 
+    public void testInspectPermissionContents() {
+        final ApplicationPrivilege app1ReadWrite = compositePrivilege("app1", app1Read, app1Write);
+        ApplicationPermission perm = new ApplicationPermission(Arrays.asList(
+            new Tuple<>(app1Read, Sets.newHashSet("obj/1", "obj/2")),
+            new Tuple<>(app1Write, Sets.newHashSet("obj/3", "obj/4")),
+            new Tuple<>(app1ReadWrite, Sets.newHashSet("obj/5")),
+            new Tuple<>(app1All, Sets.newHashSet("obj/6", "obj/7")),
+            new Tuple<>(app2Read, Sets.newHashSet("obj/1", "obj/8"))
+        ));
+        assertThat(perm.getApplicationNames(), containsInAnyOrder("app1", "app2"));
+        assertThat(perm.getPrivileges("app1"), containsInAnyOrder(app1Read, app1Write, app1ReadWrite, app1All));
+        assertThat(perm.getPrivileges("app2"), containsInAnyOrder(app2Read));
+        assertThat(perm.getResourcePatterns(app1Read), containsInAnyOrder("obj/1", "obj/2", "obj/5", "obj/6", "obj/7"));
+        assertThat(perm.getResourcePatterns(app1Write), containsInAnyOrder("obj/3", "obj/4", "obj/5", "obj/6", "obj/7"));
+        assertThat(perm.getResourcePatterns(app1ReadWrite), containsInAnyOrder("obj/5", "obj/6", "obj/7"));
+        assertThat(perm.getResourcePatterns(app1All), containsInAnyOrder("obj/6", "obj/7"));
+        assertThat(perm.getResourcePatterns(app2Read), containsInAnyOrder("obj/1", "obj/8"));
+    }
+
     private ApplicationPrivilege actionPrivilege(String appName, String... actions) {
         return ApplicationPrivilege.get(appName, Sets.newHashSet(actions), Collections.emptyList());
     }
+
+    private ApplicationPrivilege compositePrivilege(String application, ApplicationPrivilege... children) {
+        Set<String> names = Stream.of(children).map(ApplicationPrivilege::name).flatMap(Set::stream).collect(Collectors.toSet());
+        return ApplicationPrivilege.get(application, names, store);
+    }
+
 
     private ApplicationPermission buildPermission(ApplicationPrivilege privilege, String... resources) {
         return new ApplicationPermission(singletonList(new Tuple<>(privilege, Sets.newHashSet(resources))));

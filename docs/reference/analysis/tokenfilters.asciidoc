@@ -37,6 +37,8 @@ include::tokenfilters/multiplexer-tokenfilter.asciidoc[]
 
 include::tokenfilters/condition-tokenfilter.asciidoc[]
 
+include::tokenfilters/predicate-tokenfilter.asciidoc[]
+
 include::tokenfilters/stemmer-tokenfilter.asciidoc[]
 
 include::tokenfilters/stemmer-override-tokenfilter.asciidoc[]

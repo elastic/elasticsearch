@@ -88,7 +88,7 @@ public class IndexUpgradeTasksIT extends ESIntegTestCase {
 
         @Override
         public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-            return new MockScriptEngine(pluginScriptLang(), pluginScripts());
+            return new MockScriptEngine(pluginScriptLang(), pluginScripts(), Collections.emptyMap());
         }
 
         public String pluginScriptLang() {

@@ -825,9 +825,6 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
 
-            // TODO: remove this once joda time is removed from scripting in 7.0
-            systemProperty 'es.scripting.use_java_time', 'true'
-
             // TODO: remove this once ctx isn't added to update script params in 7.0
             systemProperty 'es.scripting.update.ctx_in_params', 'false'
 

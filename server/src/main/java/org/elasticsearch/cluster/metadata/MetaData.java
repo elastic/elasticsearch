@@ -296,14 +296,38 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return ImmutableOpenMap.of();
         }
 
-        boolean matchAllAliases = matchAllAliases(aliases);
+        String[] patterns = new String[aliases.length];
+        boolean[] include = new boolean[aliases.length];
+        for (int i = 0; i < aliases.length; i++) {
+            String alias = aliases[i];
+            if (alias.charAt(0) == '-') {
+                patterns[i] = alias.substring(1);
+                include[i] = false;
+            } else {
+                patterns[i] = alias;
+                include[i] = true;
+            }
+        }
+        boolean matchAllAliases = patterns.length == 0;
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         for (String index : concreteIndices) {
             IndexMetaData indexMetaData = indices.get(index);
             List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData value = cursor.value;
-                if (matchAllAliases || Regex.simpleMatch(aliases, value.alias())) {
+                boolean matched = matchAllAliases;
+                String alias = value.alias();
+                for (int i = 0; i < patterns.length; i++) {
+                    if (include[i]) {
+                        if (matched == false) {
+                            String pattern = patterns[i];
+                            matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
+                        }
+                    } else if (matched) {
+                        matched = Regex.simpleMatch(patterns[i], alias) == false;
+                    }
+                }
+                if (matched) {
                     filteredValues.add(value);
                 }
             }
@@ -315,15 +339,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
         }
         return mapBuilder.build();
-    }
-
-    private static boolean matchAllAliases(final String[] aliases) {
-        for (String alias : aliases) {
-            if (alias.equals(ALL)) {
-                return true;
-            }
-        }
-        return aliases.length == 0;
     }
 
     /**
@@ -1019,10 +1034,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return this;
         }
 
-        public Builder updateNumberOfReplicas(int numberOfReplicas, String... indices) {
-            if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(String.class);
-            }
+        /**
+         * Update the number of replicas for the specified indices.
+         *
+         * @param numberOfReplicas the number of replicas
+         * @param indices          the indices to update the number of replicas for
+         * @return the builder
+         */
+        public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
             for (String index : indices) {
                 IndexMetaData indexMetaData = this.indices.get(index);
                 if (indexMetaData == null) {

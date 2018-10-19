@@ -172,7 +172,7 @@ GET /_search
 
 The example above creates a boolean query:
 
-`(ny OR (new AND york)) city)`
+`(ny OR (new AND york)) city`
 
 that matches documents with the term `ny` or the conjunction `new AND york`.
 By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.

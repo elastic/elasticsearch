@@ -25,7 +25,6 @@ import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -37,7 +36,7 @@ import java.util.Optional;
 /**
  * Request object to create or update a user in the native realm.
  */
-public final class PutUserRequest implements Validatable, Closeable, ToXContentObject {
+public final class PutUserRequest implements Validatable, ToXContentObject {
 
     private final String username;
     private final List<String> roles;
@@ -48,6 +47,20 @@ public final class PutUserRequest implements Validatable, Closeable, ToXContentO
     private final boolean enabled;
     private final RefreshPolicy refreshPolicy;
 
+    /**
+     * Creates a new request that is used to create or update a user in the native realm.
+     *
+     * @param username the username of the user to be created or updated
+     * @param password the password of the user. The password array is not modified by this class.
+     *                 It is the responsibility of the caller to clear the password after receiving
+     *                 a response.
+     * @param roles the roles that this user is assigned
+     * @param fullName the full name of the user that may be used for display purposes
+     * @param email the email address of the user
+     * @param enabled true if the user is enabled and allowed to access elasticsearch
+     * @param metadata a map of additional user attributes that may be used in templating roles
+     * @param refreshPolicy the refresh policy for the request.
+     */
     public PutUserRequest(String username, char[] password, List<String> roles, String fullName, String email, boolean enabled,
                           Map<String, Object> metadata, RefreshPolicy refreshPolicy) {
         this.username = Objects.requireNonNull(username, "username is required");
@@ -115,13 +128,6 @@ public final class PutUserRequest implements Validatable, Closeable, ToXContentO
     }
 
     @Override
-    public void close() {
-        if (password != null) {
-            Arrays.fill(password, (char) 0);
-        }
-    }
-
-    @Override
     public Optional<ValidationException> validate() {
         if (metadata != null && metadata.keySet().stream().anyMatch(s -> s.startsWith("_"))) {
             ValidationException validationException = new ValidationException();
@@ -137,7 +143,11 @@ public final class PutUserRequest implements Validatable, Closeable, ToXContentO
         builder.field("username", username);
         if (password != null) {
             byte[] charBytes = CharArrays.toUtf8Bytes(password);
-            builder.field("password").utf8Value(charBytes, 0, charBytes.length);
+            try {
+                builder.field("password").utf8Value(charBytes, 0, charBytes.length);
+            } finally {
+                Arrays.fill(charBytes, (byte) 0);
+            }
         }
         if (roles != null) {
             builder.field("roles", roles);

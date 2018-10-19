@@ -114,7 +114,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public String getColumnTypeName(int column) throws SQLException {
-        return column(column).type.name();
+        return column(column).type.getName();
     }
 
     @Override

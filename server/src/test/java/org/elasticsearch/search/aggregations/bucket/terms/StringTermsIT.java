@@ -38,8 +38,8 @@ import org.elasticsearch.search.aggregations.bucket.AbstractTermsTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Avg;
-import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
+import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -87,7 +87,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
     @Before
     public void randomizeOptimizations() {
-        TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = false;randomBoolean();
+        TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = randomBoolean();
         TermsAggregatorFactory.REMAP_GLOBAL_ORDS = randomBoolean();
     }
 

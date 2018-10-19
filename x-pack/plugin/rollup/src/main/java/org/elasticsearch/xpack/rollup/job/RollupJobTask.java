@@ -262,7 +262,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         updatePersistentTaskState(state,
                 ActionListener.wrap(
                         (task) -> {
-                            logger.debug("Succesfully updated state for rollup job [" + job.getConfig().getId() + "] to ["
+                            logger.debug("Successfully updated state for rollup job [" + job.getConfig().getId() + "] to ["
                                     + state.getIndexerState() + "][" + state.getPosition() + "]");
                             listener.onResponse(new StartRollupJobAction.Response(true));
                         },
@@ -308,7 +308,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
                 updatePersistentTaskState(state,
                         ActionListener.wrap(
                                 (task) -> {
-                                    logger.debug("Succesfully updated state for rollup job [" + job.getConfig().getId()
+                                    logger.debug("Successfully updated state for rollup job [" + job.getConfig().getId()
                                             + "] to [" + state.getIndexerState() + "]");
                                     listener.onResponse(new StopRollupJobAction.Response(true));
                                 },

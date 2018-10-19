@@ -27,6 +27,7 @@ followClusterTestCluster {
     dependsOn leaderClusterTestRunner
     numNodes = 1
     clusterName = 'follow-cluster'
+    setting 'xpack.monitoring.collection.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
 }

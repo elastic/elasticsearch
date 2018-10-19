@@ -21,7 +21,7 @@ package org.elasticsearch.test.test;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -51,7 +51,7 @@ public class LoggingListenerTests extends ESTestCase {
         Logger xyzLogger = Loggers.getLogger("xyz");
         Logger abcLogger = Loggers.getLogger("abc");
 
-        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = LogManager.getRootLogger().getLevel();
 
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(level));
@@ -88,7 +88,7 @@ public class LoggingListenerTests extends ESTestCase {
         Logger fooLogger = Loggers.getLogger("foo");
         Logger fooBarLogger = Loggers.getLogger("foo.bar");
 
-        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = LogManager.getRootLogger().getLevel();
 
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(level));
@@ -128,7 +128,7 @@ public class LoggingListenerTests extends ESTestCase {
         Logger abcLogger = Loggers.getLogger("abc");
         Logger xyzLogger = Loggers.getLogger("xyz");
 
-        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = LogManager.getRootLogger().getLevel();
 
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(level));

@@ -1,7 +1,6 @@
 package com.carrotsearch.gradle.junit4
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
-import org.gradle.api.GradleException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -11,11 +10,7 @@ import org.gradle.api.tasks.TaskContainer
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.testing.Test
 
-import java.util.concurrent.atomic.AtomicBoolean
-
 class RandomizedTestingPlugin implements Plugin<Project> {
-
-    static private AtomicBoolean sanityCheckConfigured = new AtomicBoolean(false)
 
     void apply(Project project) {
         setupSeed(project)
@@ -27,16 +22,10 @@ class RandomizedTestingPlugin implements Plugin<Project> {
     private static void configureSanityCheck(Project project) {
         // Check the task graph to confirm tasks were indeed replaced
         // https://github.com/elastic/elasticsearch/issues/31324
-        if (sanityCheckConfigured.getAndSet(true) == false) {
-            project.rootProject.getGradle().getTaskGraph().whenReady {
-                List<Task> nonConforming = project.getGradle().getTaskGraph().allTasks
-                        .findAll { it.name == "test" }
-                        .findAll { (it instanceof RandomizedTestingTask) == false}
-                        .collect { "${it.path} -> ${it.class}" }
-                if (nonConforming.isEmpty() == false) {
-                    throw new GradleException("Found the ${nonConforming.size()} `test` tasks:" +
-                            "\n  ${nonConforming.join("\n  ")}")
-                }
+        project.rootProject.getGradle().getTaskGraph().whenReady {
+            Task test = project.getTasks().findByName("test")
+            if (test != null && (test instanceof RandomizedTestingTask) == false) {
+                throw new IllegalStateException("Test task was not replaced in project ${project.path}. Found ${test.getClass()}")
             }
         }
     }

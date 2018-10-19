@@ -54,7 +54,6 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
         final Client client = client();
         final RepositoriesService repositoriesService =
             cluster.getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
-        final Settings settings = cluster.getDefaultSettings();
 
         final Settings.Builder repoSettings = Settings.builder().put("location", randomRepoPath());
 

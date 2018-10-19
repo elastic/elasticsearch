@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.http.HttpStatus;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -13,25 +14,31 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.rollup.RollupRestTestStateCleaner.clearRollupMetadata;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -618,7 +625,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         // There should be a notification saying that there was a problem extracting data
         client().performRequest(new Request("POST", "/_refresh"));
         Response notificationsResponse = client().performRequest(
-                new Request("GET", AuditorField.NOTIFICATIONS_INDEX + "/_search?q=job_id:" + jobId));
+                new Request("GET", AuditorField.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
                 "action [indices:data/read/search] is unauthorized for user [ml_admin_plus_data]\""));
@@ -733,7 +740,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
         assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":2"));
 
-        clearRollupMetadata(adminClient());
+        clearRollupMetadata();
     }
 
     public void testRealtime() throws Exception {
@@ -1025,5 +1032,67 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         bulkRequest.addParameter("pretty", null);
         String bulkResponse = EntityUtils.toString(client().performRequest(bulkRequest).getEntity());
         assertThat(bulkResponse, not(containsString("\"errors\": false")));
+    }
+
+    public void clearRollupMetadata() throws Exception {
+        deleteAllJobs();
+        waitForPendingTasks();
+        // indices will be deleted by the ESRestTestCase class
+    }
+
+    private void waitForPendingTasks() throws Exception {
+        ESTestCase.assertBusy(() -> {
+            try {
+                Request request = new Request("GET", "/_cat/tasks");
+                request.addParameter("detailed", "true");
+                Response response = adminClient().performRequest(request);
+                if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+                    try (BufferedReader responseReader = new BufferedReader(
+                        new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
+                        int activeTasks = 0;
+                        String line;
+                        StringBuilder tasksListString = new StringBuilder();
+                        while ((line = responseReader.readLine()) != null) {
+
+                            // We only care about Rollup jobs, otherwise this fails too easily due to unrelated tasks
+                            if (line.startsWith(RollupJob.NAME) == true) {
+                                activeTasks++;
+                                tasksListString.append(line);
+                                tasksListString.append('\n');
+                            }
+                        }
+                        assertEquals(activeTasks + " active tasks found:\n" + tasksListString, 0, activeTasks);
+                    }
+                }
+            } catch (IOException e) {
+                throw new AssertionError("Error getting active tasks list", e);
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void deleteAllJobs() throws Exception {
+        Request request = new Request("GET", "/_xpack/rollup/job/_all");
+        Response response = adminClient().performRequest(request);
+        Map<String, Object> jobs = ESRestTestCase.entityAsMap(response);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> jobConfigs =
+            (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
+
+        if (jobConfigs == null) {
+            return;
+        }
+
+        for (Map<String, Object> jobConfig : jobConfigs) {
+            logger.debug(jobConfig);
+            String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
+            logger.debug("Deleting job " + jobId);
+            try {
+                request = new Request("DELETE", "/_xpack/rollup/job/" + jobId);
+                adminClient().performRequest(request);
+            } catch (Exception e) {
+                // ok
+            }
+        }
     }
 }

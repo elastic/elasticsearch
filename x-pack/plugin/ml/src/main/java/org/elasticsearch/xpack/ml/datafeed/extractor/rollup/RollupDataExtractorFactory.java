@@ -10,7 +10,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -82,10 +81,10 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
 
         AggregationValidator aggregationValidator = new AggregationValidator(datafeed, rollupJobConfigs);
         List<String> validationErrors = aggregationValidator.validate();
-        if (validationErrors.isEmpty() == false) {
-            listener.onFailure(new IllegalArgumentException(Strings.collectionToDelimitedString(validationErrors, " ")));
-        } else {
+        if (validationErrors.isEmpty()) {
             listener.onResponse(new RollupDataExtractorFactory(client, datafeed, job));
+        } else {
+            listener.onFailure(new IllegalArgumentException(Strings.collectionToDelimitedString(validationErrors, " ")));
         }
     }
 
@@ -108,9 +107,9 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             datafeedInterval = getHistogramIntervalMillis(datafeedHistogramAggregation);
             datafeedAggregations = datafeed.getAggregations().getAggregatorFactories();
             this.rollupJobConfigs = rollupJobConfigs;
-            List<Set<String>> metricSets = new ArrayList<>();
-            List<Set<String>> termSets = new ArrayList<>();
-            rollupJobConfigs.forEach(rollupJobConfig -> {
+            Set<String> metricSet = null;
+            Set<String> termSets = null;
+            for (RollupJobConfig rollupJobConfig : rollupJobConfigs) {
                 Set<String> jobConfigsMetrics = new HashSet<>();
                 Set<String> jobConfigTerms = new HashSet<>();
                 rollupJobConfig.getMetricsConfig().forEach(metricConfig -> {
@@ -120,22 +119,25 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
                 if (rollupJobConfig.getGroupConfig().getTerms() != null) {
                     jobConfigTerms.addAll(Arrays.asList(rollupJobConfig.getGroupConfig().getTerms().getFields()));
                 }
-                metricSets.add(jobConfigsMetrics);
-                termSets.add(jobConfigTerms);
-            });
-            supportedTerms = termSets.stream().reduce(new HashSet<>(termSets.get(0)), (lft, rgt) -> {
-                lft.retainAll(rgt);
-                return lft;
-            });
-            supportedMetrics = metricSets.stream().reduce(new HashSet<>(metricSets.get(0)), (lft, rgt) -> {
-                lft.retainAll(rgt);
-                return lft;
-            });
+
+                // Gets the intersection as the desired aggs need to be supported by all captured rollup indexes
+                if (metricSet == null) {
+                    metricSet = jobConfigsMetrics;
+                } else {
+                    metricSet.retainAll(jobConfigsMetrics);
+                }
+                if (termSets == null) {
+                    termSets = jobConfigTerms;
+                } else {
+                    termSets.retainAll(jobConfigTerms);
+                }
+            }
+            supportedTerms = termSets;
+            supportedMetrics = metricSet;
         }
 
         List<String> validate() {
             List<String> validationErrors = new ArrayList<>();
-            aggregationErrors = new ArrayList<>();
             validateDatafeedHistogramAgg(validationErrors);
             validateIntervals(validationErrors);
             validateAggregations(validationErrors);
@@ -163,6 +165,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
         }
 
         private void validateAggregations(List<String> validationErrors) {
+            aggregationErrors = new ArrayList<>();
             verifyAggregationsHelper(datafeedAggregations);
             if (aggregationErrors.isEmpty() == false) {
                 validationErrors.add("Rollup indexes do not support the following aggregations: " +
@@ -172,20 +175,20 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
 
         private void verifyAggregationsHelper(final Collection<AggregationBuilder> datafeedAggregations) {
             for (AggregationBuilder aggregationBuilder : datafeedAggregations) {
-                String type = aggregationBuilder.getType();
-                String field = ((ValuesSourceAggregationBuilder) aggregationBuilder).field();
-                if ((aggregationBuilder instanceof HistogramAggregationBuilder ||
-                    aggregationBuilder instanceof DateHistogramAggregationBuilder) == false) {
+                if (aggregationBuilder.equals(datafeedHistogramAggregation) == false) {
+                    String type = aggregationBuilder.getType();
+                    String field = ((ValuesSourceAggregationBuilder) aggregationBuilder).field();
                     if (aggregationBuilder instanceof TermsAggregationBuilder) {
                         if (supportedTerms.contains(field) == false) {
-                            aggregationErrors.add("terms aggregation for term [" + field + "]");
+                            aggregationErrors.add("[terms] for field [" + field + "]");
                         }
                     } else {
                         if (supportedMetrics.contains(field + "_" + type) == false) {
-                            aggregationErrors.add("metric [" + type + "] for field [" + field + "]");
+                            aggregationErrors.add("[" + type + "] for field [" + field + "]");
                         }
                     }
                 }
+
                 verifyAggregationsHelper(aggregationBuilder.getSubAggregations());
             }
         }

@@ -33,8 +33,8 @@ public interface DataExtractorFactory {
                 } else {
                     listener.onResponse(factory);
                 }
-            }
-            , listener::onFailure
+            },
+            listener::onFailure
         );
 
         ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
@@ -59,8 +59,7 @@ public interface DataExtractorFactory {
             listener::onFailure
         );
 
-        GetRollupIndexCapsAction.Request request =
-            new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[datafeed.getIndices().size()]));
+        GetRollupIndexCapsAction.Request request = new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[0]));
 
         ClientHelper.<GetRollupIndexCapsAction.Request, GetRollupIndexCapsAction.Response, GetRollupIndexCapsAction.RequestBuilder>
             executeAsyncWithOrigin(

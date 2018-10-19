@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorF
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -235,7 +235,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
     }
 
     public void testCreateDataExtractorFactoryGivenRollupButNoAggregations() {
-        givenAggregatableRollup("time", "max", 30);
+        givenAggregatableRollup("myField", "max", 5);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField("time");
         Job.Builder jobBuilder = DatafeedManagerTests.createDatafeedJob();
@@ -295,7 +295,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             dataExtractorFactory -> fail(),
             e -> {
                 assertThat(e.getMessage(),
-                    containsString("terms aggregation for term [termField]"));
+                    containsString("[terms] for field [termField]"));
                 assertThat(e, instanceOf(IllegalArgumentException.class));
             }
         );
@@ -318,7 +318,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> fail(),
             e -> {
-                assertThat(e.getMessage(), containsString("metric [max] for field [otherField]"));
+                assertThat(e.getMessage(), containsString("[max] for field [otherField]"));
                 assertThat(e, instanceOf(IllegalArgumentException.class));
             }
         );
@@ -326,8 +326,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
     }
 
     private void givenAggregatableRollup(String field, String type, int minuteInterval, String... groupByTerms) {
-        List<MetricConfig> metricConfigs = Arrays.asList(new MetricConfig(field, Arrays.asList(type)),
-            new MetricConfig("time", Arrays.asList("max")));
+        List<MetricConfig> metricConfigs = Collections.singletonList(new MetricConfig(field, Collections.singletonList(type)));
         TermsGroupConfig termsGroupConfig = null;
         if (groupByTerms.length > 0) {
             termsGroupConfig = new TermsGroupConfig(groupByTerms);
@@ -338,12 +337,11 @@ public class DataExtractorFactoryTests extends ESTestCase {
             "*/30 * * * * ?",
             300,
             new GroupConfig(
-                new DateHistogramGroupConfig("@timestamp", DateHistogramInterval.minutes(minuteInterval)), null, termsGroupConfig),
+                new DateHistogramGroupConfig("time", DateHistogramInterval.minutes(minuteInterval)), null, termsGroupConfig),
             metricConfigs,
             null);
         RollupJobCaps rollupJobCaps = new RollupJobCaps(rollupJobConfig);
-        RollableIndexCaps rollableIndexCaps = new RollableIndexCaps("myIndex_rollup");
-        rollableIndexCaps.addJobCap(rollupJobCaps);
+        RollableIndexCaps rollableIndexCaps = new RollableIndexCaps("myIndex_rollup", Collections.singletonList(rollupJobCaps));
         Map<String, RollableIndexCaps> jobs = new HashMap<>(1);
         jobs.put("rollupJob1", rollableIndexCaps);
         when(getRollupIndexResponse.getJobs()).thenReturn(jobs);

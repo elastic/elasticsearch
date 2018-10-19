@@ -550,6 +550,7 @@ public class CoordinatorTests extends ESTestCase {
                 + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
                 // Then allow time for all the other nodes to join, each of which might cause a reconfiguration
                 + (cluster.size() - 1) * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            // TODO Investigate whether 4 publications is sufficient due to batching? A bound linear in the number of nodes isn't great.
         );
     }
 

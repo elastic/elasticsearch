@@ -842,10 +842,11 @@ public class CoordinatorTests extends ESTestCase {
 
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
-            final Matcher<Long> isPresentAndEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
+            final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
+            final String leaderId = leader.getId();
 
-            assertTrue(leader.getLastAppliedClusterState().getNodes().nodeExists(leader.getId()));
-            assertThat(leader.getLastAppliedClusterState().getVersion(), isPresentAndEqualToLeaderVersion);
+            assertTrue(leader.getLastAppliedClusterState().getNodes().nodeExists(leaderId));
+            assertThat(leader.getLastAppliedClusterState().getVersion(), isEqualToLeaderVersion);
 
             for (final ClusterNode clusterNode : clusterNodes) {
                 final String nodeId = clusterNode.getId();
@@ -856,16 +857,20 @@ public class CoordinatorTests extends ESTestCase {
                 }
 
                 if (isConnectedPair(leader, clusterNode)) {
-                    assertThat(nodeId + " is a follower", clusterNode.coordinator.getMode(), is(FOLLOWER));
-                    assertThat(nodeId + " has the same term as the leader", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
-                    assertTrue(nodeId + " has voted for the leader", leader.coordinator.hasJoinVoteFrom(clusterNode.getLocalNode()));
-                    // TODO assert that this node's accepted and committed states are the same as the leader's
-
-                    assertTrue(nodeId + " is in the leader's applied state",
+                    assertThat(nodeId + " is a follower of " + leaderId, clusterNode.coordinator.getMode(), is(FOLLOWER));
+                    assertThat(nodeId + " has the same term as " + leaderId, clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
+                    assertTrue(nodeId + " has voted for " + leaderId, leader.coordinator.hasJoinVoteFrom(clusterNode.getLocalNode()));
+                    assertThat(nodeId + " has the same accepted state as " + leaderId,
+                        clusterNode.coordinator.getLastAcceptedState().getVersion(), isEqualToLeaderVersion);
+                    assertThat(nodeId + " has the same applied state as " + leaderId,
+                        clusterNode.getLastAppliedClusterState().getVersion(), isEqualToLeaderVersion);
+                    assertTrue(nodeId + " is in its own latest applied state",
+                        clusterNode.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
+                    assertTrue(nodeId + " is in the latest applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
                 } else {
-                    assertThat(nodeId + " is a candidate", clusterNode.coordinator.getMode(), is(CANDIDATE));
-                    assertFalse(nodeId + " is not in the leader's applied state",
+                    assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
+                    assertFalse(nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
                 }
             }

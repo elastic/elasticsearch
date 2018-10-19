@@ -628,7 +628,6 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
-        ensureLeaderGreen("leader-index");
         AtomicBoolean stopped = new AtomicBoolean();
         Thread[] threads = new Thread[between(1, 8)];
         AtomicInteger docID = new AtomicInteger();
@@ -747,7 +746,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         flushingOnFollower.join();
         indexingOnLeader.join();
         assertSameDocCount("leader-index", "follower-index");
-        unfollowIndex("follower-index");
+        pauseFollow("follower-index");
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

@@ -67,8 +67,11 @@ PUT _ilm/my_policy
 }
 
 PUT my_index
-
-PUT my_index/_ilm/my_policy
+{
+  "settings": {
+    "index.lifecycle.name": "my_policy"
+  }
+}
 --------------------------------------------------
 // CONSOLE
 // TEST

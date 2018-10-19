@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,7 +40,6 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 public final class TransportPutFollowAction
         extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
@@ -96,49 +94,22 @@ public final class TransportPutFollowAction
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        String clusterAlias = request.getFollowRequest().getLeaderCluster();
-        if (clusterAlias == null) {
-            createFollowerIndexAndFollowLocalIndex(request, state, listener);
-        } else {
-            // In the case of following a local index there is no cluster alias:
-            client.getRemoteClusterClient(clusterAlias);
-            String leaderIndex = request.getFollowRequest().getLeaderIndex();
-            createFollowerIndexAndFollowRemoteIndex(request, clusterAlias, leaderIndex, listener);
-        }
-    }
+        String leaderCluster = request.getFollowRequest().getLeaderCluster();
+        // Validates whether the leader cluster has been configured properly:
+        client.getRemoteClusterClient(leaderCluster);
 
-    private void createFollowerIndexAndFollowLocalIndex(
-            final PutFollowAction.Request request,
-            final ClusterState state,
-            final ActionListener<PutFollowAction.Response> listener) {
-        // following an index in local cluster, so use local cluster state to fetch leader index metadata
-        final String leaderIndex = request.getFollowRequest().getLeaderIndex();
-        final IndexMetaData leaderIndexMetadata = state.getMetaData().index(leaderIndex);
-        if (leaderIndexMetadata == null) {
-            listener.onFailure(new IndexNotFoundException(leaderIndex));
-            return;
-        }
-
-        Consumer<String[]> historyUUIDhandler = historyUUIDs -> {
-            createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
-        };
-        ccrLicenseChecker.hasPrivilegesToFollowIndices(client, new String[] {leaderIndex}, e -> {
-            if (e == null) {
-                ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDhandler);
-            } else {
-                listener.onFailure(e);
-            }
-        });
+        String leaderIndex = request.getFollowRequest().getLeaderIndex();
+        createFollowerIndexAndFollowRemoteIndex(request, leaderCluster, leaderIndex, listener);
     }
 
     private void createFollowerIndexAndFollowRemoteIndex(
             final PutFollowAction.Request request,
-            final String clusterAlias,
+            final String leaderCluster,
             final String leaderIndex,
             final ActionListener<PutFollowAction.Response> listener) {
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
                 client,
-                clusterAlias,
+                leaderCluster,
                 leaderIndex,
                 listener::onFailure,
                 (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));

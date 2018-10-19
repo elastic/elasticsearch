@@ -173,6 +173,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realms;
@@ -426,6 +427,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService);
         this.tokenService.set(tokenService);
         components.add(tokenService);
+
+        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService);
+        components.add(apiKeyService);
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());

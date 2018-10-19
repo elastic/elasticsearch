@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.ArrayList;
@@ -30,16 +30,16 @@ import java.util.ArrayList;
  */
 public final class TransportCreateApiKeyAction extends HandledTransportAction<CreateApiKeyRequest, CreateApiKeyResponse> {
 
-    private final TokenService tokenService;
+    private final ApiKeyService apiKeyService;
     private final CompositeRolesStore compositeRolesStore;
     private final SecurityContext securityContext;
 
     @Inject
     public TransportCreateApiKeyAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
-                                       TokenService tokenService, CompositeRolesStore compositeRolesStore, SecurityContext context) {
+                                       ApiKeyService apiKeyService, CompositeRolesStore compositeRolesStore, SecurityContext context) {
         super(settings, CreateApiKeyAction.NAME, transportService, actionFilters,
             (Writeable.Reader<CreateApiKeyRequest>) CreateApiKeyRequest::new);
-        this.tokenService = tokenService;
+        this.apiKeyService = apiKeyService;
         this.compositeRolesStore = compositeRolesStore;
         this.securityContext = context;
     }
@@ -53,10 +53,10 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
             compositeRolesStore.getRoleDescriptors(Sets.newHashSet(authentication.getUser().roles()),
                 ActionListener.wrap(rdSet -> {
                     request.setRoleDescriptors(new ArrayList<>(rdSet));
-                    tokenService.createApiKey(authentication, request, listener);
+                    apiKeyService.createApiKey(authentication, request, listener);
                 }, listener::onFailure));
         } else {
-            tokenService.createApiKey(authentication, request, listener);
+            apiKeyService.createApiKey(authentication, request, listener);
         }
     }
 }

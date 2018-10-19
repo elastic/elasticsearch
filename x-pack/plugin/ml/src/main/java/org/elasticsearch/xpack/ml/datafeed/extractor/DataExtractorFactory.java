@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
@@ -56,7 +58,14 @@ public interface DataExtractorFactory {
                     }
                 }
             },
-            listener::onFailure
+            e -> {
+                if (e instanceof IndexNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException("datafeed [" + datafeed.getId()
+                        + "] cannot retrieve data because index " + ((IndexNotFoundException)e).getIndex() + " does not exist"));
+                } else {
+                    listener.onFailure(e);
+                }
+            }
         );
 
         GetRollupIndexCapsAction.Request request = new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[0]));

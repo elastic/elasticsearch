@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.security.authz;
 
 import org.apache.logging.log4j.LogManager;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -79,6 +81,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
+import static org.elasticsearch.xpack.security.authz.AuthorizationEngine.*;
 
 public class AuthorizationService {
     public static final Setting<Boolean> ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING =
@@ -104,6 +107,7 @@ public class AuthorizationService {
     private final ThreadContext threadContext;
     private final AnonymousUser anonymousUser;
     private final FieldPermissionsCache fieldPermissionsCache;
+    private final AuthorizationEngine rbacEngine;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -120,6 +124,7 @@ public class AuthorizationService {
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
+        this.rbacEngine = new RBACEngine(settings, rolesStore);
     }
 
     /**
@@ -338,6 +343,97 @@ public class AuthorizationService {
         auditTrail.accessGranted(authentication, action, request, permission.names());
     }
 
+    /**
+     * Verifies that the given user can execute the given request (and action). If the user doesn't
+     * have the appropriate privileges for this action/request, an {@link ElasticsearchSecurityException}
+     * will be thrown.
+     *
+     * @param authentication  The authentication information
+     * @param action          The action
+     * @param originalRequest The request
+     * @throws ElasticsearchSecurityException If the given user is no allowed to execute the given request
+     */
+    public void authorizeWithEngine(final Authentication authentication, final String action,
+                                    final TransportRequest originalRequest) throws ElasticsearchSecurityException {
+        // prior to doing any authorization lets set the originating action in the context only
+        putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
+
+        // sometimes a request might be wrapped within another, which is the case for proxied
+        // requests and concrete shard requests
+        final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action);
+        if (SystemUser.is(authentication.getUser())) {
+            authorizeSystemUser(authentication, action, unwrappedRequest);
+        } else {
+            final boolean isRunAs = authentication.getUser().isRunAs();
+            if (isRunAs) {
+                ActionListener<AuthorizationResult> runAsListener = ActionListener.wrap(result -> {
+                    if (result.isGranted()) {
+                        if (result.isAuditable()) {
+                            // TODO get roles from result as AuthzInfo?
+                            auditTrail.runAsGranted(authentication, action, unwrappedRequest, authentication.getUser().authenticatedUser().roles());
+                        }
+
+                    }
+                }, e -> {
+                    // TODO need a failure handler better than this!
+                    throw denyRunAs(authentication, action, unwrappedRequest, authentication.getUser().authenticatedUser().roles(), e);
+                });
+                authorizeRunAs(authentication, unwrappedRequest, action, runAsListener);
+            }
+        }
+    }
+
+    private AuthorizationEngine getAuthorizationEngine(final Authentication authentication) {
+        return ClientReservedRealm.isReserved(authentication.getUser().authenticatedUser().principal(), settings) ?
+            rbacEngine : rbacEngine;
+    }
+
+    private void authorizeSystemUser(final Authentication authentication, final String action, final TransportRequest request) {
+        if (SystemUser.isAuthorized(action)) {
+            putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
+            putTransientIfNonExisting(ROLE_NAMES_KEY, new String[]{SystemUser.ROLE_NAME});
+            auditTrail.accessGranted(authentication, action, request, new String[]{SystemUser.ROLE_NAME});
+        } else {
+            throw denial(authentication, action, request, new String[] { SystemUser.ROLE_NAME });
+        }
+    }
+
+    private TransportRequest maybeUnwrapRequest(Authentication authentication, TransportRequest originalRequest, String action) {
+        final TransportRequest request;
+
+        if (originalRequest instanceof ConcreteShardRequest) {
+            request = ((ConcreteShardRequest<?>) originalRequest).getRequest();
+            assert TransportActionProxy.isProxyRequest(request) == false : "expected non-proxy request for action: " + action;
+        } else {
+            request = TransportActionProxy.unwrapRequest(originalRequest);
+            final boolean isOriginalRequestProxyRequest = TransportActionProxy.isProxyRequest(originalRequest);
+            final boolean isProxyAction = TransportActionProxy.isProxyAction(action);
+            if (isProxyAction && isOriginalRequestProxyRequest == false) {
+                IllegalStateException cause = new IllegalStateException("originalRequest is not a proxy request: [" + originalRequest +
+                    "] but action: [" + action + "] is a proxy action");
+                throw denial(authentication, action, request, authentication.getUser().roles(), cause);
+            }
+            if (TransportActionProxy.isProxyRequest(originalRequest) && TransportActionProxy.isProxyAction(action) == false) {
+                IllegalStateException cause = new IllegalStateException("originalRequest is a proxy request for: [" + request +
+                    "] but action: [" + action + "] isn't");
+                throw denial(authentication, action, request, authentication.getUser().roles(), cause);
+            }
+        }
+        return request;
+    }
+
+    private void authorizeRunAs(final Authentication authentication, final TransportRequest request, final String action,
+                                final ActionListener<AuthorizationResult> listener) {
+        if (authentication.getLookedUpBy() == null) {
+            // this user did not really exist
+            // TODO(jaymode) find a better way to indicate lookup failed for a user and we need to fail authz
+            throw denyRunAs(authentication, action, request, authentication.getUser().authenticatedUser().roles());
+        } else {
+            final AuthorizationEngine runAsAuthzEngine = getAuthorizationEngine(authentication);
+            runAsAuthzEngine.authorizeRunAs(authentication, request, action, listener);
+        }
+    }
+
     private boolean hasSecurityIndexAccess(IndicesAccessControl indicesAccessControl) {
         for (String index : SecurityIndexManager.indexNames()) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
@@ -550,18 +646,29 @@ public class AuthorizationService {
         return ReservedRealm.TYPE.equals(realmType) || NativeRealmSettings.TYPE.equals(realmType);
     }
 
+
     ElasticsearchSecurityException denial(Authentication authentication, String action, TransportRequest request, String[] roleNames) {
+        return denial(authentication, action, request, roleNames, null);
+    }
+
+    ElasticsearchSecurityException denial(Authentication authentication, String action, TransportRequest request, String[] roleNames,
+                                          Exception cause) {
         auditTrail.accessDenied(authentication, action, request, roleNames);
-        return denialException(authentication, action);
+        return denialException(authentication, action, cause);
+    }
+
+    private ElasticsearchSecurityException denyRunAs(Authentication authentication, String action, TransportRequest request,
+                                                     String[] roleNames, Exception cause) {
+        auditTrail.runAsDenied(authentication, action, request, roleNames);
+        return denialException(authentication, action, cause);
     }
 
     private ElasticsearchSecurityException denyRunAs(Authentication authentication, String action, TransportRequest request,
                                                      String[] roleNames) {
-        auditTrail.runAsDenied(authentication, action, request, roleNames);
-        return denialException(authentication, action);
+        return denyRunAs(authentication, action, request, roleNames, null);
     }
 
-    private ElasticsearchSecurityException denialException(Authentication authentication, String action) {
+    private ElasticsearchSecurityException denialException(Authentication authentication, String action, Exception cause) {
         final User authUser = authentication.getUser().authenticatedUser();
         // Special case for anonymous user
         if (isAnonymousEnabled && anonymousUser.equals(authUser)) {
@@ -573,11 +680,11 @@ public class AuthorizationService {
         if (authentication.getUser().isRunAs()) {
             logger.debug("action [{}] is unauthorized for user [{}] run as [{}]", action, authUser.principal(),
                     authentication.getUser().principal());
-            return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", action, authUser.principal(),
+            return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", cause, action, authUser.principal(),
                     authentication.getUser().principal());
         }
         logger.debug("action [{}] is unauthorized for user [{}]", action, authUser.principal());
-        return authorizationError("action [{}] is unauthorized for user [{}]", action, authUser.principal());
+        return authorizationError("action [{}] is unauthorized for user [{}]", cause, action, authUser.principal());
     }
 
     static boolean isSuperuser(User user) {

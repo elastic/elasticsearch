@@ -355,5 +355,4 @@ public class DataExtractorFactoryTests extends ESTestCase {
         fieldCapsMap.put(type, fieldCaps);
         when(fieldsCapabilities.getField(field)).thenReturn(fieldCapsMap);
     }
-
 }

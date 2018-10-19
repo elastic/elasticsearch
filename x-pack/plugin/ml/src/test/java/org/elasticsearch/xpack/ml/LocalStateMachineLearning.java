@@ -25,10 +25,9 @@ import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.security.Security;
 
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-
 
 public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
 
@@ -73,7 +72,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
 
         @Override
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return Arrays.asList(
+            return Collections.singletonList(
                 new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, MockedRollupIndexCapsTransport.class)
             );
         }

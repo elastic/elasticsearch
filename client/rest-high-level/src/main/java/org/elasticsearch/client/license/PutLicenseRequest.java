@@ -17,23 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.license;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.TimedRequest;
 
-public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
+public class PutLicenseRequest extends TimedRequest {
 
     private String licenseDefinition;
     private boolean acknowledge = false;
 
     public PutLicenseRequest() {
-
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     public void setLicenseDefinition(String licenseDefinition) {

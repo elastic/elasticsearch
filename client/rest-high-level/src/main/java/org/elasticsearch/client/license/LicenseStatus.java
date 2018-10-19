@@ -16,15 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.license;
 
-import java.io.IOException;
+/**
+ * Status of an X-Pack license.
+ */
+public enum LicenseStatus {
 
-import org.elasticsearch.test.ESTestCase;
+    ACTIVE("active"),
+    INVALID("invalid"),
+    EXPIRED("expired");
 
-public class LicenseStatusTests extends ESTestCase {
-    public void testSerialization() throws IOException {
-        LicenseStatus status = randomFrom(LicenseStatus.values());
-        assertSame(status, copyWriteable(status, writableRegistry(), LicenseStatus::readFrom));
+    private final String label;
+
+    LicenseStatus(String label) {
+        this.label = label;
+    }
+
+    public String label() {
+        return label;
+    }
+
+    public static LicenseStatus fromString(String value) {
+        switch (value) {
+            case "active":
+                return ACTIVE;
+            case "invalid":
+                return INVALID;
+            case "expired":
+                return EXPIRED;
+            default:
+                throw new IllegalArgumentException("unknown license status [" + value + "]");
+        }
     }
 }

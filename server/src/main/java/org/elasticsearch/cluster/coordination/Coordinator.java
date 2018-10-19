@@ -601,18 +601,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     // Package-private for testing
-    ClusterState reconfigureIfPossible(ClusterState clusterState) {
-        synchronized (mutex) {
-            if (mode == Mode.LEADER) {
-                final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
-                    .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
-                final ClusterState.VotingConfiguration newConfig = reconfigurator.reconfigure(
-                    liveNodes, emptySet(), clusterState.getLastAcceptedConfiguration());
-                if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
-                    assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
-                    return ClusterState.builder(clusterState).lastAcceptedConfiguration(newConfig).build();
-                }
-            }
+    ClusterState improveConfiguration(ClusterState clusterState) {
+        assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
+
+        final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
+            .filter(this::hasJoinVoteFrom).collect(Collectors.toSet());
+        final ClusterState.VotingConfiguration newConfig = reconfigurator.reconfigure(
+            liveNodes, emptySet(), clusterState.getLastAcceptedConfiguration());
+        if (newConfig.equals(clusterState.getLastAcceptedConfiguration()) == false) {
+            assert coordinationState.get().joinVotesHaveQuorumFor(newConfig);
+            return ClusterState.builder(clusterState).lastAcceptedConfiguration(newConfig).build();
         }
 
         return clusterState;
@@ -626,13 +624,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         assert currentPublication.isPresent() == false : "Expected no publication in progress";
 
         final ClusterState state = getLastAcceptedState();
-        if (reconfigureIfPossible(state) != state && reconfigurationTaskScheduled.compareAndSet(false, true)) {
+        if (improveConfiguration(state) != state && reconfigurationTaskScheduled.compareAndSet(false, true)) {
             logger.trace("scheduling reconfiguration");
             masterService.submitStateUpdateTask("reconfigure", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     reconfigurationTaskScheduled.set(false);
-                    return reconfigureIfPossible(currentState);
+                    synchronized (mutex) {
+                        return improveConfiguration(currentState);
+                    }
                 }
 
                 @Override

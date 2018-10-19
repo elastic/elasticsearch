@@ -880,7 +880,7 @@ public class CoordinatorTests extends ESTestCase {
             assertThat("no reconfiguration is in progress",
                 lastAcceptedState.getLastCommittedConfiguration(), equalTo(lastAcceptedState.getLastAcceptedConfiguration()));
             assertThat("current configuration is already optimal",
-                leader.coordinator.reconfigureIfPossible(lastAcceptedState), sameInstance(lastAcceptedState));
+                leader.improveConfiguration(lastAcceptedState), sameInstance(lastAcceptedState));
         }
 
         // TODO remove this when lag detection is implemented
@@ -1116,6 +1116,12 @@ public class CoordinatorTests extends ESTestCase {
 
             boolean isLeader() {
                 return coordinator.getMode() == LEADER;
+            }
+
+            ClusterState improveConfiguration(ClusterState currentState) {
+                synchronized (coordinator.mutex) {
+                    return coordinator.improveConfiguration(currentState);
+                }
             }
 
             void setClusterStateApplyResponse(ClusterStateApplyResponse clusterStateApplyResponse) {

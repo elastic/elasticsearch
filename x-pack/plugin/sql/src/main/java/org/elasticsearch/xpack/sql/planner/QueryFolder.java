@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
+import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
@@ -423,6 +424,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 for (Order order : plan.order()) {
                     Direction direction = Direction.from(order.direction());
+                    Missing missing = Missing.from(order.nullsPosition());
 
                     // check whether sorting is on an group (and thus nested agg) or field
                     Attribute attr = ((NamedExpression) order.child()).toAttribute();
@@ -451,19 +453,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (sfa.orderBy() instanceof NamedExpression) {
                                     Attribute at = ((NamedExpression) sfa.orderBy()).toAttribute();
                                     at = qContainer.aliases().getOrDefault(at, at);
-                                    qContainer = qContainer.sort(new AttributeSort(at, direction));
+                                    qContainer = qContainer.sort(new AttributeSort(at, direction, missing));
                                 } else if (!sfa.orderBy().foldable()) {
                                     // ignore constant
                                     throw new PlanningException("does not know how to order by expression {}", sfa.orderBy());
                                 }
                             } else {
                                 // nope, use scripted sorting
-                                qContainer = qContainer.sort(new ScriptSort(sfa.script(), direction));
+                                qContainer = qContainer.sort(new ScriptSort(sfa.script(), direction, missing));
                             }
                         } else if (attr instanceof ScoreAttribute) {
-                            qContainer = qContainer.sort(new ScoreSort(direction));
+                            qContainer = qContainer.sort(new ScoreSort(direction, missing));
                         } else {
-                            qContainer = qContainer.sort(new AttributeSort(attr, direction));
+                            qContainer = qContainer.sort(new AttributeSort(attr, direction, missing));
                         }
                     }
                 }

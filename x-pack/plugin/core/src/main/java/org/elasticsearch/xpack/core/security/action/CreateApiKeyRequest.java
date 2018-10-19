@@ -48,7 +48,11 @@ public final class CreateApiKeyRequest extends ActionRequest {
     }
 
     public void setName(String name) {
-        this.name = name;
+        if (Strings.hasText(name) || name.length() > 256) {
+            this.name = name;
+        } else {
+            throw new IllegalArgumentException("name must be non-null, at least one character, and no more than 256 characters");
+        }
     }
 
     public TimeValue getExpiration() {

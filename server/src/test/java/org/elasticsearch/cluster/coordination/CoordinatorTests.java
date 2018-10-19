@@ -85,6 +85,7 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
+import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
@@ -140,14 +141,17 @@ public class CoordinatorTests extends ESTestCase {
         assertEquals(currentTerm, newTerm);
     }
 
-    public void testExpandsConfigurationWhenNodesJoinAndContractsWhenTheyLeave() {
+    public void testExpandsConfigurationWhenGrowingFromOneToThreeNodesAndShrinksOnFailure() {
         final Cluster cluster = new Cluster(1);
         cluster.runRandomly();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
 
+        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(0));
+
         cluster.addNodesAndStabilise(2);
+
         {
             assertThat(leader.coordinator.getMode(), is(Mode.LEADER));
             final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
@@ -155,7 +159,33 @@ public class CoordinatorTests extends ESTestCase {
                 equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
         }
 
+        final ClusterNode disconnect1 = cluster.getAnyNode();
+        logger.info("--> disconnecting {}", disconnect1);
+        disconnect1.disconnect();
+        cluster.stabilise();
+
+        {
+            final ClusterNode newLeader = cluster.getAnyLeader();
+            final VotingConfiguration lastCommittedConfiguration = newLeader.getLastAppliedClusterState().getLastCommittedConfiguration();
+            assertThat(lastCommittedConfiguration + " should be 1 node", lastCommittedConfiguration.getNodeIds().size(), equalTo(1));
+            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect1.getId()));
+        }
+    }
+
+    public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksOnFailure() {
+        final Cluster cluster = new Cluster(3);
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+
+        logger.info("setting fault tolerance to 1");
+        leader.submitSetMasterNodesFailureTolerance(1);
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(1));
+
         cluster.addNodesAndStabilise(2);
+
         {
             assertThat(leader.coordinator.getMode(), is(Mode.LEADER));
             final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
@@ -165,7 +195,6 @@ public class CoordinatorTests extends ESTestCase {
 
         final ClusterNode disconnect1 = cluster.getAnyNode();
         final ClusterNode disconnect2 = cluster.getAnyNodeExcept(disconnect1);
-
         logger.info("--> disconnecting {} and {}", disconnect1, disconnect2);
         disconnect1.disconnect();
         disconnect2.disconnect();
@@ -179,6 +208,8 @@ public class CoordinatorTests extends ESTestCase {
             assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect2.getId()));
         }
 
+        // we still tolerate the loss of one more node here
+
         final ClusterNode disconnect3 = cluster.getAnyNodeExcept(disconnect1, disconnect2);
         logger.info("--> disconnecting {}", disconnect3);
         disconnect3.disconnect();
@@ -187,10 +218,114 @@ public class CoordinatorTests extends ESTestCase {
         {
             final ClusterNode newLeader = cluster.getAnyLeader();
             final VotingConfiguration lastCommittedConfiguration = newLeader.getLastAppliedClusterState().getLastCommittedConfiguration();
-            assertThat(lastCommittedConfiguration + " should be 1 node", lastCommittedConfiguration.getNodeIds().size(), equalTo(1));
+            assertThat(lastCommittedConfiguration + " should be 3 nodes", lastCommittedConfiguration.getNodeIds().size(), equalTo(3));
             assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect1.getId()));
             assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect2.getId()));
-            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect3.getId()));
+            assertTrue(lastCommittedConfiguration.getNodeIds().contains(disconnect3.getId()));
+        }
+
+        // however we do not tolerate the loss of yet another one
+
+        final ClusterNode disconnect4 = cluster.getAnyNodeExcept(disconnect1, disconnect2, disconnect3);
+        logger.info("--> disconnecting {}", disconnect4);
+        disconnect4.disconnect();
+        cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for fault detection");
+
+        for (final ClusterNode clusterNode : cluster.clusterNodes) {
+            assertThat(clusterNode.getId() + " should be a candidate", clusterNode.coordinator.getMode(), equalTo(Mode.CANDIDATE));
+        }
+
+        // moreover we are still stuck even if two other nodes heal
+        logger.info("--> healing {} and {}", disconnect1, disconnect2);
+        disconnect1.heal();
+        disconnect2.heal();
+        cluster.runFor(DEFAULT_STABILISATION_TIME, "allowing time for fault detection");
+
+        for (final ClusterNode clusterNode : cluster.clusterNodes) {
+            assertThat(clusterNode.getId() + " should be a candidate", clusterNode.coordinator.getMode(), equalTo(Mode.CANDIDATE));
+        }
+
+        // we require another node to heal to recover
+        final ClusterNode toHeal = randomBoolean() ? disconnect3 : disconnect4;
+        logger.info("--> healing {}", toHeal);
+        toHeal.heal();
+        cluster.stabilise();
+    }
+
+    public void testCanShrinkFromFiveNodesToThree() {
+        final Cluster cluster = new Cluster(5);
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+
+        logger.info("setting fault tolerance to 2");
+        leader.submitSetMasterNodesFailureTolerance(2);
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(2));
+
+        final ClusterNode disconnect1 = cluster.getAnyNode();
+        final ClusterNode disconnect2 = cluster.getAnyNodeExcept(disconnect1);
+
+        logger.info("--> disconnecting {} and {}", disconnect1, disconnect2);
+        disconnect1.disconnect();
+        disconnect2.disconnect();
+        cluster.stabilise();
+
+        {
+            assertThat(leader.coordinator.getMode(), is(Mode.LEADER));
+            final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
+            assertThat(lastCommittedConfiguration + " should be all nodes", lastCommittedConfiguration.getNodeIds(),
+                equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
+        }
+
+        cluster.getAnyLeader().submitSetMasterNodesFailureTolerance(1);
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY * 2); // allow for a reconfiguration
+        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(1));
+
+        {
+            final ClusterNode newLeader = cluster.getAnyLeader();
+            final VotingConfiguration lastCommittedConfiguration = newLeader.getLastAppliedClusterState().getLastCommittedConfiguration();
+            assertThat(lastCommittedConfiguration + " should be 3 nodes", lastCommittedConfiguration.getNodeIds().size(), equalTo(3));
+            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect1.getId()));
+            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect2.getId()));
+        }
+    }
+
+    public void testCanShrinkFromThreeNodesToTwo() {
+        final Cluster cluster = new Cluster(3);
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+
+        logger.info("setting fault tolerance to 1");
+        leader.submitSetMasterNodesFailureTolerance(1);
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(1));
+
+        final ClusterNode disconnect1 = cluster.getAnyNode();
+
+        logger.info("--> disconnecting {}", disconnect1);
+        disconnect1.disconnect();
+        cluster.stabilise();
+
+        {
+            assertThat(leader.coordinator.getMode(), is(Mode.LEADER));
+            final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
+            assertThat(lastCommittedConfiguration + " should be all nodes", lastCommittedConfiguration.getNodeIds(),
+                equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
+        }
+
+        cluster.getAnyLeader().submitSetMasterNodesFailureTolerance(0);
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY * 2); // allow for a reconfiguration
+        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(0));
+
+        {
+            final ClusterNode newLeader = cluster.getAnyLeader();
+            final VotingConfiguration lastCommittedConfiguration = newLeader.getLastAppliedClusterState().getLastCommittedConfiguration();
+            assertThat(lastCommittedConfiguration + " should be 1 node", lastCommittedConfiguration.getNodeIds().size(), equalTo(1));
+            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect1.getId()));
         }
     }
 
@@ -1147,7 +1282,7 @@ public class CoordinatorTests extends ESTestCase {
                             MetaData.builder(cs.metaData())
                                 .persistentSettings(Settings.builder()
                                     .put(cs.metaData().persistentSettings())
-                                    .put(Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), masterNodesFaultTolerance)
+                                    .put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), masterNodesFaultTolerance)
                                     .build())
                                 .build())
                             .build());

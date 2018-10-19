@@ -32,6 +32,8 @@ import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.DeleteRoleMappingRequest;
+import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 
 import java.io.IOException;
 
@@ -226,6 +228,34 @@ public final class SecurityClient {
     }
 
     /**
+     * Delete a role mapping.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role-mapping.html">
+     * the docs</a> for more.
+     * @param request the request with the role mapping name to be deleted.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the delete role mapping call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DeleteRoleMappingResponse deleteRoleMapping(DeleteRoleMappingRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::deleteRoleMapping, options,
+                DeleteRoleMappingResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously delete a role mapping.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role-mapping.html">
+     * the docs</a> for more.
+     * @param request the request with the role mapping name to be deleted.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteRoleMappingAsync(DeleteRoleMappingRequest request, RequestOptions options,
+            ActionListener<DeleteRoleMappingResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteRoleMapping, options,
+                DeleteRoleMappingResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Removes role from the native realm.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role.html">
      * the docs</a> for more.
@@ -251,4 +281,5 @@ public final class SecurityClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteRole, options,
             DeleteRoleResponse::fromXContent, listener, singleton(404));
     }
+
 }

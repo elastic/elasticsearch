@@ -22,13 +22,21 @@ package org.elasticsearch.client.documentation;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.DeleteRoleMappingRequest;
+import org.elasticsearch.client.security.DeleteRoleMappingResponse;
+import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
@@ -40,14 +48,18 @@ import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
+import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
@@ -373,6 +385,59 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testDeleteRoleMapping() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        {
+            // Create role mappings
+            final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("*");
+            final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
+                    rules, null, RefreshPolicy.NONE);
+            final PutRoleMappingResponse response = client.security().putRoleMapping(request, RequestOptions.DEFAULT);
+            boolean isCreated = response.isCreated();
+            assertTrue(isCreated);
+        }
+
+        {
+            // tag::delete-role-mapping-execute
+            final DeleteRoleMappingRequest request = new DeleteRoleMappingRequest("mapping-example", RefreshPolicy.NONE);
+            final DeleteRoleMappingResponse response = client.security().deleteRoleMapping(request, RequestOptions.DEFAULT);
+            // end::delete-role-mapping-execute
+            // tag::delete-role-mapping-response
+            boolean isFound = response.isFound(); // <1>
+            // end::delete-role-mapping-response
+
+            assertTrue(isFound);
+        }
+
+        {
+            final DeleteRoleMappingRequest request = new DeleteRoleMappingRequest("mapping-example", RefreshPolicy.NONE);
+            // tag::delete-role-mapping-execute-listener
+            ActionListener<DeleteRoleMappingResponse> listener = new ActionListener<DeleteRoleMappingResponse>() {
+                @Override
+                public void onResponse(DeleteRoleMappingResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-role-mapping-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-role-mapping-execute-async
+            client.security().deleteRoleMappingAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-role-mapping-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testDeleteRole() throws Exception {
         RestHighLevelClient client = highLevelClient();
         addRole("testrole");
@@ -430,4 +495,5 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         client().performRequest(addRoleRequest);
     }
+
 }

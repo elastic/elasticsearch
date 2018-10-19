@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
-public class CreateApiKeyRespoonseTests extends ESTestCase {
+public class CreateApiKeyResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final String name = randomAlphaOfLengthBetween(1, 256);

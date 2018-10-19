@@ -335,8 +335,8 @@ include::security/delete-role-mapping.asciidoc[]
 
 The Java High Level REST Client supports the following Watcher APIs:
 
-* <<java-rest-high-watcher-start-watch-service>>
-* <<java-rest-high-watcher-stop-watch-service>>
+* <<{upid}-start-watch-service>>
+* <<{upid}-stop-watch-service>>
 * <<java-rest-high-x-pack-watcher-put-watch>>
 * <<java-rest-high-x-pack-watcher-delete-watch>>
 * <<{upid}-ack-watch>>

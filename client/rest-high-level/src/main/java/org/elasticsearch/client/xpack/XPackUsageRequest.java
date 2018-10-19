@@ -16,16 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.xpack;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.TimedRequest;
 
+public class XPackUsageRequest extends TimedRequest {
 
-public class DeleteLicenseRequest extends AcknowledgedRequest<DeleteLicenseRequest> {
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
 }

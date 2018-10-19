@@ -17,8 +17,10 @@
  * under the License.
  */
 
-/**
- * Request and Response objects for the default distribution's License
- * APIs.
- */
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.watcher;
+
+import org.elasticsearch.client.Validatable;
+
+public class StopWatchServiceRequest implements Validatable {
+
+}

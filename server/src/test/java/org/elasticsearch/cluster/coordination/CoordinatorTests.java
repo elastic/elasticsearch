@@ -717,7 +717,7 @@ public class CoordinatorTests extends ESTestCase {
                 if (randomSteps <= step && finishTime == -1) {
                     finishTime = deterministicTaskQueue.getLatestDeferredExecutionTime();
                     deterministicTaskQueue.setExecutionDelayVariabilityMillis(DEFAULT_DELAY_VARIABILITY);
-                    logger.debug("----> [runRandomly {}] reducing delay variability and running until [{}]", step, finishTime);
+                    logger.debug("----> [runRandomly {}] reducing delay variability and running until [{}ms]", step, finishTime);
                 }
 
                 try {

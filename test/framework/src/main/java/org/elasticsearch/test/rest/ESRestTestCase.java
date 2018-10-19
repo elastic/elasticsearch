@@ -100,7 +100,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Does the cluster being tested have xpack installed?
+     * Does any node in the cluster being tested have x-pack installed?
      */
     public static boolean hasXPack() throws IOException {
         RestClient client = adminClient();
@@ -326,7 +326,17 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         if (hasXPack && false == preserveRollupJobsUponCompletion()) {
-            wipeRollupJobs();
+            try {
+                wipeRollupJobs();
+            } catch (ResponseException e) {
+                // Temporary work around for mixed clusters, some of which don't have rollup
+                if (    // The request was made to node without rollup
+                        e.getResponse().getStatusLine().getStatusCode() != 400
+                        // or the request was made to a node with rollup and it sent something to a node without it
+                        && false == e.getMessage().contains("No handler for action [cluster:monitor/xpack/rollup/get]")) {
+                    throw e;
+                }
+            }
             waitForPendingRollupTasks();
         }
     }

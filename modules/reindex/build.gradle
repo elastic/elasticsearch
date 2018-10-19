@@ -116,7 +116,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       dependsOn unzip
       executable = new File(project.runtimeJavaHome, 'bin/java')
       env 'CLASSPATH', "${ -> project.configurations.oldesFixture.asPath }"
-      env 'JAVA_HOME', getJavaHome(it, 7)
+      env 'JAVA_HOME', getJavaHome(it, 8)
       args 'oldes.OldElasticsearch',
            baseDir,
            unzip.temporaryDir,

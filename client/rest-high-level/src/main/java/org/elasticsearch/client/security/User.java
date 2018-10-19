@@ -37,7 +37,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * An authenticated user
  */
-public class User {
+public final class User {
 
     static final ParseField USERNAME = new ParseField("username");
     static final ParseField ROLES = new ParseField("roles");

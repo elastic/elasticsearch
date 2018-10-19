@@ -24,7 +24,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-public class AuthenticateResponse {
+/**
+ * The response for the authenticate call. The user object is the only field
+ * of this response. It contains all user metadata which Elasticsearch uses
+ * to map roles, etc.
+ */
+public final class AuthenticateResponse {
 
     private final User user;
 

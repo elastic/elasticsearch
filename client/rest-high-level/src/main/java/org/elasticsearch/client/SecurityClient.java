@@ -170,8 +170,7 @@ public final class SecurityClient {
     }
 
     /**
-     * Authenticate the current user (pertaining to request headers)
-     * and return all the information about the authenticated user.
+     * Authenticate the current user and return all the information about the authenticated user.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-authenticate.html">
      * the docs</a> for more.
      * 
@@ -184,8 +183,7 @@ public final class SecurityClient {
     }
 
     /**
-     * Authenticate the current user (pertaining to request headers) asynchronously
-     * and return all the information about the authenticated user.
+     * Authenticate the current user asynchronously and return all the information about the authenticated user.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-authenticate.html">
      * the docs</a> for more.
      * 

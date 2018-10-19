@@ -20,10 +20,18 @@
 package org.elasticsearch.client.security;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.client.EmptyBodyRequest;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Validatable;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
-public class AuthenticateRequest extends EmptyBodyRequest {
+import java.io.IOException;
+
+/**
+ * Empty request object required to make the authenticate call. The authenticate call
+ * retrieves metadata about the authenticated user.
+ */
+public final class AuthenticateRequest implements Validatable, ToXContentObject {
 
     public static final AuthenticateRequest INSTANCE = new AuthenticateRequest();
     private final Request request;
@@ -34,6 +42,11 @@ public class AuthenticateRequest extends EmptyBodyRequest {
 
     public Request getRequest() {
         return request;
+    }
+
+    @Override
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject().endObject();
     }
 
 }

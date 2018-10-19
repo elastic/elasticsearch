@@ -3,19 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.expression.predicate;
+package org.elasticsearch.xpack.sql.expression.predicate.logical;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
-
-import java.util.Objects;
 
 public class Or extends BinaryLogic implements Negateable {
 
     public Or(Location location, Expression left, Expression right) {
-        super(location, left, right, "||");
+        super(location, left, right, BinaryLogicOperation.OR);
     }
 
     @Override
@@ -24,13 +23,8 @@ public class Or extends BinaryLogic implements Negateable {
     }
 
     @Override
-    protected BinaryOperator replaceChildren(Expression newLeft, Expression newRight) {
+    protected Or replaceChildren(Expression newLeft, Expression newRight) {
         return new Or(location(), newLeft, newRight);
-    }
-
-    @Override
-    public Object fold() {
-        return Objects.equals(left().fold(), Boolean.TRUE) || Objects.equals(right().fold(), Boolean.TRUE);
     }
 
     @Override

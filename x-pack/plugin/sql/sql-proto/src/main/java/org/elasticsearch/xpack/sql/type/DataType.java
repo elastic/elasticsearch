@@ -174,9 +174,9 @@ public enum DataType {
     public boolean isCompatibleWith(DataType other) {
         if (this == other) {
             return true;
-        } else if (this.isString() && other.isString()) {
+        } else if (isString() && other.isString()) {
             return true;
-        } else if (this.isNumeric() && other.isNumeric()) {
+        } else if (isNumeric() && other.isNumeric()) {
             return true;
         } else {
             return false;

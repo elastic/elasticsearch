@@ -191,12 +191,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testInWithDifferentDataTypes_WhereClause() {
-        assertEquals("1:49: expected data type [KEYWORD], value provided is of type [INTEGER]",
+        assertEquals("1:49: expected data type [TEXT], value provided is of type [INTEGER]",
             verify("SELECT * FROM test WHERE text IN ('foo', 'bar', 4)"));
     }
 
     public void testInNestedWithDifferentDataTypes_WhereClause() {
-        assertEquals("1:60: expected data type [KEYWORD], value provided is of type [INTEGER]",
+        assertEquals("1:60: expected data type [TEXT], value provided is of type [INTEGER]",
             verify("SELECT * FROM test WHERE int = 1 OR text IN ('foo', 'bar', 2)"));
     }
 

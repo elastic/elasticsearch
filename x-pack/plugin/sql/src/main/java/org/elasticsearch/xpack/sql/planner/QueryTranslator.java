@@ -87,7 +87,6 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.Check;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -540,7 +539,7 @@ final class QueryTranslator {
             // if the code gets here it's a bug
             //
             else {
-                throw new UnsupportedOperationException("No idea how to translate " + bc.left());
+                throw new SqlIllegalArgumentException("No idea how to translate " + bc.left());
             }
         }
 
@@ -612,7 +611,7 @@ final class QueryTranslator {
                 else {
                     // query directly on the field
                     if (at instanceof FieldAttribute) {
-                        query = wrapIfNested(new TermsQuery(in.location(), ne.name(), new ArrayList<>(in.foldedList())), ne);
+                        query = wrapIfNested(new TermsQuery(in.location(), ne.name(), in.list()), ne);
                     } else {
                         query = new ScriptQuery(at.location(), script);
                     }
@@ -623,7 +622,7 @@ final class QueryTranslator {
             // if the code gets here it's a bug
             //
             else {
-                throw new UnsupportedOperationException("No idea how to translate " + in.value());
+                throw new SqlIllegalArgumentException("No idea how to translate " + in.value());
             }
         }
     }

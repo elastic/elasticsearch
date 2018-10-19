@@ -16,17 +16,14 @@ class InProcessor implements Processor {
 
     public static final String NAME = "in";
 
-    private final Processor left;
-    private final List<Processor> rightList;
+    private final List<Processor> processsors;
 
-    InProcessor(Processor left, List<Processor> rightList) {
-        this.left = left;
-        this.rightList = rightList;
+    InProcessor(List<Processor> processors) {
+        this.processsors = processors;
     }
 
     InProcessor(StreamInput in) throws IOException {
-        left = in.readNamedWriteable(Processor.class);
-        rightList = in.readNamedWriteableList(Processor.class);
+        processsors = in.readNamedWriteableList(Processor.class);
     }
 
     @Override
@@ -36,15 +33,14 @@ class InProcessor implements Processor {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(left);
-        out.writeNamedWriteableList(rightList);
+        out.writeNamedWriteableList(processsors);
     }
 
     @Override
     public Object process(Object input) {
-        Object leftValue = left.process(input);
-        for (Processor p : rightList) {
-            Boolean compResult = Comparisons.eq(leftValue, p.process(input));
+        Object leftValue = processsors.get(0).process(input);
+        for (int i = 1; i < processsors.size(); i++) {
+            Boolean compResult = Comparisons.eq(leftValue, processsors.get(i).process(input));
             if (compResult != null && compResult) {
                 return true;
             }

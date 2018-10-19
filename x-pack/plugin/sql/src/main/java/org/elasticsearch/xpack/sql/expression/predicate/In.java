@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
@@ -37,8 +36,6 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     private final Expression value;
     private final List<Expression> list;
-    private Boolean lazyNullable, lazyFoldable;
-    private List<Object> foldedList;
     private Attribute lazyAttribute;
 
     public In(Location location, Expression value, List<Expression> list) {
@@ -54,8 +51,8 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.isEmpty()) {
-            throw new IllegalArgumentException("expected one or more children but received [" + newChildren.size() + "]");
+        if (newChildren.size() < 2) {
+            throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
         }
         return new In(location(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1));
     }
@@ -68,10 +65,6 @@ public class In extends NamedExpression implements ScriptWeaver {
         return list;
     }
 
-    public List<Object> foldedList() {
-        return foldedList;
-    }
-
     @Override
     public DataType dataType() {
         return DataType.BOOLEAN;
@@ -79,31 +72,20 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public boolean nullable() {
-        if (lazyNullable == null) {
-            lazyNullable = children().stream().anyMatch(Expression::nullable);
-        }
-        return lazyNullable;
+        return Expressions.nullable(children());
     }
 
     @Override
     public boolean foldable() {
-        if (lazyFoldable == null) {
-            lazyFoldable = children().stream().allMatch(Expression::foldable) && value.foldable();
-            foldedList = new ArrayList<>(list.size());
-            list.forEach(e -> foldedList.add(e.foldable() ? e.fold() : e));
-        }
-        return lazyFoldable;
+        return children().stream().allMatch(Expression::foldable);
     }
 
     @Override
     public Object fold() {
-        if (!foldable()) {
-            throw new SqlIllegalArgumentException("Cannot fold if not everything in `IN` expression is foldable");
-        }
         Object foldedLeftValue = value.fold();
 
-        for (Object rightValue : foldedList) {
-            Boolean compResult = Comparisons.eq(foldedLeftValue, rightValue);
+        for (Expression rightValue : list) {
+            Boolean compResult = Comparisons.eq(foldedLeftValue, rightValue.fold());
             if (compResult != null && compResult) {
                 return true;
             }
@@ -133,13 +115,14 @@ public class In extends NamedExpression implements ScriptWeaver {
         ScriptTemplate leftScript = asScript(value);
         List<Params> rightParams = new ArrayList<>();
         String scriptPrefix = leftScript + "==";
-        for (Object e : foldedList) {
-            if (e instanceof Expression) {
-                ScriptTemplate rightScript = asScript((Expression) e);
+        for (Expression e : list) {
+            Object valueFromList = e.fold();
+            if (valueFromList instanceof Expression) {
+                ScriptTemplate rightScript = asScript((Expression) valueFromList);
                 sj.add(scriptPrefix + rightScript.template());
                 rightParams.add(rightScript.params());
             } else {
-                if (e instanceof String) {
+                if (valueFromList instanceof String) {
                     sj.add(scriptPrefix + '"' + e + '"');
                 } else {
                     sj.add(scriptPrefix + e.toString());
@@ -157,7 +140,7 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     protected Pipe makePipe() {
-        return new InPipe(location(), this, Expressions.pipe(value()), list.stream().map(Expressions::pipe).collect(Collectors.toList()));
+        return new InPipe(location(), this, children().stream().map(Expressions::pipe).collect(Collectors.toList()));
     }
 
     @Override

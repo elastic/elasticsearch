@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -193,15 +191,7 @@ final class Verifier {
 
                 Set<Failure> localFailures = new LinkedHashSet<>();
 
-                if (p instanceof Filter) {
-                    Filter filterPlan = (Filter) p;
-                    validateInExpression(filterPlan.condition(), localFailures);
-                } else if (p instanceof Project) {
-                    Project projectPlan = (Project) p;
-                    for (NamedExpression ne : projectPlan.projections()) {
-                        validateInExpression(ne, localFailures);
-                    }
-                }
+                validateInExpression(p, localFailures);
 
                 if (!groupingFailures.contains(p)) {
                     checkGroupBy(p, localFailures, resolvedFunctions, groupingFailures);
@@ -504,30 +494,18 @@ final class Verifier {
         }
     }
 
-    private static void validateInExpression(Expression e, Set<Failure> localFailures) {
-        if (e instanceof In) {
-            In in = (In) e;
-            DataType dt = null;
-            for (Expression rightValue : in.list()) {
-                if (dt == null) {
-                    dt = rightValue.dataType();
-                    if (!in.value().dataType().isCompatibleWith(dt)) {
-                        localFailures.add(fail(in.list().get(0), "expected data type [%s], value provided is of type [%s]",
-                            in.value().dataType(), dt));
-                        return;
+    private static void validateInExpression(LogicalPlan p, Set<Failure> localFailures) {
+        p.forEachExpressions(e ->
+            e.forEachUp((In in) -> {
+                    DataType dt = in.value().dataType();
+                    for (Expression value : in.list()) {
+                        if (!in.value().dataType().isCompatibleWith(value.dataType())) {
+                            localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
+                                dt, value.dataType()));
+                            return;
+                        }
                     }
-                } else {
-                    if (!rightValue.dataType().isCompatibleWith(dt)) {
-                        localFailures.add(fail(rightValue, "expected data type [%s], value provided is of type [%s]",
-                            dt, rightValue.dataType()));
-                        return;
-                    }
-                }
-            }
-        } else {
-            for (Expression child : e.children()) {
-                validateInExpression(child, localFailures);
-            }
-        }
+                },
+                In.class));
     }
 }

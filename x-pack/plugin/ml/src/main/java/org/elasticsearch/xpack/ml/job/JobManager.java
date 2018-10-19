@@ -198,11 +198,15 @@ public class JobManager extends AbstractComponent {
     }
 
     private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoJobs, ClusterState clusterState) {
-        Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         Map<String, Job> jobIdToJob = new HashMap<>();
-        for (String expandedJobId : expandedJobIds) {
-            jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
+        try {
+            Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
+            MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+            for (String expandedJobId : expandedJobIds) {
+                jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
+            }
+        } catch (Exception e) {
+            // ignore
         }
         return jobIdToJob;
     }

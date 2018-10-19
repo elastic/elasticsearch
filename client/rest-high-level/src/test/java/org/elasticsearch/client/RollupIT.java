@@ -38,6 +38,7 @@ import org.elasticsearch.client.rollup.job.config.GroupConfig;
 import org.elasticsearch.client.rollup.job.config.MetricConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -48,7 +49,6 @@ import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -120,7 +120,9 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final int pageSize = randomIntBetween(numDocs, numDocs * 10);
         // TODO expand this to also test with histogram and terms?
         final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
-        final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
+        final List<MetricConfig> metrics = Arrays.asList(
+            new MetricConfig("value", SUPPORTED_METRICS),
+            new MetricConfig("date", Arrays.asList(MaxAggregationBuilder.NAME)));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
         PutRollupJobRequest putRollupJobRequest =
@@ -151,21 +153,28 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             assertEquals(groups.getDateHistogram().getTimeZone(), source.get("date.date_histogram.time_zone"));
 
             for (MetricConfig metric : metrics) {
-                for (String name : metric.getMetrics()) {
-                    Number value = (Number) source.get(metric.getField() + "." + name + ".value");
-                    if ("min".equals(name)) {
-                        assertEquals(finalMin, value.intValue());
-                    } else if ("max".equals(name)) {
-                        assertEquals(finalMax, value.intValue());
-                    } else if ("sum".equals(name)) {
-                        assertEquals(finalSum, value.doubleValue(), 0.0d);
-                    } else if ("avg".equals(name)) {
-                        assertEquals(finalSum, value.doubleValue(), 0.0d);
-                        Number avgCount = (Number) source.get(metric.getField() + "." + name + "._count");
-                        assertEquals(numDocs, avgCount.intValue());
-                    } else if ("value_count".equals(name)) {
-                        assertEquals(numDocs, value.intValue());
+                if (metric.getField().equals("value")) {
+                    for (String name : metric.getMetrics()) {
+                        Number value = (Number) source.get(metric.getField() + "." + name + ".value");
+                        if ("min".equals(name)) {
+                            assertEquals(finalMin, value.intValue());
+                        } else if ("max".equals(name)) {
+                            assertEquals(finalMax, value.intValue());
+                        } else if ("sum".equals(name)) {
+                            assertEquals(finalSum, value.doubleValue(), 0.0d);
+                        } else if ("avg".equals(name)) {
+                            assertEquals(finalSum, value.doubleValue(), 0.0d);
+                            Number avgCount = (Number) source.get(metric.getField() + "." + name + "._count");
+                            assertEquals(numDocs, avgCount.intValue());
+                        } else if ("value_count".equals(name)) {
+                            assertEquals(numDocs, value.intValue());
+                        }
                     }
+                } else {
+                    Number value = (Number) source.get(metric.getField() + ".max.value");
+                    assertEquals(
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2018-01-01T00:59:50").getMillis(),
+                        value.longValue());
                 }
             }
         });

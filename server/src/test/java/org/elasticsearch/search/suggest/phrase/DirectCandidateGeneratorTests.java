@@ -26,7 +26,6 @@ import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -160,15 +159,6 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         String directGenerator = "{ }";
         assertIllegalXContent(directGenerator, IllegalArgumentException.class,
                 "Required [field]");
-
-        // test two fieldnames
-        if (XContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-        } else {
-            directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
-            assertIllegalXContent(directGenerator, IllegalArgumentException.class,
-                "[direct_generator] failed to parse field [field]");
-        }
 
         // test unknown field
         directGenerator = "{ \"unknown_param\" : \"f1\" }";

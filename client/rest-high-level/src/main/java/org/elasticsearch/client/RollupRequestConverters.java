@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
+import org.elasticsearch.client.rollup.GetRollupCapsRequest;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 
 import java.io.IOException;
@@ -53,5 +56,29 @@ final class RollupRequestConverters {
             .addPathPart(getRollupJobRequest.getJobId())
             .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
+    }
+
+    static Request deleteJob(final DeleteRollupJobRequest deleteRollupJobRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("rollup")
+            .addPathPartAsIs("job")
+            .addPathPart(deleteRollupJobRequest.getId())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(deleteRollupJobRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getRollupCaps(final GetRollupCapsRequest getRollupCapsRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("rollup")
+            .addPathPartAsIs("data")
+            .addPathPart(getRollupCapsRequest.getIndexPattern())
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(getRollupCapsRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
     }
 }

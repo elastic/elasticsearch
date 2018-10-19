@@ -607,7 +607,7 @@ public class InternalEngine extends Engine {
                                     final Translog.Index index = (Translog.Index) operation;
                                     TranslogLeafReader reader = new TranslogLeafReader(index, engineConfig
                                         .getIndexSettings().getIndexVersionCreated());
-                                    return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader), logger),
+                                    return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader), reader::close),
                                         new VersionsAndSeqNoResolver.DocIdAndVersion(0, index.version(), index.seqNo(), index.primaryTerm(),
                                             reader, 0));
                                 }
@@ -2105,7 +2105,7 @@ public class InternalEngine extends Engine {
             if (warmer != null) {
                 try {
                     assert searcher.getIndexReader() instanceof ElasticsearchDirectoryReader : "this class needs an ElasticsearchDirectoryReader but got: " + searcher.getIndexReader().getClass();
-                    warmer.warm(new Searcher("top_reader_warming", searcher, s -> {}, logger));
+                    warmer.warm(new Searcher("top_reader_warming", searcher, () -> {}));
                 } catch (Exception e) {
                     if (isEngineClosed.get() == false) {
                         logger.warn("failed to prepare/warm", e);

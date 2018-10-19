@@ -25,6 +25,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
     public void testBulkProcessorAutoCreateRestrictions() throws Exception {
@@ -47,5 +50,33 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         assertTrue("Missing index should have been flagged", responses[1].isFailed());
         assertEquals("[wontwork] IndexNotFoundException[no such index]", responses[1].getFailureMessage());
         assertFalse("Operation on existing index should succeed", responses[2].isFailed());
+    }
+
+    public void testBulkProcessorAutoCreateRestrictionsByRequestParameter() {
+        final String indexName1 = "willwork";
+        final String indexName2 = "wontwork";
+
+        // start node with all default settings, esp. action.auto_create_index = true
+        internalCluster().startNode();
+        createIndex(indexName1);
+        ensureGreen(indexName1);
+
+        final BulkRequestBuilder bulkBuilder = client().prepareBulk();
+        bulkBuilder.setAutoCreateIndexDisabled(true);
+        bulkBuilder.add(client().prepareIndex(indexName1, "type", "1").setSource("field", "2"));
+        bulkBuilder.add(client().prepareIndex(indexName2, "type", "1").setSource("field", "2"));
+        bulkBuilder.add(client().prepareUpdate(indexName2, "type", "1").setDoc("{\"foo\":3}", XContentType.JSON));
+
+        final BulkResponse bulkResponse = bulkBuilder.get();
+        assertThat(bulkResponse.hasFailures(), equalTo(true));
+        final BulkItemResponse[] items = bulkResponse.getItems();
+        assertThat(items.length, equalTo(3));
+        assertThat("Operation on existing index should succeed", items[0].isFailed(), equalTo(false));
+        assertThat("Missing index should have been flagged", items[1].isFailed(), equalTo(true));
+        assertThat("Missing index should have been flagged", items[2].isFailed(), equalTo(true));
+        assertThat(items[1].getFailureMessage(),
+            containsString("IndexNotFoundException[no such index [wontwork] and parameter [disable_auto_create_index] is [true]]"));
+        assertThat(items[2].getFailureMessage(),
+            containsString("IndexNotFoundException[no such index [wontwork] and parameter [disable_auto_create_index] is [true]]"));
     }
 }

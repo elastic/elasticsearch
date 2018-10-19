@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -53,6 +54,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     private RemoteInfo remoteInfo;
 
+    private boolean autoCreateIndexDisabled = false;
+
     public ReindexRequest() {
         this(new SearchRequest(), new IndexRequest(), true);
     }
@@ -71,6 +74,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destination = new IndexRequest();
         destination.readFrom(in);
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            autoCreateIndexDisabled = in.readBoolean();
+        }
     }
 
     @Override
@@ -250,6 +256,17 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return remoteInfo;
     }
 
+    public boolean isAutoCreateIndexDisabled() {
+        return autoCreateIndexDisabled;
+    }
+
+    /**
+     * Disable automatic index creation per a single request. Defaults to {@code false}
+     */
+    public void setAutoCreateIndexDisabled(boolean autoCreateIndexDisabled) {
+        this.autoCreateIndexDisabled = autoCreateIndexDisabled;
+    }
+
     @Override
     public ReindexRequest forSlice(TaskId slicingTask, SearchRequest slice, int totalSlices) {
         ReindexRequest sliced = doForSlice(new ReindexRequest(slice, destination, false), slicingTask, totalSlices);
@@ -267,6 +284,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         super.writeTo(out);
         destination.writeTo(out);
         out.writeOptionalWriteable(remoteInfo);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(autoCreateIndexDisabled);
+        }
     }
 
     @Override

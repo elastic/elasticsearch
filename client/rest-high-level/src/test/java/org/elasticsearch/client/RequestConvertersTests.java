@@ -342,6 +342,7 @@ public class RequestConvertersTests extends ESTestCase {
         if (reindexRequest.getRemoteInfo() == null && randomBoolean()) {
             reindexRequest.setSourceQuery(new TermQueryBuilder("foo", "fooval"));
         }
+        setRandomAutoCreateIndexDisabled(reindexRequest::setAutoCreateIndexDisabled, expectedParams);
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
@@ -637,6 +638,7 @@ public class RequestConvertersTests extends ESTestCase {
         if (randomBoolean()) {
             randomizeFetchSourceContextParams(updateRequest::fetchSource, expectedParams);
         }
+        setRandomAutoCreateIndexDisabled(updateRequest::setAutoCreateIndexDisabled, expectedParams);
 
         Request request = RequestConverters.update(updateRequest);
         assertEquals("/" + index + "/" + type + "/" + id + "/_update", request.getEndpoint());
@@ -694,6 +696,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         setRandomRefreshPolicy(bulkRequest::setRefreshPolicy, expectedParams);
+        setRandomAutoCreateIndexDisabled(bulkRequest::setAutoCreateIndexDisabled, expectedParams);
 
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
 
@@ -1627,6 +1630,14 @@ public class RequestConvertersTests extends ESTestCase {
             if (defaultActiveShardCount.equals(activeShardCount) == false) {
                 expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
             }
+        }
+    }
+
+    private static void setRandomAutoCreateIndexDisabled(Consumer<Boolean> setter, Map<String, String> expectedParams) {
+        final boolean autoCreateIndexDisabled = randomBoolean();
+        setter.accept(autoCreateIndexDisabled);
+        if (autoCreateIndexDisabled) {
+            expectedParams.put("disable_auto_create_index", Boolean.toString(autoCreateIndexDisabled));
         }
     }
 

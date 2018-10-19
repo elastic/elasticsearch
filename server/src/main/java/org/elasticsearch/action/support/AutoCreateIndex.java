@@ -66,9 +66,12 @@ public final class AutoCreateIndex {
      * Should the index be auto created?
      * @throws IndexNotFoundException if the index doesn't exist and shouldn't be auto created
      */
-    public boolean shouldAutoCreate(String index, ClusterState state) {
+    public boolean shouldAutoCreate(String index, ClusterState state, boolean autoCreateIndexDisabled) {
         if (resolver.hasIndexOrAlias(index, state)) {
             return false;
+        }
+        if (autoCreateIndexDisabled) {
+            throw new IndexNotFoundException("no such index [" + index + "] and parameter [disable_auto_create_index] is [true]", index);
         }
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;

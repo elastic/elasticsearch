@@ -75,6 +75,11 @@
           "type": "enum",
           "options": ["internal", "force"],
           "description": "Specific version type"
+        },
+        "disable_auto_create_index": {
+          "type": "boolean",
+          "description": "Disable auto create index",
+          "default": false
         }
       }
     },

@@ -117,6 +117,9 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withTimeout(bulkRequest.timeout());
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
+        if (bulkRequest.isAutoCreateIndexDisabled()) {
+            parameters.putParam("disable_auto_create_index", Boolean.toString(bulkRequest.isAutoCreateIndexDisabled()));
+        }
 
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
@@ -312,6 +315,9 @@ final class RequestConverters {
         parameters.withRetryOnConflict(updateRequest.retryOnConflict());
         parameters.withVersion(updateRequest.version());
         parameters.withVersionType(updateRequest.versionType());
+        if (updateRequest.isAutoCreateIndexDisabled()) {
+            parameters.putParam("disable_auto_create_index", Boolean.toString(updateRequest.isAutoCreateIndexDisabled()));
+        }
 
         // The Java API allows update requests with different content types
         // set for the partial document and the upsert document. This client
@@ -470,6 +476,9 @@ final class RequestConverters {
 
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
+        }
+        if (reindexRequest.isAutoCreateIndexDisabled()) {
+            params.putParam("disable_auto_create_index", Boolean.toString(reindexRequest.isAutoCreateIndexDisabled()));
         }
         request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -86,6 +87,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     final List<DocWriteRequest<?>> requests = new ArrayList<>();
     private final Set<String> indices = new HashSet<>();
     List<Object> payloads = null;
+    private boolean autoCreateIndexDisabled = false;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -492,6 +494,17 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return refreshPolicy;
     }
 
+    public boolean isAutoCreateIndexDisabled() {
+        return autoCreateIndexDisabled;
+    }
+
+    /**
+     * Disable automatic index creation per a single request. Defaults to {@code false}
+     */
+    public void setAutoCreateIndexDisabled(boolean autoCreateIndexDisabled) {
+        this.autoCreateIndexDisabled = autoCreateIndexDisabled;
+    }
+
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
@@ -557,6 +570,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            autoCreateIndexDisabled = in.readBoolean();
+        }
     }
 
     @Override
@@ -569,6 +585,9 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(autoCreateIndexDisabled);
+        }
     }
 
     @Override

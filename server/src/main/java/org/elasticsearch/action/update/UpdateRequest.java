@@ -114,6 +114,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private boolean docAsUpsert = false;
     private boolean detectNoop = true;
 
+    private boolean autoCreateIndexDisabled = false;
+
     @Nullable
     private IndexRequest doc;
 
@@ -510,6 +512,17 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return refreshPolicy;
     }
 
+    public boolean isAutoCreateIndexDisabled() {
+        return autoCreateIndexDisabled;
+    }
+
+    /**
+     * Disable automatic index creation per a single request. Defaults to {@code false}
+     */
+    public void setAutoCreateIndexDisabled(boolean autoCreateIndexDisabled) {
+        this.autoCreateIndexDisabled = autoCreateIndexDisabled;
+    }
+
     public ActiveShardCount waitForActiveShards() {
         return this.waitForActiveShards;
     }
@@ -776,6 +789,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         versionType = VersionType.fromValue(in.readByte());
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            autoCreateIndexDisabled = in.readBoolean();
+        }
     }
 
     @Override
@@ -825,6 +841,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeByte(versionType.getValue());
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeBoolean(autoCreateIndexDisabled);
+        }
     }
 
     @Override

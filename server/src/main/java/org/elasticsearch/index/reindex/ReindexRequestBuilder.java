@@ -75,4 +75,12 @@ public class ReindexRequestBuilder extends
         request().setRemoteInfo(remoteInfo);
         return this;
     }
+
+    /**
+     * Disable automatic index creation per a single request. Defaults to {@code false}
+     */
+    public final ReindexRequestBuilder setAutoCreateIndexDisabled(boolean autoCreateIndexDisabled) {
+        request.setAutoCreateIndexDisabled(autoCreateIndexDisabled);
+        return this;
+    }
 }

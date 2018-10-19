@@ -331,6 +331,11 @@ Allows to control if and how the updated source should be returned in the respon
 By default the updated source is not returned.
 See <<search-request-source-filtering, `source filtering`>> for details.
 
+`disable_auto_create_index`::
+
+Disables automatic index creation for a single request and overrides
+a node setting <<index-creation,`action.auto_create_index`>> that
+allows automatic index creation on the first update request.
 
 `version`::
 

@@ -105,7 +105,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     }
 
     private void succeeds(RemoteInfo remoteInfo, String target, String... sources) {
-        TransportReindexAction.validateAgainstAliases(new SearchRequest(sources), new IndexRequest(target), remoteInfo,
+        TransportReindexAction.validateAgainstAliases(new SearchRequest(sources), new IndexRequest(target), remoteInfo, false,
                 INDEX_NAME_EXPRESSION_RESOLVER, AUTO_CREATE_INDEX, STATE);
     }
 

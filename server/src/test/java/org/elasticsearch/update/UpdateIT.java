@@ -34,6 +34,7 @@ import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.plugins.Plugin;
@@ -61,6 +62,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -242,6 +244,34 @@ public class UpdateIT extends ESIntegTestCase {
                 .setDocAsUpsert(false)
                 .setFetchSource(true)
                 .execute(), DocumentMissingException.class);
+    }
+
+    public void testNoIndexAndAutoCreateIndexDisabled() throws Exception {
+        final String index = "index42";
+
+        final boolean autoCreateIndexDisabled = randomBoolean();
+        try {
+            client().prepareUpdate(index, "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setDocAsUpsert(false)
+                .setFetchSource(true)
+                .setAutoCreateIndexDisabled(autoCreateIndexDisabled)
+                .get();
+            fail();
+        } catch (Exception e) {
+            if (autoCreateIndexDisabled) {
+                assertThat(e, instanceOf(IndexNotFoundException.class));
+                assertThat(e.getMessage(),
+                    containsString("no such index [index42] and parameter [disable_auto_create_index] is [true"));
+            } else {
+                assertThat(e, instanceOf(DocumentMissingException.class));
+            }
+        }
+
+        assertThat(autoCreateIndexDisabled ? "index should not be created when autoCreateIndexDisabled parameter is used"
+            : "update request creates index implicitly even if it fails",
+            client().admin().indices().prepareExists(index).execute().actionGet().isExists(),
+            equalTo(autoCreateIndexDisabled == false));
     }
 
     public void testUpsertFields() throws Exception {

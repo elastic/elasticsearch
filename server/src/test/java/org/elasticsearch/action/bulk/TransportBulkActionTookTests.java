@@ -248,7 +248,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         }
 
         @Override
-        boolean shouldAutoCreate(String index, ClusterState state) {
+        boolean shouldAutoCreate(String index, ClusterState state, boolean autoCreateIndexDisabled) {
             return randomBoolean();
         }
 

@@ -151,7 +151,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             for (String index : indices) {
                 boolean shouldAutoCreate;
                 try {
-                    shouldAutoCreate = shouldAutoCreate(index, state);
+                    shouldAutoCreate = shouldAutoCreate(index, state, bulkRequest.isAutoCreateIndexDisabled());
                 } catch (IndexNotFoundException e) {
                     shouldAutoCreate = false;
                     indicesThatCannotBeCreated.put(index, e);
@@ -244,8 +244,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return autoCreateIndex.needToCheck();
     }
 
-    boolean shouldAutoCreate(String index, ClusterState state) {
-        return autoCreateIndex.shouldAutoCreate(index, state);
+    boolean shouldAutoCreate(String index, ClusterState state, boolean autoCreateIndexDisabled) {
+        return autoCreateIndex.shouldAutoCreate(index, state, autoCreateIndexDisabled);
     }
 
     void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
@@ -580,6 +580,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             } else {
                 BulkRequest modifiedBulkRequest = new BulkRequest();
                 modifiedBulkRequest.setRefreshPolicy(bulkRequest.getRefreshPolicy());
+                modifiedBulkRequest.setAutoCreateIndexDisabled(bulkRequest.isAutoCreateIndexDisabled());
                 modifiedBulkRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 modifiedBulkRequest.timeout(bulkRequest.timeout());
 

@@ -120,7 +120,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         checkRemoteWhitelist(remoteWhitelist, request.getRemoteInfo());
         ClusterState state = clusterService.state();
         validateAgainstAliases(request.getSearchRequest(), request.getDestination(), request.getRemoteInfo(),
-            indexNameExpressionResolver, autoCreateIndex, state);
+            request.isAutoCreateIndexDisabled(), indexNameExpressionResolver, autoCreateIndex, state);
 
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
 
@@ -171,13 +171,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * isn't available then. Package private for testing.
      */
     static void validateAgainstAliases(SearchRequest source, IndexRequest destination, RemoteInfo remoteInfo,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, AutoCreateIndex autoCreateIndex,
-                                         ClusterState clusterState) {
+                                       boolean autoCreateIndexDisabled, IndexNameExpressionResolver indexNameExpressionResolver,
+                                       AutoCreateIndex autoCreateIndex, ClusterState clusterState) {
         if (remoteInfo != null) {
             return;
         }
         String target = destination.index();
-        if (false == autoCreateIndex.shouldAutoCreate(target, clusterState)) {
+        if (false == autoCreateIndex.shouldAutoCreate(target, clusterState, autoCreateIndexDisabled)) {
             /*
              * If we're going to autocreate the index we don't need to resolve
              * it. This is the same sort of dance that TransportIndexRequest

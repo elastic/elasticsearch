@@ -140,6 +140,14 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     }
 
     /**
+     * Disable automatic index creation per a single request. Defaults to {@code false}
+     */
+    public final BulkRequestBuilder setAutoCreateIndexDisabled(boolean autoCreateIndexDisabled) {
+        request.setAutoCreateIndexDisabled(autoCreateIndexDisabled);
+        return this;
+    }
+
+    /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final BulkRequestBuilder setTimeout(String timeout) {

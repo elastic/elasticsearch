@@ -90,6 +90,8 @@ public class RestBulkAction extends BaseRestHandler {
         }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
+        boolean autoCreateIndexDisabled = request.paramAsBoolean("disable_auto_create_index", false);
+        bulkRequest.setAutoCreateIndexDisabled(autoCreateIndexDisabled);
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultType, defaultRouting,
             defaultFetchSourceContext, defaultPipeline, null, allowExplicitIndex, request.getXContentType());
 

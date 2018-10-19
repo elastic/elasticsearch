@@ -343,4 +343,12 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
+    /**
+     * Disable automatic index creation per a single request. Defaults to {@code false}
+     */
+    public final UpdateRequestBuilder setAutoCreateIndexDisabled(boolean autoCreateIndexDisabled) {
+        request.setAutoCreateIndexDisabled(autoCreateIndexDisabled);
+        return this;
+    }
+
 }

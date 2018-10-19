@@ -124,6 +124,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         if (request.hasParam("scroll")) {
             internal.setScroll(parseTimeValue(request.param("scroll"), "scroll"));
         }
+        internal.setAutoCreateIndexDisabled(request.paramAsBoolean("disable_auto_create_index", false));
         return internal;
     }
 

@@ -371,7 +371,6 @@ public class ScopedSettingsTests extends ESTestCase {
             listResults.clear();
             listResults.putAll(map);
         };
-        boolean omitDefaults = randomBoolean();
         service.addAffixMapUpdateConsumer(listSetting, listConsumer, (s, k) -> {});
         service.addAffixMapUpdateConsumer(intSetting, intConsumer, (s, k) -> {});
         assertEquals(0, listResults.size());

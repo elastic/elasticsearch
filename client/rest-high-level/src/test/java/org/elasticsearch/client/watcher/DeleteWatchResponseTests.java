@@ -16,20 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.watcher;
 
-package org.elasticsearch.client;
-
-import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.client.graph.GraphExploreRequest;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class GraphRequestConverters {
+public class DeleteWatchResponseTests extends AbstractXContentTestCase<DeleteWatchResponse> {
 
-    static Request explore(GraphExploreRequest exploreRequest) throws IOException {
-        String endpoint = RequestConverters.endpoint(exploreRequest.indices(), exploreRequest.types(), "_xpack/graph/_explore");
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        request.setEntity(RequestConverters.createEntity(exploreRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
-        return request;
+    @Override
+    protected DeleteWatchResponse createTestInstance() {
+        String id = randomAlphaOfLength(10);
+        long version = randomLongBetween(1, 10);
+        boolean found = randomBoolean();
+        return new DeleteWatchResponse(id, version, found);
+    }
+
+    @Override
+    protected DeleteWatchResponse doParseInstance(XContentParser parser) throws IOException {
+        return DeleteWatchResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 }

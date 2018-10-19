@@ -26,16 +26,14 @@ import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
+import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.PutWatchRequest;
 
 public class WatcherRequestConverters {
 
     static Request putWatch(PutWatchRequest putWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
+            .addPathPartAsIs("_xpack", "watcher", "watch")
             .addPathPart(putWatchRequest.getId())
             .build();
 
@@ -52,9 +50,7 @@ public class WatcherRequestConverters {
 
     static Request deleteWatch(DeleteWatchRequest deleteWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
+            .addPathPartAsIs("_xpack", "watcher", "watch")
             .addPathPart(deleteWatchRequest.getId())
             .build();
 
@@ -64,9 +60,7 @@ public class WatcherRequestConverters {
 
     public static Request ackWatch(AckWatchRequest ackWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
+            .addPathPartAsIs("_xpack", "watcher", "watch")
             .addPathPart(ackWatchRequest.getWatchId())
             .addPathPartAsIs("_ack")
             .addCommaSeparatedPathParts(ackWatchRequest.getActionIds())
@@ -77,9 +71,7 @@ public class WatcherRequestConverters {
 
     static Request activateWatch(ActivateWatchRequest activateWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
+            .addPathPartAsIs("_xpack", "watcher", "watch")
             .addPathPart(activateWatchRequest.getWatchId())
             .addPathPartAsIs("_activate")
             .build();

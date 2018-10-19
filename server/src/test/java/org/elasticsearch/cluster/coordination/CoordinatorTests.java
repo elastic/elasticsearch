@@ -680,6 +680,7 @@ public class CoordinatorTests extends ESTestCase {
                     // Commit a new cluster state with the new node(s). Might be split into multiple commits, and each might need a
                     // followup reconfiguration
                     + newNodesCount * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+            // TODO Investigate whether 4 publications is sufficient due to batching? A bound linear in the number of nodes isn't great.
         }
 
         void addNodes(int newNodesCount) {

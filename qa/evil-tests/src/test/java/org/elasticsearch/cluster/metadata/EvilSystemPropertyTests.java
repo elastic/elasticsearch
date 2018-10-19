@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class EvilSystemPropertyTests extends ESTestCase {
 
@@ -42,6 +45,27 @@ public class EvilSystemPropertyTests extends ESTestCase {
             assertEquals("Failed to parse value [11] for setting [index.number_of_shards] must be <= " + limit, e.getMessage());
         } finally {
             System.clearProperty("es.index.max_number_of_shards");
+        }
+    }
+
+    @SuppressForbidden(reason = "manipulates system property es.query.apply_graph_phrase_limit")
+    public void testApplyGraphPhraseLimit() {
+        assertFalse(MapperQueryParser.shouldApplyGraphPhraseLimit());
+        try {
+            System.setProperty("es.query.apply_graph_phrase_limit", "false");
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+                () -> MapperQueryParser.shouldApplyGraphPhraseLimit());
+            assertThat(exc.getMessage(), containsString("[false] is not a valid value for the JVM option"));
+
+            System.setProperty("es.query.apply_graph_phrase_limit", "lol");
+            exc = expectThrows(IllegalArgumentException.class,
+                () -> MapperQueryParser.shouldApplyGraphPhraseLimit());
+            assertThat(exc.getMessage(), containsString("[lol] is not a valid value for the JVM option"));
+
+            System.setProperty("es.query.apply_graph_phrase_limit", "true");
+            assertTrue(MapperQueryParser.shouldApplyGraphPhraseLimit());
+        } finally {
+            System.clearProperty("es.query.apply_graph_phrase_limit");
         }
     }
 }

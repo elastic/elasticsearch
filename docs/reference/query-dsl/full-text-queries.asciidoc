@@ -5,6 +5,11 @@ The high-level full text queries are usually used for running full text
 queries on full text fields like the body of an email. They understand how the
 field being queried is <<analysis,analyzed>> and will apply each field's
 `analyzer` (or `search_analyzer`) to the query string before executing.
+The node setting named `indices.query.bool.max_clause_count` (defaults to 1024)
+is applied to boolean queries in order to limit the number of terms per query.
+It is also possible to limit the expansion of phrase queries with the JVM option `-Des.query.apply_graph_phrase_limit=true`,
+when activated the `indices.query.bool.max_clause_count` is applied to phrase queries expansions.
+Elasticsearch will stop observing this system property in 6x.
 
 The queries in this group are:
 
@@ -39,6 +44,8 @@ The queries in this group are:
 
     A simpler, more robust version of the `query_string` syntax suitable
     for exposing directly to users.
+
+These queries
 
 include::match-query.asciidoc[]
 

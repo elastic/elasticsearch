@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.ShapesAvailability;
@@ -258,6 +259,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
+import static org.apache.lucene.queryparser.classic.MapperQueryParser.shouldApplyGraphPhraseLimit;
 
 /**
  * Sets up things that can be done at search time like queries, aggregations, and suggesters.
@@ -282,6 +284,8 @@ public class SearchModule {
     public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
         this.settings = settings;
         this.transportClient = transportClient;
+        // checks if the system property es.query.apply_graph_phrase_limit is set to a valid value
+        shouldApplyGraphPhraseLimit();
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);

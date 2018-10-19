@@ -700,7 +700,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         AbstractScopedSettings.SettingUpdater<Map<String, T>> newAffixMapUpdater(Consumer<Map<String, T>> consumer, Logger logger,
-                                                                                 BiConsumer<String, T> validator, boolean omitDefaults) {
+                                                                                 BiConsumer<String, T> validator) {
             return new AbstractScopedSettings.SettingUpdater<Map<String, T>>() {
 
                 @Override
@@ -721,9 +721,7 @@ public class Setting<T> implements ToXContentObject {
                             // only the ones that have changed otherwise we might get too many updates
                             // the hasChanged above checks only if there are any changes
                             T value = updater.getValue(current, previous);
-                            if ((omitDefaults && value.equals(concreteSetting.getDefault(current))) == false) {
-                                result.put(namespace, value);
-                            }
+                            result.put(namespace, value);
                         }
                     });
                     return result;

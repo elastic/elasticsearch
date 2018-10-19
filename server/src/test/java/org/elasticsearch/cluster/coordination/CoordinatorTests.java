@@ -525,8 +525,7 @@ public class CoordinatorTests extends ESTestCase {
     }
 
     public void testSettingInitialConfigurationTriggersElection() {
-        final int nodeCount = randomIntBetween(1, 5);
-        final Cluster cluster = new Cluster(nodeCount);
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2 + randomLongBetween(0, 60000), "initial discovery phase");
         for (final ClusterNode clusterNode : cluster.clusterNodes) {
             final String nodeId = clusterNode.getId();
@@ -550,7 +549,7 @@ public class CoordinatorTests extends ESTestCase {
                 // Then a commit of the new leader's first cluster state
                 + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
                 // Then allow time for all the other nodes to join, each of which might cause a reconfiguration
-                + (nodeCount - 1) * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+                + (cluster.size() - 1) * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY
         );
     }
 
@@ -691,6 +690,10 @@ public class CoordinatorTests extends ESTestCase {
                 final ClusterNode clusterNode = new ClusterNode(nodeSizeAtStart + i);
                 clusterNodes.add(clusterNode);
             }
+        }
+
+        int size() {
+            return clusterNodes.size();
         }
 
         void runRandomly() {

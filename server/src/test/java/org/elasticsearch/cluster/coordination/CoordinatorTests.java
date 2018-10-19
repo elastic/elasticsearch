@@ -999,6 +999,7 @@ public class CoordinatorTests extends ESTestCase {
             private void possiblyFail(String description) {
                 if (disruptStorage && rarely()) {
                     // TODO revisit this when we've decided how PersistedState should throw exceptions
+                    logger.trace("simulating IO exception [{}]", description);
                     if (randomBoolean()) {
                         throw new UncheckedIOException(new IOException("simulated IO exception [" + description + ']'));
                     } else {

@@ -999,10 +999,12 @@ public class CoordinatorTests extends ESTestCase {
                     assertTrue(nodeId + " has voted for " + leaderId, leader.coordinator.hasJoinVoteFrom(clusterNode.getLocalNode()));
                     assertThat(nodeId + " has the same accepted state as " + leaderId,
                         clusterNode.coordinator.getLastAcceptedState().getVersion(), isEqualToLeaderVersion);
-                    assertThat(nodeId + " has the same applied state as " + leaderId,
-                        clusterNode.getLastAppliedClusterState().getVersion(), isEqualToLeaderVersion);
-                    assertTrue(nodeId + " is in its own latest applied state",
-                        clusterNode.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
+                    if (clusterNode.getClusterStateApplyResponse() == ClusterStateApplyResponse.SUCCEED) {
+                        assertThat(nodeId + " has the same applied state as " + leaderId,
+                            clusterNode.getLastAppliedClusterState().getVersion(), isEqualToLeaderVersion);
+                        assertTrue(nodeId + " is in its own latest applied state",
+                            clusterNode.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
+                    }
                     assertTrue(nodeId + " is in the latest applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
                 } else {
@@ -1272,6 +1274,10 @@ public class CoordinatorTests extends ESTestCase {
 
             void setClusterStateApplyResponse(ClusterStateApplyResponse clusterStateApplyResponse) {
                 this.clusterStateApplyResponse = clusterStateApplyResponse;
+            }
+
+            ClusterStateApplyResponse getClusterStateApplyResponse() {
+                return clusterStateApplyResponse;
             }
 
             void submitSetMasterNodesFailureTolerance(final int masterNodesFaultTolerance) {

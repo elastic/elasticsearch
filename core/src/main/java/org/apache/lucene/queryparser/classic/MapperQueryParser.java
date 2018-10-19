@@ -888,7 +888,6 @@ public class MapperQueryParser extends AnalyzingQueryParser {
      * The JVM option can only be set to <code>true</code> (false is the default value), any other value
      * will throw an {@link IllegalArgumentException}.
      */
-    // public for tests
     public static boolean shouldApplyGraphPhraseLimit() {
         String value = System.getProperty("es.query.apply_graph_phrase_limit");
         if (value == null) {

@@ -614,7 +614,7 @@ public class Node implements Closeable {
     /**
      * A client that can be used to execute actions (operations) against the cluster.
      */
-    public Client client() {
+    public NodeClient client() {
         return client;
     }
 

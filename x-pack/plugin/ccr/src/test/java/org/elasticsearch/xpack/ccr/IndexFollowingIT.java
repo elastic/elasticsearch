@@ -691,6 +691,64 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
     }
 
+    public void testAddNewReplicasOnFollower() throws Exception {
+        int numberOfReplicas = between(0, 1);
+        String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
+        PutFollowAction.Request follow = follow("leader-index", "follower-index");
+        followerClient().execute(PutFollowAction.INSTANCE, follow).get();
+        getFollowerCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(2, 3));
+        ensureFollowerGreen("follower-index");
+        AtomicBoolean stopped = new AtomicBoolean();
+        AtomicInteger docID = new AtomicInteger();
+        boolean appendOnly = randomBoolean();
+        Thread indexingOnLeader = new Thread(() -> {
+            while (stopped.get() == false) {
+                try {
+                    if (appendOnly) {
+                        String id = Integer.toString(docID.incrementAndGet());
+                        leaderClient().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                    } else if (frequently()) {
+                        String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 100));
+                        leaderClient().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                    } else {
+                        String id = Integer.toString(between(0, docID.get()));
+                        leaderClient().prepareDelete("leader-index", "doc", id).get();
+                    }
+                } catch (Exception ex) {
+                    throw new AssertionError(ex);
+                }
+            }
+        });
+        indexingOnLeader.start();
+        Thread flushingOnFollower = new Thread(() -> {
+            while (stopped.get() == false) {
+                try {
+                    if (rarely()) {
+                        followerClient().admin().indices().prepareFlush("follower-index").get();
+                    }
+                    if (rarely()) {
+                        followerClient().admin().indices().prepareRefresh("follower-index").get();
+                    }
+                } catch (Exception ex) {
+                    throw new AssertionError(ex);
+                }
+            }
+        });
+        flushingOnFollower.start();
+        atLeastDocsIndexed(followerClient(), "follower-index", 50);
+        followerClient().admin().indices().prepareUpdateSettings("follower-index")
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas + 1).build()).get();
+        ensureFollowerGreen("follower-index");
+        atLeastDocsIndexed(followerClient(), "follower-index", 100);
+        stopped.set(true);
+        flushingOnFollower.join();
+        indexingOnLeader.join();
+        assertSameDocCount("leader-index", "follower-index");
+        unfollowIndex("follower-index");
+    }
+
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {
         return () -> {
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();

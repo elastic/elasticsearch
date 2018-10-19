@@ -67,8 +67,8 @@ POST <1> /_search/scroll <2>
 // TEST[continued s/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMNjU1QQ==/$body._scroll_id/]
 
 <1> `GET` or `POST` can be used.
-<2> The URL should not include the `index` or `type` name -- these
-    are specified in the original `search` request instead.
+<2> The URL should not include the `index` name -- this
+    is specified in the original `search` request instead.
 <3> The `scroll` parameter tells Elasticsearch to keep the search context open
     for another `1m`.
 <4> The `scroll_id` parameter

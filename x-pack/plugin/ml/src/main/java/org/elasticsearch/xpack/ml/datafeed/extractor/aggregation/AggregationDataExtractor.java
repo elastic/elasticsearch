@@ -9,7 +9,6 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
-import org.elasticsearch.xpack.ml.datafeed.extractor.AbstractAggregationDataExtractor;
 
 /**
  * An implementation that extracts data from elasticsearch using search with aggregations on a client.

@@ -3,15 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.datafeed.extractor.rollup;
+package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
-import org.elasticsearch.xpack.ml.datafeed.extractor.AbstractAggregationDataExtractor;
-import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorContext;
 
 /**
  * An implementation that extracts data from elasticsearch using search with aggregations against rollup indexes on a client.

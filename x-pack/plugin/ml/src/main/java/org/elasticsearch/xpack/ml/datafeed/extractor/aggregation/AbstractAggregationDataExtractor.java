@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.datafeed.extractor;
+package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -17,8 +17,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
-import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorContext;
-import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationToJsonProcessor;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -31,7 +29,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Abstract class for aggregated data extractors, e.g. {@link org.elasticsearch.xpack.ml.datafeed.extractor.rollup.RollupDataExtractor}
+ * Abstract class for aggregated data extractors, e.g. {@link RollupDataExtractor}
  *
  * @param <T> The request builder type for getting data from ElasticSearch
  */

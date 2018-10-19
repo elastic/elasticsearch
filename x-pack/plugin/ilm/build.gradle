@@ -19,18 +19,9 @@ dependencies {
 }
 
 check.dependsOn 'qa:with-security:integTestRunner'
+check.dependsOn 'qa:multi-node:integTestRunner'
 
-integTestCluster {
-    numNodes = 4
-    clusterName = 'ilm'
-    setting 'xpack.security.enabled', 'false'
-    setting 'xpack.watcher.enabled', 'false'
-    setting 'xpack.monitoring.enabled', 'false'
-    setting 'xpack.ml.enabled', 'false'
-    setting 'xpack.ilm.enabled', 'true'
-    setting 'indices.lifecycle.poll_interval', '2500ms'
-    module project(xpackModule('core'))
-}
+integTest.enabled = false
 
 run {
     plugin xpackModule('core')

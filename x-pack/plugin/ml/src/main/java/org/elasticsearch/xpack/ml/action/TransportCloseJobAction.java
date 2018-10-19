@@ -107,7 +107,7 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
              */
 
             PersistentTasksCustomMetaData tasksMetaData = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
+            jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), true, ActionListener.wrap(
                     expandedJobIds -> {
                         validate(expandedJobIds, request.isForce(), tasksMetaData, ActionListener.wrap(
                                 response -> {

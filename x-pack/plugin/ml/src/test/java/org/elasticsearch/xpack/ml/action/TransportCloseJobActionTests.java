@@ -288,11 +288,11 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
     private void mockJobConfigProviderExpandIds(Set<String> expandedIds) {
         doAnswer(invocation -> {
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[2];
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[3];
             listener.onResponse(expandedIds);
 
             return null;
-        }).when(jobConfigProvider).expandJobsIds(any(), anyBoolean(), any(ActionListener.class));
+        }).when(jobConfigProvider).expandJobsIds(any(), anyBoolean(), anyBoolean(), any(ActionListener.class));
     }
 
 }

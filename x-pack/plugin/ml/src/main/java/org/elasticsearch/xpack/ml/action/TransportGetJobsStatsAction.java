@@ -74,7 +74,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     @Override
     protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> finalListener) {
 
-        jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
+        jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), true, ActionListener.wrap(
                 expandedIds -> {
                     request.setExpandedJobsIds(new ArrayList<>(expandedIds));
                     ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(

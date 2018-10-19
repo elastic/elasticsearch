@@ -273,7 +273,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Set<String>> jobIdsHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        blockingCall(actionListener -> jobConfigProvider.expandJobsIds("_all", false, actionListener),
+        blockingCall(actionListener -> jobConfigProvider.expandJobsIds("_all", false, true, actionListener),
                 jobIdsHolder, exceptionHolder);
 
         assertNull(jobIdsHolder.get());
@@ -282,13 +282,13 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get().getMessage(), containsString("No known job with id"));
 
         exceptionHolder.set(null);
-        blockingCall(actionListener -> jobConfigProvider.expandJobsIds("_all", true, actionListener),
+        blockingCall(actionListener -> jobConfigProvider.expandJobsIds("_all", true, false, actionListener),
                 jobIdsHolder, exceptionHolder);
         assertNotNull(jobIdsHolder.get());
         assertNull(exceptionHolder.get());
 
         AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.expandJobs("*", false, actionListener),
+        blockingCall(actionListener -> jobConfigProvider.expandJobs("*", false, true, actionListener),
                 jobsHolder, exceptionHolder);
 
         assertNull(jobsHolder.get());
@@ -297,7 +297,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get().getMessage(), containsString("No known job with id"));
 
         exceptionHolder.set(null);
-        blockingCall(actionListener -> jobConfigProvider.expandJobs("*", true, actionListener),
+        blockingCall(actionListener -> jobConfigProvider.expandJobs("*", true, true, actionListener),
                 jobsHolder, exceptionHolder);
         assertNotNull(jobsHolder.get());
         assertNull(exceptionHolder.get());
@@ -312,21 +312,21 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
         // Job Ids
-        Set<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("_all", true, actionListener));
+        Set<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("_all", true, false, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("tom", "dick", "harry", "harry-jnr")), expandedIds);
 
-        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("*", true, actionListener));
+        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("*", true, true, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("tom", "dick", "harry", "harry-jnr")), expandedIds);
 
-        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("tom,harry", true, actionListener));
+        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("tom,harry", true, false, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("tom", "harry")), expandedIds);
 
-        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("harry-group,tom", true, actionListener));
+        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("harry-group,tom", true, false, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("harry", "harry-jnr", "tom")), expandedIds);
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         AtomicReference<Set<String>> jobIdsHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.expandJobsIds("tom,missing1,missing2", true, actionListener),
+        blockingCall(actionListener -> jobConfigProvider.expandJobsIds("tom,missing1,missing2", true, false, actionListener),
                 jobIdsHolder, exceptionHolder);
         assertNull(jobIdsHolder.get());
         assertNotNull(exceptionHolder.get());
@@ -335,27 +335,27 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         // Job builders
         List<Job.Builder> expandedJobsBuilders = blockingCall(actionListener ->
-                jobConfigProvider.expandJobs("harry-group,tom", false, actionListener));
+                jobConfigProvider.expandJobs("harry-group,tom", false, true, actionListener));
         List<Job> expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(harry, harryJnr, tom));
 
         expandedJobsBuilders = blockingCall(actionListener ->
-                jobConfigProvider.expandJobs("_all", false, actionListener));
+                jobConfigProvider.expandJobs("_all", false, true, actionListener));
         expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(tom, dick, harry, harryJnr));
 
         expandedJobsBuilders = blockingCall(actionListener ->
-                jobConfigProvider.expandJobs("tom,harry", false, actionListener));
+                jobConfigProvider.expandJobs("tom,harry", false, false, actionListener));
         expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(tom, harry));
 
         expandedJobsBuilders = blockingCall(actionListener ->
-                jobConfigProvider.expandJobs("", false, actionListener));
+                jobConfigProvider.expandJobs("", false, false, actionListener));
         expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(tom, dick, harry, harryJnr));
 
         AtomicReference<List<Job.Builder>> jobsHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.expandJobs("tom,missing1,missing2", false, actionListener),
+        blockingCall(actionListener -> jobConfigProvider.expandJobs("tom,missing1,missing2", false, true, actionListener),
                 jobsHolder, exceptionHolder);
         assertNull(jobsHolder.get());
         assertNotNull(exceptionHolder.get());
@@ -373,34 +373,66 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
         // Test job IDs only
-        Set<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("foo*", true, actionListener));
+        Set<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("foo*", true, true, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("foo-1", "foo-2")), expandedIds);
 
-        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("*-1", true, actionListener));
+        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("*-1", true, true,actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("bar-1", "foo-1")), expandedIds);
 
-        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("bar*", true, actionListener));
+        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("bar*", true, true, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("bar-1", "bar-2", "nbar")), expandedIds);
 
-        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("b*r-1", true, actionListener));
+        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("b*r-1", true, true, actionListener));
         assertEquals(new TreeSet<>(Collections.singletonList("bar-1")), expandedIds);
 
         // Test full job config
-        List<Job.Builder> expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("foo*", true, actionListener));
+        List<Job.Builder> expandedJobsBuilders =
+                blockingCall(actionListener -> jobConfigProvider.expandJobs("foo*", true, true, actionListener));
         List<Job> expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(foo1, foo2));
 
-        expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("*-1", true, actionListener));
+        expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("*-1", true, true, actionListener));
         expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(foo1, bar1));
 
-        expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("bar*", true, actionListener));
+        expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("bar*", true, true, actionListener));
         expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(bar1, bar2, nbar));
 
-        expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("b*r-1", true, actionListener));
+        expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("b*r-1", true, true, actionListener));
         expandedJobs = expandedJobsBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
         assertThat(expandedJobs, containsInAnyOrder(bar1));
+    }
+
+    public void testExpandJobIds_excludeDeleting() throws Exception {
+        putJob(createJob("foo-1", null));
+        putJob(createJob("foo-2", null));
+        putJob(createJob("foo-deleting", null));
+        putJob(createJob("bar", null));
+
+        Boolean marked = blockingCall(actionListener -> jobConfigProvider.markJobAsDeleting("foo-deleting", actionListener));
+        assertTrue(marked);
+
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+
+        Set<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("foo*", true, true, actionListener));
+        assertEquals(new TreeSet<>(Arrays.asList("foo-1", "foo-2")), expandedIds);
+
+        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("foo*", true, false, actionListener));
+        assertEquals(new TreeSet<>(Arrays.asList("foo-1", "foo-2", "foo-deleting")), expandedIds);
+
+        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("*", true, true, actionListener));
+        assertEquals(new TreeSet<>(Arrays.asList("foo-1", "foo-2", "bar")), expandedIds);
+
+        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("*", true, false, actionListener));
+        assertEquals(new TreeSet<>(Arrays.asList("foo-1", "foo-2", "foo-deleting", "bar")), expandedIds);
+
+        List<Job.Builder> expandedJobsBuilders =
+                blockingCall(actionListener -> jobConfigProvider.expandJobs("foo*", true, true, actionListener));
+        assertThat(expandedJobsBuilders, hasSize(2));
+
+        expandedJobsBuilders = blockingCall(actionListener -> jobConfigProvider.expandJobs("foo*", true, false, actionListener));
+        assertThat(expandedJobsBuilders, hasSize(3));
     }
 
     public void testExpandGroups() throws Exception {

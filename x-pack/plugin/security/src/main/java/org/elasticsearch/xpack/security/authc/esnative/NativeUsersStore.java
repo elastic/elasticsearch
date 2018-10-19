@@ -111,13 +111,21 @@ public class NativeUsersStore extends AbstractComponent {
         final Consumer<Exception> handleException = (t) -> {
             if (TransportActions.isShardNotAvailableException(t)) {
                 logger.trace("could not retrieve users because of a shard not available exception", t);
-                // We don't invoke the onFailure listener here, instead just pass an empty list
+                if (t instanceof IndexNotFoundException) {
+                    // We don't invoke the onFailure listener here, instead just pass an empty list
+                    // as the index doesn't exist. Could have been deleted between checks and execution
+                    listener.onResponse(Collections.emptyList());
+                } else {
+                    listener.onFailure(t);
+                }
             }
             listener.onFailure(t);
         };
 
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
-        if (frozenSecurityIndex.isAvailable() == false) {
+        if (frozenSecurityIndex.indexExists() == false) {
+            listener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else if (userNames.length == 1) { // optimization for single user lookup
             final String username = userNames[0];
@@ -465,7 +473,9 @@ public class NativeUsersStore extends AbstractComponent {
 
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.isAvailable() == false) {
+        if (frozenSecurityIndex.indexExists() == false) {
+            listener.onResponse(false);
+        } else if (frozenSecurityIndex.isAvailable() == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {

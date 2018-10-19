@@ -91,8 +91,8 @@ public class NativePrivilegeStore extends AbstractComponent {
         final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
-        } else if (securityIndexManager.isAvailable() == false) {
-            listener.onFailure(securityIndexManager.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else if (applications != null && applications.size() == 1 && names != null && names.size() == 1) {
             getPrivilege(Objects.requireNonNull(Iterables.get(applications, 0)), Objects.requireNonNull(Iterables.get(names, 0)),
                 ActionListener.wrap(privilege ->
@@ -140,7 +140,10 @@ public class NativePrivilegeStore extends AbstractComponent {
     }
 
     void getPrivilege(String application, String name, ActionListener<ApplicationPrivilegeDescriptor> listener) {
-        if (securityIndexManager.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
+        if (frozenSecurityIndex.isAvailable() == false) {
+            logger.warn(new ParameterizedMessage("failed to load privilege [{}] index not available", name),
+                frozenSecurityIndex.getUnavailableReason());
             listener.onResponse(null);
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure,
@@ -209,8 +212,11 @@ public class NativePrivilegeStore extends AbstractComponent {
 
     public void deletePrivileges(String application, Collection<String> names, WriteRequest.RefreshPolicy refreshPolicy,
                                  ActionListener<Map<String, List<String>>> listener) {
-        if (securityIndexManager.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyMap());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(

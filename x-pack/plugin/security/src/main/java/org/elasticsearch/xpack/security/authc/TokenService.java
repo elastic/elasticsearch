@@ -893,9 +893,8 @@ public final class TokenService extends AbstractComponent {
                 .setFetchSource(true)
                 .request();
 
-            final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
-                ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), this::parseHit));
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure,
+                () -> ScrollHelper.fetchAllByEntity(client, request, listener, this::parseHit));
         }
     }
 

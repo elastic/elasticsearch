@@ -103,7 +103,8 @@ public class SecurityClient {
      ****************/
 
     /**
-     * Populates a {@link ClearRealmCacheRequest} to clear the realm caches.
+     * Creates a builder initialized with a default {@link ClearRealmCacheRequest} that can be used to configure the request to clear realm
+     * caches.
      * @return {@link ClearRealmCacheRequestBuilder}
      */
     public ClearRealmCacheRequestBuilder prepareClearRealmCache() {
@@ -135,7 +136,8 @@ public class SecurityClient {
      ****************/
 
     /**
-     * Initialises a {@link ClearRolesCacheRequest} to clear the roles cache.
+     * Creates a builder initialized with a default {@link ClearRolesCacheRequest} that can be used to configure the request to clear the
+     * roles cache.
      * @return {@link ClearRolesCacheRequestBuilder}
      */
     public ClearRolesCacheRequestBuilder prepareClearRolesCache() {
@@ -169,7 +171,7 @@ public class SecurityClient {
      ****************************/
 
     /**
-     * Populates a {@link HasPrivilegesRequest} to check a user's privileges.
+     * Initializes a {@link HasPrivilegesRequest} to check a user's privileges.
      * @param username The user to check
      * @return {@link HasPrivilegesRequestBuilder}
      */
@@ -371,7 +373,7 @@ public class SecurityClient {
     }
 
     /**
-     * Populates a {@link PutRoleRequest} to create or update a role.
+     * Initializes a {@link PutRoleRequest} to create or update a role.
      * @param name The role to create/update
      * @return {@link PutRoleRequestBuilder}
      */
@@ -500,7 +502,7 @@ public class SecurityClient {
      ********************/
 
     /**
-     * Initialises a {@link CreateTokenRequest} to create an OAuth token.
+     * Creates a builder initialized with a default {@link CreateTokenRequest} that can be used to create an OAuth token.
      * @return {@link CreateTokenRequestBuilder}
      */
     public CreateTokenRequestBuilder prepareCreateToken() {
@@ -558,7 +560,7 @@ public class SecurityClient {
     }
 
     /**
-     * Initialises a {@link SamlPrepareAuthenticationRequest}
+     * Creates a builder initialized with a default {@link SamlPrepareAuthenticationRequest}.
      * @return {@link SamlPrepareAuthenticationRequestBuilder}
      */
     public SamlPrepareAuthenticationRequestBuilder prepareSamlPrepareAuthentication() {

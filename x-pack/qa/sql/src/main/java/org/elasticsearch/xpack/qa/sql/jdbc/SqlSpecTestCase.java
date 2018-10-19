@@ -27,7 +27,6 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
     @ClassRule
     public static LocalH2 H2 = new LocalH2((c) -> {
         c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'");
-        c.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp_with_nulls.sql'");
     });
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
@@ -42,7 +41,6 @@ public abstract class SqlSpecTestCase extends SpecBaseIntegrationTestCase {
         tests.addAll(readScriptSpec("/arithmetic.sql-spec", parser));
         tests.addAll(readScriptSpec("/string-functions.sql-spec", parser));
         tests.addAll(readScriptSpec("/case-functions.sql-spec", parser));
-        tests.addAll(readScriptSpec("/agg_nulls.sql-spec", parser));
         return tests;
     }
 

@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -89,6 +90,41 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(InternalSettingsPlugin.class);
+    }
+
+    public void testTieBreak() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        mapping.indexAnalyzer("keyword");
+        createIndexAndMapping(mapping);
+
+        int numDocs = randomIntBetween(3, 50);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        Set<String> entrySet = new HashSet<>();
+        for (int i = 0; i < numDocs; i++) {
+            String value = "a" + randomValueOtherThanMany(v -> entrySet.contains(v),
+                () -> randomAlphaOfLengthBetween(1, 10));
+            entrySet.add(value);
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", value)
+                    .field("weight", 10)
+                    .endObject()
+                    .endObject()
+                ));
+        }
+        String[] entries = entrySet.stream()
+            .toArray(String[]::new);
+        Arrays.sort(entries);
+        indexRandom(true, indexRequestBuilders);
+        for (int i = 1; i < numDocs; i++) {
+            CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
+                .prefix("a")
+                .size(i);
+            String[] topEntries = Arrays.copyOfRange(entries, 0, i);
+            assertSuggestions("foo", prefix, topEntries);
+        }
     }
 
     public void testPrefix() throws Exception {

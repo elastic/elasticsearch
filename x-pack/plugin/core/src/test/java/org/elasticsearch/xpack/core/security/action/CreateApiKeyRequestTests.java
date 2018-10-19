@@ -26,22 +26,21 @@ public class CreateApiKeyRequestTests extends ESTestCase {
     public void testNameValidation() {
         final String name = randomAlphaOfLengthBetween(1, 256);
         CreateApiKeyRequest request = new CreateApiKeyRequest();
-        request.setName(name);
 
         ActionRequestValidationException ve = request.validate();
+        assertNotNull(ve);
+        assertThat(ve.validationErrors().size(), is(1));
+        assertThat(ve.validationErrors().get(0), containsString("name is required"));
+
+        request.setName(name);
+        ve = request.validate();
         assertNull(ve);
 
-        request.setName("");
-        ve = request.validate();
-        assertNotNull(ve);
-        assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name is required"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> request.setName(""));
+        assertThat(e.getMessage(), containsString("name must not be null or empty"));
 
-        request.setName(null);
-        ve = request.validate();
-        assertNotNull(ve);
-        assertThat(ve.validationErrors().size(), is(1));
-        assertThat(ve.validationErrors().get(0), containsString("name is required"));
+        e = expectThrows(IllegalArgumentException.class, () -> request.setName(null));
+        assertThat(e.getMessage(), containsString("name must not be null or empty"));
 
         request.setName(randomAlphaOfLength(257));
         ve = request.validate();

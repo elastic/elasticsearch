@@ -9,6 +9,7 @@ import java.sql.JDBCType;
 import java.sql.SQLType;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,12 +45,63 @@ public enum DataType {
     DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        24,                24);
     // @formatter:on
 
+    public static final String MSSQL_DATATYPE_PREFIX = "SQL_";
+
     private static final Map<SQLType, DataType> jdbcToEs;
+    private static final Map<String, DataType> mssqlToEs;
 
     static {
         jdbcToEs = Arrays.stream(DataType.values())
                 .filter(dataType -> dataType != TEXT && dataType != NESTED && dataType != SCALED_FLOAT) // Remove duplicates
                 .collect(Collectors.toMap(dataType -> dataType.jdbcType, dataType -> dataType));
+
+        mssqlToEs = new HashMap<>(36);
+
+        // Numeric
+        mssqlToEs.put("SQL_BIT", BOOLEAN);
+        mssqlToEs.put("SQL_TINYINT", BYTE);
+        mssqlToEs.put("SQL_SMALLINT", SHORT);
+        mssqlToEs.put("SQL_INTEGER", INTEGER);
+        mssqlToEs.put("SQL_BIGINT", LONG);
+        mssqlToEs.put("SQL_FLOAT", FLOAT);
+        mssqlToEs.put("SQL_REAL", FLOAT);
+        mssqlToEs.put("SQL_DOUBLE", DOUBLE);
+        mssqlToEs.put("SQL_DECIMAL", DOUBLE);
+        mssqlToEs.put("SQL_NUMERIC", DOUBLE);
+
+        // String
+        mssqlToEs.put("SQL_GUID", KEYWORD);
+        mssqlToEs.put("SQL_CHAR", KEYWORD);
+        mssqlToEs.put("SQL_WCHAR", KEYWORD);
+        mssqlToEs.put("SQL_VARCHAR", TEXT);
+        mssqlToEs.put("SQL_WVARCHAR", TEXT);
+        mssqlToEs.put("SQL_LONGVARCHAR", TEXT);
+        mssqlToEs.put("SQL_WLONGVARCHAR", TEXT);
+
+        // Binary
+        mssqlToEs.put("SQL_BINARY", BINARY);
+        mssqlToEs.put("SQL_VARBINARY", BINARY);
+        mssqlToEs.put("SQL_LONGVARBINARY", BINARY);
+
+        // Date
+        mssqlToEs.put("SQL_DATE", DATE);
+        mssqlToEs.put("SQL_TIME", DATE);
+        mssqlToEs.put("SQL_TIMESTAMP", DATE);
+
+        // Intervals - Currently Not Supported
+        mssqlToEs.put("SQL_INTERVAL_HOUR_TO_MINUTE", null);
+        mssqlToEs.put("SQL_INTERVAL_HOUR_TO_SECOND", null);
+        mssqlToEs.put("SQL_INTERVAL_MINUTE_TO_SECOND", null);
+        mssqlToEs.put("SQL_INTERVAL_MONTH", null);
+        mssqlToEs.put("SQL_INTERVAL_YEAR", null);
+        mssqlToEs.put("SQL_INTERVAL_YEAR_TO_MONTH", null);
+        mssqlToEs.put("SQL_INTERVAL_DAY", null);
+        mssqlToEs.put("SQL_INTERVAL_HOUR", null);
+        mssqlToEs.put("SQL_INTERVAL_MINUTE", null);
+        mssqlToEs.put("SQL_INTERVAL_SECOND", null);
+        mssqlToEs.put("SQL_INTERVAL_DAY_TO_HOUR", null);
+        mssqlToEs.put("SQL_INTERVAL_DAY_TO_MINUTE", null);
+        mssqlToEs.put("SQL_INTERVAL_DAY_TO_SECOND", null);
     }
 
     /**
@@ -162,6 +214,9 @@ public enum DataType {
         return jdbcToEs.get(jdbcType).javaClass();
     }
 
+    public static DataType fromMSSQLType(String mssqlType) {
+        return mssqlToEs.get(mssqlType);
+    }
     /**
      * Creates returns DataType enum coresponding to the specified es type
      * <p>

@@ -1166,6 +1166,33 @@ SELECT YEAR(CAST('2018-05-19T11:23:45Z' AS TIMESTAMP)) AS year;
 
 ///////////////////////////////
 //
+// Convert
+//
+///////////////////////////////
+
+conversionStringToIntConvertMSSQLDataType
+// tag::conversionStringToIntConvertMSSQLDataType
+SELECT CONVERT('123', SQL_INTEGER) AS int;
+
+      int
+---------------
+123
+// end::conversionStringToIntConvertMSSQLDataType
+;
+
+
+conversionStringToIntConvertESDataType
+// tag::conversionStringToIntConvertESDataType
+SELECT CONVERT('123', INTEGER) AS int;
+
+      int
+---------------
+123
+// end::conversionStringToIntConvertESDataType
+;
+
+///////////////////////////////
+//
 // Math
 //
 ///////////////////////////////

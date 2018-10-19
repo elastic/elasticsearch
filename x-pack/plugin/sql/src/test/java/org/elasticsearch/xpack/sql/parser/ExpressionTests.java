@@ -9,6 +9,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
@@ -155,5 +156,74 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("?a", sub2.children().get(0).toString());
         assertEquals(Literal.class, sub2.children().get(1).getClass());
         assertEquals("2", ((Literal) sub2.children().get(1)).name());
+    }
+
+    public void testCastWithUnquotedDataType() {
+        Expression expr = parser.createExpression("CAST(10*2 AS LONG)");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10 * 2", mul.name());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testCastWithQuotedDataType() {
+        Expression expr = parser.createExpression("CAST(10*2 AS \"LONG\")");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10 * 2", mul.name());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testCastWithInvalidDataType() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CAST(1 AS INVALID)"));
+        assertEquals("line 1:12: Does not recognize type invalid", ex.getMessage());
+    }
+
+    public void testConvertWithUnquotedDataType() {
+        Expression expr = parser.createExpression("CONVERT(10*2, LONG)");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10 * 2", mul.name());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testConvertWithQuotedDataType() {
+        Expression expr = parser.createExpression("CONVERT(10*2, \"LONG\")");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+        assertEquals(Mul.class, cast.field().getClass());
+        Mul mul = (Mul) cast.field();
+        assertEquals("10 * 2", mul.name());
+        assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testConvertWithInvalidMSSQLDataType() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, SQL_INVALID)"));
+        assertEquals("line 1:13: Invalid data type [SQL_INVALID] provided", ex.getMessage());
+        ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, SQL_INTERVAL_MONTH)"));
+        assertEquals("line 1:13: Invalid data type [SQL_INTERVAL_MONTH] provided", ex.getMessage());
+    }
+
+    public void testConvertWithInvalidESDataType() {
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, INVALID)"));
+        assertEquals("line 1:13: Invalid data type [INVALID] provided", ex.getMessage());
     }
 }

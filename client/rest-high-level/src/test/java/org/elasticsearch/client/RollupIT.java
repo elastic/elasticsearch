@@ -43,6 +43,7 @@ import org.elasticsearch.client.rollup.job.config.GroupConfig;
 import org.elasticsearch.client.rollup.job.config.MetricConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -51,7 +52,6 @@ import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
-import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -63,39 +63,24 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RollupIT extends ESRestHighLevelClientTestCase {
 
-    double sum = 0.0d;
-    int max = Integer.MIN_VALUE;
-    int min = Integer.MAX_VALUE;
     private static final List<String> SUPPORTED_METRICS = Arrays.asList(MaxAggregationBuilder.NAME, MinAggregationBuilder.NAME,
         SumAggregationBuilder.NAME, AvgAggregationBuilder.NAME, ValueCountAggregationBuilder.NAME);
 
-    private String id;
-    private String indexPattern;
-    private String rollupIndex;
-    private String cron;
-    private int pageSize;
-    private int numDocs;
+    @SuppressWarnings("unchecked")
+    public void testPutAndGetRollupJob() throws Exception {
+        double sum = 0.0d;
+        int max = Integer.MIN_VALUE;
+        int min = Integer.MAX_VALUE;
 
-    @Before
-    public void init() throws Exception {
-        id = randomAlphaOfLength(10);
-        indexPattern = randomFrom("docs", "d*", "doc*");
-        rollupIndex = randomFrom("rollup", "test");
-        cron = "*/1 * * * * ?";
-        numDocs = indexDocs();
-        pageSize = randomIntBetween(numDocs, numDocs * 10);
-    }
-
-    public int indexDocs() throws Exception {
         final BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int minute = 0; minute < 60; minute++) {
@@ -135,14 +120,17 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
         RefreshResponse refreshResponse = highLevelClient().indices().refresh(new RefreshRequest("docs"), RequestOptions.DEFAULT);
         assertEquals(0, refreshResponse.getFailedShards());
-        return numDocs;
-    }
 
-    @SuppressWarnings("unchecked")
-    public void testPutAndGetRollupJob() throws Exception {
+        final String id = randomAlphaOfLength(10);
+        final String indexPattern = randomFrom("docs", "d*", "doc*");
+        final String rollupIndex = randomFrom("rollup", "test");
+        final String cron = "*/1 * * * * ?";
+        final int pageSize = randomIntBetween(numDocs, numDocs * 10);
         // TODO expand this to also test with histogram and terms?
         final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
-        final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
+        final List<MetricConfig> metrics = Arrays.asList(
+            new MetricConfig("value", SUPPORTED_METRICS),
+            new MetricConfig("date", Arrays.asList(MaxAggregationBuilder.NAME)));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
         PutRollupJobRequest putRollupJobRequest =
@@ -156,6 +144,9 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         Response startResponse = client().performRequest(new Request("POST", "/_xpack/rollup/job/" + id + "/_start"));
         assertEquals(RestStatus.OK.getStatus(), startResponse.getHttpResponse().getStatusLine().getStatusCode());
 
+        int finalMin = min;
+        int finalMax = max;
+        double finalSum = sum;
         assertBusy(() -> {
             SearchResponse searchResponse = highLevelClient().search(new SearchRequest(rollupIndex), RequestOptions.DEFAULT);
             assertEquals(0, searchResponse.getFailedShards());
@@ -170,21 +161,28 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             assertEquals(groups.getDateHistogram().getTimeZone(), source.get("date.date_histogram.time_zone"));
 
             for (MetricConfig metric : metrics) {
-                for (String name : metric.getMetrics()) {
-                    Number value = (Number) source.get(metric.getField() + "." + name + ".value");
-                    if ("min".equals(name)) {
-                        assertEquals(min, value.intValue());
-                    } else if ("max".equals(name)) {
-                        assertEquals(max, value.intValue());
-                    } else if ("sum".equals(name)) {
-                        assertEquals(sum, value.doubleValue(), 0.0d);
-                    } else if ("avg".equals(name)) {
-                        assertEquals(sum, value.doubleValue(), 0.0d);
-                        Number avgCount = (Number) source.get(metric.getField() + "." + name + "._count");
-                        assertEquals(numDocs, avgCount.intValue());
-                    } else if ("value_count".equals(name)) {
-                        assertEquals(numDocs, value.intValue());
+                if (metric.getField().equals("value")) {
+                    for (String name : metric.getMetrics()) {
+                        Number value = (Number) source.get(metric.getField() + "." + name + ".value");
+                        if ("min".equals(name)) {
+                            assertEquals(finalMin, value.intValue());
+                        } else if ("max".equals(name)) {
+                            assertEquals(finalMax, value.intValue());
+                        } else if ("sum".equals(name)) {
+                            assertEquals(finalSum, value.doubleValue(), 0.0d);
+                        } else if ("avg".equals(name)) {
+                            assertEquals(finalSum, value.doubleValue(), 0.0d);
+                            Number avgCount = (Number) source.get(metric.getField() + "." + name + "._count");
+                            assertEquals(numDocs, avgCount.intValue());
+                        } else if ("value_count".equals(name)) {
+                            assertEquals(numDocs, value.intValue());
+                        }
                     }
+                } else {
+                    Number value = (Number) source.get(metric.getField() + ".max.value");
+                    assertEquals(
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2018-01-01T00:59:50").getMillis(),
+                        value.longValue());
                 }
             }
         });
@@ -209,6 +207,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         GetRollupJobResponse getResponse = execute(getRollupJobRequest, rollupClient::getRollupJob, rollupClient::getRollupJobAsync);
         assertThat(getResponse.getJobs(), empty());
     }
+
 
     public void testGetRollupCaps() throws Exception {
         final Set<Integer> values = new HashSet<>();

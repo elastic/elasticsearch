@@ -39,7 +39,7 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected Request doParseInstance(XContentParser parser) throws IOException {
+    protected Request doParseInstance(final XContentParser parser) throws IOException {
         return Request.fromXContent(parser, jobId);
     }
 }

@@ -16,11 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.license;
 
-import org.elasticsearch.action.ActionResponse;
-
-public class GetLicenseResponse extends ActionResponse {
+public class GetLicenseResponse {
 
     private String license;
 

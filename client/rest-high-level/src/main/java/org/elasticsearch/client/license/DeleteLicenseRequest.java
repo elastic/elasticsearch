@@ -16,26 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.license;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.client.TimedRequest;
 
-import java.io.IOException;
+public class DeleteLicenseRequest extends TimedRequest {
 
-
-public class GetLicenseRequest extends MasterNodeReadRequest<GetLicenseRequest> {
-
-    public GetLicenseRequest() {
-    }
-
-    public GetLicenseRequest(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
 }

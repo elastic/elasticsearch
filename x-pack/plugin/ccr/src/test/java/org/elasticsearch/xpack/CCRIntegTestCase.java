@@ -32,6 +32,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -106,12 +107,13 @@ public abstract class CCRIntegTestCase extends ESTestCase {
         ClusterService clusterService = clusterGroup.followerCluster.getInstance(ClusterService.class, masterNode);
 
         CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("purge-cluster-state", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 ClusterState.Builder newState = ClusterState.builder(currentState);
                 newState.metaData(MetaData.builder(currentState.getMetaData())
                     .removeCustom(AutoFollowMetadata.TYPE)
+                    .removeCustom(PersistentTasksCustomMetaData.TYPE)
                     .build());
                 return newState.build();
             }

@@ -71,7 +71,7 @@ public class FollowIndexIT extends ESRestTestCase {
             assertBusy(() -> verifyDocuments(followIndexName, numDocs));
             // unfollow and then follow and then index a few docs in leader index:
             pauseFollow(followIndexName);
-            resumeFollow(leaderIndexName, followIndexName);
+            resumeFollow(followIndexName);
             try (RestClient leaderClient = buildLeaderClient()) {
                 int id = numDocs;
                 index(leaderClient, leaderIndexName, Integer.toString(id), "field", id, "filtered_field", "true");
@@ -84,14 +84,14 @@ public class FollowIndexIT extends ESRestTestCase {
             pauseFollow(followIndexName);
             assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_close")));
             assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_ccr/unfollow")));
-            Exception e = expectThrows(ResponseException.class, () -> resumeFollow(leaderIndexName, followIndexName));
+            Exception e = expectThrows(ResponseException.class, () -> resumeFollow(followIndexName));
             assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));
         }
     }
 
     public void testFollowNonExistingLeaderIndex() throws Exception {
         assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
-        ResponseException e = expectThrows(ResponseException.class, () -> resumeFollow("non-existing-index", "non-existing-index"));
+        ResponseException e = expectThrows(ResponseException.class, () -> resumeFollow("non-existing-index"));
         assertThat(e.getMessage(), containsString("no such index"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
@@ -151,10 +151,9 @@ public class FollowIndexIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
-    private static void resumeFollow(String leaderIndex, String followIndex) throws IOException {
+    private static void resumeFollow(String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_ccr/resume_follow");
-        request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"" + leaderIndex +
-            "\", \"poll_timeout\": \"10ms\"}");
+        request.setJsonEntity("{\"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 

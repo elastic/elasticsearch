@@ -688,6 +688,20 @@ class ClusterFormationTasks {
     static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks, int waitSeconds) {
         Task wait = project.tasks.create(name: name, dependsOn: startTasks)
         wait.doLast {
+
+            nodes.forEach { node ->
+                Collection<String> unicastHosts = new HashSet<>()
+                nodes.forEach { otherNode ->
+                    String unicastHost = node.config.unicastTransportUri(otherNode, node, project.ant)
+                    if (unicastHost != null) {
+                        unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
+                    }
+                }
+                node.pathConf.toPath().resolve("unicast_hosts.txt").setText(
+                  String.join("\n", unicastHosts)
+                )
+            }
+
             ant.waitfor(maxwait: "${waitSeconds}", maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
                 or {
                     for (NodeInfo node : nodes) {
@@ -708,21 +722,6 @@ class ClusterFormationTasks {
                             }
                         }
                     }
-                }
-            }
-
-            nodes.forEach { node ->
-                if (node.nodeVersion.onOrAfter("6.5.0-SNAPSHOT")) {
-                    Collection<String> unicastHosts = new HashSet<>()
-                    nodes.forEach { otherNode ->
-                        String unicastHost = node.config.unicastTransportUri(otherNode, node, project.ant)
-                        if (unicastHost != null) {
-                            unicastHosts.add(unicastHost)
-                        }
-                    }
-                    node.pathConf.toPath().resolve("unicast_hosts.txt").setText(
-                      String.join("\n", unicastHosts)
-                    )
                 }
             }
 

@@ -79,6 +79,13 @@ removed.
 * 	`jarowinkler` - replaced by `jaro_winkler`
 
 [float]
+==== `popular` mode for Suggesters
+
+The `popular` mode for Suggesters (`term` and `phrase`) now uses the doc frequency
+(instead of the sum of the doc frequency) of the input terms to compute the frequency
+threshold for candidate suggestions.
+
+[float]
 ==== Limiting the number of terms that can be used in a Terms Query request
 
 Executing a Terms Query with a lot of terms may degrade the cluster performance,

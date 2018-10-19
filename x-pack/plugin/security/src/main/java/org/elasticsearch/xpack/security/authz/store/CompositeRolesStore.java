@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Nullable;
@@ -183,7 +184,7 @@ public class CompositeRolesStore extends AbstractComponent {
             if (rolesRetrievalResult.isSuccess()) {
                 listener.onResponse(rolesRetrievalResult.getRoleDescriptors());
             } else {
-                listener.onResponse(Collections.emptySet());
+                listener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
             }
         }, listener::onFailure));
     }

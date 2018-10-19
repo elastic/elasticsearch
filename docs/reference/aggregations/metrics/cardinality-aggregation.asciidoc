@@ -155,7 +155,15 @@ Although not guaranteed, this is likely to be the case.  Accuracy in practice de
 on the dataset in question.  Because the HyperLogLog++ algorithm depends on the
 leading zeros of hashed values, the exact distributions of hashes in a dataset
 can affect how accurate the cardinality is.  In general, most datasets show
-consistently good accuracy.
+For all 3 thresholds, counts have been accurate up to the configured threshold.
+Although not guaranteed, this is likely to be the case.  Accuracy in practice depends
+on the dataset in question.  In general, most datasets show consistently good 
+accuracy. Also note that even with a threshold as low as 100, the error
+remains very low, even when counting millions of items.
+
+The HyperLogLog++ algorithm depends on the leading zeros of hashed
+values, the exact distributions of hashes in a dataset can affect the 
+accuracy of the cardinality.  
 
 Please also note that even with a threshold as low as 100, the error remains
 very low, even when counting millions of items.

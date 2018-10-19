@@ -30,11 +30,6 @@ public class Degrees extends MathFunction {
     }
 
     @Override
-    protected String mathFunction() {
-        return "toDegrees";
-    }
-
-    @Override
     protected MathOperation operation() {
         return MathOperation.DEGREES;
     }

@@ -277,13 +277,14 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
             }
         };
         // end::rollup-start-job-execute-listener
+        
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
      
         // tag::rollup-start-job-execute-async
         RollupClient rc = client.rollup();
         rc.startRollupJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::rollup-start-job-execute-async
-        final CountDownLatch latch = new CountDownLatch(1);
-        listener = new LatchedActionListener<>(listener, latch);
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

@@ -20,16 +20,39 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchRequest;
+import org.elasticsearch.client.watcher.StartWatchServiceRequest;
+import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 
 public class WatcherRequestConverters {
+
+    static Request startWatchService(StartWatchServiceRequest startWatchServiceRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("watcher")
+                .addPathPartAsIs("_start")
+                .build();
+
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request stopWatchService(StopWatchServiceRequest stopWatchServiceRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("watcher")
+                .addPathPartAsIs("_stop")
+                .build();
+
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
 
     static Request putWatch(PutWatchRequest putWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()

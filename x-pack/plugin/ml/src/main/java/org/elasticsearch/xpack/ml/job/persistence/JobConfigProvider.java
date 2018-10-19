@@ -107,6 +107,7 @@ public class JobConfigProvider extends AbstractComponent {
                     ElasticsearchMappings.DOC_TYPE, Job.documentId(job.getId()))
                     .setSource(source)
                     .setOpType(DocWriteRequest.OpType.CREATE)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .request();
 
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(

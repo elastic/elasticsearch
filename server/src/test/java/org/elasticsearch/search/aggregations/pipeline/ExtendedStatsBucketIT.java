@@ -366,7 +366,8 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
                                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                                                 .extendedBounds(minRandomValue, maxRandomValue)
                                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum").gapPolicy(GapPolicy.INSERT_ZEROS)))
+                                .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum")
+                                    .gapPolicy(GapPolicy.INSERT_ZEROS)))
                 .execute().actionGet();
 
         assertSearchResponse(response);

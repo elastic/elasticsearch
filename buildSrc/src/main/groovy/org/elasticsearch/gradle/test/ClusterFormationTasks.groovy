@@ -351,10 +351,13 @@ class ClusterFormationTasks {
                 // Don't force discovery provider if one is set by the test cluster specs already
                 if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
                     esConfig['discovery.zen.hosts_provider'] = 'file'
+                    esConfig['discovery.zen.ping.unicast.hosts'] = []
                 }
             } else {
                 String unicastTransportUri = node.config.unicastTransportUri(seedNode, node, project.ant)
-                if (unicastTransportUri != null) {
+                if (unicastTransportUri == null) {
+                    esConfig['discovery.zen.ping.unicast.hosts'] = []
+                } else {
                     esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
                 }
             }
@@ -724,7 +727,6 @@ class ClusterFormationTasks {
                     }
                 }
             }
-
             if (ant.properties.containsKey("failed${name}".toString())) {
                 waitFailed(project, nodes, logger, "Failed to start elasticsearch: timed out after ${waitSeconds} seconds")
             }

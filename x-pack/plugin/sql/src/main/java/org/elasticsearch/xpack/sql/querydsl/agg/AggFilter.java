@@ -14,7 +14,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.util.Check;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketSelector;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketSelector;
 
 public class AggFilter extends PipelineAgg {
 

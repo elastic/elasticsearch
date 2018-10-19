@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,7 +44,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
     private static ParseField INDEX_PATTERN = new ParseField("index_pattern");
     private static ParseField FIELDS = new ParseField("fields");
 
-    private RollupJobConfig rollupJobConfig;
+    private final RollupJobConfig rollupJobConfig;
     private final String jobID;
     private final String rollupIndex;
     private final String indexPattern;
@@ -64,6 +65,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         this.jobID = jobID;
         this.rollupIndex = rollupIndex;
         this.indexPattern = indexPattern;
+        this.rollupJobConfig = null;
         this.fieldCapLookup = Collections.unmodifiableMap(Objects.requireNonNull(fieldCapLookup));
     }
 
@@ -71,6 +73,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         this.jobID = in.readString();
         this.rollupIndex = in.readString();
         this.indexPattern = in.readString();
+        this.rollupJobConfig = null;
         this.fieldCapLookup = in.readMap(StreamInput::readString, RollupFieldCaps::new);
     }
 
@@ -90,6 +93,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
         return jobID;
     }
 
+    @Nullable
     public RollupJobConfig getRollupJobConfig() {
         return rollupJobConfig;
     }

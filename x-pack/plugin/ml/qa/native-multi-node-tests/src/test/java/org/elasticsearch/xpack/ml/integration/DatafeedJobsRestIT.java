@@ -707,10 +707,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             + "        {\n"
             + "            \"field\": \"responsetime\",\n"
             + "            \"metrics\": [\"avg\",\"min\",\"max\",\"sum\"]\n"
-            + "        },\n"
-            + "        {\n"
-            + "            \"field\": \"time stamp\",\n"
-            + "            \"metrics\": [\"max\"]\n"
             + "        }\n"
             + "    ]\n"
             + "}");

@@ -25,9 +25,4 @@ public class Power extends BinaryNumericFunction {
     protected Power replaceChildren(Expression newLeft, Expression newRight) {
         return new Power(location(), newLeft, newRight);
     }
-
-    @Override
-    protected String mathFunction() {
-        return "pow";
-    }
 }

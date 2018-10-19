@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Grea
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.Limit;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
@@ -1796,7 +1797,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             if (plan instanceof Project) {
                 Project p = (Project) plan;
                 List<Object> values = extractConstants(p.projections());
-                if (values.size() == p.projections().size()) {
+                if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation)) {
                     return new LocalRelation(p.location(), new SingletonExecutable(p.output(), values.toArray()));
                 }
             }

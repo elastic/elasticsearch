@@ -74,15 +74,15 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                 @Override
                 public GetUserPrivilegesResponse mutate(GetUserPrivilegesResponse original) {
                     final int random = randomIntBetween(1, 0b11111);
-                    final Set<String> cluster = maybeMutate(random, 1, original.getClusterPrivileges(), () -> randomAlphaOfLength(5));
-                    final Set<ConditionalClusterPrivilege> conditionalCluster = maybeMutate(random, 2,
+                    final Set<String> cluster = maybeMutate(random, 0, original.getClusterPrivileges(), () -> randomAlphaOfLength(5));
+                    final Set<ConditionalClusterPrivilege> conditionalCluster = maybeMutate(random, 1,
                         original.getConditionalClusterPrivileges(), () -> new ManageApplicationPrivileges(randomStringSet(3)));
-                    final Set<GetUserPrivilegesResponse.Indices> index = maybeMutate(random, 3, original.getIndexPrivileges(),
+                    final Set<GetUserPrivilegesResponse.Indices> index = maybeMutate(random, 2, original.getIndexPrivileges(),
                         () -> new GetUserPrivilegesResponse.Indices(randomStringSet(1), randomStringSet(1), emptySet(), emptySet()));
-                    final Set<ApplicationResourcePrivileges> application = maybeMutate(random, 4, original.getApplicationPrivileges(),
+                    final Set<ApplicationResourcePrivileges> application = maybeMutate(random, 3, original.getApplicationPrivileges(),
                         () -> ApplicationResourcePrivileges.builder().resources(generateRandomStringArray(3, 3, false, false))
                             .application(randomAlphaOfLength(5)).privileges(generateRandomStringArray(3, 5, false, false)).build());
-                    final Set<String> runAs = maybeMutate(random, 5, original.getRunAs(), () -> randomAlphaOfLength(8));
+                    final Set<String> runAs = maybeMutate(random, 4, original.getRunAs(), () -> randomAlphaOfLength(8));
                     return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs);
                 }
 

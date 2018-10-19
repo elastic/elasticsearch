@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -28,6 +29,7 @@ public class StatsResponsesTests extends AbstractStreamableTestCase<FollowStatsA
             ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
                 randomInt(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
@@ -48,7 +50,8 @@ public class StatsResponsesTests extends AbstractStreamableTestCase<FollowStatsA
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 Collections.emptyNavigableMap(),
-                randomLong());
+                randomLong(),
+                randomBoolean() ? new ElasticsearchException("fatal error") : null);
             responses.add(new FollowStatsAction.StatsResponse(status));
         }
         return new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), responses);

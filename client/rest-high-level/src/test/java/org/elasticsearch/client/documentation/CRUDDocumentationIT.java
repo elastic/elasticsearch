@@ -1507,6 +1507,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testTermVectors() throws Exception {
         RestHighLevelClient client = highLevelClient();
         CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("doc", "user", "type=keyword");
@@ -1565,40 +1566,44 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         TermVectorsResponse response = client.termvectors(request, RequestOptions.DEFAULT);
         // end:::term-vectors-execute
 
+
         // tag::term-vectors-response
         String index = response.getIndex(); // <1>
         String type = response.getType(); // <2>
         String id = response.getId(); // <3>
         boolean found = response.getFound(); // <4>
-        if (response.getTermVectorsList() != null) { // <5>
-            List<TermVectorsResponse.TermVector> tvList = response.getTermVectorsList(); // <6>
+        // end:::term-vectors-response
+
+        // tag::term-vectors-term-vectors
+        if (response.getTermVectorsList() != null) {
+            List<TermVectorsResponse.TermVector> tvList = response.getTermVectorsList(); // <1>
             for (TermVectorsResponse.TermVector tv : tvList) {
-                String fieldname = tv.getFieldName(); // <7>
-                int docCount = tv.getFieldStatistics().getDocCount(); // <8>
-                long sumTotalTermFreq = tv.getFieldStatistics().getSumTotalTermFreq(); // <9>
-                long sumDocFreq = tv.getFieldStatistics().getSumDocFreq(); // <10>
+                String fieldname = tv.getFieldName(); // <2>
+                int docCount = tv.getFieldStatistics().getDocCount(); // <3>
+                long sumTotalTermFreq = tv.getFieldStatistics().getSumTotalTermFreq(); // <4>
+                long sumDocFreq = tv.getFieldStatistics().getSumDocFreq(); // <5>
                 if (tv.getTerms() != null) {
-                    List<TermVectorsResponse.TermVector.Term> terms = tv.getTerms(); // <11>
+                    List<TermVectorsResponse.TermVector.Term> terms = tv.getTerms(); // <6>
                     for (TermVectorsResponse.TermVector.Term term : terms) {
-                        String termStr = term.getTerm(); // <12>
-                        int termFreq = term.getTermFreq(); // <13>
-                        int docFreq = term.getDocFreq(); // <14>
-                        long totalTermFreq = term.getTotalTermFreq(); // <15>
-                        float score = term.getScore(); // <16>
+                        String termStr = term.getTerm(); // <7>
+                        int termFreq = term.getTermFreq(); // <8>
+                        int docFreq = term.getDocFreq(); // <9>
+                        long totalTermFreq = term.getTotalTermFreq(); // <10>
+                        float score = term.getScore(); // <11>
                         if (term.getTokens() != null) {
-                            List<TermVectorsResponse.TermVector.Token> tokens = term.getTokens(); // <17>
+                            List<TermVectorsResponse.TermVector.Token> tokens = term.getTokens(); // <12>
                             for (TermVectorsResponse.TermVector.Token token : tokens) {
-                                int position = token.getPosition(); // <18>
-                                int startOffset = token.getStartOffset(); // <19>
-                                int endOffset = token.getEndOffset(); // <20>
-                                String payload = token.getPayload(); // <21>
+                                int position = token.getPosition(); // <13>
+                                int startOffset = token.getStartOffset(); // <14>
+                                int endOffset = token.getEndOffset(); // <15>
+                                String payload = token.getPayload(); // <16>
                             }
                         }
                     }
                 }
             }
         }
-        // end:::term-vectors-response
+        // end:::term-vectors-term-vectors
 
         // tag::term-vectors-execute-listener
         ActionListener<TermVectorsResponse> listener = new ActionListener<TermVectorsResponse>() {

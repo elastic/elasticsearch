@@ -41,23 +41,34 @@ public class TermVectorsResponse {
     private final List<TermVector> termVectorList;
 
     public TermVectorsResponse(
-        String index, String type, String id, long version, boolean found, long tookInMillis, List<TermVector> termVectorList) {
+            String index, String type, String id, long version, boolean found, long tookInMillis, List<TermVector> termVectorList) {
         this.index = index;
         this.type = type;
         this.id = id;
         this.docVersion = version;
         this.found = found;
         this.tookInMillis = tookInMillis;
-        if (termVectorList != null) {
-            Collections.sort(termVectorList, Comparator.comparing(TermVector::getFieldName));
-        }
         this.termVectorList = termVectorList;
     }
 
-    @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<TermVectorsResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "term_vectors", true, args  -> new TermVectorsResponse((String) args[0], (String) args[1],
-        (String) args[2], (long) args[3], (boolean) args[4], (long) args[5], (List<TermVector>) args[6]));
+    private static ConstructingObjectParser<TermVectorsResponse, Void> PARSER = new ConstructingObjectParser<>("term_vectors", true,
+        args -> {
+            // as the response comes from server, we are sure that args[6] will be a list of TermVector
+            @SuppressWarnings("unchecked") List<TermVector> termVectorList = (List<TermVector>) args[6];
+            if (termVectorList != null) {
+                Collections.sort(termVectorList, Comparator.comparing(TermVector::getFieldName));
+            }
+            return new TermVectorsResponse(
+                (String) args[0],
+                (String) args[1],
+                (String) args[2],
+                (long) args[3],
+                (boolean) args[4],
+                (long) args[5],
+                termVectorList
+            );
+        }
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("_index"));
@@ -74,30 +85,53 @@ public class TermVectorsResponse {
         return PARSER.apply(parser, null);
     }
 
+    /**
+     * Returns the index for the response
+     */
     public String getIndex() {
         return index;
     }
 
+    /**
+     * Returns the type for the response
+     */
     public String getType() {
         return type;
     }
 
+    /**
+     * Returns the id of the request
+     * can be NULL if there is no document ID
+     */
     public String getId() {
         return id;
     }
 
+    /**
+     * Returns if the document is found
+     * always <code>true</code> for artificial documents
+     */
     public boolean getFound() {
         return found;
     }
 
+    /**
+     * Returns the document version
+     */
     public long getDocVersion() {
         return  docVersion;
     }
 
+    /**
+     * Returns the time that a request took in milliseconds
+     */
     public long getTookInMillis() {
         return tookInMillis;
     }
 
+    /**
+     * Returns the list of term vectors
+     */
     public List<TermVector> getTermVectorsList(){
         return termVectorList;
     }
@@ -124,14 +158,21 @@ public class TermVectorsResponse {
 
     public static final class TermVector {
 
-        @SuppressWarnings("unchecked")
-        private static ConstructingObjectParser<TermVector, String> TVPARSER = new ConstructingObjectParser<>(
-            "term_vector", true, (args, ctxFieldName)  -> new TermVector( ctxFieldName, (FieldStatistics) args[0], (List<Term>) args[1]));
+        private static ConstructingObjectParser<TermVector, String> PARSER = new ConstructingObjectParser<>("term_vector", true,
+            (args, ctxFieldName)  -> {
+                // as the response comes from server, we are sure that args[1] will be a list of Term
+                @SuppressWarnings("unchecked") List<Term> terms = (List<Term>) args[1];
+                if (terms != null) {
+                    Collections.sort(terms, Comparator.comparing(Term::getTerm));
+                }
+                return new TermVector(ctxFieldName, (FieldStatistics) args[0], terms);
+            }
+        );
 
         static {
-            TVPARSER.declareObject(optionalConstructorArg(),
+            PARSER.declareObject(optionalConstructorArg(),
                 (p,c) -> FieldStatistics.fromXContent(p), new ParseField("field_statistics"));
-            TVPARSER.declareNamedObjects(optionalConstructorArg(), (p, c, term) -> Term.fromXContent(p, term), new ParseField("terms"));
+            PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, term) -> Term.fromXContent(p, term), new ParseField("terms"));
         }
 
         private final String fieldName;
@@ -143,24 +184,30 @@ public class TermVectorsResponse {
         public TermVector(String fieldName, FieldStatistics fieldStatistics, List<Term> terms) {
             this.fieldName = fieldName;
             this.fieldStatistics = fieldStatistics;
-            if (terms != null) {
-                Collections.sort(terms, Comparator.comparing(Term::getTerm));
-            }
             this.terms = terms;
         }
 
         public static TermVector fromXContent(XContentParser parser, String fieldName) {
-            return TVPARSER.apply(parser, fieldName);
+            return PARSER.apply(parser, fieldName);
         }
 
+        /**
+         * Returns the field name of the current term vector
+         */
         public String getFieldName() {
             return fieldName;
         }
 
+        /**
+         * Returns the list of terms for the current term vector
+         */
         public List<Term> getTerms() {
             return terms;
         }
 
+        /**
+         * Returns the field statistics for the current field
+         */
         public FieldStatistics getFieldStatistics() {
             return fieldStatistics;
         }
@@ -181,15 +228,20 @@ public class TermVectorsResponse {
             return Objects.hash(fieldName, fieldStatistics, terms);
         }
 
+        // Class containing a general field statistics for the field
         public static final class FieldStatistics {
 
-            private static ConstructingObjectParser<FieldStatistics, Void> FSPARSER = new ConstructingObjectParser<>(
-                "field_statistics", true, args  -> new FieldStatistics((long) args[0], (int) args[1], (long) args[2]));
+            private static ConstructingObjectParser<FieldStatistics, Void> PARSER = new ConstructingObjectParser<>(
+                "field_statistics", true,
+                args  -> {
+                    return new FieldStatistics((long) args[0], (int) args[1], (long) args[2]);
+                }
+            );
 
             static {
-                FSPARSER.declareLong(constructorArg(), new ParseField("sum_doc_freq"));
-                FSPARSER.declareInt(constructorArg(), new ParseField("doc_count"));
-                FSPARSER.declareLong(constructorArg(), new ParseField("sum_ttf"));
+                PARSER.declareLong(constructorArg(), new ParseField("sum_doc_freq"));
+                PARSER.declareInt(constructorArg(), new ParseField("doc_count"));
+                PARSER.declareLong(constructorArg(), new ParseField("sum_ttf"));
             }
             private final long sumDocFreq;
             private final int docCount;
@@ -202,15 +254,26 @@ public class TermVectorsResponse {
             }
 
             public static FieldStatistics fromXContent(XContentParser parser) {
-                return FSPARSER.apply(parser, null);
+                return PARSER.apply(parser, null);
             }
 
+            /*
+             * Returns how many documents this field contains
+             */
             public int getDocCount() {
                 return docCount;
             }
+
+            /**
+             * Returns the sum of document frequencies for all terms in this field
+             */
             public long getSumDocFreq() {
                 return sumDocFreq;
             }
+
+            /**
+             * Returns the sum of total term frequencies of all terms in this field
+             */
             public long getSumTotalTermFreq() {
                 return sumTotalTermFreq;
             }
@@ -232,17 +295,27 @@ public class TermVectorsResponse {
 
 
         public static final class Term {
-
-            @SuppressWarnings("unchecked")
-            private static ConstructingObjectParser<Term, String> TERMPARSER = new ConstructingObjectParser<>(
-                "token", true, (args, ctxTerm)  -> new Term( ctxTerm, (int) args[0],
-                (Integer) args[1], (Long) args[2], (Float) args[3], (List<Token>) args[4]));
+            private static ConstructingObjectParser<Term, String> PARSER = new ConstructingObjectParser<>("token", true,
+                (args, ctxTerm)  -> {
+                    // as the response comes from server, we are sure that args[4] will be a list of Token
+                    @SuppressWarnings("unchecked") List<Token> tokens = (List<Token>) args[4];
+                    if (tokens != null) {
+                        Collections.sort(
+                            tokens,
+                            Comparator.comparing(Token::getPosition, Comparator.nullsFirst(Integer::compareTo))
+                                .thenComparing(Token::getStartOffset, Comparator.nullsFirst(Integer::compareTo))
+                                .thenComparing(Token::getEndOffset, Comparator.nullsFirst(Integer::compareTo))
+                        );
+                    }
+                    return new Term(ctxTerm, (int) args[0], (Integer) args[1], (Long) args[2], (Float) args[3], tokens);
+                }
+            );
             static {
-                TERMPARSER.declareInt(constructorArg(), new ParseField("term_freq"));
-                TERMPARSER.declareInt(optionalConstructorArg(), new ParseField("doc_freq"));
-                TERMPARSER.declareLong(optionalConstructorArg(), new ParseField("ttf"));
-                TERMPARSER.declareFloat(optionalConstructorArg(), new ParseField("score"));
-                TERMPARSER.declareObjectArray(optionalConstructorArg(), (p,c) -> Token.fromXContent(p), new ParseField("tokens"));
+                PARSER.declareInt(constructorArg(), new ParseField("term_freq"));
+                PARSER.declareInt(optionalConstructorArg(), new ParseField("doc_freq"));
+                PARSER.declareLong(optionalConstructorArg(), new ParseField("ttf"));
+                PARSER.declareFloat(optionalConstructorArg(), new ParseField("score"));
+                PARSER.declareObjectArray(optionalConstructorArg(), (p,c) -> Token.fromXContent(p), new ParseField("tokens"));
             }
 
             private final String term;
@@ -262,41 +335,51 @@ public class TermVectorsResponse {
                 this.docFreq = docFreq;
                 this.totalTermFreq = totalTermFreq;
                 this.score = score;
-                if (tokens != null) {
-                    Collections.sort(
-                        tokens,
-                        Comparator.comparing(Token::getPosition, Comparator.nullsFirst(Integer::compareTo))
-                            .thenComparing(Token::getStartOffset, Comparator.nullsFirst(Integer::compareTo))
-                            .thenComparing(Token::getEndOffset, Comparator.nullsFirst(Integer::compareTo))
-                    );
-                }
                 this.tokens = tokens;
             }
 
             public static Term fromXContent(XContentParser parser, String term) {
-                return TERMPARSER.apply(parser, term);
+                return PARSER.apply(parser, term);
             }
 
+            /**
+             * Returns the string representation of the term
+             */
             public String getTerm() {
                 return term;
             }
 
+            /**
+             * Returns term frequency - the number of times this term occurs in the current document
+             */
             public int getTermFreq() {
                 return termFreq;
             }
 
+            /**
+             * Returns document frequency - the number of documents in the index that contain this term
+             */
             public Integer getDocFreq() {
                 return docFreq;
             }
 
+            /**
+             * Returns total term frequency - the number of times this term occurs across all documents
+             */
             public Long getTotalTermFreq( ){
                 return totalTermFreq;
             }
 
+            /**
+             * Returns tf-idf score, if the request used some form of terms filtering
+             */
             public Float getScore(){
                 return score;
             }
 
+            /**
+             * Returns a list of tokens for the term
+             */
             public List<Token> getTokens() {
                 return tokens;
             }
@@ -323,14 +406,15 @@ public class TermVectorsResponse {
 
         public static final class Token {
 
-            private static ConstructingObjectParser<Token, Void> TOKENPARSER = new ConstructingObjectParser<>(
-                "token", true, args  -> new Token((Integer) args[0], (Integer) args[1],
-                (Integer) args[2], (String) args[3]));
+            private static ConstructingObjectParser<Token, Void> PARSER = new ConstructingObjectParser<>("token", true,
+                args  -> {
+                    return new Token((Integer) args[0], (Integer) args[1], (Integer) args[2], (String) args[3]);
+                });
             static {
-                TOKENPARSER.declareInt(optionalConstructorArg(), new ParseField("start_offset"));
-                TOKENPARSER.declareInt(optionalConstructorArg(), new ParseField("end_offset"));
-                TOKENPARSER.declareInt(optionalConstructorArg(), new ParseField("position"));
-                TOKENPARSER.declareString(optionalConstructorArg(), new ParseField("payload"));
+                PARSER.declareInt(optionalConstructorArg(), new ParseField("start_offset"));
+                PARSER.declareInt(optionalConstructorArg(), new ParseField("end_offset"));
+                PARSER.declareInt(optionalConstructorArg(), new ParseField("position"));
+                PARSER.declareString(optionalConstructorArg(), new ParseField("payload"));
             }
 
             @Nullable
@@ -351,21 +435,33 @@ public class TermVectorsResponse {
             }
 
             public static Token fromXContent(XContentParser parser) {
-                return TOKENPARSER.apply(parser, null);
+                return PARSER.apply(parser, null);
             }
 
+            /**
+             * Returns the start offset of the token in the document's field
+             */
             public Integer getStartOffset() {
                 return startOffset;
             }
 
+            /**
+             * Returns the end offset of the token in the document's field
+             */
             public Integer getEndOffset() {
                 return endOffset;
             }
 
+            /**
+             * Returns the position of the token in the document's field
+             */
             public Integer getPosition() {
                 return position;
             }
 
+            /**
+             * Returns the payload of the token or <code>null</code> if the payload doesn't exist
+             */
             public String getPayload() {
                 return payload;
             }

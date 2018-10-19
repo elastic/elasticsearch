@@ -1160,6 +1160,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testTermvectors() throws IOException {
         final String sourceIndex = "index1";
         {
@@ -1226,6 +1227,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
     public void testTermvectorsWithNonExistentIndex() {
         TermVectorsRequest request = new TermVectorsRequest("non-existent", "non-existent", "non-existent");
 

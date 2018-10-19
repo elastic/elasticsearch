@@ -44,7 +44,7 @@ public class TermVectorsResponseTests extends ESTestCase {
     }
 
     private void toXContent(TermVectorsResponse response, XContentBuilder builder) throws IOException {
-       builder.startObject();
+        builder.startObject();
         builder.field("_index", response.getIndex());
         builder.field("_type", response.getType());
         if (response.getId() != null) {

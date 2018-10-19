@@ -51,7 +51,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * </ul>
  */
 public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest>
-                                implements IndicesRequest.Replaceable, ToXContentObject {
+    implements IndicesRequest.Replaceable, ToXContentObject {
 
     public DeleteByQueryRequest() {
         this(new SearchRequest());
@@ -61,7 +61,7 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         this(new SearchRequest(indices));
     }
 
-    public DeleteByQueryRequest(SearchRequest search) {
+    DeleteByQueryRequest(SearchRequest search) {
         this(search, true);
     }
 

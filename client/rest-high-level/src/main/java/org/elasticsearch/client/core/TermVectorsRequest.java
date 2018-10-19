@@ -59,18 +59,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
         this.id = docId;
     }
 
-    public String getIndex() {
-        return index;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public String getId() {
-        return id;
-    }
-
     /**
      * Constructs TermVectorRequest for an artificial document
      * @param index - index of the document
@@ -79,6 +67,28 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
     public TermVectorsRequest(String index, String type) {
         this.index = index;
         this.type = type;
+    }
+
+    /**
+     * Returns the index of the request
+     */
+    public String getIndex() {
+        return index;
+    }
+
+    /**
+     * Returns the type of the request
+     */
+    public String getType() {
+        return type;
+    }
+
+    /**
+     * Returns the id of the request
+     * can be NULL if there is no document ID
+     */
+    public String getId() {
+        return id;
     }
 
     /**
@@ -177,6 +187,9 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
         this.realtime = realtime;
     }
 
+    /**
+     * Returns if the request is realtime(true) or near-realtime(false)
+     */
     public boolean getRealtime() {
         return realtime;
     }

@@ -64,13 +64,14 @@ public class SslConfig {
     private final SSLContext sslContext;
 
     SslConfig(Properties settings, URI baseURI) {
-        String sslProperty = settings.getProperty(SSL);
+        boolean isSchemaPresent = baseURI.getScheme() != null;
+        boolean isSSLPropertyPresent = settings.getProperty(SSL) != null;
         boolean isHttpsScheme = "https".equals(baseURI.getScheme());
         
-        if (sslProperty == null && baseURI.getScheme() == null) {
+        if (!isSSLPropertyPresent && !isSchemaPresent) {
             enabled = StringUtils.parseBoolean(SSL_DEFAULT);
         } else {
-            if (sslProperty != null && isHttpsScheme && !StringUtils.parseBoolean(sslProperty)) {
+            if (isSSLPropertyPresent && isHttpsScheme && !StringUtils.parseBoolean(settings.getProperty(SSL))) {
                 throw new ClientException("Cannot enable SSL: HTTPS protocol being used in the URL and SSL disabled in properties");
             }
             enabled = isHttpsScheme || StringUtils.parseBoolean(settings.getProperty(SSL, SSL_DEFAULT));

@@ -5,14 +5,28 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
+import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
+import java.util.OptionalLong;
 
 /**
  * An engine implementation for following shards.
@@ -62,13 +76,13 @@ public final class FollowingEngine extends InternalEngine {
                 /*
                  * The existing operation in this engine was probably assigned the term of the previous primary shard which is different
                  * from the term of the current operation. If the current operation arrives on replicas before the previous operation,
-                 * then the Lucene content between the primary and replicas are not identical (primary terms are different). Since the
-                 * existing operations are guaranteed to be replicated to replicas either via peer-recovery or primary-replica resync,
-                 * we can safely skip this operation here and let the caller know the decision via AlreadyProcessedFollowingEngineException.
-                 * The caller then waits for the global checkpoint to advance at least the seq_no of this operation to make sure that
-                 * the existing operation was replicated to all replicas (see TransportBulkShardOperationsAction#shardOperationOnPrimary).
+                 * then the Lucene content between the primary and replicas are not identical (primary terms are different). We can safely
+                 * skip the existing operations below the global checkpoint, however must replicate the ones above the global checkpoint
+                 * but with the previous primary term (not the current term of the operation) in order to guarantee the consistency
+                 * between the primary and replicas (see TransportBulkShardOperationsAction#shardOperationOnPrimary).
                  */
-                final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(shardId, index.seqNo());
+                final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
+                    shardId, index.seqNo(), lookupPrimaryTerm(index.seqNo()));
                 return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.primaryTerm());
             } else {
                 return IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
@@ -88,7 +102,8 @@ public final class FollowingEngine extends InternalEngine {
         preFlight(delete);
         if (delete.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(delete)) {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
-            final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(shardId, delete.seqNo());
+            final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
+                shardId, delete.seqNo(), lookupPrimaryTerm(delete.seqNo()));
             return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), delete.primaryTerm(), false);
         } else {
             return planDeletionAsNonPrimary(delete);
@@ -124,6 +139,46 @@ public final class FollowingEngine extends InternalEngine {
         assert index.version() == 1 && index.versionType() == VersionType.EXTERNAL
                 : "version [" + index.version() + "], type [" + index.versionType() + "]";
         return true;
+    }
+
+    private OptionalLong lookupPrimaryTerm(final long seqNo) throws IOException {
+        refreshIfNeeded("lookup_primary_term", seqNo);
+        try (Searcher engineSearcher = acquireSearcher("lookup_primary_term", SearcherScope.INTERNAL)) {
+            // We have to acquire a searcher before execute this check to ensure that the requesting seq_no is always found in the else
+            // branch. If the operation is at most the global checkpoint, we should not look up its term as we may have merged away the
+            // operation. Moreover, we won't need to replicate this operation to replicas since it was processed on every copies already.
+            if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
+                return OptionalLong.empty();
+            } else {
+                final DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
+                final IndexSearcher searcher = new IndexSearcher(reader);
+                searcher.setQueryCache(null);
+                final Query query = new BooleanQuery.Builder()
+                    .add(LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo), BooleanClause.Occur.FILTER)
+                    // excludes the non-root nested documents which don't have primary_term.
+                    .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
+                    .build();
+                final TopDocs topDocs = searcher.search(query, 1);
+                if (topDocs.scoreDocs.length == 1) {
+                    final int docId = topDocs.scoreDocs[0].doc;
+                    final LeafReaderContext leaf = reader.leaves().get(ReaderUtil.subIndex(docId, reader.leaves()));
+                    final NumericDocValues primaryTermDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                    if (primaryTermDV != null && primaryTermDV.advanceExact(docId - leaf.docBase)) {
+                        assert primaryTermDV.longValue() > 0 : "invalid term [" + primaryTermDV.longValue() + "]";
+                        return OptionalLong.of(primaryTermDV.longValue());
+                    }
+                }
+                assert false : "seq_no[" + seqNo + "] does not have primary_term, total_hits=[" + topDocs.totalHits + "]";
+                throw new IllegalStateException("seq_no[" + seqNo + "] does not have primary_term (total_hits=" + topDocs.totalHits + ")");
+            }
+        } catch (IOException e) {
+            try {
+                maybeFailEngine("lookup_primary_term", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        }
     }
 
     /**

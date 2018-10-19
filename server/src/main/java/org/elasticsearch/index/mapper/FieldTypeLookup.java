@@ -165,19 +165,19 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     private MappedFieldType getKeyedJsonField(String field) {
-        String parentField = field;
+        int dotIndex = -1;
         while (true) {
-            int lastDotIndex = parentField.lastIndexOf('.');
-            if (lastDotIndex < 0) {
+            dotIndex = field.indexOf('.', dotIndex + 1);
+            if (dotIndex < 0) {
                 return null;
             }
 
-            parentField = parentField.substring(0, lastDotIndex);
+            String parentField = field.substring(0, dotIndex);
             String concreteField = aliasToConcreteName.getOrDefault(parentField, parentField);
             JsonFieldMapper mapper = fullNameToJsonMapper.get(concreteField);
 
             if (mapper != null) {
-                String key = field.substring(lastDotIndex + 1);
+                String key = field.substring(dotIndex + 1);
                 return mapper.keyedFieldType(key);
             }
         }

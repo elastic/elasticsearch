@@ -25,8 +25,8 @@ import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
+import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.PutWatchRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;

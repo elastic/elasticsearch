@@ -36,6 +36,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
         return new ShardFollowNodeTaskStatus(
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
                 randomInt(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
@@ -63,6 +64,7 @@ public class ShardFollowNodeTaskStatusTests extends AbstractSerializingTestCase<
     @Override
     protected void assertEqualInstances(final ShardFollowNodeTaskStatus expectedInstance, final ShardFollowNodeTaskStatus newInstance) {
         assertNotSame(expectedInstance, newInstance);
+        assertThat(newInstance.getLeaderCluster(), equalTo(expectedInstance.getLeaderCluster()));
         assertThat(newInstance.leaderIndex(), equalTo(expectedInstance.leaderIndex()));
         assertThat(newInstance.followerIndex(), equalTo(expectedInstance.followerIndex()));
         assertThat(newInstance.getShardId(), equalTo(expectedInstance.getShardId()));

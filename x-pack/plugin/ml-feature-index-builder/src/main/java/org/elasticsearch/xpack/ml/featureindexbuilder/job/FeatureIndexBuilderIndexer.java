@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -25,14 +24,16 @@ import org.elasticsearch.xpack.core.indexing.IterationResult;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
 
 public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, FeatureIndexBuilderJobStats> {
 
@@ -58,36 +59,37 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
     @Override
     protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation agg = searchResponse.getAggregations().get("feature");
-        return new IterationResult<>(processBuckets(agg), agg.afterKey(), agg.getBuckets().isEmpty());
+        return new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()), agg.afterKey(),
+                agg.getBuckets().isEmpty());
     }
 
     /*
-     * Mocked demo case
+     * Parses the result and creates a stream of indexable documents
      *
-     * TODO: replace with proper implementation
+     * Implementation decisions:
+     *
+     * Extraction uses generic maps as intermediate exchange format in order to hook in ingest pipelines/processors
+     * in later versions, see {@link IngestDocument).
      */
-    private List<IndexRequest> processBuckets(CompositeAggregation agg) {
-        // for now only 1 source supported
-        String destinationFieldName = job.getConfig().getSourceConfig().getSources().get(0).name();
-        String aggName = job.getConfig().getAggregationConfig().getAggregatorFactories().iterator().next().getName();
+    private Stream<IndexRequest> processBucketsToIndexRequests(CompositeAggregation agg) {
+        String indexName = job.getConfig().getDestinationIndex();
+        List<CompositeValuesSourceBuilder<?>> sources = job.getConfig().getSourceConfig().getSources();
+        Collection<AggregationBuilder> aggregationBuilders = job.getConfig().getAggregationConfig().getAggregatorFactories();
 
-        return agg.getBuckets().stream().map(b -> {
-            NumericMetricsAggregation.SingleValue aggResult = b.getAggregations().get(aggName);
+        return AggregationResultUtils.extractCompositeAggregationResults(agg, sources, aggregationBuilders).map(document -> {
             XContentBuilder builder;
             try {
                 builder = jsonBuilder();
                 builder.startObject();
-                builder.field(destinationFieldName, b.getKey().get(destinationFieldName));
-                builder.field(aggName, aggResult.value());
+                builder.map(document);
                 builder.endObject();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
 
-            String indexName = job.getConfig().getDestinationIndex();
             IndexRequest request = new IndexRequest(indexName, DOC_TYPE).source(builder);
             return request;
-        }).collect(Collectors.toList());
+        });
     }
 
     @Override

@@ -4,13 +4,12 @@ SELECT TRUNCATE(ASCII(LEFT(first_name, 1)), 1), COUNT(*) count FROM test_emp GRO
 
 TRUNCATE(ASCII(LEFT(first_name,1)),1):i|     count:l
 ---------------------------------------+---------------
-65                                     |9
-66                                     |8
-72                                     |7
-75                                     |8
-77                                     |9
-80                                     |6
-83                                     |11
+null                                 |10             
+66                                   |7              
+72                                   |6              
+75                                   |7              
+77                                   |9              
+83                                   |11  
 ;
 
 truncateWithNoSecondParameterWithAsciiHavingAndOrderBy
@@ -18,47 +17,46 @@ SELECT TRUNCATE(ASCII(LEFT(first_name, 1))), COUNT(*) count FROM test_emp GROUP 
 
 TRUNCATE(ASCII(LEFT(first_name,1)),0):i|     count:l
 ---------------------------------------+---------------
-65                                     |9
-66                                     |8
-72                                     |7
-75                                     |8
-77                                     |9
-80                                     |6
-83                                     |11
+null                                 |10             
+66                                   |7              
+72                                   |6              
+75                                   |7              
+77                                   |9              
+83                                   |11  
 ;
 
 roundWithGroupByAndOrderBy
 SELECT ROUND(salary, 2) ROUNDED, salary FROM test_emp GROUP BY ROUNDED, salary ORDER BY ROUNDED LIMIT 10;
 
-  ROUNDED    |    salary
--------------+---------------
-25324        |25324
-25945        |25945
-25976        |25976
-26436        |26436
-27215        |27215
-28035        |28035
-28336        |28336
-28941        |28941
-29175        |29175
-30404        |30404
+    ROUNDED    |    salary     
+---------------+---------------
+25324          |25324          
+25945          |25945          
+25976          |25976          
+26436          |26436          
+27215          |27215          
+28035          |28035          
+28336          |28336          
+28941          |28941          
+29175          |29175          
+30404          |30404  
 ;
 
 truncateWithGroupByAndOrderBy
 SELECT TRUNCATE(salary, 2) TRUNCATED, salary FROM test_emp GROUP BY TRUNCATED, salary ORDER BY TRUNCATED LIMIT 10;
 
- TRUNCATED   |    salary
--------------+---------------
-25324        |25324
-25945        |25945
-25976        |25976
-26436        |26436
-27215        |27215
-28035        |28035
-28336        |28336
-28941        |28941
-29175        |29175
-30404        |30404          
+   TRUNCATED   |    salary     
+---------------+---------------
+25324          |25324          
+25945          |25945          
+25976          |25976          
+26436          |26436          
+27215          |27215          
+28035          |28035          
+28336          |28336          
+28941          |28941          
+29175          |29175          
+30404          |30404             
 ;
 
 truncateWithAsciiAndOrderBy
@@ -66,21 +64,21 @@ SELECT TRUNCATE(ASCII(LEFT(first_name,1)), -1) AS initial, first_name, ASCII(LEF
 
     initial    |  first_name   |ASCII(LEFT(first_name,1))
 ---------------+---------------+-------------------------
-90             |Zvonko         |90
-90             |Zhongwei       |90
-80             |Yongqiao       |89
-80             |Yishay         |89
-80             |Yinghua        |89
-80             |Xinglin        |88
-80             |Weiyi          |87
-80             |Vishv          |86
-80             |Valdiodio      |86
-80             |Valter         |86
-80             |Uri            |85
-80             |Udi            |85
-80             |Tzvetan        |84
-80             |Tse            |84
-80             |Tuval          |84             
+90             |Zvonko         |90                       
+90             |Zhongwei       |90                       
+80             |Yongqiao       |89                       
+80             |Yishay         |89                       
+80             |Yinghua        |89                       
+80             |Xinglin        |88                       
+80             |Weiyi          |87                       
+80             |Vishv          |86                       
+80             |Valdiodio      |86                       
+80             |Valter         |86                       
+80             |Uri            |85                       
+80             |Udi            |85                       
+80             |Tzvetan        |84                       
+80             |Tse            |84                       
+80             |Tuval          |84           
 ;
 
 truncateWithHavingAndGroupBy
@@ -88,11 +86,12 @@ SELECT MIN(salary) mi, MAX(salary) ma, COUNT(*) c, TRUNCATE(AVG(salary)) tr FROM
 
       mi:i     |      ma:I     |     c:l         |      tr:i
 ---------------+---------------+-----------------+-----------------
-25976          |73717          |16               |49875
-29175          |73578          |20               |48164
-26436          |74999          |22               |52154
-27215          |74572          |18               |47733
-25324          |73851          |24               |44040
+28336          |74999          |10               |52519          
+25976          |73717          |15               |50576          
+29175          |73578          |19               |48178          
+26436          |74970          |17               |52418          
+27215          |74572          |18               |47733          
+25324          |66817          |21               |41680  
 ;
 
 // https://github.com/elastic/elasticsearch/issues/33773

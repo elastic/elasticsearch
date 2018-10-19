@@ -69,13 +69,11 @@ public final class PipelineAggregatorBuilders {
         return new StatsBucketPipelineAggregationBuilder(name, bucketsPath);
     }
 
-    public static ExtendedStatsBucketPipelineAggregationBuilder extendedStatsBucket(String name,
-                                                                                    String bucketsPath) {
+    public static ExtendedStatsBucketPipelineAggregationBuilder extendedStatsBucket(String name, String bucketsPath) {
         return new ExtendedStatsBucketPipelineAggregationBuilder(name, bucketsPath);
     }
 
-    public static PercentilesBucketPipelineAggregationBuilder percentilesBucket(String name,
-                                                                                String bucketsPath) {
+    public static PercentilesBucketPipelineAggregationBuilder percentilesBucket(String name, String bucketsPath) {
         return new PercentilesBucketPipelineAggregationBuilder(name, bucketsPath);
     }
 
@@ -87,23 +85,19 @@ public final class PipelineAggregatorBuilders {
         return new MovAvgPipelineAggregationBuilder(name, bucketsPath);
     }
 
-    public static BucketScriptPipelineAggregationBuilder bucketScript(String name,
-                                                                      Map<String, String> bucketsPathsMap, Script script) {
+    public static BucketScriptPipelineAggregationBuilder bucketScript(String name, Map<String, String> bucketsPathsMap, Script script) {
         return new BucketScriptPipelineAggregationBuilder(name, bucketsPathsMap, script);
     }
 
-    public static BucketScriptPipelineAggregationBuilder bucketScript(String name, Script script,
-            String... bucketsPaths) {
+    public static BucketScriptPipelineAggregationBuilder bucketScript(String name, Script script, String... bucketsPaths) {
         return new BucketScriptPipelineAggregationBuilder(name, script, bucketsPaths);
     }
 
-    public static BucketSelectorPipelineAggregationBuilder bucketSelector(String name,
-                                                                          Map<String, String> bucketsPathsMap, Script script) {
+    public static BucketSelectorPipelineAggregationBuilder bucketSelector(String name, Map<String, String> bucketsPathsMap, Script script) {
         return new BucketSelectorPipelineAggregationBuilder(name, bucketsPathsMap, script);
     }
 
-    public static BucketSelectorPipelineAggregationBuilder bucketSelector(String name, Script script,
-            String... bucketsPaths) {
+    public static BucketSelectorPipelineAggregationBuilder bucketSelector(String name, Script script, String... bucketsPaths) {
         return new BucketSelectorPipelineAggregationBuilder(name, script, bucketsPaths);
     }
 
@@ -111,8 +105,7 @@ public final class PipelineAggregatorBuilders {
         return new BucketSortPipelineAggregationBuilder(name, sorts);
     }
 
-    public static CumulativeSumPipelineAggregationBuilder cumulativeSum(String name,
-                                                                        String bucketsPath) {
+    public static CumulativeSumPipelineAggregationBuilder cumulativeSum(String name, String bucketsPath) {
         return new CumulativeSumPipelineAggregationBuilder(name, bucketsPath);
     }
 
@@ -120,8 +113,7 @@ public final class PipelineAggregatorBuilders {
         return new SerialDiffPipelineAggregationBuilder(name, bucketsPath);
     }
 
-    public static MovFnPipelineAggregationBuilder movingFunction(String name, Script script,
-                                                                 String bucketsPaths, int window) {
+    public static MovFnPipelineAggregationBuilder movingFunction(String name, Script script, String bucketsPaths, int window) {
         return new MovFnPipelineAggregationBuilder(name, bucketsPaths, script, window);
     }
 }

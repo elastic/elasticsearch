@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import java.util.List;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -54,6 +55,7 @@ import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
@@ -717,6 +719,19 @@ final class RequestConverters {
         return request;
     }
 
+    static Request retryLifecycle(RetryLifecyclePolicyRequest retryLifecyclePolicyRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME,
+            new EndpointBuilder()
+                .addCommaSeparatedPathParts(retryLifecyclePolicyRequest.getIndices())
+                .addPathPartAsIs("_ilm")
+                .addPathPartAsIs("retry")
+                .build());
+        Params params = new Params(request);
+        params.withMasterTimeout(retryLifecyclePolicyRequest.masterNodeTimeout());
+        params.withTimeout(retryLifecyclePolicyRequest.timeout());
+        return request;
+    }
+
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
@@ -1102,7 +1117,12 @@ final class RequestConverters {
             return this;
         }
 
-        EndpointBuilder addPathPartAsIs(String... parts) {
+        EndpointBuilder addCommaSeparatedPathParts(List<String> parts) {
+            addPathPart(String.join(",", parts));
+            return this;
+        }
+
+        EndpointBuilder addPathPartAsIs(String ... parts) {
             for (String part : parts) {
                 if (Strings.hasLength(part)) {
                     joiner.add(part);

@@ -589,9 +589,13 @@ public class CoordinatorTests extends ESTestCase {
         final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
         final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
 
+        logger.info("--> blocking cluster state application on {}", follower0);
         follower0.setClusterStateApplyResponse(ClusterStateApplyResponse.HANG);
+
+        logger.info("--> publishing another value");
         AckCollector ackCollector = leader.submitValue(randomLong());
         cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing value");
+
         assertTrue("expected immediate ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
         assertFalse("expected no ack from " + leader, ackCollector.hasAckedSuccessfully(leader));
         cluster.stabilise();
@@ -984,8 +988,8 @@ public class CoordinatorTests extends ESTestCase {
             final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
             final String leaderId = leader.getId();
 
-            assertTrue(leader.getLastAppliedClusterState().getNodes().nodeExists(leaderId));
-            assertThat(leader.getLastAppliedClusterState().getVersion(), isEqualToLeaderVersion);
+            assertTrue(leaderId + " exists in its last-applied state", leader.getLastAppliedClusterState().getNodes().nodeExists(leaderId));
+            assertThat(leaderId + " has applied its state ", leader.getLastAppliedClusterState().getVersion(), isEqualToLeaderVersion);
 
             for (final ClusterNode clusterNode : clusterNodes) {
                 final String nodeId = clusterNode.getId();
@@ -1047,10 +1051,15 @@ public class CoordinatorTests extends ESTestCase {
                         leader.submitValue(randomLong());
                     }
                 }).run();
+
                 runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY
                         // may need to bump terms too
                         + DEFAULT_ELECTION_DELAY,
                     "re-stabilising after lag-fixing publication");
+
+                if (clusterNodes.stream().anyMatch(n -> n.getClusterStateApplyResponse().equals(ClusterStateApplyResponse.HANG))) {
+                    runFor(defaultMillis(PUBLISH_TIMEOUT_SETTING), "allowing lag-fixing publication to time out");
+                }
             } else {
                 logger.info("--> fixLag found no lag, leader={}, leaderVersion={}, minVersion={}", leader, leaderVersion, minVersion);
             }

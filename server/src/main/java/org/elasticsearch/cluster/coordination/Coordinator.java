@@ -533,6 +533,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     assert lastPublishedNodes.equals(followersChecker.getKnownFollowers()) :
                         lastPublishedNodes + " != " + followersChecker.getKnownFollowers();
                 }
+
+                assert becomingMaster || activePublication ||
+                    coordinationState.get().getLastAcceptedConfiguration().equals(coordinationState.get().getLastCommittedConfiguration())
+                    : coordinationState.get().getLastAcceptedConfiguration() + " != "
+                    + coordinationState.get().getLastCommittedConfiguration();
+
             } else if (mode == Mode.FOLLOWER) {
                 assert coordinationState.get().electionWon() == false : getLocalNode() + " is FOLLOWER so electionWon() should be false";
                 assert lastKnownLeader.isPresent() && (lastKnownLeader.get().equals(getLocalNode()) == false);

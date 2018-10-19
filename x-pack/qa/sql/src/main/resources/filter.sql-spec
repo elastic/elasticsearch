@@ -85,7 +85,9 @@ SELECT last_name l FROM "test_emp" WHERE emp_no NOT BETWEEN 10010 AND 10020 ORDE
 whereWithInAndOneValue
 SELECT last_name l FROM "test_emp" WHERE emp_no IN (10001);
 whereWithInAndMultipleValues
+// tag::whereWithInAndMultipleValues
 SELECT last_name l FROM "test_emp" WHERE emp_no IN (10000, 10001, 10002, 999) ORDER BY emp_no LIMIT 5;
+// end::whereWithInAndMultipleValues
 
 whereWithInAndOneValueWithNegation
 SELECT last_name l FROM "test_emp" WHERE emp_no NOT IN (10001) ORDER BY emp_no LIMIT 5;

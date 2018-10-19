@@ -1,0 +1,11 @@
+[[release-notes-5.6.12]]
+== 5.6.12 Release Notes
+
+Also see <<breaking-changes-5.6>>.
+
+[[bug-5.6.12]]
+[float]
+=== Bug fixes
+
+Settings::
+* Apply settings filter to get cluster settings API {pull}33247[#33247]

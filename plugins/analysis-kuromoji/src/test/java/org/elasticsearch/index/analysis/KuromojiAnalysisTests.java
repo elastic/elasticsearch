@@ -139,7 +139,8 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         // パーティー should be stemmed by default
         // (min len) コピー should not be stemmed
-        String[] expected_tokens_katakana = new String[]{"明後日", "パーティ", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
+        String[] expected_tokens_katakana = new String[] {
+                "明後日", "パーティ", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
 
         tokenFilter = analysis.tokenFilter.get("kuromoji_ks");
@@ -149,7 +150,8 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         // パーティー should not be stemmed since min len == 6
         // コピー should not be stemmed
-        expected_tokens_katakana = new String[]{"明後日", "パーティー", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
+        expected_tokens_katakana = new String[] {
+                "明後日", "パーティー", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
     }
 

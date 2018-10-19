@@ -246,8 +246,9 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         testCreateRollupJob();
         RestHighLevelClient client = highLevelClient();
 
+        String id = "job_1";
         // tag::rollup-start-job-request
-        StartRollupJobRequest request = new StartRollupJobRequest("job_1"); // <1>
+        StartRollupJobRequest request = new StartRollupJobRequest(id); // <1>
         // end::rollup-start-job-request
 
 

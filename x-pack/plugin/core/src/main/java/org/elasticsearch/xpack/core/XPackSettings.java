@@ -186,6 +186,7 @@ public class XPackSettings {
         settings.add(HTTP_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
+        settings.add(API_KEY_SERVICE_ENABLED_SETTING);
         settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
         settings.add(ROLLUP_ENABLED);

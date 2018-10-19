@@ -20,17 +20,19 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
+import org.elasticsearch.client.rollup.StopRollupJobRequest;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfigTests;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RollupRequestConvertersTests extends ESTestCase {
@@ -45,6 +47,18 @@ public class RollupRequestConvertersTests extends ESTestCase {
         assertThat(HttpPut.METHOD_NAME, equalTo(request.getMethod()));
         assertThat(request.getParameters().keySet(), empty());
         RequestConvertersTests.assertToXContentBody(put, request.getEntity());
+    }
+
+    public void testStopJob() throws IOException {
+        String jobId = randomAlphaOfLength(5);
+
+        StopRollupJobRequest stopJob = new StopRollupJobRequest(jobId);
+
+        Request request = RollupRequestConverters.stopJob(stopJob);
+        assertThat(request.getEndpoint(), equalTo("/_xpack/rollup/job/" + jobId + "/_stop"));
+        assertThat(HttpPost.METHOD_NAME, equalTo(request.getMethod()));
+        assertThat(request.getParameters().keySet(), empty());
+        assertThat(request.getEntity(), nullValue());
     }
 
     public void testGetJob() {

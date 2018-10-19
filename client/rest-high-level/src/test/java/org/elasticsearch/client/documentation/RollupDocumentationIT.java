@@ -33,6 +33,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.RollupClient;
 import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
 import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupCapsRequest;
@@ -44,6 +45,8 @@ import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupIndexerJobStat
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupJobStatus;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
+import org.elasticsearch.client.rollup.StopRollupJobRequest;
+import org.elasticsearch.client.rollup.StopRollupJobResponse;
 import org.elasticsearch.client.rollup.RollableIndexCaps;
 import org.elasticsearch.client.rollup.RollupJobCaps;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
@@ -186,6 +189,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testGetRollupJob() throws Exception {
         testCreateRollupJob();
         RestHighLevelClient client = highLevelClient();
@@ -236,6 +240,57 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+
+    @SuppressWarnings("unused")
+    public void testStopRollupJob() throws Exception {
+        testCreateRollupJob();
+        RestHighLevelClient client = highLevelClient();
+
+        String id = "job_1";
+        // tag::rollup-stop-job-request
+        StopRollupJobRequest request = new StopRollupJobRequest(id); // <1>
+        // end::rollup-stop-job-request
+
+
+        try {
+            // tag::rollup-stop-job-execute
+            RollupClient rc = client.rollup();
+            StopRollupJobResponse response = rc.stopRollupJob(request, RequestOptions.DEFAULT);
+            // end::rollup-stop-job-execute
+
+            // tag::rollup-stop-job-response
+            response.isAcknowledged(); // <1>
+            // end::rollup-stop-job-response
+        } catch (Exception e) {
+            // Swallow any exception, this test does not test actually cancelling.
+        }
+
+        // tag::rollup-stop-job-execute-listener
+        ActionListener<StopRollupJobResponse> listener = new ActionListener<StopRollupJobResponse>() {
+            @Override
+            public void onResponse(StopRollupJobResponse response) {
+                 // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::rollup-stop-job-execute-listener
+        
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+     
+        // tag::rollup-stop-job-execute-async
+        RollupClient rc = client.rollup();
+        rc.stopRollupJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::rollup-stop-job-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    @SuppressWarnings("unused")
     public void testGetRollupCaps() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -329,6 +384,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         ActionListener<GetRollupCapsResponse> listener = new ActionListener<GetRollupCapsResponse>() {
             @Override
             public void onResponse(GetRollupCapsResponse response) {
+
                 // <1>
             }
 
@@ -406,6 +462,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         });
     }
 
+    @SuppressWarnings("unused")
     public void testDeleteRollupJob() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

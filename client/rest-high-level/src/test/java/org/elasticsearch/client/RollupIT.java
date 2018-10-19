@@ -39,6 +39,8 @@ import org.elasticsearch.client.rollup.GetRollupJobResponse.IndexerState;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
+import org.elasticsearch.client.rollup.StopRollupJobRequest;
+import org.elasticsearch.client.rollup.StopRollupJobResponse;
 import org.elasticsearch.client.rollup.RollableIndexCaps;
 import org.elasticsearch.client.rollup.RollupJobCaps;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
@@ -151,7 +153,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         PutRollupJobRequest putRollupJobRequest =
             new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
         final RollupClient rollupClient = highLevelClient().rollup();
-        PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
+        execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
         DeleteRollupJobRequest deleteRollupJobRequest = new DeleteRollupJobRequest(id);
         DeleteRollupJobResponse deleteRollupJobResponse = highLevelClient().rollup()
             .deleteRollupJob(deleteRollupJobRequest, RequestOptions.DEFAULT);
@@ -165,7 +167,6 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertThat(responseException.status().getStatus(), is(404));
     }
 
-    @SuppressWarnings("unchecked")
     public void testPutAndGetRollupJob() throws Exception {
         // TODO expand this to also test with histogram and terms?
         final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
@@ -237,6 +238,11 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertThat(job.getStatus().getState(), either(equalTo(IndexerState.STARTED)).or(equalTo(IndexerState.INDEXING)));
         assertThat(job.getStatus().getCurrentPosition(), hasKey("date.date_histogram"));
         assertEquals(true, job.getStatus().getUpgradedDocumentId());
+        
+        // stop the job
+        StopRollupJobRequest startRequest = new StopRollupJobRequest(id);
+        StopRollupJobResponse stopResponse = execute(startRequest, rollupClient::stopRollupJob, rollupClient::stopRollupJobAsync);
+        assertTrue(stopResponse.isAcknowledged());
     }
 
     public void testGetMissingRollupJob() throws Exception {

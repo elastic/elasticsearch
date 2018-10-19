@@ -1,0 +1,34 @@
+--
+:api: rollup-stop-job
+:request: StopRollupJobRequest
+:response: StopRollupJobResponse
+--
+
+[id="{upid}-{api}"]
+=== Stop Rollup Job API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Stop Rollup Job API allows you to stop a job by ID.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The ID of the job to stop.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the stop command was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the stop job request was received.
+
+include::../execution.asciidoc[]
+
+

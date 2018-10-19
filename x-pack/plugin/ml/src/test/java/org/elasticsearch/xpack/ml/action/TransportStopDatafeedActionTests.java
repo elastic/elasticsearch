@@ -27,13 +27,15 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
-        TransportStopDatafeedAction.resolveDataFeedIds(Collections.singleton("datafeed_1"), tasks, startedDatafeeds, stoppingDatafeeds);
+        TransportStopDatafeedAction.sortDatafeedIdsByTaskState(
+                Collections.singleton("datafeed_1"), tasks, startedDatafeeds, stoppingDatafeeds);
         assertEquals(Collections.singletonList("datafeed_1"), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
 
         startedDatafeeds.clear();
         stoppingDatafeeds.clear();
-        TransportStopDatafeedAction.resolveDataFeedIds(Collections.singleton("datafeed_2"), tasks, startedDatafeeds, stoppingDatafeeds);
+        TransportStopDatafeedAction.sortDatafeedIdsByTaskState(
+                Collections.singleton("datafeed_2"), tasks, startedDatafeeds, stoppingDatafeeds);
         assertEquals(Collections.emptyList(), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
     }
@@ -48,14 +50,14 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
 
         List<String> startedDatafeeds = new ArrayList<>();
         List<String> stoppingDatafeeds = new ArrayList<>();
-        TransportStopDatafeedAction.resolveDataFeedIds(
+        TransportStopDatafeedAction.sortDatafeedIdsByTaskState(
                 new HashSet<>(Arrays.asList("datafeed_1", "datafeed_2", "datafeed_3")), tasks, startedDatafeeds, stoppingDatafeeds);
         assertEquals(Collections.singletonList("datafeed_1"), startedDatafeeds);
         assertEquals(Collections.singletonList("datafeed_3"), stoppingDatafeeds);
 
         startedDatafeeds.clear();
         stoppingDatafeeds.clear();
-        TransportStopDatafeedAction.resolveDataFeedIds(Collections.singleton("datafeed_2"), tasks, startedDatafeeds,
+        TransportStopDatafeedAction.sortDatafeedIdsByTaskState(Collections.singleton("datafeed_2"), tasks, startedDatafeeds,
                 stoppingDatafeeds);
         assertEquals(Collections.emptyList(), startedDatafeeds);
         assertEquals(Collections.emptyList(), stoppingDatafeeds);

@@ -64,18 +64,18 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
     }
 
     /**
-     * Resolve the requested datafeeds and add their IDs to one of the list
-     * arguments depending on datafeed state.
+     * Sort the datafeed IDs the their task state and add to one
+     * of the list arguments depending on the state.
      *
      * @param expandedDatafeedIds The expanded set of IDs
      * @param tasks Persistent task meta data
      * @param startedDatafeedIds Started datafeed ids are added to this list
      * @param stoppingDatafeedIds Stopping datafeed ids are added to this list
      */
-    static void resolveDataFeedIds(Set<String> expandedDatafeedIds,
-                                   PersistentTasksCustomMetaData tasks,
-                                   List<String> startedDatafeedIds,
-                                   List<String> stoppingDatafeedIds) {
+    static void sortDatafeedIdsByTaskState(Set<String> expandedDatafeedIds,
+                                           PersistentTasksCustomMetaData tasks,
+                                           List<String> startedDatafeedIds,
+                                           List<String> stoppingDatafeedIds) {
 
         for (String expandedDatafeedId : expandedDatafeedIds) {
             addDatafeedTaskIdAccordingToState(expandedDatafeedId, MlTasks.getDatafeedState(expandedDatafeedId, tasks),
@@ -121,7 +121,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
 
                         List<String> startedDatafeeds = new ArrayList<>();
                         List<String> stoppingDatafeeds = new ArrayList<>();
-                        resolveDataFeedIds(expandedIds, tasks, startedDatafeeds, stoppingDatafeeds);
+                        sortDatafeedIdsByTaskState(expandedIds, tasks, startedDatafeeds, stoppingDatafeeds);
                         if (startedDatafeeds.isEmpty() && stoppingDatafeeds.isEmpty()) {
                             listener.onResponse(new StopDatafeedAction.Response(true));
                             return;

@@ -1053,13 +1053,24 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         try (TokenStream source = new MockGraphAnalyzer(createGiantGraph(40))
             .createComponents("").getTokenStream()) {
             expectThrows(BooleanQuery.TooManyClauses.class,
-                () -> MapperQueryParser.analyzeGraphPhraseWithLimit(source, "", 0, QueryStringQueryBuilderTests::createSpanQuery));
+                () -> MapperQueryParser.analyzeGraphPhraseWithLimit(source, "field", 0,
+                    QueryStringQueryBuilderTests::createSpanQuery, true));
         }
 
         try (TokenStream source = new MockGraphAnalyzer(createGiantGraphMultiTerms())
             .createComponents("").getTokenStream()) {
             expectThrows(BooleanQuery.TooManyClauses.class,
-                () -> MapperQueryParser.analyzeGraphPhraseWithLimit(source, "", 0, QueryStringQueryBuilderTests::createSpanQuery));
+                () -> MapperQueryParser.analyzeGraphPhraseWithLimit(source, "field", 0,
+                    QueryStringQueryBuilderTests::createSpanQuery, true));
+        }
+
+        try (TokenStream source = new MockGraphAnalyzer(createGiantGraphMultiTerms())
+            .createComponents("").getTokenStream()) {
+            Query query = MapperQueryParser.analyzeGraphPhraseWithLimit(source, "field", 0,
+                QueryStringQueryBuilderTests::createSpanQuery, false);
+            assertThat(query, instanceOf(SpanQuery.class));
+            assertWarnings("Phrase query on field:[field] reached the max boolean clause limit [1024] after expansion. " +
+                "This query will throw an error in the next major version.");
         }
     }
 

@@ -358,11 +358,7 @@ public class MatchQuery {
          */
         @Override
         protected SpanQuery analyzeGraphPhrase(TokenStream source, String field, int phraseSlop) throws IOException {
-            if (shouldApplyGraphPhraseLimit()) {
-                return analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
-            } else {
-                return super.analyzeGraphPhrase(source, field, phraseSlop);
-            }
+            return analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery, shouldApplyGraphPhraseLimit());
         }
 
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {

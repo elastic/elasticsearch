@@ -46,6 +46,8 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.AllFieldMapper;
@@ -78,6 +80,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  * as well as the query on the name.
  */
 public class MapperQueryParser extends AnalyzingQueryParser {
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MapperQueryParser.class));
 
     public static final Map<String, FieldQueryExtension> FIELD_QUERY_EXTENSIONS;
 
@@ -862,11 +865,7 @@ public class MapperQueryParser extends AnalyzingQueryParser {
      */
     @Override
     protected SpanQuery analyzeGraphPhrase(TokenStream source, String field, int phraseSlop) throws IOException {
-        if (shouldApplyGraphPhraseLimit()) {
-            return analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
-        } else {
-            return super.analyzeGraphPhrase(source, field, phraseSlop);
-        }
+        return analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery, shouldApplyGraphPhraseLimit());
     }
 
     /** A BiFuntion that can throw an IOException */
@@ -889,11 +888,12 @@ public class MapperQueryParser extends AnalyzingQueryParser {
      * The JVM option can only be set to <code>true</code> (false is the default value), any other value
      * will throw an {@link IllegalArgumentException}.
      */
+    // public for tests
     public static boolean shouldApplyGraphPhraseLimit() {
         String value = System.getProperty("es.query.apply_graph_phrase_limit");
         if (value == null) {
             return false;
-        } else if (Booleans.parseBoolean(value, false) == false) {
+        } else if ("true".equals(value) == false) {
             throw new IllegalArgumentException("[" + value + "] is not a valid value for the JVM option:" +
                 "[es.query.apply_graph_phrase_limit]. Set it to [true] to activate the limit.");
         } else {
@@ -907,7 +907,8 @@ public class MapperQueryParser extends AnalyzingQueryParser {
      * that this method can create.
      */
     public static SpanQuery analyzeGraphPhraseWithLimit(TokenStream source, String field, int phraseSlop,
-                                        CheckedBiFunction<TokenStream, String, SpanQuery> spanQueryFunc) throws IOException {
+                                                            CheckedBiFunction<TokenStream, String, SpanQuery> spanQueryFunc,
+                                                            boolean isHardLimit) throws IOException {
         GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(source);
         List<SpanQuery> clauses = new ArrayList<>();
         int[] articulationPoints = graph.articulationPoints();
@@ -929,7 +930,11 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                     SpanQuery q = spanQueryFunc.apply(ts, field);
                     if (q != null) {
                         if (queries.size() >= maxBooleanClause) {
-                            throw new BooleanQuery.TooManyClauses();
+                            if (isHardLimit) {
+                                throw new BooleanQuery.TooManyClauses();
+                            } else {
+
+                            }
                         }
                         queries.add(q);
                     }
@@ -943,7 +948,13 @@ public class MapperQueryParser extends AnalyzingQueryParser {
                 Term[] terms = graph.getTerms(field, start);
                 assert terms.length > 0;
                 if (terms.length >= maxBooleanClause) {
-                    throw new BooleanQuery.TooManyClauses();
+                    if (isHardLimit) {
+                        throw new BooleanQuery.TooManyClauses();
+                    } else {
+                        DEPRECATION_LOGGER.deprecated("Phrase query on field:[" + field + "] reached the max boolean" +
+                            " clause limit [" + maxBooleanClause + "] after expansion. This query will throw an error in" +
+                            " the next major version.");
+                    }
                 }
                 if (terms.length == 1) {
                     queryPos = new SpanTermQuery(terms[0]);
@@ -957,7 +968,13 @@ public class MapperQueryParser extends AnalyzingQueryParser {
             }
             if (queryPos != null) {
                 if (clauses.size() >= maxBooleanClause) {
-                    throw new BooleanQuery.TooManyClauses();
+                    if (isHardLimit) {
+                        throw new BooleanQuery.TooManyClauses();
+                    } else {
+                        DEPRECATION_LOGGER.deprecated("Phrase query on field:[" + field + "] reached the max boolean" +
+                            " clause limit [" + maxBooleanClause + "] after expansion. This query will throw an error in" +
+                            " the next major version.");
+                    }
                 }
                 clauses.add(queryPos);
             }

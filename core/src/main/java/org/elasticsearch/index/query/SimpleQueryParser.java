@@ -206,11 +206,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      */
     @Override
     protected SpanQuery analyzeGraphPhrase(TokenStream source, String field, int phraseSlop) throws IOException {
-        if (shouldApplyGraphPhraseLimit()) {
-            return analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
-        } else {
-            return super.analyzeGraphPhrase(source, field, phraseSlop);
-        }
+        return analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery, shouldApplyGraphPhraseLimit());
     }
 
     private static Query wrapWithBoost(Query query, float boost) {

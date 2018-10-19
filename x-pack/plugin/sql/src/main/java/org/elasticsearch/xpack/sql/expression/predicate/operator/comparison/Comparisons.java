@@ -16,27 +16,27 @@ public final class Comparisons {
 
     public static Boolean eq(Object l, Object r) {
         Integer i = compare(l, r);
-        return i == null ? null : i == 0;
+        return i == null ? null : i.intValue() == 0;
     }
 
     static Boolean lt(Object l, Object r) {
         Integer i = compare(l, r);
-        return i == null ? null : i < 0;
+        return i == null ? null : i.intValue() < 0;
     }
 
     static Boolean lte(Object l, Object r) {
         Integer i = compare(l, r);
-        return i == null ? null : i <= 0;
+        return i == null ? null : i.intValue() <= 0;
     }
 
     static Boolean gt(Object l, Object r) {
         Integer i = compare(l, r);
-        return i == null ? null : i > 0;
+        return i == null ? null : i.intValue() > 0;
     }
 
     static Boolean gte(Object l, Object r) {
         Integer i = compare(l, r);
-        return i == null ? null : i >= 0;
+        return i == null ? null : i.intValue() >= 0;
     }
 
     static Boolean in(Object l, Set<Object> r) {
@@ -57,7 +57,7 @@ public final class Comparisons {
 
         if (l instanceof Comparable && r instanceof Comparable) {
             try {
-                return ((Comparable) l).compareTo(r);
+                return Integer.valueOf(((Comparable) l).compareTo(r));
             } catch (ClassCastException cce) {
                 // when types are not compatible, cce is thrown
                 // fall back to null
@@ -79,6 +79,6 @@ public final class Comparisons {
             return Long.compare(l.longValue(), r.longValue());
         }
 
-        return Integer.compare(l.intValue(), r.intValue());
+        return Integer.valueOf(Integer.compare(l.intValue(), r.intValue()));
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -41,12 +42,12 @@ public class In extends NamedExpression implements ScriptWeaver {
     public In(Location location, Expression value, List<Expression> list) {
         super(location, null, CollectionUtils.combine(list, value), null);
         this.value = value;
-        this.list = list;
+        this.list = list.stream().distinct().collect(Collectors.toList());
     }
 
     @Override
     protected NodeInfo<In> info() {
-        return NodeInfo.create(this, In::new, value(), list());
+        return NodeInfo.create(this, In::new, value, list);
     }
 
     @Override
@@ -77,7 +78,7 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public boolean foldable() {
-        return children().stream().allMatch(Expression::foldable);
+        return Expressions.foldable(children());
     }
 
     @Override
@@ -115,17 +116,17 @@ public class In extends NamedExpression implements ScriptWeaver {
         ScriptTemplate leftScript = asScript(value);
         List<Params> rightParams = new ArrayList<>();
         String scriptPrefix = leftScript + "==";
-        for (Expression e : list) {
-            Object valueFromList = e.fold();
+        LinkedHashSet<Object> values = list.stream().map(Expression::fold).collect(Collectors.toCollection(LinkedHashSet::new));
+        for (Object valueFromList : values) {
             if (valueFromList instanceof Expression) {
                 ScriptTemplate rightScript = asScript((Expression) valueFromList);
                 sj.add(scriptPrefix + rightScript.template());
                 rightParams.add(rightScript.params());
             } else {
                 if (valueFromList instanceof String) {
-                    sj.add(scriptPrefix + '"' + e + '"');
+                    sj.add(scriptPrefix + '"' + valueFromList + '"');
                 } else {
-                    sj.add(scriptPrefix + e.toString());
+                    sj.add(scriptPrefix + valueFromList.toString());
                 }
             }
         }

@@ -161,7 +161,7 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
     }
 
     public void testTranslateInExpression_WhereClause() throws IOException {
-        LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', 'bar', 'lala')");
+        LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'))");
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
@@ -185,7 +185,7 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
     }
 
     public void testTranslateInExpression_HavingClause_Painless() {
-        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) in (10, 20)");
+        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) in (10, 20, 30 - 10)");
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();

@@ -9,6 +9,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -18,12 +19,12 @@ import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 public class TermsQuery extends LeafQuery {
 
     private final String term;
-    private final List<Object> values;
+    private final LinkedHashSet<Object> values;
 
     public TermsQuery(Location location, String term, List<Expression> values) {
         super(location);
         this.term = term;
-        this.values = values.stream().map(Expression::fold).collect(Collectors.toList());
+        this.values = values.stream().map(Expression::fold).collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     @Override

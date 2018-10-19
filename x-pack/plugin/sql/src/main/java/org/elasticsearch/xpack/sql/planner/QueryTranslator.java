@@ -150,7 +150,7 @@ final class QueryTranslator {
     }
 
     static QueryTranslation toQuery(Expression e, boolean onAggs) {
-        QueryTranslation translation;
+        QueryTranslation translation = null;
         for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
             translation = translator.translate(e, onAggs);
             if (translation != null) {

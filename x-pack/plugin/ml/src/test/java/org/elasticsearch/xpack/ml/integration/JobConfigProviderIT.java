@@ -158,7 +158,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         // Delete Job
         AtomicReference<DeleteResponse> deleteJobResponseHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.deleteJob(jobId, actionListener),
+        blockingCall(actionListener -> jobConfigProvider.deleteJob(jobId, true, actionListener),
                 deleteJobResponseHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertThat(deleteJobResponseHolder.get().getResult(), equalTo(DocWriteResponse.Result.DELETED));
@@ -172,10 +172,17 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         // Delete deleted job
         deleteJobResponseHolder.set(null);
         exceptionHolder.set(null);
-        blockingCall(actionListener -> jobConfigProvider.deleteJob(jobId, actionListener),
+        blockingCall(actionListener -> jobConfigProvider.deleteJob(jobId, true, actionListener),
                 deleteJobResponseHolder, exceptionHolder);
         assertNull(deleteJobResponseHolder.get());
         assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
+
+        // and again with errorIfMissing set false
+        deleteJobResponseHolder.set(null);
+        exceptionHolder.set(null);
+        blockingCall(actionListener -> jobConfigProvider.deleteJob(jobId, false, actionListener),
+                deleteJobResponseHolder, exceptionHolder);
+        assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteJobResponseHolder.get().getResult());
     }
 
     public void testGetJobs() throws Exception {
@@ -480,6 +487,29 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertNotNull(exceptionHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ElasticsearchStatusException.class));
         assertEquals(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD, exceptionHolder.get().getMessage());
+    }
+
+    public void testMarkAsDeleting() throws Exception {
+        AtomicReference<Boolean> responseHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        blockingCall(listener -> jobConfigProvider.markJobAsDeleting("missing-job", listener), responseHolder, exceptionHolder);
+        assertNull(responseHolder.get());
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
+
+        String jobId = "mark-as-deleting-job";
+        putJob(createJob(jobId, Collections.emptyList()));
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+
+        exceptionHolder.set(null);
+        blockingCall(listener -> jobConfigProvider.markJobAsDeleting(jobId, listener), responseHolder, exceptionHolder);
+        assertNull(exceptionHolder.get());
+        assertTrue(responseHolder.get());
+
+        // repeat the update for good measure
+        blockingCall(listener -> jobConfigProvider.markJobAsDeleting(jobId, listener), responseHolder, exceptionHolder);
+        assertTrue(responseHolder.get());
+        assertNull(exceptionHolder.get());
     }
 
     private static Job.Builder createJob(String jobId, List<String> groups) {

@@ -310,6 +310,9 @@ include::rollup/get_rollup_caps.asciidoc[]
 
 == Security APIs
 
+:upid: {mainid}-security
+:doc-tests-file: {doc-tests}/SecurityDocumentationIT.java
+
 The Java High Level REST Client supports the following Security APIs:
 
 * <<java-rest-high-security-put-user>>

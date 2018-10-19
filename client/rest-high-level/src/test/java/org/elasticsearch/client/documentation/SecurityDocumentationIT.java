@@ -22,21 +22,15 @@ package org.elasticsearch.client.documentation;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
-import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
@@ -48,18 +42,14 @@ import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.support.CertificateInfo;
+import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
@@ -443,11 +433,19 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         addRole("testrole");
 
         {
-            //tag::delete-role-execute
-            DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest("testrole");
+            // tag::delete-role-request
+            DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest(
+                "testrole");    // <1>
+            // end::delete-role-request
+
+            // tag::delete-role-execute
             DeleteRoleResponse deleteRoleResponse = client.security().deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
-            //end::delete-role-execute
-            assertTrue(deleteRoleResponse.isFound());
+            // end::delete-role-execute
+
+            // tag::delete-role-response
+            boolean found = deleteRoleResponse.isFound();    // <1>
+            // end::delete-role-response
+            assertTrue(found);
 
             // check if deleting the already deleted role again will give us a different response
             deleteRoleResponse = client.security().deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
@@ -455,9 +453,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            //tag::delete-role-execute-listener
             DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest("testrole");
-            ActionListener<DeleteRoleResponse> listener = new ActionListener<DeleteRoleResponse>() {
+
+            ActionListener<DeleteRoleResponse> listener;
+            //tag::delete-role-execute-listener
+            listener = new ActionListener<DeleteRoleResponse>() {
                 @Override
                 public void onResponse(DeleteRoleResponse deleteRoleResponse) {
                     // <1>

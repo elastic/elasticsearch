@@ -277,7 +277,13 @@ public class FetchPhase implements SearchPhase {
                 storedToRequestedFields, subReaderContext);
         }
 
-        DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());
+        final String typeText;
+        if (uid != null && uid.type() != null) {
+            typeText = uid.type();
+        } else {
+            typeText = context.mapperService().types().iterator().next();
+        }
+        DocumentMapper documentMapper = context.mapperService().documentMapper(typeText);
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, nestedSubDocId);
 

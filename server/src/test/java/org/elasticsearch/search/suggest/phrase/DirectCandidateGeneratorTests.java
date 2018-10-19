@@ -19,11 +19,20 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.JaroWinklerDistance;
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
+import org.apache.lucene.search.spell.SuggestMode;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
@@ -33,7 +42,6 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -143,7 +151,8 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         }
     }
 
-    public static void assertEqualGenerators(DirectCandidateGenerator first, DirectCandidateGenerator second) {
+    public static void assertEqualGenerators(PhraseSuggestionContext.DirectCandidateGenerator first,
+                                                PhraseSuggestionContext.DirectCandidateGenerator second) {
         assertEquals(first.field(), second.field());
         assertEquals(first.accuracy(), second.accuracy(), Float.MIN_VALUE);
         assertEquals(first.maxTermFreq(), second.maxTermFreq(), Float.MIN_VALUE);
@@ -193,6 +202,56 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
         directGenerator = "{ \"size\" : [ \"xxl\" ] }";
         assertIllegalXContent(directGenerator, XContentParseException.class,
                 "[direct_generator] size doesn't support values of type: START_ARRAY");
+    }
+
+    public void testFrequencyThreshold() throws Exception {
+        try (Directory dir = newDirectory()) {
+            IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+            long numDocs = randomIntBetween(10, 20);
+            for (int i = 0; i < numDocs; i++) {
+                Document doc = new Document();
+                if (i == 0) {
+                    doc.add(new TextField("field", "fooz", Field.Store.NO));
+                } else {
+                    doc.add(new TextField("field", "foo", Field.Store.NO));
+                }
+                writer.addDocument(doc);
+            }
+            try (IndexReader reader = DirectoryReader.open(writer)) {
+                writer.close();
+                DirectSpellChecker spellchecker = new DirectSpellChecker();
+                DirectCandidateGenerator generator = new DirectCandidateGenerator(spellchecker, "field", SuggestMode.SUGGEST_MORE_POPULAR,
+                    reader, 0f, 10);
+                DirectCandidateGenerator.CandidateSet candidateSet =
+                    generator.drawCandidates(new DirectCandidateGenerator.CandidateSet(DirectCandidateGenerator.Candidate.EMPTY,
+                        generator.createCandidate(new BytesRef("fooz"), false)));
+                assertThat(candidateSet.candidates.length, equalTo(1));
+                assertThat(candidateSet.candidates[0].frequency, equalTo(numDocs - 1));
+                // test that it doesn't overflow
+                assertThat(generator.thresholdFrequency(Integer.MAX_VALUE, -1), equalTo((long) Integer.MAX_VALUE));
+                spellchecker = new DirectSpellChecker();
+                spellchecker.setThresholdFrequency(0.5f);
+                generator = new DirectCandidateGenerator(spellchecker, "field", SuggestMode.SUGGEST_MORE_POPULAR,
+                    reader, 0f, 10);
+                candidateSet =
+                    generator.drawCandidates(new DirectCandidateGenerator.CandidateSet(DirectCandidateGenerator.Candidate.EMPTY,
+                        generator.createCandidate(new BytesRef("fooz"), false)));
+                assertThat(candidateSet.candidates.length, equalTo(1));
+                assertThat(candidateSet.candidates[0].frequency, equalTo(numDocs - 1));
+                // test that it doesn't overflow
+                assertThat(generator.thresholdFrequency(Integer.MAX_VALUE, -1), equalTo((long) Integer.MAX_VALUE));
+                spellchecker = new DirectSpellChecker();
+                spellchecker.setThresholdFrequency(0.5f);
+                generator = new DirectCandidateGenerator(spellchecker, "field", SuggestMode.SUGGEST_ALWAYS,
+                    reader, 0f, 10);
+                candidateSet =
+                    generator.drawCandidates(new DirectCandidateGenerator.CandidateSet(DirectCandidateGenerator.Candidate.EMPTY,
+                        generator.createCandidate(new BytesRef("fooz"), false)));
+                assertThat(candidateSet.candidates.length, equalTo(1));
+                // test that it doesn't overflow
+                assertThat(generator.thresholdFrequency(Integer.MAX_VALUE, -1), equalTo((long) Integer.MAX_VALUE));
+            }
+        }
     }
 
     private void assertIllegalXContent(String directGenerator, Class<? extends Exception> exceptionClass, String exceptionMsg)

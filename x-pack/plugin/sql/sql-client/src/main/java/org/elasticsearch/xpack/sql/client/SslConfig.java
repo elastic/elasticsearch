@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.client;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -62,8 +63,18 @@ public class SslConfig {
 
     private final SSLContext sslContext;
 
-    SslConfig(Properties settings) {
-        enabled = StringUtils.parseBoolean(settings.getProperty(SSL, SSL_DEFAULT));
+    SslConfig(Properties settings, URI baseURI) {
+        String sslProperty = settings.getProperty(SSL);
+        boolean isHttpsScheme = "https".equals(baseURI.getScheme());
+        
+        if (sslProperty == null && baseURI.getScheme() == null) {
+            enabled = StringUtils.parseBoolean(SSL_DEFAULT);
+        } else {
+            if (sslProperty != null && isHttpsScheme && !StringUtils.parseBoolean(sslProperty)) {
+                throw new ClientException("Cannot enable SSL: HTTPS protocol being used in the URL and SSL disabled in properties");
+            }
+            enabled = isHttpsScheme || StringUtils.parseBoolean(settings.getProperty(SSL, SSL_DEFAULT));
+        }
         protocol = settings.getProperty(SSL_PROTOCOL, SSL_PROTOCOL_DEFAULT);
         keystoreLocation = settings.getProperty(SSL_KEYSTORE_LOCATION, SSL_KEYSTORE_LOCATION_DEFAULT);
         keystorePass = settings.getProperty(SSL_KEYSTORE_PASS, SSL_KEYSTORE_PASS_DEFAULT);

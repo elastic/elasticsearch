@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
@@ -37,6 +38,9 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation.computeMedianAbsoluteDeviation;
 
 public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.SingleValue {
 
@@ -52,25 +56,30 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
                                              Aggregator parent,
                                              List<PipelineAggregator> pipelineAggregators,
                                              Map<String, Object> metaData,
-                                             ValuesSource.Numeric valuesSource,
+                                             @Nullable ValuesSource.Numeric valuesSource,
                                              DocValueFormat format,
                                              double compression) throws IOException {
 
         super(name, context, parent, pipelineAggregators, metaData);
 
         this.valuesSource = valuesSource;
-        this.format = format;
+        this.format = Objects.requireNonNull(format);
+
+        this.compression = compression;
 
         this.valueSketches = context.bigArrays().newObjectArray(1);
-        this.compression = compression;
+    }
+
+    private boolean hasDataForBucket(long bucketOrd) {
+        return bucketOrd < valueSketches.size() && valueSketches.get(bucketOrd) != null;
     }
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (owningBucketOrd >= valueSketches.size() || valueSketches.get(owningBucketOrd) == null) {
-            return Double.NaN;
-        } else {
+        if (hasDataForBucket(owningBucketOrd)) {
             return computeMedianAbsoluteDeviation(valueSketches.get(owningBucketOrd));
+        } else {
+            return Double.NaN;
         }
     }
 
@@ -117,11 +126,11 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     @Override
     public InternalAggregation buildAggregation(long bucket) throws IOException {
-        if (bucket >= valueSketches.size() || valueSketches.get(bucket) == null) {
-            return buildEmptyAggregation();
-        } else {
+        if (hasDataForBucket(bucket)) {
             final TDigestState valueSketch = valueSketches.get(bucket);
             return new InternalMedianAbsoluteDeviation(name, pipelineAggregators(), metaData(), format, valueSketch);
+        } else {
+            return buildEmptyAggregation();
         }
     }
 
@@ -135,23 +144,4 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
         Releasables.close(valueSketches);
     }
 
-    public static double computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
-
-        if (valuesSketch.size() == 0) {
-
-            return Double.NaN;
-
-        } else {
-
-            final double approximateMedian = valuesSketch.quantile(0.5);
-            final TDigestState approximatedDeviationsSketch = new TDigestState(valuesSketch.compression());
-
-            valuesSketch.centroids().forEach(centroid -> {
-                final double deviation = Math.abs(approximateMedian - centroid.mean());
-                approximatedDeviationsSketch.add(deviation, centroid.count());
-            });
-
-            return approximatedDeviationsSketch.quantile(0.5);
-        }
-    }
 }

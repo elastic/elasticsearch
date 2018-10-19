@@ -88,9 +88,9 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
      * Set the compression factor of the t-digest sketches used
      */
     public MedianAbsoluteDeviationAggregationBuilder compression(double compression) {
-        if (compression < 0.0) {
+        if (compression <= 0d) {
             throw new IllegalArgumentException(
-                "[compression] must be greater than or equal to 0. Found [" + compression + "] in [" + name + "]");
+                "[compression] must be greater than 0. Found [" + compression + "] in [" + name + "]");
         }
         this.compression = compression;
         return this;

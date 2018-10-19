@@ -31,11 +31,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregator.computeMedianAbsoluteDeviation;
-
 public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggregation.SingleValue implements MedianAbsoluteDeviation {
 
+    static double computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
+
+        if (valuesSketch.size() == 0) {
+
+            return Double.NaN;
+
+        } else {
+
+            final double approximateMedian = valuesSketch.quantile(0.5);
+            final TDigestState approximatedDeviationsSketch = new TDigestState(valuesSketch.compression());
+
+            valuesSketch.centroids().forEach(centroid -> {
+                final double deviation = Math.abs(approximateMedian - centroid.mean());
+                approximatedDeviationsSketch.add(deviation, centroid.count());
+            });
+
+            return approximatedDeviationsSketch.quantile(0.5);
+        }
+    }
+
     protected final TDigestState valuesSketch;
+    protected final double medianAbsoluteDeviation;
 
     public InternalMedianAbsoluteDeviation(String name,
                                            List<PipelineAggregator> pipelineAggregators,
@@ -44,31 +63,32 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
                                            TDigestState valuesSketch) {
 
         super(name, pipelineAggregators, metaData);
-        this.format = format;
-        this.valuesSketch = valuesSketch;
+        this.format = Objects.requireNonNull(format);
+        this.valuesSketch = Objects.requireNonNull(valuesSketch);
+
+        this.medianAbsoluteDeviation = computeMedianAbsoluteDeviation(this.valuesSketch);
     }
 
     public InternalMedianAbsoluteDeviation(StreamInput in) throws IOException {
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         valuesSketch = TDigestState.read(in);
+        medianAbsoluteDeviation = in.readDouble();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(format);
         TDigestState.write(valuesSketch, out);
+        out.writeDouble(medianAbsoluteDeviation);
     }
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        TDigestState valueMerged = null;
+        final TDigestState valueMerged = new TDigestState(valuesSketch.compression());
         for (InternalAggregation aggregation : aggregations) {
-            final InternalMedianAbsoluteDeviation magAgg = (InternalMedianAbsoluteDeviation) aggregation;
-            if (valueMerged == null) {
-                valueMerged = new TDigestState(magAgg.valuesSketch.compression());
-            }
-            valueMerged.add(magAgg.valuesSketch);
+            final InternalMedianAbsoluteDeviation madAggregation = (InternalMedianAbsoluteDeviation) aggregation;
+            valueMerged.add(madAggregation.valuesSketch);
         }
 
         return new InternalMedianAbsoluteDeviation(name, pipelineAggregators(), metaData, format, valueMerged);
@@ -91,13 +111,14 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(valuesSketch);
+        return Objects.hash(valuesSketch, medianAbsoluteDeviation);
     }
 
     @Override
     protected boolean doEquals(Object obj) {
         InternalMedianAbsoluteDeviation other = (InternalMedianAbsoluteDeviation) obj;
-        return Objects.equals(valuesSketch, other.valuesSketch);
+        return Objects.equals(valuesSketch, other.valuesSketch)
+            && Objects.equals(medianAbsoluteDeviation, other.medianAbsoluteDeviation);
     }
 
     @Override
@@ -112,6 +133,6 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
 
     @Override
     public double getMedianAbsoluteDeviation() {
-        return computeMedianAbsoluteDeviation(valuesSketch);
+        return medianAbsoluteDeviation;
     }
 }

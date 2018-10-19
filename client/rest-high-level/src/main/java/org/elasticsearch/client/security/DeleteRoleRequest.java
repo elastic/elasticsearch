@@ -20,15 +20,13 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.util.Objects;
 
 /**
  * A request delete a role from the security index
  */
-public final class DeleteRoleRequest implements ToXContentObject, Validatable {
+public final class DeleteRoleRequest implements Validatable {
 
     private final String name;
     private final RefreshPolicy refreshPolicy;
@@ -48,10 +46,5 @@ public final class DeleteRoleRequest implements ToXContentObject, Validatable {
 
     public RefreshPolicy getRefreshPolicy() {
         return refreshPolicy;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) {
-        return builder;
     }
 }

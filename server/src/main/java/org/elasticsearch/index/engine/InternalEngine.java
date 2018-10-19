@@ -2374,8 +2374,14 @@ public class InternalEngine extends Engine {
      * @return true if the given operation was processed; otherwise false.
      */
     protected final boolean hasBeenProcessedBefore(Operation op) {
-        assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "operation is not assigned seq_no";
-        assert noOpKeyedLock.isHeldByCurrentThread(op.seqNo()) || versionMap.assertKeyedLockHeldByCurrentThread(op.uid().bytes());
+        if (Assertions.ENABLED) {
+            assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "operation is not assigned seq_no";
+            if (op.operationType() == Operation.TYPE.NO_OP) {
+                assert noOpKeyedLock.isHeldByCurrentThread(op.seqNo());
+            } else {
+                assert versionMap.assertKeyedLockHeldByCurrentThread(op.uid().bytes());
+            }
+        }
         return localCheckpointTracker.contains(op.seqNo());
     }
 

@@ -288,6 +288,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 context.getMapperService().types().size() > 1) {
 
             // for multi types indices we need to retrieve the _uid to extract the type of the document
+            // so it is not allowed to disable stored fields
             throw new IllegalArgumentException("It is not allowed to disable stored fields [_none_] inside [inner_hits] on an index with" +
                 "multiple types.");
         }

@@ -112,10 +112,11 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    protected Optional<Exception> preFlightCheckForNoOp(NoOp noOp) {
+    protected Optional<Exception> preFlightCheckForNoOp(NoOp noOp) throws IOException {
         if (noOp.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(noOp)) {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
-            return Optional.of(new AlreadyProcessedFollowingEngineException(shardId, noOp.seqNo()));
+            final OptionalLong existingTerm = lookupPrimaryTerm(noOp.seqNo());
+            return Optional.of(new AlreadyProcessedFollowingEngineException(shardId, noOp.seqNo(), existingTerm));
         } else {
             return super.preFlightCheckForNoOp(noOp);
         }

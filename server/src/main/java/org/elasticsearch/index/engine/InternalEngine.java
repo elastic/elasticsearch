@@ -1460,7 +1460,7 @@ public class InternalEngine extends Engine {
      * Executes a pre-flight check for a given NoOp.
      * If this method returns a non-empty result, the engine won't process this NoOp and returns a failure.
      */
-    protected Optional<Exception> preFlightCheckForNoOp(final NoOp noOp) {
+    protected Optional<Exception> preFlightCheckForNoOp(final NoOp noOp) throws IOException {
         return Optional.empty();
     }
 

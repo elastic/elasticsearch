@@ -18,7 +18,7 @@ import java.util.HashSet;
 import java.util.List;
 
 public class TransportStopDatafeedActionTests extends ESTestCase {
-    public void testResolveDataFeedIds_GivenDatafeedId() {
+    public void testSortDatafeedIdsByTaskState_GivenDatafeedId() {
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
 
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);
@@ -40,7 +40,7 @@ public class TransportStopDatafeedActionTests extends ESTestCase {
         assertEquals(Collections.emptyList(), stoppingDatafeeds);
     }
 
-    public void testResolveDataFeedIds_GivenAll() {
+    public void testSortDatafeedIdsByTaskState_GivenAll() {
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
 
         addTask("datafeed_1", 0L, "node-1", DatafeedState.STARTED, tasksBuilder);

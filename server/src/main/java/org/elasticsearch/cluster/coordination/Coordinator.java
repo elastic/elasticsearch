@@ -667,7 +667,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             if (coordinationState.get().electionWon()) {
                 // if we have already won the election then the actual join does not matter for election purposes, so swallow any exception
                 final boolean isNewJoin = handleJoinIgnoringExceptions(join);
-                if (isNewJoin && mode == Mode.LEADER && publicationInProgress() == false) {
+                final boolean establishedAsMaster = mode == Mode.LEADER && getLastAcceptedState().term() == getCurrentTerm();
+                if (isNewJoin && establishedAsMaster && publicationInProgress() == false) {
                     scheduleReconfigurationIfNeeded();
                 }
             } else {

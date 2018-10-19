@@ -16,9 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.license;
 
-/**
- * Request and Response objects for the default distribution's License
- * APIs.
- */
-package org.elasticsearch.protocol.xpack.license;
+import org.elasticsearch.client.TimedRequest;
+
+public class DeleteLicenseRequest extends TimedRequest {
+
+}

@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack;
+package org.elasticsearch.client.xpack;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -31,7 +30,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.client.license.LicenseStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +48,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class XPackInfoResponse extends ActionResponse implements ToXContentObject {
+public class XPackInfoResponse implements ToXContentObject {
     /**
      * Value of the license's expiration time if it should never expire.
      */
@@ -88,21 +87,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
      */
     public FeatureSetsInfo getFeatureSetsInfo() {
         return featureSetsInfo;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalWriteable(buildInfo);
-        out.writeOptionalWriteable(licenseInfo);
-        out.writeOptionalWriteable(featureSetsInfo);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.buildInfo = in.readOptionalWriteable(BuildInfo::new);
-        this.licenseInfo = in.readOptionalWriteable(LicenseInfo::new);
-        this.featureSetsInfo = in.readOptionalWriteable(FeatureSetsInfo::new);
     }
 
     @Override
@@ -185,7 +169,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
         return builder.endObject();
     }
 
-    public static class LicenseInfo implements ToXContentObject, Writeable {
+    public static class LicenseInfo implements ToXContentObject {
         private final String uid;
         private final String type;
         private final String mode;
@@ -198,19 +182,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             this.mode = mode;
             this.status = status;
             this.expiryDate = expiryDate;
-        }
-
-        public LicenseInfo(StreamInput in) throws IOException {
-            this(in.readString(), in.readString(), in.readString(), LicenseStatus.readFrom(in), in.readLong());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(uid);
-            out.writeString(type);
-            out.writeString(mode);
-            status.writeTo(out);
-            out.writeLong(expiryDate);
         }
 
         public String getUid() {

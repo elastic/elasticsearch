@@ -16,19 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.license;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-
-
-public class GetLicenseRequest extends MasterNodeReadRequest<GetLicenseRequest> {
-
-    public GetLicenseRequest() {
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-}
+/**
+ * Request and Response objects for the default distribution's License
+ * APIs.
+ */
+package org.elasticsearch.client.license;

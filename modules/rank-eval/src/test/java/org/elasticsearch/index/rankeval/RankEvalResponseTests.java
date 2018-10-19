@@ -50,7 +50,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.function.Predicate;
 
 import static java.util.Collections.singleton;
@@ -182,6 +182,6 @@ public class RankEvalResponseTests extends ESTestCase {
         SearchHit hit = new SearchHit(docId, docId + "", new Text(""), Collections.emptyMap());
         hit.shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0, null));
         hit.score(1.0f);
-        return new RatedSearchHit(hit, rating != null ? Optional.of(rating) : Optional.empty());
+        return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());
     }
 }

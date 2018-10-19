@@ -80,7 +80,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             refresh(allowedIndex);
             verifyDocuments(adminClient(), allowedIndex, numDocs);
         } else {
-            follow("leader_cluster:" + allowedIndex, allowedIndex);
+            follow(allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(client(), allowedIndex, numDocs));
             assertThat(countCcrNodeTasks(), equalTo(1));
             assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex));
@@ -93,7 +93,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
                 assertThat(countCcrNodeTasks(), equalTo(0));
             });
 
-            resumeFollow("leader_cluster:" + allowedIndex, allowedIndex);
+            resumeFollow(allowedIndex, allowedIndex);
             assertThat(countCcrNodeTasks(), equalTo(1));
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/pause_follow")));
             // Make sure that there are no other ccr relates operations running:
@@ -104,19 +104,22 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
                 assertThat(countCcrNodeTasks(), equalTo(0));
             });
 
-            // User does not have create_follow_index index privilege for 'unallowedIndex':
-            Exception e = expectThrows(ResponseException.class,
-                () -> follow("leader_cluster:" + unallowedIndex, unallowedIndex));
+            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_close")));
+            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/unfollow")));
+            Exception e = expectThrows(ResponseException.class, () -> resumeFollow(allowedIndex, allowedIndex));
+            assertThat(e.getMessage(), containsString("follow index [" + allowedIndex + "] does not have ccr metadata"));
+
+            // User does not have manage_follow_index index privilege for 'unallowedIndex':
+            e = expectThrows(ResponseException.class, () -> follow(unallowedIndex, unallowedIndex));
             assertThat(e.getMessage(),
                 containsString("action [indices:admin/xpack/ccr/put_follow] is unauthorized for user [test_ccr]"));
             // Verify that the follow index has not been created and no node tasks are running
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
 
-            // User does have create_follow_index index privilege on 'allowed' index,
+            // User does have manage_follow_index index privilege on 'allowed' index,
             // but not read / monitor roles on 'disallowed' index:
-            e = expectThrows(ResponseException.class,
-                () -> follow("leader_cluster:" + unallowedIndex, allowedIndex));
+            e = expectThrows(ResponseException.class, () -> follow(unallowedIndex, allowedIndex));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
                 "privilege for action [indices:monitor/stats] is missing, " +
                 "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
@@ -124,13 +127,16 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
 
-            e = expectThrows(ResponseException.class,
-                () -> resumeFollow("leader_cluster:" + unallowedIndex, unallowedIndex));
+            e = expectThrows(ResponseException.class, () -> resumeFollow(unallowedIndex, unallowedIndex));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
                 "privilege for action [indices:monitor/stats] is missing, " +
                 "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
+
+            e = expectThrows(ResponseException.class,
+                () -> client().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow")));
+            assertThat(e.getMessage(), containsString("action [indices:admin/xpack/ccr/unfollow] is unauthorized for user [test_ccr]"));
         }
     }
 
@@ -224,13 +230,15 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
     private static void resumeFollow(String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_ccr/resume_follow");
-        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
+        request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"" + leaderIndex +
+            "\", \"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
     private static void follow(String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
-        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
+        request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"" + leaderIndex +
+            "\", \"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
@@ -300,7 +308,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
     private static void verifyCcrMonitoring(String expectedLeaderIndex, String expectedFollowerIndex) throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"leader_cluster:" + expectedLeaderIndex + "\"}}}");
+        request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"" + expectedLeaderIndex + "\"}}}");
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));

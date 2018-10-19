@@ -161,7 +161,7 @@ public class ReplicationTrackerTests extends ESTestCase {
 
         // first check that adding it without the master blessing doesn't change anything.
         updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
-        assertNull(tracker.checkpoints.get(extraId));
+        assertNull(tracker.checkpoints.get(extraId.getId()));
         expectThrows(IllegalStateException.class, () -> tracker.initiateTracking(extraId.getId()));
 
         Set<AllocationId> newInitializing = new HashSet<>(initializing);

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
@@ -40,12 +42,14 @@ import org.elasticsearch.xpack.ccr.index.engine.FollowingEngine;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -278,6 +282,41 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
             });
             shardFollowTask.markAsCompleted();
+        }
+    }
+
+    public void testAddNewFollowingReplica() throws Exception {
+        final byte[] source = "{}".getBytes(StandardCharsets.UTF_8);
+        final int numDocs = between(1, 100);
+        final List<Translog.Operation> operations = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            operations.add(new Translog.Index("type", Integer.toString(i), i, primaryTerm, 0, source, null, -1));
+        }
+        Future<Void> recoveryFuture = null;
+        try (ReplicationGroup group = createFollowGroup(between(0, 1))) {
+            group.startAll();
+            while (operations.isEmpty() == false) {
+                List<Translog.Operation> bulkOps = randomSubsetOf(between(1, operations.size()), operations);
+                operations.removeAll(bulkOps);
+                BulkShardOperationsRequest bulkRequest = new BulkShardOperationsRequest(group.getPrimary().shardId(),
+                    group.getPrimary().getHistoryUUID(), bulkOps, -1);
+                new CCRAction(bulkRequest, new PlainActionFuture<>(), group).execute();
+                if (randomInt(100) < 10) {
+                    group.getPrimary().flush(new FlushRequest());
+                }
+                if (recoveryFuture == null && (randomInt(100) < 10 || operations.isEmpty())) {
+                    group.getPrimary().sync();
+                    IndexShard newReplica = group.addReplica();
+                    // We need to recover the replica async to release the main thread for the following task to fill missing
+                    // operations between the local checkpoint and max_seq_no which the recovering replica is waiting for.
+                    recoveryFuture = group.asyncRecoverReplica(newReplica,
+                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, recoveryListener, l -> {}) {});
+                }
+            }
+            if (recoveryFuture != null) {
+                recoveryFuture.get();
+            }
+            group.assertAllEqual(numDocs);
         }
     }
 

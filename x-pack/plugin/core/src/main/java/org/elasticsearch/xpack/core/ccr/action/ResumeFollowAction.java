@@ -99,7 +99,6 @@ public final class ResumeFollowAction extends Action<
             return request;
         }
 
-        // will be a required field when following local indices is no longer allowed
         private String leaderCluster;
 
         public String getLeaderCluster() {
@@ -207,6 +206,9 @@ public final class ResumeFollowAction extends Action<
         public ActionRequestValidationException validate() {
             ActionRequestValidationException e = null;
 
+            if (leaderCluster == null) {
+                e = addValidationError(LEADER_CLUSTER_FIELD.getPreferredName() + " is missing", e);
+            }
             if (leaderIndex == null) {
                 e = addValidationError(LEADER_INDEX_FIELD.getPreferredName() + " is missing", e);
             }
@@ -245,7 +247,7 @@ public final class ResumeFollowAction extends Action<
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            leaderCluster = in.readOptionalString();
+            leaderCluster = in.readString();
             leaderIndex = in.readString();
             followerIndex = in.readString();
             maxBatchOperationCount = in.readOptionalVInt();
@@ -260,7 +262,7 @@ public final class ResumeFollowAction extends Action<
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(leaderCluster);
+            out.writeString(leaderCluster);
             out.writeString(leaderIndex);
             out.writeString(followerIndex);
             out.writeOptionalVInt(maxBatchOperationCount);
@@ -325,7 +327,7 @@ public final class ResumeFollowAction extends Action<
         @Override
         public int hashCode() {
             return Objects.hash(
-                leaderCluster,
+                    leaderCluster,
                     leaderIndex,
                     followerIndex,
                     maxBatchOperationCount,

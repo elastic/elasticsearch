@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
-
 /**
  * Methods for handling index naming related functions
  */
@@ -38,15 +35,6 @@ public final class AnomalyDetectorsIndex {
         // ".write" rather than simply "write" to avoid the danger of clashing
         // with the read alias of a job whose name begins with "write-"
         return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + ".write-" + jobId;
-    }
-
-    /**
-     * Retrieves the currently defined physical index from the job state
-     * @param jobId Job Id
-     * @return The index name
-     */
-    public static String getPhysicalIndexFromState(ClusterState state, String jobId) {
-        return MlMetadata.getMlMetadata(state).getJobs().get(jobId).getResultsIndexName();
     }
 
     /**

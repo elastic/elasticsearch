@@ -80,7 +80,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         jobBuilder.setDeleting(true);
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> TransportOpenJobAction.validate("job_id", jobBuilder.build()));
-        assertEquals("Cannot open job [job_id] because it has been marked as deleted", e.getMessage());
+        assertEquals("Cannot open job [job_id] because it is being deleted", e.getMessage());
     }
 
     public void testValidate_jobWithoutVersion() {

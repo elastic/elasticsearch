@@ -41,7 +41,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
 
     @Override
     @SuppressWarnings("unchecked")
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         String path;
         Map<String, Object> map;
         if (this.path != null) {
@@ -75,6 +75,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
             Object value = map.remove(field);
             ingestDocument.setFieldValue(path, value);
         }
+        return ingestDocument;
     }
 
     @Override

@@ -67,7 +67,10 @@ class SimulateExecutionService {
             protected void doRun() throws Exception {
                 List<SimulateDocumentResult> responses = new ArrayList<>();
                 for (IngestDocument ingestDocument : request.getDocuments()) {
-                    responses.add(executeDocument(request.getPipeline(), ingestDocument, request.isVerbose()));
+                    SimulateDocumentResult response = executeDocument(request.getPipeline(), ingestDocument, request.isVerbose());
+                    if (response != null) {
+                        responses.add(response);
+                    }
                 }
                 listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
             }

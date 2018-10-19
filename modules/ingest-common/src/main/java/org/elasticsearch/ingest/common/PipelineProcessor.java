@@ -42,12 +42,12 @@ public class PipelineProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         Pipeline pipeline = ingestService.getPipeline(pipelineName);
         if (pipeline == null) {
             throw new IllegalStateException("Pipeline processor configured for non-existent pipeline [" + pipelineName + ']');
         }
-        ingestDocument.executePipeline(pipeline);
+        return ingestDocument.executePipeline(pipeline);
     }
 
     @Override

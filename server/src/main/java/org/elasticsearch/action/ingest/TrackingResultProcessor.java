@@ -42,7 +42,7 @@ public final class TrackingResultProcessor implements Processor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         try {
             actualProcessor.execute(ingestDocument);
             processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(), new IngestDocument(ingestDocument)));
@@ -54,6 +54,7 @@ public final class TrackingResultProcessor implements Processor {
             }
             throw e;
         }
+        return ingestDocument;
     }
 
     @Override

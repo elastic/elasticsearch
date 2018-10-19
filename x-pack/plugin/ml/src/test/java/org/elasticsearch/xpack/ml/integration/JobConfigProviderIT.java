@@ -158,7 +158,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         // Delete Job
         AtomicReference<DeleteResponse> deleteJobResponseHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.deleteJob(jobId, actionListener),
+        blockingCall(actionListener -> jobConfigProvider.deleteJob(jobId, true, actionListener),
                 deleteJobResponseHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertThat(deleteJobResponseHolder.get().getResult(), equalTo(DocWriteResponse.Result.DELETED));
@@ -172,7 +172,15 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         // Delete deleted job
         deleteJobResponseHolder.set(null);
         exceptionHolder.set(null);
-        blockingCall(actionListener -> jobConfigProvider.deleteJob(jobId, actionListener),
+        blockingCall(actionListener -> jobConfigProvider.deleteJob(jobId, true, actionListener),
+                deleteJobResponseHolder, exceptionHolder);
+        assertNull(deleteJobResponseHolder.get());
+        assertEquals(ResourceNotFoundException.class, exceptionHolder.get().getClass());
+
+        // and again with errorIfMissing set false
+        deleteJobResponseHolder.set(null);
+        exceptionHolder.set(null);
+        blockingCall(actionListener -> jobConfigProvider.deleteJob(jobId, false, actionListener),
                 deleteJobResponseHolder, exceptionHolder);
         assertEquals(DocWriteResponse.Result.NOT_FOUND, deleteJobResponseHolder.get().getResult());
     }

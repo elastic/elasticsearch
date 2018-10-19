@@ -225,7 +225,8 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
 
         // Step 3. When the physical storage has been deleted, delete the job config document
         // -------
-        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobConfigProvider.deleteJob(jobId,
+        // Don't report an error if the document has already been deleted
+        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobConfigProvider.deleteJob(jobId, false,
                 ActionListener.wrap(
                         deleteResponse -> apiResponseHandler.accept(Boolean.TRUE),
                         listener::onFailure

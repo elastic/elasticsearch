@@ -208,16 +208,37 @@ public class JobConfigProvider extends AbstractComponent {
     }
 
     /**
-     * Delete the anomaly detector job config document
+     * Delete the anomaly detector job config document.
+     * {@code errorIfMissing} controls whether or not an error if return
+     * if the document does not exist.
      *
      * @param jobId The job id
+     * @param errorIfMissing If the job document does not exist and this this true
+     *                       listener fails with a ResourceNotFoundException else
+     *                       the DeleteResponse is always return.
      * @param actionListener Deleted job listener
      */
-    public void deleteJob(String jobId,  ActionListener<DeleteResponse> actionListener) {
+    public void deleteJob(String jobId, boolean errorIfMissing, ActionListener<DeleteResponse> actionListener) {
         DeleteRequest request = new DeleteRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, actionListener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<DeleteResponse>() {
+            @Override
+            public void onResponse(DeleteResponse deleteResponse) {
+                if (errorIfMissing) {
+                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                        actionListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                        return;
+                    }
+                    assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
+                }
+                actionListener.onResponse(deleteResponse);
+            }
+            @Override
+            public void onFailure(Exception e) {
+                actionListener.onFailure(e);
+            }
+        });
     }
 
     /**

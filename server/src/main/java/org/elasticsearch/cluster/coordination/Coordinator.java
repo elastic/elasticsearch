@@ -637,7 +637,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         final ClusterState state = getLastAcceptedState();
         if (improveConfiguration(state) != state && reconfigurationTaskScheduled.compareAndSet(false, true)) {
             logger.trace("scheduling reconfiguration");
-            masterService.submitStateUpdateTask("reconfigure", new ClusterStateUpdateTask() {
+            masterService.submitStateUpdateTask("reconfigure", new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     reconfigurationTaskScheduled.set(false);

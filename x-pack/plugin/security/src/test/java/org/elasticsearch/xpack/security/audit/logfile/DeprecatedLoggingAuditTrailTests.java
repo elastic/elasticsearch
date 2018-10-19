@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.audit.logfile;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -60,6 +61,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34627")
 public class DeprecatedLoggingAuditTrailTests extends ESTestCase {
 
     enum RestContent {

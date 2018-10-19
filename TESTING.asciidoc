@@ -1,4 +1,4 @@
-[[Testing Framework Cheatsheet]]
+[[TestingFrameworkCheatsheet]]
 = Testing
 
 [partintro]

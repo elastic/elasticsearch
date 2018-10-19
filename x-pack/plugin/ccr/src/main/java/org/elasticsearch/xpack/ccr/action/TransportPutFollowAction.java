@@ -28,11 +28,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -41,17 +38,14 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 public final class TransportPutFollowAction
         extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
     private final Client client;
     private final AllocationService allocationService;
-    private final RemoteClusterService remoteClusterService;
     private final ActiveShardsObserver activeShardsObserver;
     private final CcrLicenseChecker ccrLicenseChecker;
 
@@ -77,7 +71,6 @@ public final class TransportPutFollowAction
                 PutFollowAction.Request::new);
         this.client = client;
         this.allocationService = allocationService;
-        this.remoteClusterService = transportService.getRemoteClusterService();
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
@@ -101,52 +94,22 @@ public final class TransportPutFollowAction
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final String[] indices = new String[]{request.getFollowRequest().getLeaderIndex()};
-        final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
-        if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-            createFollowerIndexAndFollowLocalIndex(request, state, listener);
-        } else {
-            assert remoteClusterIndices.size() == 1;
-            final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
-            assert entry.getValue().size() == 1;
-            final String clusterAlias = entry.getKey();
-            final String leaderIndex = entry.getValue().get(0);
-            createFollowerIndexAndFollowRemoteIndex(request, clusterAlias, leaderIndex, listener);
-        }
-    }
+        String leaderCluster = request.getFollowRequest().getLeaderCluster();
+        // Validates whether the leader cluster has been configured properly:
+        client.getRemoteClusterClient(leaderCluster);
 
-    private void createFollowerIndexAndFollowLocalIndex(
-            final PutFollowAction.Request request,
-            final ClusterState state,
-            final ActionListener<PutFollowAction.Response> listener) {
-        // following an index in local cluster, so use local cluster state to fetch leader index metadata
-        final String leaderIndex = request.getFollowRequest().getLeaderIndex();
-        final IndexMetaData leaderIndexMetadata = state.getMetaData().index(leaderIndex);
-        if (leaderIndexMetadata == null) {
-            listener.onFailure(new IndexNotFoundException(leaderIndex));
-            return;
-        }
-
-        Consumer<String[]> historyUUIDhandler = historyUUIDs -> {
-            createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
-        };
-        ccrLicenseChecker.hasPrivilegesToFollowIndices(client, new String[] {leaderIndex}, e -> {
-            if (e == null) {
-                ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDhandler);
-            } else {
-                listener.onFailure(e);
-            }
-        });
+        String leaderIndex = request.getFollowRequest().getLeaderIndex();
+        createFollowerIndexAndFollowRemoteIndex(request, leaderCluster, leaderIndex, listener);
     }
 
     private void createFollowerIndexAndFollowRemoteIndex(
             final PutFollowAction.Request request,
-            final String clusterAlias,
+            final String leaderCluster,
             final String leaderIndex,
             final ActionListener<PutFollowAction.Response> listener) {
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
                 client,
-                clusterAlias,
+                leaderCluster,
                 leaderIndex,
                 listener::onFailure,
                 (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));

@@ -21,7 +21,7 @@
 
   - do:
       ccr.put_auto_follow_pattern:
-        leader_cluster_alias: local
+        leader_cluster: local
         body:
           leader_index_patterns: ['logs-*']
           max_concurrent_read_batches: 2
@@ -29,7 +29,7 @@
 
   - do:
       ccr.get_auto_follow_pattern:
-        leader_cluster_alias: local
+        leader_cluster: local
   - match: { local.leader_index_patterns: ['logs-*'] }
   - match: { local.max_concurrent_read_batches: 2 }
 
@@ -40,10 +40,10 @@
 
   - do:
       ccr.delete_auto_follow_pattern:
-        leader_cluster_alias: local
+        leader_cluster: local
   - is_true: acknowledged
 
   - do:
       catch: missing
       ccr.get_auto_follow_pattern:
-        leader_cluster_alias: local
+        leader_cluster: local

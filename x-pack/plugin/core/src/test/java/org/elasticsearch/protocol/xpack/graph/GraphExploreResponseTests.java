@@ -10,24 +10,66 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.AbstractHLRCXContentTestCase;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphExploreResponse> {
+public class GraphExploreResponseTests extends AbstractHLRCXContentTestCase<GraphExploreResponse,
+    org.elasticsearch.client.graph.GraphExploreResponse> {
+
+    @Override
+    public org.elasticsearch.client.graph.GraphExploreResponse doHLRCParseInstance(XContentParser parser) throws IOException {
+        return org.elasticsearch.client.graph.GraphExploreResponse.fromXContent(parser);
+    }
+
+    @Override
+    public GraphExploreResponse convert(org.elasticsearch.client.graph.GraphExploreResponse instance) {
+        final Collection<org.elasticsearch.client.graph.Vertex.VertexId> vertexIds = instance.getVertexIds();
+        final Map<Vertex.VertexId, Vertex> vertexMap = new LinkedHashMap<>(vertexIds.size());
+
+        final Function<org.elasticsearch.client.graph.Vertex.VertexId, Vertex.VertexId> vertexIdFn =
+            vId -> new Vertex.VertexId(vId.getField(), vId.getTerm());
+        final Function<org.elasticsearch.client.graph.Vertex, Vertex> vertexFn =
+            v -> new Vertex(v.getField(), v.getTerm(), v.getWeight(), v.getHopDepth(), v.getBg(), v.getFg());
+
+        for (org.elasticsearch.client.graph.Vertex.VertexId vertexId : vertexIds) {
+            final org.elasticsearch.client.graph.Vertex vertex = instance.getVertex(vertexId);
+
+            vertexMap.put(vertexIdFn.apply(vertexId), vertexFn.apply(vertex));
+        }
+
+        final Collection<org.elasticsearch.client.graph.Connection.ConnectionId> connectionIds = instance.getConnectionIds();
+        final Map<Connection.ConnectionId, Connection> connectionMap = new LinkedHashMap<>(connectionIds.size());
+        for (org.elasticsearch.client.graph.Connection.ConnectionId connectionId : connectionIds) {
+            final org.elasticsearch.client.graph.Connection connection = instance.getConnection(connectionId);
+            final Connection.ConnectionId connectionId1 =
+                new Connection.ConnectionId(vertexIdFn.apply(connectionId.getSource()), vertexIdFn.apply(connectionId.getTarget()));
+            final Connection connection1 = new Connection(vertexFn.apply(connection.getFrom()), vertexFn.apply(connection.getTo()),
+                connection.getWeight(), connection.getDocCount());
+            connectionMap.put(connectionId1, connection1);
+        }
+        
+        return new GraphExploreResponse(instance.getTookInMillis(), instance.isTimedOut(),
+            instance.getShardFailures(), vertexMap, connectionMap, instance.isReturnDetailedInfo());
+    }
 
     @Override
     protected  GraphExploreResponse createTestInstance() {
         return createInstance(0);
     }
+
     private static  GraphExploreResponse createInstance(int numFailures) {
         int numItems = randomIntBetween(4, 128);
         boolean timedOut = randomBoolean();
@@ -62,13 +104,13 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
     }
     
 
-    private static   GraphExploreResponse createTestInstanceWithFailures() {
+    private static GraphExploreResponse createTestInstanceWithFailures() {
         return createInstance(randomIntBetween(1, 128));
     }
 
     @Override
     protected  GraphExploreResponse doParseInstance(XContentParser parser) throws IOException {
-        return GraphExploreResponse.fromXContext(parser);
+        return GraphExploreResponse.fromXContent(parser);
     }
 
     @Override
@@ -79,7 +121,7 @@ public class GraphExploreResponseTests extends AbstractXContentTestCase< GraphEx
     @Override
     protected boolean assertToXContentEquivalence() {
         return false;
-    }     
+    }
 
     @Override
     protected String[] getShuffleFieldsExceptions() {

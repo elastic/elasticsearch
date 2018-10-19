@@ -7,12 +7,12 @@ package org.elasticsearch.protocol.xpack;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.AbstractHLRCStreamableXContentTestCase;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.BuildInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,8 +21,10 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.io.IOException;
+import java.util.stream.Collectors;
 
-public class XPackInfoResponseTests extends AbstractStreamableXContentTestCase<XPackInfoResponse> {
+public class XPackInfoResponseTests extends AbstractHLRCStreamableXContentTestCase<XPackInfoResponse,
+    org.elasticsearch.client.xpack.XPackInfoResponse> {
     @Override
     protected XPackInfoResponse doParseInstance(XContentParser parser) throws IOException {
         return XPackInfoResponse.fromXContent(parser);
@@ -31,6 +33,34 @@ public class XPackInfoResponseTests extends AbstractStreamableXContentTestCase<X
     @Override
     protected XPackInfoResponse createBlankInstance() {
         return new XPackInfoResponse();
+    }
+
+    @Override
+    public org.elasticsearch.client.xpack.XPackInfoResponse doHLRCParseInstance(XContentParser parser) throws IOException {
+        return org.elasticsearch.client.xpack.XPackInfoResponse.fromXContent(parser);
+    }
+
+    @Override
+    public XPackInfoResponse convert(org.elasticsearch.client.xpack.XPackInfoResponse instance) {
+        final org.elasticsearch.client.xpack.XPackInfoResponse.BuildInfo buildInfo = instance.getBuildInfo();
+        final XPackInfoResponse.BuildInfo buildInfo1 =
+            buildInfo != null ? new BuildInfo(buildInfo.getHash(), buildInfo.getTimestamp()) : null;
+        final org.elasticsearch.client.xpack.XPackInfoResponse.LicenseInfo licenseInfo = instance.getLicenseInfo();
+        final XPackInfoResponse.LicenseInfo licenseInfo1 =
+            licenseInfo != null
+            ? new LicenseInfo(licenseInfo.getUid(), licenseInfo.getType(), licenseInfo.getMode(),
+                licenseInfo.getStatus() != null ? LicenseStatus.valueOf(licenseInfo.getStatus().name()) : null,
+                licenseInfo.getExpiryDate())
+            : null;
+        final org.elasticsearch.client.xpack.XPackInfoResponse.FeatureSetsInfo featureSetsInfo = instance.getFeatureSetsInfo();
+        final XPackInfoResponse.FeatureSetsInfo featureSetsInfo1 =
+            featureSetsInfo != null
+            ? new FeatureSetsInfo(featureSetsInfo.getFeatureSets().values().stream()
+               .map(fs -> new XPackInfoResponse.FeatureSetsInfo.FeatureSet(fs.name(), fs.description(), fs.available(), fs.enabled(),
+                   fs.nativeCodeInfo()))
+               .collect(Collectors.toSet()))
+            : null;
+        return new XPackInfoResponse(buildInfo1, licenseInfo1, featureSetsInfo1);
     }
 
     @Override

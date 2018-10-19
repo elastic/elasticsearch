@@ -18,15 +18,11 @@
  */
 package org.elasticsearch.client.graph;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.graph.Connection.ConnectionId;
 import org.elasticsearch.client.graph.Connection.UnresolvedConnection;
@@ -47,7 +43,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * 
  * @see GraphExploreRequest
  */
-public class GraphExploreResponse  implements ToXContentObject {
+public class GraphExploreResponse {
 
     private long tookInMillis;
     private boolean timedOut = false;
@@ -94,12 +90,28 @@ public class GraphExploreResponse  implements ToXContentObject {
         return connections.values();
     }
 
+    public Collection<ConnectionId> getConnectionIds() {
+        return connections.keySet();
+    }
+
+    public Connection getConnection(ConnectionId connectionId) {
+        return connections.get(connectionId);
+    }
+
     public Collection<Vertex> getVertices() {
         return vertices.values();
+    }
+
+    public Collection<VertexId> getVertexIds() {
+        return vertices.keySet();
     }
     
     public Vertex getVertex(VertexId id) {
         return vertices.get(id);
+    }
+
+    public boolean isReturnDetailedInfo() {
+        return returnDetailedInfo;
     }
 
     private static final ParseField TOOK = new ParseField("took");
@@ -107,48 +119,6 @@ public class GraphExploreResponse  implements ToXContentObject {
     private static final ParseField VERTICES = new ParseField("vertices");
     private static final ParseField CONNECTIONS = new ParseField("connections");
     private static final ParseField FAILURES = new ParseField("failures");
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(TOOK.getPreferredName(), tookInMillis);
-        builder.field(TIMED_OUT.getPreferredName(), timedOut);
-
-        builder.startArray(FAILURES.getPreferredName());
-        if (shardFailures != null) {
-            for (ShardOperationFailedException shardFailure : shardFailures) {
-                builder.startObject();
-                shardFailure.toXContent(builder, params);
-                builder.endObject();
-            }
-        }
-        builder.endArray();
-
-        ObjectIntHashMap<Vertex> vertexNumbers = new ObjectIntHashMap<>(vertices.size());
-        
-        Map<String, String> extraParams = new HashMap<>();
-        extraParams.put(RETURN_DETAILED_INFO_PARAM, Boolean.toString(returnDetailedInfo));
-        Params extendedParams = new DelegatingMapParams(extraParams, params);
-        
-        builder.startArray(VERTICES.getPreferredName());
-        for (Vertex vertex : vertices.values()) {
-            builder.startObject();
-            vertexNumbers.put(vertex, vertexNumbers.size());
-            vertex.toXContent(builder, extendedParams);            
-            builder.endObject();
-        }
-        builder.endArray();
-
-        builder.startArray(CONNECTIONS.getPreferredName());
-        for (Connection connection : connections.values()) {
-            builder.startObject();
-            connection.toXContent(builder, extendedParams, vertexNumbers);
-            builder.endObject();
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
-    }
 
     private static final ConstructingObjectParser<GraphExploreResponse, Void> PARSER = new ConstructingObjectParser<>(
             "GraphExploreResponsenParser", true,
@@ -190,7 +160,7 @@ public class GraphExploreResponse  implements ToXContentObject {
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.fromXContent(p), FAILURES);
     } 
     
-    public static GraphExploreResponse fromXContext(XContentParser parser) throws IOException {
+    public static GraphExploreResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 

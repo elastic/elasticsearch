@@ -209,11 +209,11 @@ public class JobConfigProvider extends AbstractComponent {
 
     /**
      * Delete the anomaly detector job config document.
-     * {@code errorIfMissing} controls whether or not an error if return
+     * {@code errorIfMissing} controls whether or not an error is returned
      * if the document does not exist.
      *
      * @param jobId The job id
-     * @param errorIfMissing If the job document does not exist and this this true
+     * @param errorIfMissing If the job document does not exist and this is true
      *                       listener fails with a ResourceNotFoundException else
      *                       the DeleteResponse is always return.
      * @param actionListener Deleted job listener

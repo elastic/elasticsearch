@@ -45,6 +45,7 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.apache.lucene.util.QueryBuilder;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.AllFieldMapper;
@@ -861,7 +862,11 @@ public class MapperQueryParser extends AnalyzingQueryParser {
      */
     @Override
     protected SpanQuery analyzeGraphPhrase(TokenStream source, String field, int phraseSlop) throws IOException {
-        return analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
+        if (shouldApplyGraphPhraseLimit()) {
+            return analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
+        } else {
+            return super.analyzeGraphPhrase(source, field, phraseSlop);
+        }
     }
 
     /** A BiFuntion that can throw an IOException */
@@ -879,11 +884,27 @@ public class MapperQueryParser extends AnalyzingQueryParser {
     }
 
     /**
+     * Checks the value of the JVM option <code>es.query.write.apply_graph_phrase_limit</code> to determine
+     * if the analysis of graph phrase should be limited to {@link BooleanQuery#getMaxClauseCount()}.
+     * The JVM option can only be set to <code>true</code> (false is the default value), any other value
+     * will throw an {@link IllegalArgumentException}.
+     */
+    public static boolean shouldApplyGraphPhraseLimit() {
+        String value = System.getProperty("es.query.apply_graph_phrase_limit");
+        if (value == null) {
+            return false;
+        } else if (Booleans.parseBoolean(value, false) == false) {
+            throw new IllegalArgumentException("[" + value + "] is not a valid value for the JVM option:" +
+                "[es.query.apply_graph_phrase_limit]. Set it to [true] to activate the limit.");
+        } else {
+            return true;
+        }
+    }
+
+    /**
      * Overrides {@link QueryBuilder#analyzeGraphPhrase(TokenStream, String, int)} to add
      * a limit (see {@link BooleanQuery#getMaxClauseCount()}) to the number of {@link SpanQuery}
      * that this method can create.
-     *
-     * TODO Remove when https://issues.apache.org/jira/browse/LUCENE-8479 is fixed.
      */
     public static SpanQuery analyzeGraphPhraseWithLimit(TokenStream source, String field, int phraseSlop,
                                         CheckedBiFunction<TokenStream, String, SpanQuery> spanQueryFunc) throws IOException {

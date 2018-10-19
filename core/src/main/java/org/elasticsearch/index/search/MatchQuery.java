@@ -59,6 +59,9 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 
+import static org.apache.lucene.queryparser.classic.MapperQueryParser.analyzeGraphPhraseWithLimit;
+import static org.apache.lucene.queryparser.classic.MapperQueryParser.shouldApplyGraphPhraseLimit;
+
 public class MatchQuery {
 
     public enum Type implements Writeable {
@@ -355,7 +358,11 @@ public class MatchQuery {
          */
         @Override
         protected SpanQuery analyzeGraphPhrase(TokenStream source, String field, int phraseSlop) throws IOException {
-            return MapperQueryParser.analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
+            if (shouldApplyGraphPhraseLimit()) {
+                return analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
+            } else {
+                return super.analyzeGraphPhrase(source, field, phraseSlop);
+            }
         }
 
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {

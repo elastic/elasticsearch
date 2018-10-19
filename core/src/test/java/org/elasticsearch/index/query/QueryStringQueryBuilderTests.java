@@ -1047,8 +1047,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             "it is disallowed to disable [split_on_whitespace] if [auto_generate_phrase_queries] is activated");
     }
 
-    public void testGraphPhraseMaxBooleanClause() throws IOException {
+    public void testGraphPhraseWithLimit() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        assertFalse(MapperQueryParser.shouldApplyGraphPhraseLimit());
         try (TokenStream source = new MockGraphAnalyzer(createGiantGraph(40))
             .createComponents("").getTokenStream()) {
             expectThrows(BooleanQuery.TooManyClauses.class,

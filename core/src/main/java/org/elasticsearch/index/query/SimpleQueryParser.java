@@ -43,6 +43,9 @@ import java.util.Objects;
 import java.util.List;
 import java.util.ArrayList;
 
+import static org.apache.lucene.queryparser.classic.MapperQueryParser.analyzeGraphPhraseWithLimit;
+import static org.apache.lucene.queryparser.classic.MapperQueryParser.shouldApplyGraphPhraseLimit;
+
 /**
  * Wrapper class for Lucene's SimpleQueryParser that allows us to redefine
  * different types of queries.
@@ -203,7 +206,11 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      */
     @Override
     protected SpanQuery analyzeGraphPhrase(TokenStream source, String field, int phraseSlop) throws IOException {
-        return MapperQueryParser.analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
+        if (shouldApplyGraphPhraseLimit()) {
+            return analyzeGraphPhraseWithLimit(source, field, phraseSlop, this::createSpanQuery);
+        } else {
+            return super.analyzeGraphPhrase(source, field, phraseSlop);
+        }
     }
 
     private static Query wrapWithBoost(Query query, float boost) {

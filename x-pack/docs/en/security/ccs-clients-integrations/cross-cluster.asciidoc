@@ -39,7 +39,7 @@ information about the `xpack.security.enabled` setting, see
     each remote cluster (see {ref}/security-settings.html#transport-tls-ssl-settings[Transport TLS settings]).
 
 * Configure the local cluster to connect to remote clusters as described
-  in {ref}/modules-remote-clusters.html#_configuring_remote_clusters[Configuring Remote Clusters].
+  in {ref}/modules-remote-clusters.html#configuring_remote_clusters[Configuring Remote Clusters].
   For example, the following configuration adds two remote clusters
   to the local cluster:
 +

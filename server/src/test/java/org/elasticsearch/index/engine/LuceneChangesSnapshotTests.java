@@ -150,6 +150,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34667")
     public void testDedupByPrimaryTerm() throws Exception {
         Map<Long, Long> seqNoToTerm = new HashMap<>();
         final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFactory = nestedParsedDocFactory();

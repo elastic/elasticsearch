@@ -73,7 +73,7 @@ The modules in this section are:
     Configure the transport networking layer, used internally by Elasticsearch
     to communicate between nodes.
 
-<<modules-remote-clusters, Remote cluster>>::
+<<modules-remote-clusters, Remote clusters>>::
 
     Remote clusters are used in features that work by connecting across clusters
     on the transport layer.

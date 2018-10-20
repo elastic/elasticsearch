@@ -351,8 +351,8 @@ class ClusterFormationTasks {
                 // Don't force discovery provider if one is set by the test cluster specs already
                 if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
                     esConfig['discovery.zen.hosts_provider'] = 'file'
-                    esConfig['discovery.zen.ping.unicast.hosts'] = []
                 }
+                esConfig['discovery.zen.ping.unicast.hosts'] = []
             } else {
                 String unicastTransportUri = node.config.unicastTransportUri(seedNode, node, project.ant)
                 if (unicastTransportUri == null) {
@@ -692,17 +692,16 @@ class ClusterFormationTasks {
         Task wait = project.tasks.create(name: name, dependsOn: startTasks)
         wait.doLast {
 
-            nodes.forEach { node ->
-                Collection<String> unicastHosts = new HashSet<>()
-                nodes.forEach { otherNode ->
-                    String unicastHost = node.config.unicastTransportUri(otherNode, node, project.ant)
-                    if (unicastHost != null) {
-                        unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
-                    }
+            Collection<String> unicastHosts = new HashSet<>()
+            nodes.forEach { otherNode ->
+                String unicastHost = otherNode.config.unicastTransportUri(otherNode, null, project.ant)
+                if (unicastHost != null) {
+                    unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
                 }
-                node.pathConf.toPath().resolve("unicast_hosts.txt").setText(
-                  String.join("\n", unicastHosts)
-                )
+            }
+            String unicastHostsTxt = String.join("\n", unicastHosts)
+            nodes.forEach { node ->
+                node.pathConf.toPath().resolve("unicast_hosts.txt").setText(unicastHostsTxt)
             }
 
             ant.waitfor(maxwait: "${waitSeconds}", maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {

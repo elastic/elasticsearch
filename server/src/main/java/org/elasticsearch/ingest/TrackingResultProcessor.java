@@ -61,7 +61,7 @@ public final class TrackingResultProcessor implements Processor {
                     IngestDocument ingestDocumentCopy = new IngestDocument(ingestDocument);
                     ingestDocumentCopy.executePipeline(pipelineProcessor.getPipeline());
                 } catch (ElasticsearchException elasticsearchException) {
-                    if (elasticsearchException.getCause().getCause() instanceof IngestCycleException) {
+                    if (elasticsearchException.getCause().getCause() instanceof IllegalStateException) {
                         throw elasticsearchException;
                     }
                     //else do nothing, let the tracking processors throw the exception while recording the path up to the failure

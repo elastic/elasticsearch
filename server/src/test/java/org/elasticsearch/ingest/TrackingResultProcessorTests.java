@@ -459,7 +459,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> trackingProcessor.execute(ingestDocument));
         assertThat(exception.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(exception.getCause().getCause(), instanceOf(IngestCycleException.class));
+        assertThat(exception.getCause().getCause(), instanceOf(IllegalStateException.class));
         assertThat(exception.getMessage(), containsString("Cycle detected for pipeline: pipeline1"));
     }
 

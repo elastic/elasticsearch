@@ -643,12 +643,11 @@ public final class IngestDocument {
      * for this document.
      * @param pipeline Pipeline to execute
      * @throws Exception On exception in pipeline execution
-     * @throws IngestCycleException If an cycle (infinite loops) are found between pipelines
      */
     public IngestDocument executePipeline(Pipeline pipeline) throws Exception {
         try {
             if (this.executedPipelines.add(pipeline) == false) {
-                throw new IngestCycleException("Cycle detected for pipeline: " + pipeline.getId());
+                throw new IllegalStateException("Cycle detected for pipeline: " + pipeline.getId());
             }
             return pipeline.execute(this);
         } finally {

@@ -99,10 +99,12 @@ class BuildPlugin implements Plugin<Project> {
         configureSourcesJar(project)
         configurePomGeneration(project)
 
+        applyCommonTestConfigPresentAndFuture(project)
         configureTest(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
     }
+
 
 
     /** Performs checks on the build environment and prints information about the build environment. */
@@ -776,9 +778,8 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    /** Returns a closure of common configuration shared by unit and integration tests. */
-    static Closure commonTestConfig(Project project) {
-        return {
+    static void applyCommonTestConfigPresentAndFuture(Project project) {
+        project.tasks.withType(RandomizedTestingTask) {
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
             ifNoTests System.getProperty('tests.ifNoTests', 'fail')
@@ -885,7 +886,6 @@ class BuildPlugin implements Plugin<Project> {
     /** Configures the test task */
     static Task configureTest(Project project) {
         RandomizedTestingTask test = project.tasks.getByName('test')
-        test.configure(commonTestConfig(project))
         test.configure {
             include '**/*Tests.class'
         }
@@ -896,7 +896,6 @@ class BuildPlugin implements Plugin<Project> {
             RandomizedTestingTask additionalTest = project.tasks.create(name, RandomizedTestingTask.class)
             additionalTest.classpath = test.classpath
             additionalTest.testClassesDirs = test.testClassesDirs
-            additionalTest.configure(commonTestConfig(project))
             additionalTest.configure(config)
             additionalTest.dependsOn(project.tasks.testClasses)
             project.check.dependsOn(additionalTest)

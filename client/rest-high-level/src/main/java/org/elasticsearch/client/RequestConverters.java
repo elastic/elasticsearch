@@ -119,6 +119,7 @@ final class RequestConverters {
         parameters.withTimeout(bulkRequest.timeout());
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
         parameters.withPipeline(bulkRequest.pipeline());
+        parameters.withRouting(bulkRequest.routing());
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
@@ -236,13 +237,6 @@ final class RequestConverters {
         }
         request.setEntity(new ByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
         return request;
-    }
-
-    private static String orDefaultToGlobal(String value, String globalDefault) {
-        if(Strings.isNullOrEmpty(value)){
-            return globalDefault;
-        }
-        return value;
     }
 
     static Request exists(GetRequest getRequest) {

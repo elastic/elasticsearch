@@ -50,11 +50,11 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         createFieldAddingPipleine("xyz", "fieldNameXYZ", "valueXYZ");
 
         BulkRequest request = new BulkRequest();
-        request.pipeline("xyz");
         request.add(new IndexRequest("test", "doc", "1")
             .source(XContentType.JSON, "field", "bulk1"));
         request.add(new IndexRequest("test", "doc", "2")
             .source(XContentType.JSON, "field", "bulk2"));
+        request.pipeline("xyz");
 
         bulk(request);
 
@@ -173,15 +173,13 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
 
     @SuppressWarnings("unchecked")
     public void testGlobalRouting() throws IOException {
-        createIndexWithShards("index",10);
-
+        createIndexWithMultipleShards("index");
         BulkRequest request = new BulkRequest(null, null);
-        request.routing("1");
         request.add(new IndexRequest("index", "type", "1")
             .source(XContentType.JSON, "field", "bulk1"));
         request.add(new IndexRequest("index", "type", "2")
             .source(XContentType.JSON, "field", "bulk1"));
-
+        request.routing("1");
         bulk(request);
         
         Iterable<SearchHit> emptyHits = searchAll(new SearchRequest("index").routing("2"));
@@ -218,8 +216,10 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         return (response) -> (T) response.getSourceAsMap().get(fieldName);
     }
 
-    private void createIndexWithShards(String index, int shards) throws IOException {
+    private void createIndexWithMultipleShards(String index) throws IOException {
         CreateIndexRequest indexRequest = new CreateIndexRequest(index);
+        // keeping shard # high to make sure different routings will lead to different shards - reduces the chances of random failure
+        int shards = randomIntBetween(8,10);
         indexRequest.settings(Settings.builder()
             .put("index.number_of_shards", shards)
             .put("index.number_of_replicas", 0)

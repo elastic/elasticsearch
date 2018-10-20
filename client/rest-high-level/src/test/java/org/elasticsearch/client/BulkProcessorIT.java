@@ -285,7 +285,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGlobalParametersAndBulkProcessor() throws Exception {
-        createIndexWithShards("test", 2);
+        createIndexWithMultipleShards("test");
 
         final CountDownLatch latch = new CountDownLatch(1);
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
@@ -293,14 +293,14 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
         int numDocs = randomIntBetween(10, 10);
         try (BulkProcessor processor = initBulkProcessorBuilder(listener)
-            //let's make sure that the bulk action limit trips, one single execution will index all the documents
-            .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
-            .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
-            .setDefaultIndex("test")
-            .setDefaultType("test")
-            .setDefaultRouting("routing")
-            .setDefaultPipeline("pipeline_id")
-            .build()) {
+                //let's make sure that the bulk action limit trips, one single execution will index all the documents
+                .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
+                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setGlobalIndex("test")
+                .setGlobalType("test")
+                .setGlobalRouting("routing")
+                .setGlobalPipeline("pipeline_id")
+                .build()) {
 
             indexDocs(processor, numDocs, null, null, "test", "test", "pipeline_id");
             latch.await();
@@ -424,9 +424,9 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-
-    private void createIndexWithShards(String index, int shards) throws IOException {
+    private void createIndexWithMultipleShards(String index) throws IOException {
         CreateIndexRequest indexRequest = new CreateIndexRequest(index);
+        int shards = randomIntBetween(2,10);
         indexRequest.settings(Settings.builder()
             .put("index.number_of_shards", shards)
             .put("index.number_of_replicas", 0)

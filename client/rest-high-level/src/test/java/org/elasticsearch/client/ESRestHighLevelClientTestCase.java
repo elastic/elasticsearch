@@ -135,14 +135,14 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     protected static void createFieldAddingPipleine(String id, String fieldName, String value) throws IOException {
         XContentBuilder pipeline = jsonBuilder()
             .startObject()
-            .startArray("processors")
-            .startObject()
-            .startObject("set")
-            .field("field", fieldName)
-            .field("value", value)
-            .endObject()
-            .endObject()
-            .endArray()
+                .startArray("processors")
+                    .startObject()
+                        .startObject("set")
+                            .field("field", fieldName)
+                            .field("value", value)
+                        .endObject()
+                    .endObject()
+                .endArray()
             .endObject();
 
         createPipeline(new PutPipelineRequest(id, BytesReference.bytes(pipeline), XContentType.JSON));

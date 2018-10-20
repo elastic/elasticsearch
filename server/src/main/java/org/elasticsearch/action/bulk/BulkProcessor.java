@@ -89,10 +89,10 @@ public class BulkProcessor implements Closeable {
         private ByteSizeValue bulkSize = new ByteSizeValue(5, ByteSizeUnit.MB);
         private TimeValue flushInterval = null;
         private BackoffPolicy backoffPolicy = BackoffPolicy.exponentialBackoff();
-        private String defaultIndex;
-        private String defaultType;
-        private String defaultRouting;
-        private String defaultPipeline;
+        private String globalIndex;
+        private String globalType;
+        private String globalRouting;
+        private String globalPipeline;
 
         private Builder(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, Listener listener,
                         Scheduler scheduler, Runnable onClose) {
@@ -141,23 +141,23 @@ public class BulkProcessor implements Closeable {
             return this;
         }
 
-        public Builder setDefaultIndex(String defaultIndex) {
-            this.defaultIndex = defaultIndex;
+        public Builder setGlobalIndex(String globalIndex) {
+            this.globalIndex = globalIndex;
             return this;
         }
 
-        public Builder setDefaultType(String defaultType) {
-            this.defaultType = defaultType;
+        public Builder setGlobalType(String globalType) {
+            this.globalType = globalType;
             return this;
         }
 
-        public Builder setDefaultRouting(String defaultRouting) {
-            this.defaultRouting = defaultRouting;
+        public Builder setGlobalRouting(String globalRouting) {
+            this.globalRouting = globalRouting;
             return this;
         }
 
-        public Builder setDefaultPipeline(String defaultPipeline) {
-            this.defaultPipeline = defaultPipeline;
+        public Builder setGlobalPipeline(String globalPipeline) {
+            this.globalPipeline = globalPipeline;
             return this;
         }
 
@@ -182,13 +182,13 @@ public class BulkProcessor implements Closeable {
          */
         public BulkProcessor build() {
             return new BulkProcessor(consumer, backoffPolicy, listener, concurrentRequests, bulkActions,
-                bulkSize, flushInterval, scheduler, onClose, createBulkRequestWithDefaults());
+                bulkSize, flushInterval, scheduler, onClose, createBulkRequestWithGlobalDefaults());
         }
 
-        private Supplier<BulkRequest> createBulkRequestWithDefaults() {
-            return () -> new BulkRequest(defaultIndex, defaultType)
-                .pipeline(defaultPipeline)
-                .routing(defaultRouting);
+        private Supplier<BulkRequest> createBulkRequestWithGlobalDefaults() {
+            return () -> new BulkRequest(globalIndex, globalType)
+                .pipeline(globalPipeline)
+                .routing(globalRouting);
         }
     }
 

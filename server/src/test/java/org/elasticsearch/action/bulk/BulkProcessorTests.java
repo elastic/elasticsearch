@@ -74,8 +74,7 @@ public class BulkProcessorTests extends ESTestCase {
             threadPool.getThreadContext().putTransient(transientKey, transientValue);
             bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(), emptyListener(),
                 1, bulkSize, new ByteSizeValue(5, ByteSizeUnit.MB), flushInterval,
-                threadPool, () -> {
-            }, BulkRequest::new);
+                threadPool, () -> {}, BulkRequest::new);
         }
         assertNull(threadPool.getThreadContext().getHeader(headerKey));
         assertNull(threadPool.getThreadContext().getTransient(transientKey));
@@ -94,8 +93,7 @@ public class BulkProcessorTests extends ESTestCase {
 
     public void testAwaitOnCloseCallsOnClose() throws Exception {
         final AtomicBoolean called = new AtomicBoolean(false);
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
-        };
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {};
         BulkProcessor bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(), emptyListener(),
             0, 10, new ByteSizeValue(1000), null,
             (delay, executor, command) -> null, () -> called.set(true), BulkRequest::new);

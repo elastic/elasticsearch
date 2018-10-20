@@ -2978,6 +2978,7 @@ public class InternalEngineTests extends EngineTestCase {
         private void maybeThrowFailure() throws IOException {
             if (failureToThrow.get() != null) {
                 Exception failure = failureToThrow.get().get();
+                clearFailure(); // one shot
                 if (failure instanceof RuntimeException) {
                     throw (RuntimeException) failure;
                 } else if (failure instanceof IOException) {

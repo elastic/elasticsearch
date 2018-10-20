@@ -38,6 +38,10 @@ buildRestTests.expectedUnconvertedCandidates = [
 integTestCluster {
   /* Enable regexes in painless so our tests don't complain about example
    * snippets that use them. */
+  if ("zip".equals(integTestCluster.distribution)) {
+    setting 'xpack.license.self_generated.type', 'trial'
+  }
+
   setting 'script.painless.regex.enabled', 'true'
   Closure configFile = {
     extraConfigFile it, "src/test/cluster/config/$it"

@@ -9,7 +9,7 @@
 [id="{upid}-{api}-request"]
 ==== Execution
 
-{xpack-ref}/watcher-api-start.html[Start watcher] enables you
+{ref}/watcher-api-start.html[Start watcher] enables you
 to manually start the watch service. Submit the following request
 to start the watch service:
 

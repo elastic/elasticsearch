@@ -16,39 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.license;
 
-package org.elasticsearch.protocol.xpack.license;
+public class GetLicenseResponse {
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+    private String license;
 
-public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
-
-    private String licenseDefinition;
-    private boolean acknowledge = false;
-
-    public PutLicenseRequest() {
-
+    GetLicenseResponse() {
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    public void setLicenseDefinition(String licenseDefinition) {
-        this.licenseDefinition = licenseDefinition;
+    public GetLicenseResponse(String license) {
+        this.license = license;
     }
 
     public String getLicenseDefinition() {
-        return licenseDefinition;
+        return license;
     }
 
-    public void setAcknowledge(boolean acknowledge) {
-        this.acknowledge = acknowledge;
-    }
-
-    public boolean isAcknowledge() {
-        return acknowledge;
-    }
 }

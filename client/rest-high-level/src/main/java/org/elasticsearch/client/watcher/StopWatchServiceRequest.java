@@ -16,16 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+package org.elasticsearch.client.watcher;
 
-public class XPackUsageRequest extends MasterNodeRequest<XPackUsageRequest> {
+import org.elasticsearch.client.Validatable;
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
+public class StopWatchServiceRequest implements Validatable {
 
 }

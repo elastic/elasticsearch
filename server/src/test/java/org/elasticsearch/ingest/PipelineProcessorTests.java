@@ -21,12 +21,13 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.ESTestCase;
 
-import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -143,15 +144,15 @@ public class PipelineProcessorTests extends ESTestCase {
         pipeline2ProcessorConfig.put("pipeline", pipeline3Id);
         PipelineProcessor pipeline2Processor = factory.create(Collections.emptyMap(), null, pipeline2ProcessorConfig);
 
-        Clock clock = mock(Clock.class);
-        when(clock.millis()).thenReturn(0L).thenReturn(0L);
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L);
         Pipeline pipeline1 = new Pipeline(
-            pipeline1Id, null, null, new CompoundProcessor(pipeline1Processor), clock
+            pipeline1Id, null, null, new CompoundProcessor(pipeline1Processor), relativeTimeProvider
         );
 
         String key1 = randomAlphaOfLength(10);
-        clock = mock(Clock.class);
-        when(clock.millis()).thenReturn(0L).thenReturn(3L);
+        relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(3));
         Pipeline pipeline2 = new Pipeline(
             pipeline2Id, null, null, new CompoundProcessor(true,
             Arrays.asList(
@@ -160,15 +161,15 @@ public class PipelineProcessorTests extends ESTestCase {
                 }),
                 pipeline2Processor),
             Collections.emptyList()),
-            clock
+            relativeTimeProvider
         );
-        clock = mock(Clock.class);
-        when(clock.millis()).thenReturn(0L).thenReturn(2L);
+        relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(2));
         Pipeline pipeline3 = new Pipeline(
             pipeline3Id, null, null, new CompoundProcessor(
             new TestProcessor(ingestDocument -> {
                 throw new RuntimeException("error");
-            })), clock
+            })), relativeTimeProvider
         );
         when(ingestService.getPipeline(pipeline1Id)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipeline2Id)).thenReturn(pipeline2);

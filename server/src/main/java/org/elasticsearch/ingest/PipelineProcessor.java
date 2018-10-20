@@ -53,6 +53,10 @@ public class PipelineProcessor extends AbstractProcessor {
         return TYPE;
     }
 
+    String getPipelineName() {
+        return pipelineName;
+    }
+
     public static final class Factory implements Processor.Factory {
 
         private final IngestService ingestService;

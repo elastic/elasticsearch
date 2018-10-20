@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -69,72 +68,6 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
                 "    \"body\": null" +
                 "  }" +
                 "}", "ping.json", "Found duplicate path [/pingtwo]");
-    }
-
-    public void testDuplicateParts() throws Exception {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-        parseAndExpectFailure("{\n" +
-                "  \"ping\": {" +
-                "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
-                "    \"methods\": [\"PUT\"]," +
-                "    \"url\": {" +
-                "      \"path\": \"/\"," +
-                "      \"paths\": [\"/\"]," +
-                "      \"parts\": {" +
-                "        \"index\": {" +
-                "          \"type\" : \"string\",\n" +
-                "          \"description\" : \"index part\"\n" +
-                "        }," +
-                "        \"type\": {" +
-                "          \"type\" : \"string\",\n" +
-                "          \"description\" : \"type part\"\n" +
-                "        }," +
-                "        \"index\": {" +
-                "          \"type\" : \"string\",\n" +
-                "          \"description\" : \"index parameter part\"\n" +
-                "        }" +
-                "      }," +
-                "      \"params\": {" +
-                "        \"type\" : \"boolean\",\n" +
-                "        \"description\" : \"Whether specified concrete indices should be ignored when unavailable (missing or closed)\"" +
-                "      }" +
-                "    }," +
-                "    \"body\": null" +
-                "  }" +
-                "}", "ping.json", "Found duplicate part [index]");
-    }
-
-    public void testDuplicateParams() throws Exception {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-        parseAndExpectFailure("{\n" +
-                "  \"ping\": {" +
-                "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
-                "    \"methods\": [\"PUT\"]," +
-                "    \"url\": {" +
-                "      \"path\": \"/\"," +
-                "      \"paths\": [\"/\"]," +
-                "      \"parts\": {" +
-                "      }," +
-                "      \"params\": {" +
-                "        \"timeout\": {" +
-                "          \"type\" : \"string\",\n" +
-                "          \"description\" : \"timeout parameter\"\n" +
-                "        }," +
-                "        \"refresh\": {" +
-                "          \"type\" : \"string\",\n" +
-                "          \"description\" : \"refresh parameter\"\n" +
-                "        }," +
-                "        \"timeout\": {" +
-                "          \"type\" : \"string\",\n" +
-                "          \"description\" : \"timeout parameter again\"\n" +
-                "        }" +
-                "      }" +
-                "    }," +
-                "    \"body\": null" +
-                "  }" +
-                "}", "ping.json", "Found duplicate param [timeout]");
     }
 
     public void testBrokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnParams() throws Exception {

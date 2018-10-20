@@ -232,6 +232,9 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
     private Function<Client, Client> clientWrapper;
 
+    // If set to true only the first node in the cluster will be made a unicast node
+    private boolean hostsListContainsOnlyFirstNode;
+
     public InternalTestCluster(
             final long clusterSeed,
             final Path baseDir,
@@ -696,13 +699,6 @@ public final class InternalTestCluster extends TestCluster {
         return suffix;
     }
 
-    /**
-     * Returns the common node name prefix for this test cluster.
-     */
-    public String nodePrefix() {
-        return nodePrefix;
-    }
-
     @Override
     public synchronized Client client() {
         ensureOpen();
@@ -804,21 +800,6 @@ public final class InternalTestCluster extends TestCluster {
         return null; // can't happen
     }
 
-    /**
-     * Returns a random node that applies to the given predicate.
-     * The predicate can filter nodes based on the nodes settings.
-     * If all nodes are filtered out this method will return <code>null</code>
-     */
-    public synchronized Client client(final Predicate<Settings> filterPredicate) {
-        ensureOpen();
-        final NodeAndClient randomNodeAndClient =
-                getRandomNodeAndClient(nodeAndClient -> filterPredicate.test(nodeAndClient.node.settings()));
-        if (randomNodeAndClient != null) {
-            return randomNodeAndClient.client(random);
-        }
-        return null;
-    }
-
     @Override
     public synchronized void close() {
         if (this.open.compareAndSet(true, false)) {
@@ -914,7 +895,7 @@ public final class InternalTestCluster extends TestCluster {
             return clientWrapper.apply(transportClient);
         }
 
-        void resetClient() throws IOException {
+        void resetClient() {
             if (closed.get() == false) {
                 Releasables.close(nodeClient, transportClient);
                 nodeClient = null;
@@ -1393,7 +1374,7 @@ public final class InternalTestCluster extends TestCluster {
         });
     }
 
-    private void randomlyResetClients() throws IOException {
+    private void randomlyResetClients() {
         // only reset the clients on nightly tests, it causes heavy load...
         if (RandomizedTest.isNightly() && rarely(random)) {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
@@ -1613,12 +1594,17 @@ public final class InternalTestCluster extends TestCluster {
 
     private final Object discoveryFileMutex = new Object();
 
-    private void rebuildUnicastHostFiles(Collection<NodeAndClient> newNodes) {
+    private void rebuildUnicastHostFiles(List<NodeAndClient> newNodes) {
         // cannot be a synchronized method since it's called on other threads from within synchronized startAndPublishNodesAndClients()
         synchronized (discoveryFileMutex) {
             try {
-                List<String> discoveryFileContents = Stream.concat(nodes.values().stream(), newNodes.stream())
-                    .map(nac -> nac.node.injector().getInstance(TransportService.class)).filter(Objects::nonNull)
+                Stream<NodeAndClient> unicastHosts = Stream.concat(nodes.values().stream(), newNodes.stream());
+                if (hostsListContainsOnlyFirstNode) {
+                    unicastHosts = unicastHosts.limit(1L);
+                }
+                List<String> discoveryFileContents = unicastHosts.map(
+                        nac -> nac.node.injector().getInstance(TransportService.class)
+                    ).filter(Objects::nonNull)
                     .map(TransportService::getLocalNode).filter(Objects::nonNull).filter(DiscoveryNode::isMasterNode)
                     .map(n -> n.getAddress().toString())
                     .distinct().collect(Collectors.toList());
@@ -1652,20 +1638,6 @@ public final class InternalTestCluster extends TestCluster {
             assert previous == nodeAndClient;
             nodeAndClient.close();
         }
-    }
-
-    /**
-     * Restarts a random node in the cluster
-     */
-    public void restartRandomNode() throws Exception {
-        restartRandomNode(EMPTY_CALLBACK);
-    }
-
-    /**
-     * Restarts a random node in the cluster and calls the callback during restart.
-     */
-    public void restartRandomNode(RestartCallback callback) throws Exception {
-        restartRandomNode(nc -> true, callback);
     }
 
     /**
@@ -1716,13 +1688,6 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void fullRestart() throws Exception {
         fullRestart(EMPTY_CALLBACK);
-    }
-
-    /**
-     * Restarts all nodes in a rolling restart fashion ie. only restarts on node a time.
-     */
-    public void rollingRestart() throws Exception {
-        rollingRestart(EMPTY_CALLBACK);
     }
 
     /**
@@ -2050,6 +2015,9 @@ public final class InternalTestCluster extends TestCluster {
       return filterNodes(nodes, NodeAndClient::isMasterEligible).size();
     }
 
+    public void setHostsListContainsOnlyFirstNode(boolean hostsListContainsOnlyFirstNode) {
+        this.hostsListContainsOnlyFirstNode = hostsListContainsOnlyFirstNode;
+    }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         assert activeDisruptionScheme == null :

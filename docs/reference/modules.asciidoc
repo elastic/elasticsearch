@@ -74,7 +74,9 @@ The modules in this section are:
     to communicate between nodes.
 
 <<modules-remote-clusters, Remote cluster>>::
-    Remote clusters are used in features that work by connecting across clusters on the transport layer.
+
+    Remote clusters are used in features that work by connecting across clusters
+    on the transport layer.
 
 <<modules-cross-cluster-search, Cross cluster Search>>::
 

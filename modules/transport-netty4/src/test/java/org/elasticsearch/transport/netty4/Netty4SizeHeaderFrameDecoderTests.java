@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty4;
 
+import java.net.SocketException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -101,8 +102,13 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
             socket.getOutputStream().write("FOOBAR".getBytes(StandardCharsets.UTF_8));
             socket.getOutputStream().flush();
 
-            // end of stream
-            assertThat(socket.getInputStream().read(), is(-1));
+            try {
+                // end of stream
+                assertThat(socket.getInputStream().read(), is(-1));
+            } catch (SocketException e) {
+                // On some systems the RST from the other end leads to an exception instead of reading EOF.
+                assertThat(e.getMessage(), is("Connection reset"));
+            }
         }
     }
 

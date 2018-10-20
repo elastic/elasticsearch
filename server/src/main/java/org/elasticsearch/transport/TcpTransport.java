@@ -765,7 +765,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public void onException(TcpChannel channel, Exception e) {
         if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
-            CloseableChannel.closeChannel(channel);
+            TcpChannel.rstAndClose(channel);
             return;
         }
 
@@ -815,7 +815,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } else {
             logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);
             // close the channel, which will cause a node to be disconnected if relevant
-            CloseableChannel.closeChannel(channel);
+            TcpChannel.rstAndClose(channel);
         }
     }
 

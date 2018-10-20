@@ -118,4 +118,19 @@ public interface TcpChannel extends CloseableChannel {
         }
     }
 
+    /**
+     * Aborts a channel's connection with RST, then closes the channel.
+     *
+     * @param channel Channel to disconnect with RST and close
+     */
+    static void rstAndClose(TcpChannel channel) {
+        try {
+            channel.setSoLinger(0);
+        } catch (IOException | RuntimeException e) {
+            // Depending on the implementation an already closed channel can either throw an IOException or a RuntimeException
+            // that we ignore because we are closing with RST because of an error here.
+        }
+        CloseableChannel.closeChannel(channel);
+    }
+
 }

@@ -122,7 +122,7 @@ class ClusterFormationTasks {
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
-            Object dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
+            Object dependsOn = startTasks.empty || node.nodeVersion.onOrAfter("6.5.0-SNAPSHOT") ? startDependencies : startTasks.get(0)
             startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, nodes.get(0)))
         }
 

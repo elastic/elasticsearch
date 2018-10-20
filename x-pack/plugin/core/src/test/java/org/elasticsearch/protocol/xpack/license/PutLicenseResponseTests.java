@@ -29,7 +29,6 @@ public class PutLicenseResponseTests extends AbstractHLRCStreamableXContentTestC
             instance.acknowledgeHeader(), instance.acknowledgeMessages());
     }
 
-
     @Override
     protected boolean supportsUnknownFields() {
         return true;

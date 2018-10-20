@@ -175,8 +175,9 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                             null, Engine.Operation.Origin.REPLICA, startTime, -1, true);
                         break;
                     case DELETE:
-                        new Engine.Delete(doc.type(), docId, EngineTestCase.newUid(docId), seqNo, term, 1L,
+                        op = new Engine.Delete(doc.type(), docId, EngineTestCase.newUid(docId), seqNo, term, 1L,
                             null, Engine.Operation.Origin.REPLICA, startTime);
+                        break;
                     case NO_OP:
                         op = new Engine.NoOp(seqNo, term, Engine.Operation.Origin.REPLICA, startTime, "test-" + seqNo);
                         break;

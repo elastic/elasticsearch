@@ -72,7 +72,9 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void setSoLinger(int value) {
-        channel.config().setOption(ChannelOption.SO_LINGER, value);
+        if (channel.isOpen()) {
+            channel.config().setOption(ChannelOption.SO_LINGER, value);
+        }
     }
 
     @Override

@@ -126,9 +126,8 @@ public interface TcpChannel extends CloseableChannel {
     static void rstAndClose(TcpChannel channel) {
         try {
             channel.setSoLinger(0);
-        } catch (IOException | RuntimeException e) {
-            // Depending on the implementation an already closed channel can either throw an IOException or a RuntimeException
-            // that we ignore because we are closing with RST because of an error here.
+        } catch (IOException e) {
+            // We ignore the exception as we are closing with RST because of an error.
         }
         CloseableChannel.closeChannel(channel);
     }

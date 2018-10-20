@@ -12,8 +12,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
+import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 

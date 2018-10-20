@@ -27,6 +27,8 @@ import org.elasticsearch.transport.TransportResponse;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.index.IndexSettings.same;
+
 /**
  * A component that performs the following upgrade procedure:
  * <p>
@@ -143,11 +145,16 @@ public class InternalIndexReindexer<T> {
                     throw new IllegalStateException("unable to upgrade a read-only index[" + index + "]");
                 }
 
-                Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings())
-                        .put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), true);
+                final Settings indexSettingsBuilder =
+                        Settings.builder()
+                                .put(indexMetaData.getSettings())
+                                .put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), true)
+                                .build();
+                final IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData).settings(indexSettingsBuilder);
+                assert same(indexMetaData.getSettings(), indexSettingsBuilder) == false;
+                builder.settingsVersion(1 + builder.settingsVersion());
 
-                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData())
-                        .put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
+                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData()).put(builder);
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
                         .addIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);

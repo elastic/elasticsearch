@@ -4,7 +4,7 @@
 [partintro]
 --
 
-Most search APIs are <<search-multi-index-type,multi-index&#44; multi-type>>, with the
+Most search APIs are <<search-multi-index,multi-index>>, with the
 exception of the <<search-explain>> endpoints.
 
 [float]

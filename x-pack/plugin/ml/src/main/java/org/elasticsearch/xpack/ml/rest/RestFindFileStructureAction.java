@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -20,8 +21,11 @@ import org.elasticsearch.xpack.ml.filestructurefinder.FileStructureFinderManager
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 public class RestFindFileStructureAction extends BaseRestHandler {
+
+    private static final TimeValue DEFAULT_TIMEOUT = new TimeValue(25, TimeUnit.SECONDS);
 
     public RestFindFileStructureAction(Settings settings, RestController controller) {
         super(settings);
@@ -39,6 +43,8 @@ public class RestFindFileStructureAction extends BaseRestHandler {
         FindFileStructureAction.Request request = new FindFileStructureAction.Request();
         request.setLinesToSample(restRequest.paramAsInt(FindFileStructureAction.Request.LINES_TO_SAMPLE.getPreferredName(),
             FileStructureFinderManager.DEFAULT_IDEAL_SAMPLE_LINE_COUNT));
+        request.setTimeout(TimeValue.parseTimeValue(restRequest.param(FindFileStructureAction.Request.TIMEOUT.getPreferredName()),
+            DEFAULT_TIMEOUT, FindFileStructureAction.Request.TIMEOUT.getPreferredName()));
         request.setCharset(restRequest.param(FindFileStructureAction.Request.CHARSET.getPreferredName()));
         request.setFormat(restRequest.param(FindFileStructureAction.Request.FORMAT.getPreferredName()));
         request.setColumnNames(restRequest.paramAsStringArray(FindFileStructureAction.Request.COLUMN_NAMES.getPreferredName(), null));

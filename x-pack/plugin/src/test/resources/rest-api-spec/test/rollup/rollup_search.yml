@@ -153,6 +153,32 @@ setup:
   - match: { aggregations.histo.buckets.3.doc_count: 20 }
 
 ---
+"Formatted Date Histo":
+
+  - do:
+      xpack.rollup.rollup_search:
+        index: "foo_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                interval: "1h"
+                time_zone: "UTC"
+                format: "yyyy-MM-dd"
+
+  - length: { aggregations.histo.buckets: 4 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-01" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-01" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.3.key_as_string: "2017-01-01" }
+  - match: { aggregations.histo.buckets.3.doc_count: 20 }
+
+---
 "Empty aggregation":
 
   - do:

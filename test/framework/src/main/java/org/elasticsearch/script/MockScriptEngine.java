@@ -105,16 +105,78 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
-            ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
+        } else if (context.instanceClazz.equals(NumberSortScript.class)) {
+            NumberSortScript.Factory factory = (parameters, lookup) -> new NumberSortScript.LeafFactory() {
+                @Override
+                public NumberSortScript newInstance(final LeafReaderContext ctx) {
+                    return new NumberSortScript(parameters, lookup, ctx) {
+                        @Override
+                        public double execute() {
+                            Map<String, Object> vars = new HashMap<>(parameters);
+                            vars.put("params", parameters);
+                            vars.put("doc", getDoc());
+                            return ((Number) script.apply(vars)).doubleValue();
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return false;
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(StringSortScript.class)) {
+            StringSortScript.Factory factory = (parameters, lookup) -> (StringSortScript.LeafFactory) ctx
+                -> new StringSortScript(parameters, lookup, ctx) {
+                @Override
+                public String execute() {
+                    Map<String, Object> vars = new HashMap<>(parameters);
+                    vars.put("params", parameters);
+                    vars.put("doc", getDoc());
+                    return String.valueOf(script.apply(vars));
+                }
+            };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(IngestScript.class)) {
-            IngestScript.Factory factory = parameters -> new IngestScript(parameters) {
+            IngestScript.Factory factory = vars -> new IngestScript(vars) {
                 @Override
                 public void execute(Map<String, Object> ctx) {
                     script.apply(ctx);
                 }
             };
+            return context.factoryClazz.cast(factory);
+        } else if(context.instanceClazz.equals(AggregationScript.class)) {
+            AggregationScript.Factory factory = (parameters, lookup) -> new AggregationScript.LeafFactory() {
+                @Override
+                public AggregationScript newInstance(final LeafReaderContext ctx) {
+                    return new AggregationScript(parameters, lookup, ctx) {
+                        @Override
+                        public Object execute() {
+                            Map<String, Object> vars = new HashMap<>(parameters);
+                            vars.put("params", parameters);
+                            vars.put("doc", getDoc());
+                            vars.put("_score", get_score());
+                            vars.put("_value", get_value());
+                            return script.apply(vars);
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return true;
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(IngestScript.class)) {
+            IngestScript.Factory factory = vars ->
+                new IngestScript(vars) {
+                    @Override
+                    public void execute(Map<String, Object> ctx) {
+                        script.apply(ctx);
+                    }
+                };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(IngestConditionalScript.class)) {
             IngestConditionalScript.Factory factory = parameters -> new IngestConditionalScript(parameters) {
@@ -167,16 +229,17 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(TemplateScript.class)) {
             TemplateScript.Factory factory = vars -> {
-                // TODO: need a better way to implement all these new contexts
-                // this is just a shim to act as an executable script just as before
-                ExecutableScript execScript = mockCompiled.createExecutableScript(vars);
-                    return new TemplateScript(vars) {
-                        @Override
-                        public String execute() {
-                            return (String) execScript.run();
-                        }
-                    };
+                Map<String, Object> varsWithParams = new HashMap<>();
+                if (vars != null) {
+                    varsWithParams.put("params", vars);
+                }
+                return new TemplateScript(vars) {
+                    @Override
+                    public String execute() {
+                        return (String) script.apply(varsWithParams);
+                    }
                 };
+            };
             return context.factoryClazz.cast(factory);
         } else if (context.instanceClazz.equals(FilterScript.class)) {
             FilterScript.Factory factory = mockCompiled::createFilterScript;
@@ -231,19 +294,6 @@ public class MockScriptEngine implements ScriptEngine {
             return name;
         }
 
-        public ExecutableScript createExecutableScript(Map<String, Object> params) {
-            Map<String, Object> context = new HashMap<>();
-            if (options != null) {
-                context.putAll(options); // TODO: remove this once scripts know to look for options under options key
-                context.put("options", options);
-            }
-            if (params != null) {
-                context.putAll(params); // TODO: remove this once scripts know to look for params under params key
-                context.put("params", params);
-            }
-            return new MockExecutableScript(context, script != null ? script : ctx -> source);
-        }
-
         public SearchScript.LeafFactory createSearchScript(Map<String, Object> params, SearchLookup lookup) {
             Map<String, Object> context = new HashMap<>();
             if (options != null) {
@@ -294,27 +344,6 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockExecutableScript implements ExecutableScript {
-
-        private final Function<Map<String, Object>, Object> script;
-        private final Map<String, Object> vars;
-
-        public MockExecutableScript(Map<String, Object> vars, Function<Map<String, Object>, Object> script) {
-            this.vars = vars;
-            this.script = script;
-        }
-
-        @Override
-        public void setNextVar(String name, Object value) {
-            vars.put(name, value);
-        }
-
-        @Override
-        public Object run() {
-            return script.apply(vars);
-        }
-    }
-
     public class MockSearchScript implements SearchScript.LeafFactory {
 
         private final Function<Map<String, Object>, Object> script;
@@ -340,11 +369,6 @@ public class MockScriptEngine implements ScriptEngine {
                 @Override
                 public Object run() {
                     return script.apply(ctx);
-                }
-
-                @Override
-                public long runAsLong() {
-                    return ((Number) run()).longValue();
                 }
 
                 @Override

@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-// TODO: move this test...it doesn't need to be by itself
 public class DocumentMapperParserTests extends ESSingleNodeTestCase {
     public void testTypeLevel() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")

@@ -8,7 +8,7 @@ a remote cluster. This functionality is used in
 endif::[]
 ifdef::include-xpack[]
 The _remote clusters_ module allows establishing uni-directional connections to
-a remote cluster. This functionality is used in cross-cluster replication,
+a remote cluster. This functionality is used in cross-cluster replication, and
 <<modules-cross-cluster-search,cross-cluster search>>.
 endif::[]
 

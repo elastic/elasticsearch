@@ -478,8 +478,8 @@ public class ElasticsearchAssertions {
         return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(property, valueMatcher);
     }
 
-    public static <T> Function<SearchHit, T> fieldFromSource(String fieldName) {
-        return (response) -> (T) response.getSourceAsMap().get(fieldName);
+    public static Function<SearchHit, Object> fieldFromSource(String fieldName) {
+        return (response) ->  response.getSourceAsMap().get(fieldName);
     }
 
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {

@@ -182,7 +182,7 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         request.routing("1");
         bulk(request);
         
-        Iterable<SearchHit> emptyHits = searchAll(new SearchRequest("index").routing("2"));
+        Iterable<SearchHit> emptyHits = searchAll(new SearchRequest("index").routing("xxx"));
         assertThat(emptyHits, is(emptyIterable()));
 
         Iterable<SearchHit> hits = searchAll(new SearchRequest("index").routing("1"));

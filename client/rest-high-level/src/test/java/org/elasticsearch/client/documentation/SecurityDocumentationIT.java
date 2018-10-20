@@ -165,18 +165,20 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         final RoleMapperExpression rules1 = AnyRoleMapperExpression.builder().addExpression(FieldRoleMapperExpression.ofUsername("*"))
                 .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com")).build();
-        final PutRoleMappingRequest putRoleMappingRequest1 = new PutRoleMappingRequest("mapping-example-1", true, Collections.singletonList("superuser"),
-                rules1, null, RefreshPolicy.NONE);
-        final PutRoleMappingResponse putRoleMappingResponse1 = client.security().putRoleMapping(putRoleMappingRequest1, RequestOptions.DEFAULT);
+        final PutRoleMappingRequest putRoleMappingRequest1 = new PutRoleMappingRequest("mapping-example-1", true, Collections.singletonList(
+                "superuser"), rules1, null, RefreshPolicy.NONE);
+        final PutRoleMappingResponse putRoleMappingResponse1 = client.security().putRoleMapping(putRoleMappingRequest1,
+                RequestOptions.DEFAULT);
         boolean isCreated1 = putRoleMappingResponse1.isCreated();
         assertTrue(isCreated1);
-        final RoleMapperExpression rules2 = AnyRoleMapperExpression.builder()
-                .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com")).build();
+        final RoleMapperExpression rules2 = AnyRoleMapperExpression.builder().addExpression(FieldRoleMapperExpression.ofGroups(
+                "cn=admins,dc=example,dc=com")).build();
         final Map<String, Object> metadata2 = new HashMap<>();
         metadata2.put("k1", "v1");
-        final PutRoleMappingRequest putRoleMappingRequest2 = new PutRoleMappingRequest("mapping-example-2", true, Collections.singletonList("monitoring"),
-                rules2, metadata2, RefreshPolicy.NONE);
-        final PutRoleMappingResponse putRoleMappingResponse2 = client.security().putRoleMapping(putRoleMappingRequest2, RequestOptions.DEFAULT);
+        final PutRoleMappingRequest putRoleMappingRequest2 = new PutRoleMappingRequest("mapping-example-2", true, Collections.singletonList(
+                "monitoring"), rules2, metadata2, RefreshPolicy.NONE);
+        final PutRoleMappingResponse putRoleMappingResponse2 = client.security().putRoleMapping(putRoleMappingRequest2,
+                RequestOptions.DEFAULT);
         boolean isCreated2 = putRoleMappingResponse2.isCreated();
         assertTrue(isCreated2);
 

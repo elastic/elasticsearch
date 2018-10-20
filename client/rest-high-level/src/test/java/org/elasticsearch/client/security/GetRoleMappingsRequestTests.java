@@ -29,7 +29,8 @@ public class GetRoleMappingsRequestTests extends ESTestCase {
 
     public void testGetRoleMappingsRequest() {
         int noOfRoleMappingNames = randomIntBetween(0, 2);
-        final String[] roleMappingNames = randomArray(noOfRoleMappingNames, noOfRoleMappingNames, String[]::new, () -> randomAlphaOfLength(5));
+        final String[] roleMappingNames = randomArray(noOfRoleMappingNames, noOfRoleMappingNames, String[]::new, () -> randomAlphaOfLength(
+                5));
         final GetRoleMappingsRequest getRoleMappingsRequest = new GetRoleMappingsRequest(roleMappingNames);
         assertThat(getRoleMappingsRequest.getRoleMappingNames().size(), is(noOfRoleMappingNames));
         assertThat(getRoleMappingsRequest.getRoleMappingNames(), containsInAnyOrder(roleMappingNames));

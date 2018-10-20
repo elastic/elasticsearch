@@ -49,6 +49,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -314,18 +315,17 @@ public abstract class EngineTestCase extends ESTestCase {
                 mappingUpdate);
     }
 
-    public static CheckedFunction<String, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
+    public static CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
         final MapperService mapperService = createMapperService("type");
         final String nestedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("nested_field").field("type", "nested").endObject().endObject()
             .endObject().endObject());
         final DocumentMapper nestedMapper = mapperService.documentMapperParser().parse("type", new CompressedXContent(nestedMapping));
-        return docId -> {
+        return (docId, nestedFieldValues) -> {
             final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value");
-            final int nestedValues = between(0, 3);
-            if (nestedValues > 0) {
+            if (nestedFieldValues > 0) {
                 XContentBuilder nestedField = source.startObject("nested_field");
-                for (int i = 0; i < nestedValues; i++) {
+                for (int i = 0; i < nestedFieldValues; i++) {
                     nestedField.field("field-" + i, "value-" + i);
                 }
                 source.endObject();

@@ -159,7 +159,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCastWithUnquotedDataType() {
-        Expression expr = parser.createExpression("CAST(10*2 AS LONG)");
+        Expression expr = parser.createExpression("CAST(10*2 AS long)");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
         assertEquals(DataType.INTEGER, cast.from());
@@ -172,7 +172,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCastWithQuotedDataType() {
-        Expression expr = parser.createExpression("CAST(10*2 AS \"LONG\")");
+        Expression expr = parser.createExpression("CAST(10*2 AS \"LonG\")");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
         assertEquals(DataType.INTEGER, cast.from());
@@ -190,7 +190,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testConvertWithUnquotedDataType() {
-        Expression expr = parser.createExpression("CONVERT(10*2, LONG)");
+        Expression expr = parser.createExpression("CONVERT(10*2, long)");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
         assertEquals(DataType.INTEGER, cast.from());
@@ -203,7 +203,7 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testConvertWithQuotedDataType() {
-        Expression expr = parser.createExpression("CONVERT(10*2, \"LONG\")");
+        Expression expr = parser.createExpression("CONVERT(10*2, \"LonG\")");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
         assertEquals(DataType.INTEGER, cast.from());
@@ -213,6 +213,24 @@ public class ExpressionTests extends ESTestCase {
         Mul mul = (Mul) cast.field();
         assertEquals("10 * 2", mul.name());
         assertEquals(DataType.INTEGER, mul.dataType());
+    }
+
+    public void testConvertWithUnquotedMSSQLDataType() {
+        Expression expr = parser.createExpression("CONVERT(1, Sql_BigInt)");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
+    }
+
+    public void testConvertWithQuotedMSSQLDataType() {
+        Expression expr = parser.createExpression("CONVERT(1, \"sql_BIGint\")");
+        assertEquals(Cast.class, expr.getClass());
+        Cast cast = (Cast) expr;
+        assertEquals(DataType.INTEGER, cast.from());
+        assertEquals(DataType.LONG, cast.to());
+        assertEquals(DataType.LONG, cast.dataType());
     }
 
     public void testConvertWithInvalidMSSQLDataType() {

@@ -403,7 +403,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             return new Cast(source(castTc), expression(castTc.expression()), typedParsing(castTc.dataType(), DataType.class));
         } else {
             ConvertTemplateContext convertTc = ctx.convertTemplate();
-            String convertDataType = convertTc.dataType().getText();
+            String convertDataType = convertTc.dataType().getText().toUpperCase(Locale.ROOT);
             DataType dataType;
             if (convertDataType.startsWith(DataType.MSSQL_DATATYPE_PREFIX)) {
                 dataType = DataType.fromMSSQLType(convertDataType);

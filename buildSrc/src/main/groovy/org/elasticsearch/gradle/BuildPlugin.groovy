@@ -874,6 +874,8 @@ class BuildPlugin implements Plugin<Project> {
 
             exclude '**/*$*.class'
 
+            dependsOn(project.tasks.testClasses)
+
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
                 // Test against a shadow jar if we made one
                 classpath -= project.tasks.compileJava.outputs.files
@@ -885,21 +887,9 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Configures the test task */
     static Task configureTest(Project project) {
-        RandomizedTestingTask test = project.tasks.getByName('test')
-        test.configure {
+        project.tasks.getByName('test') {
             include '**/*Tests.class'
         }
-
-        // Add a method to create additional unit tests for a project, which will share the same
-        // randomized testing setup, but by default run no tests.
-        project.extensions.add('additionalTest', { String name, Closure config ->
-            RandomizedTestingTask additionalTest = project.tasks.create(name, RandomizedTestingTask.class)
-            additionalTest.classpath = test.classpath
-            additionalTest.testClassesDirs = test.testClassesDirs
-            additionalTest.configure(config)
-            additionalTest.dependsOn(project.tasks.testClasses)
-            project.check.dependsOn(additionalTest)
-        });
     }
 
     private static configurePrecommit(Project project) {

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.client.security.support.User;
+import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;

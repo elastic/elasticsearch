@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.security.support;
+package org.elasticsearch.client.security.user;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;

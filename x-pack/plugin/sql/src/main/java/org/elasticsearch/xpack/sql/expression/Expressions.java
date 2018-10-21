@@ -16,15 +16,10 @@ import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static java.util.stream.Collectors.toList;
 
-public abstract class Expressions {
+public final class Expressions {
 
-    public static List<NamedExpression> asNamed(List<? extends Expression> exp) {
-        return exp.stream()
-                .map(NamedExpression.class::cast)
-                .collect(toList());
-    }
+    private Expressions() {}
 
     public static NamedExpression wrapAsNamed(Expression exp) {
         return exp instanceof NamedExpression ? (NamedExpression) exp : new Alias(exp.location(), exp.nodeName(), exp);
@@ -126,7 +121,12 @@ public abstract class Expressions {
     }
 
     public static TypeResolution typeMustBeNumeric(Expression e) {
-        return e.dataType().isNumeric()? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-                "Argument required to be numeric ('" + Expressions.name(e) + "' of type '" + e.dataType().esType + "')");
+        return e.dataType().isNumeric() ?
+            TypeResolution.TYPE_RESOLVED :
+            new TypeResolution(getErrorMessageForNumericRequirement(e));
+    }
+
+    public static String getErrorMessageForNumericRequirement(Expression e) {
+        return "Argument required to be numeric ('" + Expressions.name(e) + "' of type '" + e.dataType().esType + "')";
     }
 }

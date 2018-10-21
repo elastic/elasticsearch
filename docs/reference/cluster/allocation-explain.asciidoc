@@ -19,6 +19,7 @@ To explain the allocation of a shard, first an index should exist:
 --------------------------------------------------
 PUT /myindex
 --------------------------------------------------
+// CONSOLE
 // TESTSETUP
 
 And then the allocation for shards of that index can be explained:
@@ -72,6 +73,24 @@ GET /_cluster/allocation/explain
 This section includes examples of the cluster allocation explain API response output
 under various scenarios.
 
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT /idx?master_timeout=1s&timeout=1s
+{"settings": {"index.routing.allocation.include._name": "non_existent_node"} }
+
+GET /_cluster/allocation/explain
+{
+  "index": "idx",
+  "shard": 0,
+  "primary": true
+}
+--------------------------------------------------
+// CONSOLE
+
+//////////////////////////
+
 The API response for an unassigned shard:
 
 [source,js]
@@ -91,8 +110,9 @@ The API response for an unassigned shard:
   "node_allocation_decisions" : [
     {
       "node_id" : "8qt2rY-pT6KNZB3-hGfLnw",
-      "node_name" : "node_t1",
+      "node_name" : "node-0",
       "transport_address" : "127.0.0.1:9401",
+      "node_attributes" : {},
       "node_decision" : "no",                     <4>
       "weight_ranking" : 1,
       "deciders" : [
@@ -102,24 +122,15 @@ The API response for an unassigned shard:
           "explanation" : "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]"  <6>
         }
       ]
-    },
-    {
-      "node_id" : "7Wr-QxLXRLKDxhzNm50pFA",
-      "node_name" : "node_t0",
-      "transport_address" : "127.0.0.1:9400",
-      "node_decision" : "no",
-      "weight_ranking" : 2,
-      "deciders" : [
-        {
-          "decider" : "filter",
-          "decision" : "NO",
-          "explanation" : "node does not match index setting [index.routing.allocation.include] filters [_name:\"non_existent_node\"]"
-        }
-      ]
     }
   ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"at" : "[^"]*"/"at" : $body.$_path/]
+// TESTRESPONSE[s/"node_id" : "[^"]*"/"node_id" : $body.$_path/]
+// TESTRESPONSE[s/"transport_address" : "[^"]*"/"transport_address" : $body.$_path/]
+// TESTRESPONSE[s/"node_attributes" : \{\}/"node_attributes" : $body.$_path/]
+
 <1> The current state of the shard
 <2> The reason for the shard originally becoming unassigned
 <3> Whether to allocate the shard
@@ -171,6 +182,7 @@ allocated to a node in the cluster:
   "allocate_explanation" : "cannot allocate because a previous copy of the primary shard existed but can no longer be found on the nodes in the cluster"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 The API response output for a replica that is unassigned due to delayed allocation:
 
@@ -220,6 +232,7 @@ The API response output for a replica that is unassigned due to delayed allocati
   ]
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> The configured delay before allocating a replica shard that does not exist due to the node holding it leaving the cluster
 <2> The remaining delay before allocating the replica shard
 <3> Information about the shard data found on a node
@@ -267,6 +280,7 @@ remain on its current node and is required to move:
   ]
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> Whether the shard is allowed to remain on its current node
 <2> The deciders that factored into the decision of why the shard is not allowed to remain on its current node
 <3> Whether the shard is allowed to be allocated to another node
@@ -302,6 +316,7 @@ because moving the shard to another node does not form a better cluster balance:
   ]
 }
 --------------------------------------------------
+// NOTCONSOLE
 <1> Whether rebalancing is allowed on the cluster
 <2> Whether the shard can be rebalanced to another node
 <3> The reason the shard cannot be rebalanced to the node, in this case indicating that it offers no better balance than the current node

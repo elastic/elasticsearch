@@ -19,13 +19,12 @@
 
 package org.elasticsearch.upgrades;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-
-import java.io.IOException;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -35,13 +34,13 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         return true;
     }
 
-    public MultiClusterSearchYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
+    public MultiClusterSearchYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException {
+    public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }
-}
 
+}

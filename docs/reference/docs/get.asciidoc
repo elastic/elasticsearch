@@ -3,11 +3,11 @@
 
 The get API allows to get a typed JSON document from the index based on
 its id. The following example gets a JSON document from an index called
-twitter, under a type called tweet, with id valued 0:
+twitter, under a type called _doc, with id valued 0:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/0
+GET twitter/_doc/0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -18,7 +18,7 @@ The result of the above get operation is:
 --------------------------------------------------
 {
     "_index" : "twitter",
-    "_type" : "tweet",
+    "_type" : "_doc",
     "_id" : "0",
     "_version" : 1,
     "found": true,
@@ -42,7 +42,7 @@ The API also allows to check for the existence of a document using
 
 [source,js]
 --------------------------------------------------
-HEAD twitter/tweet/0
+HEAD twitter/_doc/0
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -59,14 +59,6 @@ changed since the last refresh visible. In order to disable realtime GET,
 one can set the `realtime` parameter to `false`.
 
 [float]
-[[type]]
-=== Optional Type
-
-The get API allows for `_type` to be optional. Set it to `_all` in order
-to fetch the first document matching the id across all types.
-
-
-[float]
 [[get-source-filtering]]
 === Source filtering
 
@@ -76,7 +68,7 @@ You can turn off `_source` retrieval by using the `_source` parameter:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/0?_source=false
+GET twitter/_doc/0?_source=false
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -88,7 +80,7 @@ of fields or wildcard expressions. Example:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/0?_source_include=*.id&_source_exclude=entities
+GET twitter/_doc/0?_source_include=*.id&_source_exclude=entities
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -97,7 +89,7 @@ If you only want to specify includes, you can use a shorter notation:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/0?_source=*.id,retweeted
+GET twitter/_doc/0?_source=*.id,retweeted
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -116,7 +108,7 @@ Consider for instance the following mapping:
 PUT twitter
 {
    "mappings": {
-      "tweet": {
+      "_doc": {
          "properties": {
             "counter": {
                "type": "integer",
@@ -137,7 +129,7 @@ Now we can add a document:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/tweet/1
+PUT twitter/_doc/1
 {
     "counter" : 1,
     "tags" : ["red"]
@@ -150,7 +142,7 @@ PUT twitter/tweet/1
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/1?stored_fields=tags,counter
+GET twitter/_doc/1?stored_fields=tags,counter
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -161,7 +153,7 @@ The result of the above get operation is:
 --------------------------------------------------
 {
    "_index": "twitter",
-   "_type": "tweet",
+   "_type": "_doc",
    "_id": "1",
    "_version": 1,
    "found": true,
@@ -175,14 +167,14 @@ The result of the above get operation is:
 // TESTRESPONSE
 
 
-Field values fetched from the document it self are always returned as an array.
+Field values fetched from the document itself are always returned as an array.
 Since the `counter` field is not stored the get request simply ignores it when trying to get the `stored_fields.`
 
-It is also possible to retrieve metadata fields like `_routing` and `_parent` fields:
+It is also possible to retrieve metadata fields like the `_routing` field:
 
 [source,js]
 --------------------------------------------------
-PUT twitter/tweet/2?routing=user1
+PUT twitter/_doc/2?routing=user1
 {
     "counter" : 1,
     "tags" : ["white"]
@@ -193,7 +185,7 @@ PUT twitter/tweet/2?routing=user1
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/2?routing=user1&stored_fields=tags,counter
+GET twitter/_doc/2?routing=user1&stored_fields=tags,counter
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -204,7 +196,7 @@ The result of the above get operation is:
 --------------------------------------------------
 {
    "_index": "twitter",
-   "_type": "tweet",
+   "_type": "_doc",
    "_id": "2",
    "_version": 1,
    "_routing": "user1",
@@ -222,15 +214,8 @@ Also only leaf fields can be returned via the `stored_field` option. So object f
 will fail.
 
 [float]
-[[generated-fields]]
-=== Generated fields
-If no refresh occurred between indexing and refresh, GET will access the transaction log to fetch the document. However, some fields are generated only when indexing. 
-If you try to access a field that is only generated when indexing, you will get an exception (default). You can choose to ignore field that are generated if the transaction log is accessed by setting `ignore_errors_on_generated_fields=true`.
-
-
-[float]
 [[_source]]
-=== Getting the _source directly
+=== Getting the +_source+ directly
 
 Use the `/{index}/{type}/{id}/_source` endpoint to get
 just the `_source` field of the document,
@@ -238,7 +223,7 @@ without any additional content around it. For example:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/1/_source
+GET twitter/_doc/1/_source
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -247,7 +232,7 @@ You can also use the same source filtering parameters to control which parts of 
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/1/_source?_source_include=*.id&_source_exclude=entities'
+GET twitter/_doc/1/_source?_source_include=*.id&_source_exclude=entities'
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -257,7 +242,7 @@ An existing document will not have a _source if it is disabled in the <<mapping-
 
 [source,js]
 --------------------------------------------------
-HEAD twitter/tweet/1/_source
+HEAD twitter/_doc/1/_source
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -271,12 +256,12 @@ a document, the routing value should also be provided. For example:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/2?routing=user1
+GET twitter/_doc/2?routing=user1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-The above will get a tweet with id 2, but will be routed based on the
+The above will get a tweet with id `2`, but will be routed based on the
 user. Note, issuing a get without the correct routing, will cause the
 document not to be fetched.
 
@@ -290,15 +275,11 @@ replicas.
 
 The `preference` can be set to:
 
-`_primary`:: 
-	The operation will go and be executed only on the primary
-	shards.
-
-`_local`:: 
+`_local`::
 	The operation will prefer to be executed on a local
 	allocated shard if possible.
 
-Custom (string) value:: 
+Custom (string) value::
 	A custom value will be used to guarantee that
 	the same shards will be used for the same custom value. This can help
 	with "jumping values" when hitting different shards in different refresh

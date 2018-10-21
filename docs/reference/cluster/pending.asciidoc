@@ -12,8 +12,9 @@ might be reported by both task api and pending cluster tasks API.
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/_cluster/pending_tasks'
+GET /_cluster/pending_tasks
 --------------------------------------------------
+// CONSOLE
 
 Usually this will return an empty list as cluster-level changes are usually
 fast. However if there are tasks queued up, the output will look something
@@ -47,3 +48,5 @@ like this:
   ]
 }
 --------------------------------------------------
+// NOTCONSOLE
+// We can't test tasks output

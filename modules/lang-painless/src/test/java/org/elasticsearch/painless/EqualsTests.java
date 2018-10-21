@@ -1,5 +1,3 @@
-package org.elasticsearch.painless;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -19,9 +17,12 @@ package org.elasticsearch.painless;
  * under the License.
  */
 
-import org.apache.lucene.util.Constants;
+package org.elasticsearch.painless;
 
-// TODO: Figure out a way to test autobox caching properly from methods such as Integer.valueOf(int);
+import org.elasticsearch.test.ESTestCase;
+
+import static java.util.Collections.singletonMap;
+
 public class EqualsTests extends ScriptTestCase {
     public void testTypesEquals() {
         assertEquals(true, exec("return false === false;"));
@@ -131,12 +132,23 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(0, exec("def a = 1; Object b = new HashMap(); if (a === (Object)b) return 1; else return 0;"));
     }
     
-    public void testBranchEqualsDefAndPrimitive() {
-        assumeFalse("test fails on Windows", Constants.WINDOWS);
-        assertEquals(true, exec("def x = 1000; int y = 1000; return x == y;"));
-        assertEquals(false, exec("def x = 1000; int y = 1000; return x === y;"));
-        assertEquals(true, exec("def x = 1000; int y = 1000; return y == x;"));
-        assertEquals(false, exec("def x = 1000; int y = 1000; return y === x;"));
+    public void testEqualsDefAndPrimitive() {
+        /* This test needs an Integer that isn't cached by Integer.valueOf so we draw one randomly. We can't use any fixed integer because
+         * we can never be sure that the JVM hasn't configured itself to cache that Integer. It is sneaky like that. */
+        int uncachedAutoboxedInt = randomValueOtherThanMany(i -> Integer.valueOf(i) == Integer.valueOf(i), ESTestCase::randomInt);
+        assertEquals(true, exec("def x = params.i; int y = params.i; return x == y;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return x === y;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(true, exec("def x = params.i; int y = params.i; return y == x;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return y === x;", singletonMap("i", uncachedAutoboxedInt), true));
+
+        /* Now check that we use valueOf with the boxing used for comparing primitives to def. For this we need an
+         * integer that is cached by Integer.valueOf. The JLS says 0 should always be cached. */
+        int cachedAutoboxedInt = 0;
+        assertSame(Integer.valueOf(cachedAutoboxedInt), Integer.valueOf(cachedAutoboxedInt));
+        assertEquals(true, exec("def x = params.i; int y = params.i; return x == y;", singletonMap("i", cachedAutoboxedInt), true));
+        assertEquals(true, exec("def x = params.i; int y = params.i; return x === y;", singletonMap("i", cachedAutoboxedInt), true));
+        assertEquals(true, exec("def x = params.i; int y = params.i; return y == x;", singletonMap("i", cachedAutoboxedInt), true));
+        assertEquals(true, exec("def x = params.i; int y = params.i; return y === x;", singletonMap("i", cachedAutoboxedInt), true));
     }
 
     public void testBranchNotEquals() {
@@ -149,12 +161,23 @@ public class EqualsTests extends ScriptTestCase {
         assertEquals(1, exec("def a = 1; Object b = new HashMap(); if (a !== (Object)b) return 1; else return 0;"));
     }
 
-    public void testBranchNotEqualsDefAndPrimitive() {
-        assumeFalse("test fails on Windows", Constants.WINDOWS);
-        assertEquals(false, exec("def x = 1000; int y = 1000; return x != y;"));
-        assertEquals(true, exec("def x = 1000; int y = 1000; return x !== y;"));
-        assertEquals(false, exec("def x = 1000; int y = 1000; return y != x;"));
-        assertEquals(true, exec("def x = 1000; int y = 1000; return y !== x;"));
+    public void testNotEqualsDefAndPrimitive() {
+        /* This test needs an Integer that isn't cached by Integer.valueOf so we draw one randomly. We can't use any fixed integer because
+         * we can never be sure that the JVM hasn't configured itself to cache that Integer. It is sneaky like that. */
+        int uncachedAutoboxedInt = randomValueOtherThanMany(i -> Integer.valueOf(i) == Integer.valueOf(i), ESTestCase::randomInt);
+        assertEquals(false, exec("def x = params.i; int y = params.i; return x != y;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(true,  exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return y != x;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(true,  exec("def x = params.i; int y = params.i; return y !== x;", singletonMap("i", uncachedAutoboxedInt), true));
+
+        /* Now check that we use valueOf with the boxing used for comparing primitives to def. For this we need an
+         * integer that is cached by Integer.valueOf. The JLS says 0 should always be cached. */
+        int cachedAutoboxedInt = 0;
+        assertSame(Integer.valueOf(cachedAutoboxedInt), Integer.valueOf(cachedAutoboxedInt));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return x != y;", singletonMap("i", cachedAutoboxedInt), true));
+        assertEquals(false,  exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", cachedAutoboxedInt), true));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return y != x;", singletonMap("i", cachedAutoboxedInt), true));
+        assertEquals(false,  exec("def x = params.i; int y = params.i; return y !== x;", singletonMap("i", cachedAutoboxedInt), true));
     }
 
     public void testRightHandNull() {

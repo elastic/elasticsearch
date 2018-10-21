@@ -76,7 +76,8 @@ public final class Netty4CorsConfig {
     }
 
     /**
-     * Determines whether a wildcard origin, '*', is supported.
+     * Determines whether a wildcard origin, '*', is supported. This also means that null origins are
+     * supported.
      *
      * @return {@code boolean} true if any origin is allowed.
      */
@@ -121,21 +122,21 @@ public final class Netty4CorsConfig {
     }
 
     /**
-     * Determines if cookies are supported for CORS requests.
+     * Determines if credentials are supported for CORS requests.
      *
-     * By default cookies are not included in CORS requests but if isCredentialsAllowed returns
-     * true cookies will be added to CORS requests. Setting this value to true will set the
+     * By default credentials are not included in CORS requests but if isCredentialsAllowed returns
+     * true credentials will be added to CORS requests. Setting this value to true will set the
      * CORS 'Access-Control-Allow-Credentials' response header to true.
      *
-     * Please note that cookie support needs to be enabled on the client side as well.
-     * The client needs to opt-in to send cookies by calling:
+     * Please note that credentials support needs to be enabled on the client side as well.
+     * The client needs to opt-in to send credentials by calling:
      * <pre>
      * xhr.withCredentials = true;
      * </pre>
-     * The default value for 'withCredentials' is false in which case no cookies are sent.
-     * Setting this to true will included cookies in cross origin requests.
+     * The default value for 'withCredentials' is false in which case no credentials are sent.
+     * Setting this to true will included credentials in cross origin requests.
      *
-     * @return {@code true} if cookies are supported.
+     * @return {@code true} if credentials are supported.
      */
     public boolean isCredentialsAllowed() {
         return allowCredentials;

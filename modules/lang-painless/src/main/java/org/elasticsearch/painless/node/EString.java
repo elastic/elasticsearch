@@ -19,10 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
@@ -50,7 +49,7 @@ public final class EString extends AExpression {
             throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
         }
 
-        actual = Definition.STRING_TYPE;
+        actual = String.class;
     }
 
     @Override

@@ -3,10 +3,9 @@
 
 See {ref}/query-dsl-terms-query.html[Terms Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = termsQuery("tags",    <1>
-    "blue", "pill");                    <2>
+include-tagged::{query-dsl-test}[terms]
 --------------------------------------------------
 <1> field
 <2> values

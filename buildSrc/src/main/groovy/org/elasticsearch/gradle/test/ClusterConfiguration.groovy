@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.elasticsearch.gradle.Version
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.tasks.Input
@@ -28,7 +29,7 @@ class ClusterConfiguration {
     private final Project project
 
     @Input
-    String distribution = 'integ-test-zip'
+    String distribution = 'zip'
 
     @Input
     int numNodes = 1
@@ -37,7 +38,7 @@ class ClusterConfiguration {
     int numBwcNodes = 0
 
     @Input
-    String bwcVersion = null
+    Version bwcVersion = null
 
     @Input
     int httpPort = 0
@@ -46,11 +47,11 @@ class ClusterConfiguration {
     int transportPort = 0
 
     /**
-     * An override of the data directory. This may only be used with a single node.
-     * The value is lazily evaluated at runtime as a String path.
+     * An override of the data directory. Input is the node number and output
+     * is the override data directory.
      */
     @Input
-    Object dataDir = null
+    Closure<String> dataDir = null
 
     /** Optional override of the cluster name. */
     @Input
@@ -63,13 +64,11 @@ class ClusterConfiguration {
     boolean debug = false
 
     /**
-     * if <code>true</code> each node will be configured with <tt>discovery.zen.minimum_master_nodes</tt> set
-     * to the total number of nodes in the cluster. This will also cause that each node has `0s` state recovery
-     * timeout which can lead to issues if for instance an existing clusterstate is expected to be recovered
-     * before any tests start
+     * Configuration of the setting {@code discovery.zen.minimum_master_nodes} on the nodes.
+     * In case of more than one node, this defaults to the number of nodes
      */
     @Input
-    boolean useMinimumMasterNodes = true
+    Closure<Integer> minimumMasterNodes = { getNumNodes() > 1 ? getNumNodes() : -1 }
 
     @Input
     String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
@@ -77,18 +76,27 @@ class ClusterConfiguration {
         " " + System.getProperty('tests.jvm.argline', '')
 
     /**
+     * Should the shared environment be cleaned on cluster startup? Defaults
+     * to {@code true} so we run with a clean cluster but some tests wish to
+     * preserve snapshots between clusters so they set this to true.
+     */
+    @Input
+    boolean cleanShared = true
+
+    /**
      * A closure to call which returns the unicast host to connect to for cluster formation.
      *
      * This allows multi node clusters, or a new cluster to connect to an existing cluster.
-     * The closure takes two arguments, the NodeInfo for the first node in the cluster, and
-     * an AntBuilder which may be used to wait on conditions before returning.
+     * The closure takes three arguments, the NodeInfo for the first node in the cluster,
+     * the NodeInfo for the node current being configured, an AntBuilder which may be used
+     * to wait on conditions before returning.
      */
     @Input
     Closure unicastTransportUri = { NodeInfo seedNode, NodeInfo node, AntBuilder ant ->
         if (seedNode == node) {
             return null
         }
-        ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+        ant.waitfor(maxwait: '40', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
             resourceexists {
                 file(file: seedNode.transportPortsFile.toString())
             }
@@ -117,28 +125,50 @@ class ClusterConfiguration {
         return tmpFile.exists()
     }
 
+    /**
+     * The maximum number of seconds to wait for nodes to complete startup, which includes writing
+     * the ports files for the transports and the pid file. This wait time occurs before the wait
+     * condition is executed.
+     */
+    @Input
+    int nodeStartupWaitSeconds = 30
+
     public ClusterConfiguration(Project project) {
         this.project = project
     }
 
-    Map<String, String> systemProperties = new HashMap<>()
+    // **Note** for systemProperties, settings, keystoreFiles etc:
+    // value could be a GString that is evaluated to just a String
+    // there are cases when value depends on task that is not executed yet on configuration stage
+    Map<String, Object> systemProperties = new HashMap<>()
+
+    Map<String, Object> environmentVariables = new HashMap<>()
 
     Map<String, Object> settings = new HashMap<>()
 
     Map<String, String> keystoreSettings = new HashMap<>()
 
+    Map<String, Object> keystoreFiles = new HashMap<>()
+
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
-    LinkedHashMap<String, Project> plugins = new LinkedHashMap<>()
+    LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
 
     List<Project> modules = new ArrayList<>()
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
+    List<Object> dependencies = new ArrayList<>()
+
     @Input
-    void systemProperty(String property, String value) {
+    void systemProperty(String property, Object value) {
         systemProperties.put(property, value)
+    }
+
+    @Input
+    void environment(String variable, Object value) {
+        environmentVariables.put(variable, value)
     }
 
     @Input
@@ -151,10 +181,24 @@ class ClusterConfiguration {
         keystoreSettings.put(name, value)
     }
 
+    /**
+     * Adds a file to the keystore. The name is the secure setting name, and the sourceFile
+     * is anything accepted by project.file()
+     */
+    @Input
+    void keystoreFile(String name, Object sourceFile) {
+        keystoreFiles.put(name, sourceFile)
+    }
+
     @Input
     void plugin(String path) {
         Project pluginProject = project.project(path)
         plugins.put(pluginProject.name, pluginProject)
+    }
+
+    @Input
+    void mavenPlugin(String name, String mavenCoords) {
+        plugins.put(name, mavenCoords)
     }
 
     /** Add a module to the cluster. The project must be an esplugin and have a single zip default artifact. */
@@ -178,5 +222,11 @@ class ClusterConfiguration {
             throw new GradleException('Overwriting elasticsearch.yml is not allowed, add additional settings using cluster { setting "foo", "bar" }')
         }
         extraConfigFiles.put(path, sourceFile)
+    }
+
+    /** Add dependencies that must be run before the first task setting up the cluster. */
+    @Input
+    void dependsOn(Object... deps) {
+        dependencies.addAll(deps)
     }
 }

@@ -1,7 +1,0 @@
-As a quick helper, below are the equivalent commands from maven to gradle (TESTING.md has also been updated). You can also run "gradle tasks" to see all tasks that are available to run.
-clean -> clean
-test -> test
-verify -> check
-verify -Dskip.unit.tests -> integTest
-package -DskipTests -> assemble
-install -DskipTests -> publishToMavenLocal

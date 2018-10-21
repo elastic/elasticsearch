@@ -6,7 +6,7 @@ objects which, in turn, may contain inner objects themselves:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/my_type/1
+PUT my_index/_doc/1
 { <1>
   "region": "US",
   "manager": { <2>
@@ -35,6 +35,7 @@ pairs, something like this:
   "manager.name.last":  "Smith"
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 An explicit mapping for the above document could look like this:
 
@@ -43,7 +44,7 @@ An explicit mapping for the above document could look like this:
 PUT my_index
 {
   "mappings": {
-    "my_type": { <1>
+    "_doc": { <1>
       "properties": {
         "region": {
           "type": "keyword"
@@ -96,4 +97,3 @@ The following parameters are accepted by `object` fields:
 
 IMPORTANT: If you need to index arrays of objects instead of single objects,
 read <<nested>> first.
-

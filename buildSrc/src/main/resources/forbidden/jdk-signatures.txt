@@ -88,7 +88,8 @@ java.lang.Thread#getAllStackTraces()
 
 @defaultMessage Stopping threads explicitly leads to inconsistent states. Use interrupt() instead.
 java.lang.Thread#stop()
-java.lang.Thread#stop(java.lang.Throwable)
+# uncomment when https://github.com/elastic/elasticsearch/issues/31715 is fixed
+# java.lang.Thread#stop(java.lang.Throwable)
 
 @defaultMessage Please do not terminate the application
 java.lang.System#exit(int)
@@ -107,3 +108,6 @@ java.util.Collections#EMPTY_MAP
 java.util.Collections#EMPTY_SET
 
 java.util.Collections#shuffle(java.util.List) @ Use java.util.Collections#shuffle(java.util.List, java.util.Random) with a reproducible source of randomness
+
+@defaultMessage Avoid creating FilePermission objects directly, but use FilePermissionUtils instead
+java.io.FilePermission#<init>(java.lang.String,java.lang.String)

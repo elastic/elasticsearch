@@ -19,27 +19,31 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.util.json.Jackson;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.Repository;
+
+import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-
-import com.amazonaws.util.json.Jackson;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.Repository;
+import java.util.Objects;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
-public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
+public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
     static {
         SpecialPermission.check();
@@ -50,46 +54,45 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
                 // ClientConfiguration clinit has some classloader problems
                 // TODO: fix that
                 Class.forName("com.amazonaws.ClientConfiguration");
-            } catch (ClassNotFoundException e) {
+            } catch (final ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
             return null;
         });
     }
 
-    private final Map<String, S3ClientSettings> clientsSettings;
+    protected final S3Service service;
 
-    public S3RepositoryPlugin(Settings settings) {
+    public S3RepositoryPlugin(final Settings settings) {
+        this(settings, new S3Service(settings));
+    }
+
+    S3RepositoryPlugin(final Settings settings, final S3Service service) {
+        this.service = Objects.requireNonNull(service, "S3 service must not be null");
         // eagerly load client settings so that secure settings are read
-        clientsSettings = S3ClientSettings.load(settings);
-        assert clientsSettings.isEmpty() == false : "always at least have 'default'";
+        final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings);
+        this.service.refreshAndClearCache(clientsSettings);
     }
 
-    // overridable for tests
-    protected AwsS3Service createStorageService(Settings settings) {
-        return new InternalAwsS3Service(settings, clientsSettings);
-    }
-
-    @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
-        return Collections.singletonMap(S3Repository.TYPE,
-            (metadata) -> new S3Repository(metadata, env.settings(), namedXContentRegistry, createStorageService(env.settings())));
+    // proxy method for testing
+    protected S3Repository createRepository(final RepositoryMetaData metadata,
+                                            final Settings settings,
+                                            final NamedXContentRegistry registry) {
+        return new S3Repository(metadata, settings, registry, service);
     }
 
     @Override
-    public List<String> getSettingsFilter() {
-        return Arrays.asList(
-            S3Repository.Repository.KEY_SETTING.getKey(),
-            S3Repository.Repository.SECRET_SETTING.getKey());
+    public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry) {
+        return Collections.singletonMap(S3Repository.TYPE, (metadata) -> createRepository(metadata, env.settings(), registry));
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-
             // named s3 client configuration settings
             S3ClientSettings.ACCESS_KEY_SETTING,
             S3ClientSettings.SECRET_KEY_SETTING,
+            S3ClientSettings.SESSION_TOKEN_SETTING,
             S3ClientSettings.ENDPOINT_SETTING,
             S3ClientSettings.PROTOCOL_SETTING,
             S3ClientSettings.PROXY_HOST_SETTING,
@@ -97,43 +100,21 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
             S3ClientSettings.PROXY_USERNAME_SETTING,
             S3ClientSettings.PROXY_PASSWORD_SETTING,
             S3ClientSettings.READ_TIMEOUT_SETTING,
+            S3ClientSettings.MAX_RETRIES_SETTING,
+            S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
+            S3Repository.ACCESS_KEY_SETTING,
+            S3Repository.SECRET_KEY_SETTING);
+    }
 
-            // Register global cloud aws settings: cloud.aws (might have been registered in ec2 plugin)
-            AwsS3Service.KEY_SETTING,
-            AwsS3Service.SECRET_SETTING,
-            AwsS3Service.PROTOCOL_SETTING,
-            AwsS3Service.PROXY_HOST_SETTING,
-            AwsS3Service.PROXY_PORT_SETTING,
-            AwsS3Service.PROXY_USERNAME_SETTING,
-            AwsS3Service.PROXY_PASSWORD_SETTING,
-            AwsS3Service.READ_TIMEOUT,
+    @Override
+    public void reload(Settings settings) {
+        // secure settings should be readable
+        final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings);
+        service.refreshAndClearCache(clientsSettings);
+    }
 
-            // Register S3 specific settings: cloud.aws.s3
-            AwsS3Service.CLOUD_S3.KEY_SETTING,
-            AwsS3Service.CLOUD_S3.SECRET_SETTING,
-            AwsS3Service.CLOUD_S3.PROTOCOL_SETTING,
-            AwsS3Service.CLOUD_S3.PROXY_HOST_SETTING,
-            AwsS3Service.CLOUD_S3.PROXY_PORT_SETTING,
-            AwsS3Service.CLOUD_S3.PROXY_USERNAME_SETTING,
-            AwsS3Service.CLOUD_S3.PROXY_PASSWORD_SETTING,
-            AwsS3Service.CLOUD_S3.ENDPOINT_SETTING,
-            AwsS3Service.CLOUD_S3.READ_TIMEOUT,
-
-            // Register S3 repositories settings: repositories.s3
-            S3Repository.Repositories.KEY_SETTING,
-            S3Repository.Repositories.SECRET_SETTING,
-            S3Repository.Repositories.BUCKET_SETTING,
-            S3Repository.Repositories.ENDPOINT_SETTING,
-            S3Repository.Repositories.PROTOCOL_SETTING,
-            S3Repository.Repositories.SERVER_SIDE_ENCRYPTION_SETTING,
-            S3Repository.Repositories.BUFFER_SIZE_SETTING,
-            S3Repository.Repositories.MAX_RETRIES_SETTING,
-            S3Repository.Repositories.CHUNK_SIZE_SETTING,
-            S3Repository.Repositories.COMPRESS_SETTING,
-            S3Repository.Repositories.STORAGE_CLASS_SETTING,
-            S3Repository.Repositories.CANNED_ACL_SETTING,
-            S3Repository.Repositories.BASE_PATH_SETTING,
-            S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING,
-            S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING);
+    @Override
+    public void close() throws IOException {
+        service.close();
     }
 }

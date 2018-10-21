@@ -13,7 +13,7 @@ PUT /my_index
             "analyzer" : {
                 "my_analyzer" : {
                     "tokenizer" : "standard",
-                    "filter" : ["standard", "lowercase", "my_stemmer"]
+                    "filter" : ["lowercase", "my_stemmer"]
                 }
             },
             "filter" : {
@@ -43,6 +43,10 @@ http://snowball.tartarus.org/algorithms/armenian/stemmer.html[*`armenian`*]
 Basque::
 
 http://snowball.tartarus.org/algorithms/basque/stemmer.html[*`basque`*]
+
+Bengali::
+http://www.tandfonline.com/doi/abs/10.1080/02564602.1993.11437284[*`bengali`*]
+http://members.unine.ch/jacques.savoy/clef/BengaliStemmerLight.java.txt[*`light_bengali`*]
 
 Brazilian Portuguese::
 

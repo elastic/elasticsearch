@@ -1,0 +1,50 @@
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+[libdefaults]
+    default_realm = ${REALM_NAME}
+    dns_canonicalize_hostname = false
+    dns_lookup_kdc = false
+    dns_lookup_realm = false
+    dns_uri_lookup = false
+    forwardable = true
+    ignore_acceptor_hostname = true
+    rdns = false
+    default_tgs_enctypes = rc4-hmac
+    default_tkt_enctypes = rc4-hmac
+    permitted_enctypes = rc4-hmac
+    # udp_preference_limit = 1
+    kdc_timeout = 3000
+
+[realms]
+    ${REALM_NAME} = {
+        kdc = ${KDC_NAME}:88
+        kdc = ${KDC_NAME}:60088
+        kdc = localhost:60088
+        kdc = localhost:88
+        kdc = 127.0.0.1:60088
+        kdc = 127.0.0.1:88
+        admin_server = ${KDC_NAME}:749
+        default_domain = ${BUILD_ZONE}
+    }
+
+[domain_realm]
+    ${BUILD_ZONE} = ${REALM_NAME}
+    .${BUILD_ZONE} = ${REALM_NAME}
+    ${ELASTIC_ZONE} = ${REALM_NAME}
+    .${ELASTIC_ZONE} = ${REALM_NAME}
+

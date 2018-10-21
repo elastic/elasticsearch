@@ -1,0 +1,13 @@
+# tests that the custom suggester plugin is installed
+---
+"plugin loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - contains:  { nodes.$master.plugins: { name: custom-suggester } }

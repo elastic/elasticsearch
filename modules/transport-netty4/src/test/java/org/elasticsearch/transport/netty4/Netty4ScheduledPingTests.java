@@ -31,16 +31,13 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -54,21 +51,21 @@ public class Netty4ScheduledPingTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .put(TcpTransport.PING_SCHEDULE.getKey(), "5ms")
-            .put(TransportSettings.PORT.getKey(), 0)
+            .put(TcpTransport.PORT.getKey(), 0)
             .put("cluster.name", "test")
             .build();
 
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
 
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
-        final Netty4Transport nettyA = new Netty4Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
+        final Netty4Transport nettyA = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
         MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
-        final Netty4Transport nettyB = new Netty4Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
+        final Netty4Transport nettyB = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
         MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
@@ -82,32 +79,26 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         serviceA.connectToNode(nodeB);
         serviceB.connectToNode(nodeA);
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(nettyA.getPing().getSuccessfulPings(), greaterThan(100L));
-                assertThat(nettyB.getPing().getSuccessfulPings(), greaterThan(100L));
-            }
+        assertBusy(() -> {
+            assertThat(nettyA.successfulPingCount(), greaterThan(100L));
+            assertThat(nettyB.successfulPingCount(), greaterThan(100L));
         });
-        assertThat(nettyA.getPing().getFailedPings(), equalTo(0L));
-        assertThat(nettyB.getPing().getFailedPings(), equalTo(0L));
+        assertThat(nettyA.failedPingCount(), equalTo(0L));
+        assertThat(nettyB.failedPingCount(), equalTo(0L));
 
-        serviceA.registerRequestHandler("sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
-            new TransportRequestHandler<TransportRequest.Empty>() {
-                @Override
-                public void messageReceived(TransportRequest.Empty request, TransportChannel channel) {
-                    try {
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.EMPTY);
-                    } catch (IOException e) {
-                        logger.error("Unexpected failure", e);
-                        fail(e.getMessage());
-                    }
+        serviceA.registerRequestHandler("internal:sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC,
+            (request, channel, task) -> {
+                try {
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.EMPTY);
+                } catch (IOException e) {
+                    logger.error("Unexpected failure", e);
+                    fail(e.getMessage());
                 }
             });
 
         int rounds = scaledRandomIntBetween(100, 5000);
         for (int i = 0; i < rounds; i++) {
-            serviceB.submitRequest(nodeA, "sayHello",
+            serviceB.submitRequest(nodeA, "internal:sayHello",
                 TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
@@ -133,11 +124,11 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         }
 
         assertBusy(() -> {
-            assertThat(nettyA.getPing().getSuccessfulPings(), greaterThan(200L));
-            assertThat(nettyB.getPing().getSuccessfulPings(), greaterThan(200L));
+            assertThat(nettyA.successfulPingCount(), greaterThan(200L));
+            assertThat(nettyB.successfulPingCount(), greaterThan(200L));
         });
-        assertThat(nettyA.getPing().getFailedPings(), equalTo(0L));
-        assertThat(nettyB.getPing().getFailedPings(), equalTo(0L));
+        assertThat(nettyA.failedPingCount(), equalTo(0L));
+        assertThat(nettyB.failedPingCount(), equalTo(0L));
 
         Releasables.close(serviceA, serviceB);
         terminate(threadPool);

@@ -13,8 +13,8 @@ fields are used to index arrays of objects, where each object can be queried
 
 <<query-dsl-has-child-query,`has_child`>> and <<query-dsl-has-parent-query,`has_parent`>> queries::
 
-A <<mapping-parent-field,parent-child relationship>> can exist between two
-document types within a single index. The `has_child` query returns parent
+A <<parent-join,`join` field relationship>> can exist between
+documents within a single index. The `has_child` query returns parent
 documents whose child documents match the specified query, while the
 `has_parent` query returns child documents whose parent document matches the
 specified query.

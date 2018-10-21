@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 
@@ -41,7 +42,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     private final MatrixStatsResults results;
 
     /** per shard ctor */
-    protected InternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults, MatrixStatsResults results,
+    InternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults, MatrixStatsResults results,
                                   List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         assert count >= 0;
@@ -72,6 +73,9 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
     /** get the number of documents */
     @Override
     public long getDocCount() {
+        if (stats == null) {
+            return 0;
+        }
         return stats.docCount;
     }
 
@@ -138,6 +142,14 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return results.getCorrelation(fieldX, fieldY);
     }
 
+    RunningStats getStats() {
+        return stats;
+    }
+
+    MatrixStatsResults getResults() {
+        return results;
+    }
+
     static class Fields {
         public static final String FIELDS = "fields";
         public static final String NAME = "name";
@@ -152,6 +164,7 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
         if (results != null && results.getFieldCounts().keySet().isEmpty() == false) {
             builder.startArray(Fields.FIELDS);
             for (String fieldName : results.getFieldCounts().keySet()) {
@@ -237,5 +250,17 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         MatrixStatsResults results = new MatrixStatsResults(runningStats);
 
         return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, pipelineAggregators(), getMetaData());
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(stats, results);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalMatrixStats other = (InternalMatrixStats) obj;
+        return Objects.equals(this.stats, other.stats) &&
+            Objects.equals(this.results, other.results);
     }
 }

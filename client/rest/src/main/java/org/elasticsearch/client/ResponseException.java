@@ -24,6 +24,7 @@ import org.apache.http.entity.BufferedHttpEntity;
 import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * Exception thrown when an elasticsearch node responds to a request with a status code that indicates an error.
@@ -38,9 +39,28 @@ public final class ResponseException extends IOException {
         this.response = response;
     }
 
+    /**
+     * Wrap a {@linkplain ResponseException} with another one with the current
+     * stack trace. This is used during synchronous calls so that the caller
+     * ends up in the stack trace of the exception thrown.
+     */
+    ResponseException(ResponseException e) throws IOException {
+        super(e.getMessage(), e);
+        this.response = e.getResponse();
+    }
+
     private static String buildMessage(Response response) throws IOException {
-        String message = response.getRequestLine().getMethod() + " " + response.getHost() + response.getRequestLine().getUri()
-                + ": " + response.getStatusLine().toString();
+        String message = String.format(Locale.ROOT,
+            "method [%s], host [%s], URI [%s], status line [%s]",
+            response.getRequestLine().getMethod(),
+            response.getHost(),
+            response.getRequestLine().getUri(),
+            response.getStatusLine().toString()
+        );
+
+        if (response.hasWarnings()) {
+            message += "\n" + "Warnings: " + response.getWarnings();
+        }
 
         HttpEntity entity = response.getEntity();
         if (entity != null) {

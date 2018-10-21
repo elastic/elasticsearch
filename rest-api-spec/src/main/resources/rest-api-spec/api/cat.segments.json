@@ -16,6 +16,11 @@
           "type" : "string",
           "description" : "a short version of the Accept header, e.g. json, yaml"
         },
+        "bytes": {
+          "type": "enum",
+          "description" : "The unit in which to display byte values",
+          "options": [ "b", "k", "kb", "m", "mb", "g", "gb", "t", "tb", "p", "pb" ]
+        },
         "h": {
             "type": "list",
             "description" : "Comma-separated list of column names to display"

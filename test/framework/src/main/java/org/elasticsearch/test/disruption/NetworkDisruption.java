@@ -110,7 +110,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
 
     protected void ensureNodeCount(InternalTestCluster cluster) {
         assertFalse("cluster failed to form after disruption was healed", cluster.client().admin().cluster().prepareHealth()
-            .setWaitForNodes("" + cluster.size())
+            .setWaitForNodes(String.valueOf(cluster.size()))
             .setWaitForNoRelocatingShards(true)
             .get().isTimedOut());
     }
@@ -410,6 +410,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         public TimeValue expectedTimeToHeal() {
             return TimeValue.timeValueMillis(0);
         }
+
     }
 
     /**
@@ -501,4 +502,5 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
             return "network delays for [" + delay + "]";
         }
     }
+
 }

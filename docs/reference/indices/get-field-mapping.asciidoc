@@ -12,7 +12,7 @@ For example, consider the following mapping:
 PUT publications
 {
     "mappings": {
-        "article": {
+        "_doc": {
             "properties": {
                 "id": { "type": "text" },
                 "title":  { "type": "text"},
@@ -35,7 +35,7 @@ The following returns the mapping of the field `title` only:
 
 [source,js]
 --------------------------------------------------
-GET publications/_mapping/article/field/title
+GET publications/_mapping/_doc/field/title
 --------------------------------------------------
 // CONSOLE
 
@@ -46,7 +46,7 @@ For which the response is:
 {
    "publications": {
       "mappings": {
-         "article": {
+         "_doc": {
             "title": {
                "full_name": "title",
                "mapping": {
@@ -76,9 +76,9 @@ following are some examples:
 --------------------------------------------------
 GET /twitter,kimchy/_mapping/field/message
 
-GET /_all/_mapping/tweet,book/field/message,user.id
+GET /_all/_mapping/_doc,tweet,book/field/message,user.id
 
-GET /_all/_mapping/tw*/field/*.id
+GET /_all/_mapping/_do*/field/*.id
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -93,7 +93,7 @@ For instance to select the `id` of the `author` field, you must use its full nam
 
 [source,js]
 --------------------------------------------------
-GET publications/_mapping/article/field/author.id,abstract,name
+GET publications/_mapping/_doc/field/author.id,abstract,name
 --------------------------------------------------
 // CONSOLE
 
@@ -104,7 +104,7 @@ returns:
 {
    "publications": {
       "mappings": {
-         "article": {
+         "_doc": {
             "author.id": {
                "full_name": "author.id",
                "mapping": {
@@ -132,7 +132,7 @@ The get field mapping API also supports wildcard notation.
 
 [source,js]
 --------------------------------------------------
-GET publications/_mapping/article/field/a*
+GET publications/_mapping/_doc/field/a*
 --------------------------------------------------
 // CONSOLE
 
@@ -143,7 +143,7 @@ returns:
 {
    "publications": {
       "mappings": {
-         "article": {
+         "_doc": {
             "author.name": {
                "full_name": "author.name",
                "mapping": {

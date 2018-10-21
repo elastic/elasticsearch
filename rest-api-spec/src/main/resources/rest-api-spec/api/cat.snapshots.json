@@ -10,7 +10,6 @@
       "parts": {
         "repository": {
           "type" : "list",
-          "required": true,
           "description": "Name of repository from which to fetch the snapshot information"
         }
       },

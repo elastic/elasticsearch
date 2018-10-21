@@ -1,5 +1,0 @@
-cluster.name: tribe_node_cluster
-tribe.t1.cluster.name: tribe1
-tribe.t2.cluster.name: tribe2
-tribe.t1.node.id.seed: 1
-tribe.t2.node.id.seed: 2

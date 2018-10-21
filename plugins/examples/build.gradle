@@ -1,0 +1,9 @@
+// Subprojects aren't published so do not assemble
+gradle.projectsEvaluated {
+  subprojects {
+    Task assemble = project.tasks.findByName('assemble')
+    if (assemble) {
+      assemble.enabled = false
+    }
+  }
+}

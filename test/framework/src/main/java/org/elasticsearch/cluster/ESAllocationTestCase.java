@@ -43,7 +43,7 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -95,7 +95,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static Set<DiscoveryNode.Role> MASTER_DATA_ROLES =
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA)));
+            Collections.unmodifiableSet(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA));
 
     protected static DiscoveryNode newNode(String nodeId) {
         return newNode(nodeId, Version.CURRENT);
@@ -205,7 +205,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     protected static class DelayedShardsMockGatewayAllocator extends GatewayAllocator {
 
         public DelayedShardsMockGatewayAllocator() {
-            super(Settings.EMPTY, null, null);
+            super(Settings.EMPTY);
         }
 
         @Override

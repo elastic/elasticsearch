@@ -27,7 +27,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
 /**

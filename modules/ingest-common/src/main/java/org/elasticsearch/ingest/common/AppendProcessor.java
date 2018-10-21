@@ -21,11 +21,11 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
-import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.ValueSource;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.Map;
 
@@ -38,16 +38,16 @@ public final class AppendProcessor extends AbstractProcessor {
 
     public static final String TYPE = "append";
 
-    private final TemplateService.Template field;
+    private final TemplateScript.Factory field;
     private final ValueSource value;
 
-    AppendProcessor(String tag, TemplateService.Template field, ValueSource value) {
+    AppendProcessor(String tag, TemplateScript.Factory field, ValueSource value) {
         super(tag);
         this.field = field;
         this.value = value;
     }
 
-    public TemplateService.Template getField() {
+    public TemplateScript.Factory getField() {
         return field;
     }
 
@@ -56,8 +56,9 @@ public final class AppendProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         ingestDocument.appendFieldValue(field, value);
+        return ingestDocument;
     }
 
     @Override
@@ -67,10 +68,10 @@ public final class AppendProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final TemplateService templateService;
+        private final ScriptService scriptService;
 
-        public Factory(TemplateService templateService) {
-            this.templateService = templateService;
+        public Factory(ScriptService scriptService) {
+            this.scriptService = scriptService;
         }
 
         @Override
@@ -78,9 +79,9 @@ public final class AppendProcessor extends AbstractProcessor {
                                       Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
-            TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "field", field, templateService);
-            return new AppendProcessor(processorTag, compiledTemplate, ValueSource.wrap(value, templateService));
+            TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
+                "field", field, scriptService);
+            return new AppendProcessor(processorTag, compiledTemplate, ValueSource.wrap(value, scriptService));
         }
     }
 }

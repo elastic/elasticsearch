@@ -1,0 +1,38 @@
+---
+"Test timestamp templating matches date-mapping defaults":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      indices.create:
+        index: timetest
+        body:
+          mappings:
+            test: { "properties": { "my_time": {"type": "date"}}}
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_timely_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field": "my_time",
+                  "value": "{{ _ingest.timestamp }}"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: timetest
+        type: test
+        id: 1
+        pipeline: "my_timely_pipeline"
+        body: {}
+

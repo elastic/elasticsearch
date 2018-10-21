@@ -95,7 +95,7 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
         String json = "/org/elasticsearch/index/analysis/icu_analysis.json";
 
         Settings settings = Settings.builder()
-            .loadFromStream(json, IcuTokenizerFactoryTests.class.getResourceAsStream(json))
+            .loadFromStream(json, IcuTokenizerFactoryTests.class.getResourceAsStream(json), false)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();

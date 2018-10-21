@@ -1,0 +1,54 @@
+---
+"Realtime Refresh":
+
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
+ - do:
+      indices.create:
+        include_type_name: false
+        index:    test_1
+        body:
+          settings:
+            index:
+              refresh_interval: -1
+              number_of_replicas: 0
+
+ - do:
+      cluster.health:
+          wait_for_status: green
+
+ - do:
+      index:
+          include_type_name: false
+          index:   test_1
+          id:      1
+          body:    { foo: bar }
+
+ - do:
+      catch:        missing
+      get:
+          include_type_name: false
+          index:    test_1
+          id:       1
+          realtime: false
+
+ - do:
+      get:
+          include_type_name: false
+          index:    test_1
+          id:       1
+          realtime: true
+
+ - is_true: found
+
+ - do:
+      get:
+          include_type_name: false
+          index:    test_1
+          id:       1
+          realtime: false
+          refresh:  true
+
+ - is_true: found

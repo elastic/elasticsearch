@@ -33,13 +33,14 @@ import java.io.IOException;
 import java.util.Collections;
 
 public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
+
     @Override
     protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version) {
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version) {
             @Override
-            protected Version executeHandshake(DiscoveryNode node, MockChannel mockChannel, TimeValue timeout) throws IOException,
+            public Version executeHandshake(DiscoveryNode node, TcpChannel mockChannel, TimeValue timeout) throws IOException,
                 InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, mockChannel, timeout);
@@ -49,8 +50,13 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
             }
         };
         MockTransportService mockTransportService =
-            MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings);
+            MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings, Collections.emptySet());
         mockTransportService.start();
         return mockTransportService;
+    }
+
+    @Override
+    public int channelsPerNodeConnection() {
+        return 1;
     }
 }

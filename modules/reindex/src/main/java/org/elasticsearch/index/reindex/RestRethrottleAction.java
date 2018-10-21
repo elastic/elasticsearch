@@ -45,6 +45,11 @@ public class RestRethrottleAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "rethrottle_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RethrottleRequest internalRequest = new RethrottleRequest();
         internalRequest.setTaskId(new TaskId(request.param("taskId")));

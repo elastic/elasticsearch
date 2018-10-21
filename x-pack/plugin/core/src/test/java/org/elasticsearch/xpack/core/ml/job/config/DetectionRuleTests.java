@@ -1,0 +1,127 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.core.ml.job.config;
+
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+
+public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRule> {
+
+    public void testBuildWithNeitherScopeNorCondition() {
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new DetectionRule.Builder().build());
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: at least scope or a condition is required"));
+    }
+
+    public void testExtractReferencedLists() {
+        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder()
+                .exclude("foo", "filter1").include("bar", "filter2"))
+                .build();
+
+        assertEquals(new HashSet<>(Arrays.asList("filter1", "filter2")), rule.extractReferencedFilters());
+    }
+
+    @Override
+    protected DetectionRule createTestInstance() {
+        DetectionRule.Builder builder = new DetectionRule.Builder();
+
+        if (randomBoolean()) {
+            EnumSet<RuleAction> actions = EnumSet.noneOf(RuleAction.class);
+            int actionsCount = randomIntBetween(1, RuleAction.values().length);
+            for (int i = 0; i < actionsCount; ++i) {
+                actions.add(randomFrom(RuleAction.values()));
+            }
+            builder.setActions(actions);
+        }
+
+        boolean hasScope = randomBoolean();
+        boolean hasConditions = randomBoolean();
+
+        if (!hasScope && !hasConditions) {
+            // at least one of the two should be present
+            if (randomBoolean()) {
+                hasScope = true;
+            } else {
+                hasConditions = true;
+            }
+        }
+
+        if (hasScope) {
+            Map<String, FilterRef> scope = new HashMap<>();
+            int scopeSize = randomIntBetween(1, 3);
+            for (int i = 0; i < scopeSize; i++) {
+                scope.put(randomAlphaOfLength(20), new FilterRef(randomAlphaOfLength(20), randomFrom(FilterRef.FilterType.values())));
+            }
+            builder.setScope(new RuleScope(scope));
+        }
+
+        if (hasConditions) {
+            int size = randomIntBetween(1, 5);
+            List<RuleCondition> ruleConditions = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                // no need for random condition (it is already tested)
+                ruleConditions.addAll(createCondition(randomDouble()));
+            }
+            builder.setConditions(ruleConditions);
+        }
+
+        return builder.build();
+    }
+
+    @Override
+    protected Reader<DetectionRule> instanceReader() {
+        return DetectionRule::new;
+    }
+
+    @Override
+    protected DetectionRule doParseInstance(XContentParser parser) {
+        return DetectionRule.STRICT_PARSER.apply(parser, null).build();
+    }
+
+    @Override
+    protected DetectionRule mutateInstance(DetectionRule instance) {
+        List<RuleCondition> conditions = instance.getConditions();
+        RuleScope scope = instance.getScope();
+        EnumSet<RuleAction> actions = instance.getActions();
+
+        switch (between(0, 2)) {
+        case 0:
+            if (actions.size() == RuleAction.values().length) {
+                actions = EnumSet.of(randomFrom(RuleAction.values()));
+            } else {
+                actions = EnumSet.allOf(RuleAction.class);
+            }
+            break;
+        case 1:
+            conditions = new ArrayList<>(conditions);
+            conditions.addAll(createCondition(randomDouble()));
+            break;
+        case 2:
+            scope = new RuleScope.Builder(scope).include("another_field", "another_filter").build();
+            break;
+        default:
+            throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new DetectionRule.Builder(conditions).setActions(actions).setScope(scope).build();
+    }
+
+    private static List<RuleCondition> createCondition(double value) {
+        return Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, value));
+    }
+}

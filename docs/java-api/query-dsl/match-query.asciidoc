@@ -3,13 +3,9 @@
 
 See {ref}/query-dsl-match-query.html[Match Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = matchQuery(
-    "name",                  <1>
-    "kimchy elasticsearch"   <2>
-);
+include-tagged::{query-dsl-test}[match]
 --------------------------------------------------
 <1> field
 <2> text
-

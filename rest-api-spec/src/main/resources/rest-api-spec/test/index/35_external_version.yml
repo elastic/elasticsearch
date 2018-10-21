@@ -1,0 +1,59 @@
+---
+"External version":
+
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
+ - do:
+      index:
+          include_type_name: false
+          index:          test_1
+          id:             1
+          body:           { foo: bar }
+          version_type:   external
+          version:        0
+
+ - match:   { _version: 0 }
+
+ - do:
+      index:
+          include_type_name: false
+          index:          test_1
+          id:             1
+          body:           { foo: bar }
+          version_type:   external
+          version:        5
+
+ - match:   { _version: 5 }
+
+ - do:
+      catch:             conflict
+      index:
+          include_type_name: false
+          index:          test_1
+          id:             1
+          body:           { foo: bar }
+          version_type:   external
+          version:        5
+
+ - do:
+      catch:             conflict
+      index:
+          include_type_name: false
+          index:          test_1
+          id:             1
+          body:           { foo: bar }
+          version_type:   external
+          version:        0
+
+ - do:
+      index:
+          include_type_name: false
+          index:          test_1
+          id:             1
+          body:           { foo: bar }
+          version_type:   external
+          version:        6
+
+ - match:   { _version: 6}

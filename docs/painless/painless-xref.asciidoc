@@ -1,0 +1,2 @@
+Ready to start scripting with Painless? See {painless}/painless-getting-started.html[Getting Started with Painless] in the guide to the
+{painless}/painless.html[Painless Scripting Language].

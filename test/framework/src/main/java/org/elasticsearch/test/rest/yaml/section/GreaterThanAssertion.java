@@ -54,7 +54,6 @@ public class GreaterThanAssertion extends Assertion {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is greater than [{}] (field: [{}])", actualValue, expectedValue, getField());
         assertThat("value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])",

@@ -142,6 +142,6 @@ public class ElvisTests extends ScriptTestCase {
 
     private void assertCannotReturnPrimitive(String script) {
         Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec(script));
-        assertEquals("Evlis operator cannot return primitives", e.getMessage());
+        assertEquals("Elvis operator cannot return primitives", e.getMessage());
     }
 }

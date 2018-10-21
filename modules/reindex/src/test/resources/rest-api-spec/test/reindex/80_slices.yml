@@ -1,0 +1,356 @@
+---
+"Multiple slices":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      2
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      3
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      4
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        slices: 5
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+  - length: {slices: 5}
+  - match: {slices.0.updated: 0}
+  - match: {slices.0.version_conflicts: 0}
+  - match: {slices.0.throttled_millis: 0}
+  - match: {slices.1.updated: 0}
+  - match: {slices.1.version_conflicts: 0}
+  - match: {slices.1.throttled_millis: 0}
+  - match: {slices.2.updated: 0}
+  - match: {slices.2.version_conflicts: 0}
+  - match: {slices.2.throttled_millis: 0}
+  - match: {slices.3.updated: 0}
+  - match: {slices.3.version_conflicts: 0}
+  - match: {slices.3.throttled_millis: 0}
+  - match: {slices.4.updated: 0}
+  - match: {slices.4.version_conflicts: 0}
+  - match: {slices.4.throttled_millis: 0}
+
+---
+"Multiple slices with wait_for_completion=false":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      2
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      3
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      4
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        slices: 5
+        wait_for_completion: false
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - is_false: timed_out
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+  - is_false: updated
+  - is_false: version_conflicts
+  - is_false: batches
+  - is_false: failures
+  - is_false: noops
+  - is_false: took
+  - is_false: throttled_millis
+  - is_false: created
+  - is_false: deleted
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+  - is_false: node_failures
+  # The task will be in the response even if it finished before we got here
+  # because of task persistence.
+  - is_true: task
+  - match: {response.total: 4}
+  - match: {response.created: 4}
+  - match: {response.updated: 0}
+  - match: {response.version_conflicts: 0}
+  - match: {response.failures: []}
+  - match: {response.throttled_millis: 0}
+  - gte: { response.took: 0 }
+  - is_false: response.task
+  - is_false: response.deleted
+  - length: {response.slices: 5}
+  - match: {response.slices.0.updated: 0}
+  - match: {response.slices.0.version_conflicts: 0}
+  - match: {response.slices.0.throttled_millis: 0}
+  - match: {response.slices.1.updated: 0}
+  - match: {response.slices.1.version_conflicts: 0}
+  - match: {response.slices.1.throttled_millis: 0}
+  - match: {response.slices.2.updated: 0}
+  - match: {response.slices.2.version_conflicts: 0}
+  - match: {response.slices.2.throttled_millis: 0}
+  - match: {response.slices.3.updated: 0}
+  - match: {response.slices.3.version_conflicts: 0}
+  - match: {response.slices.3.throttled_millis: 0}
+  - match: {response.slices.4.updated: 0}
+  - match: {response.slices.4.version_conflicts: 0}
+  - match: {response.slices.4.throttled_millis: 0}
+  - match: {task.status.total: 4}
+  - match: {task.status.created: 4}
+  - match: {task.status.updated: 0}
+  - match: {task.status.version_conflicts: 0}
+  - match: {task.status.throttled_millis: 0}
+  - length: {task.status.slices: 5}
+  - match: {task.status.slices.0.updated: 0}
+  - match: {task.status.slices.0.version_conflicts: 0}
+  - match: {task.status.slices.0.throttled_millis: 0}
+  - match: {task.status.slices.1.updated: 0}
+  - match: {task.status.slices.1.version_conflicts: 0}
+  - match: {task.status.slices.1.throttled_millis: 0}
+  - match: {task.status.slices.2.updated: 0}
+  - match: {task.status.slices.2.version_conflicts: 0}
+  - match: {task.status.slices.2.throttled_millis: 0}
+  - match: {task.status.slices.3.updated: 0}
+  - match: {task.status.slices.3.version_conflicts: 0}
+  - match: {task.status.slices.3.throttled_millis: 0}
+  - match: {task.status.slices.4.updated: 0}
+  - match: {task.status.slices.4.version_conflicts: 0}
+  - match: {task.status.slices.4.throttled_millis: 0}
+
+  # Only the "parent" reindex task wrote its status to the tasks index though
+  - do:
+      indices.refresh: {}
+  - do:
+      search:
+        index: .tasks
+  - match: { hits.total: 1 }
+
+
+---
+"Multiple slices with rethrottle":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      2
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      3
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      4
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      5
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      6
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  # Start the task with a requests_per_second that should make it take a very long time
+  - do:
+      reindex:
+        slices: 2
+        wait_for_completion: false
+        requests_per_second: 0.0001
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - is_false: timed_out
+  - match: {task: '/.+:\d+/'}
+  - set: {task: task}
+  - is_false: updated
+  - is_false: version_conflicts
+  - is_false: batches
+  - is_false: failures
+  - is_false: noops
+  - is_false: took
+  - is_false: throttled_millis
+  - is_false: created
+  - is_false: deleted
+
+  # Allow the task to complete
+  - do:
+      reindex_rethrottle:
+        requests_per_second: -1
+        task_id: $task
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $task
+  - is_false: node_failures
+  # The task will be in the response even if it finished before we got here
+  # because of task persistence.
+  - is_true: task
+  - match: {response.total: 6}
+  - match: {response.created: 6}
+  - match: {response.updated: 0}
+  - match: {response.version_conflicts: 0}
+  - match: {response.failures: []}
+  - match: {response.throttled_millis: 0}
+  - gte: { response.took: 0 }
+  - is_false: response.task
+  - is_false: response.deleted
+  - length: {response.slices: 2}
+  - match: {response.slices.0.updated: 0}
+  - match: {response.slices.0.version_conflicts: 0}
+  - match: {response.slices.0.throttled_millis: 0}
+  - match: {response.slices.1.updated: 0}
+  - match: {response.slices.1.version_conflicts: 0}
+  - match: {response.slices.1.throttled_millis: 0}
+  - match: {task.status.total: 6}
+  - match: {task.status.created: 6}
+  - match: {task.status.updated: 0}
+  - match: {task.status.version_conflicts: 0}
+  - match: {task.status.throttled_millis: 0}
+  - length: {task.status.slices: 2}
+  - match: {task.status.slices.0.updated: 0}
+  - match: {task.status.slices.0.version_conflicts: 0}
+  - match: {task.status.slices.0.throttled_millis: 0}
+  - match: {task.status.slices.1.updated: 0}
+  - match: {task.status.slices.1.version_conflicts: 0}
+  - match: {task.status.slices.1.throttled_millis: 0}
+
+  # Only the "parent" reindex task wrote its status to the tasks index though
+  - do:
+      indices.refresh: {}
+  - do:
+      search:
+        index: .tasks
+  - match: { hits.total: 1 }
+
+
+---
+"Multiple slices with auto slice":
+  - do:
+      indices.create:
+        index: source
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      2
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      3
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      4
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        slices: auto
+        body:
+          source:
+            index: source
+          dest:
+            index: dest
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+  - length: {slices: 3}
+  - match: {slices.0.updated: 0}
+  - match: {slices.0.version_conflicts: 0}
+  - match: {slices.0.throttled_millis: 0}
+  - match: {slices.1.updated: 0}
+  - match: {slices.1.version_conflicts: 0}
+  - match: {slices.1.throttled_millis: 0}
+  - match: {slices.2.updated: 0}
+  - match: {slices.2.version_conflicts: 0}
+  - match: {slices.2.throttled_millis: 0}

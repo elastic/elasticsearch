@@ -1,0 +1,25 @@
+---
+"Index result field":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
+  - do:
+      index:
+          include_type_name: false
+          index:  test_index
+          id:     1
+          body:   { foo: bar }
+
+  - match:   { result: created }
+
+  - do:
+      index:
+          include_type_name: false
+          index:    test_index
+          id:       1
+          body:     { foo: bar }
+          op_type:  index
+
+  - match:   { result: updated }

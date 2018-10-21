@@ -1,0 +1,177 @@
+--
+:api: health
+:request: ClusterHealthRequest
+:response: ClusterHealthResponse
+--
+
+[id="{upid}-{api}"]
+=== Cluster Health API
+
+The Cluster Health API allows getting cluster health.
+
+[id="{upid}-{api}-request"]
+==== Cluster Health Request
+
+A +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+There are no required parameters. By default, the client will check all indices and will not wait
+for any events.
+
+==== Indices
+
+Indices which should be checked can be passed in the constructor:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indices-ctr]
+--------------------------------------------------
+
+Or using the corresponding setter method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-indices-setter]
+--------------------------------------------------
+
+==== Other parameters
+
+Other parameters can be passed only through setter methods:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-timeout]
+--------------------------------------------------
+<1> Timeout for the request as a `TimeValue`. Defaults to 30 seconds
+<2> As a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-master-timeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`. Defaults to the same as `timeout`
+<2> As a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-wait-status]
+--------------------------------------------------
+<1> The status to wait (e.g. `green`, `yellow`, or `red`). Accepts a `ClusterHealthStatus` value.
+<2> Using predefined method
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-wait-events]
+--------------------------------------------------
+<1> The priority of the events to wait for. Accepts a `Priority` value.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-level]
+--------------------------------------------------
+<1> The level of detail of the returned health information. Accepts a +{request}.Level+ value.
+Default value is `cluster`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-wait-relocation]
+--------------------------------------------------
+<1> Wait for 0 relocating shards. Defaults to `false`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-wait-initializing]
+--------------------------------------------------
+<1> Wait for 0 initializing shards. Defaults to `false`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-wait-nodes]
+--------------------------------------------------
+<1> Wait for `N` nodes in the cluster. Defaults to `0`
+<2> Using `>=N`, `<=N`, `>N` and `<N` notation
+<3> Using `ge(N)`, `le(N)`, `gt(N)`, `lt(N)` notation
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-wait-active]
+--------------------------------------------------
+
+<1> Wait for all shards to be active in the cluster
+<2> Wait for `N` shards to be active in the cluster
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-local]
+--------------------------------------------------
+<1> Non-master node can be used for this request. Defaults to `false`
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Cluster Health Response
+
+The returned +{response}+ contains the next information about the
+cluster:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-general]
+--------------------------------------------------
+<1> Name of the cluster
+<2> Cluster status (`green`, `yellow` or `red`)
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-request-status]
+--------------------------------------------------
+<1> Whether request was timed out while processing
+<2> Status of the request (`OK` or `REQUEST_TIMEOUT`). Other errors will be thrown as exceptions
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-nodes]
+--------------------------------------------------
+<1> Number of nodes in the cluster
+<2> Number of data nodes in the cluster
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-shards]
+--------------------------------------------------
+<1> Number of active shards
+<2> Number of primary active shards
+<3> Number of relocating shards
+<4> Number of initializing shards
+<5> Number of unassigned shards
+<6> Number of unassigned shards that are currently being delayed
+<7> Percent of active shards
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-task]
+--------------------------------------------------
+<1> Maximum wait time of all tasks in the queue
+<2> Number of currently pending tasks
+<3> Number of async fetches that are currently ongoing
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-indices]
+--------------------------------------------------
+<1> Detailed information about indices in the cluster
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-index]
+--------------------------------------------------
+<1> Detailed information about a specific index
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response-shard-details]
+--------------------------------------------------
+<1> Detailed information about a specific shard

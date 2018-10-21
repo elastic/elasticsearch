@@ -16,12 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.JavaVersion
-
 apply plugin: 'elasticsearch.build'
-apply plugin: 'ru.vyarus.animalsniffer'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
@@ -29,9 +24,18 @@ targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7
 
 group = 'org.elasticsearch.client'
+archivesBaseName = 'elasticsearch-rest-client-sniffer'
+
+publishing {
+  publications {
+    nebula {
+      artifactId = archivesBaseName
+    }
+  }
+}
 
 dependencies {
-  compile "org.elasticsearch.client:rest:${version}"
+  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
@@ -44,21 +48,19 @@ dependencies {
   testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
   testCompile "org.elasticsearch:securemock:${versions.securemock}"
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
-  testCompile "org.codehaus.mojo:animal-sniffer-annotations:1.15"
-  signature "org.codehaus.mojo.signature:java17:1.0@signature"
 }
 
 forbiddenApisMain {
-  //client does not depend on core, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  //client does not depend on server, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 forbiddenApisTest {
   //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
-  //client does not depend on core, so only jdk signatures should be checked
-  signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  //client does not depend on server, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 dependencyLicenses {
@@ -66,7 +68,8 @@ dependencyLicenses {
   mapping from: /commons-.*/, to: 'commons'
 }
 
-//JarHell is part of es core, which we don't want to pull in
+// JarHell is part of es server, which we don't want to pull in
+// TODO: Not anymore. Now in :libs:core
 jarHell.enabled=false
 
 namingConventions {

@@ -20,7 +20,9 @@ package org.elasticsearch.test.junit.listeners;
 
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -37,7 +39,6 @@ import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
 import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_BLACKLIST;
-import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_SPEC;
 import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_SUITE;
 
 /**
@@ -72,7 +73,8 @@ public class ReproduceInfoPrinter extends RunListener {
             return;
         }
 
-        final StringBuilder b = new StringBuilder("REPRODUCE WITH: gradle ");
+        final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
+        final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
         // TODO: enforce (intellij still runs the runner?) or use default "test" but that won't work for integ
         b.append(task);
@@ -85,7 +87,12 @@ public class ReproduceInfoPrinter extends RunListener {
             gradleMessageBuilder.appendClientYamlSuiteProperties();
         }
 
-        System.err.println(b.toString());
+        printToErr(b.toString());
+    }
+
+    @SuppressForbidden(reason = "printing repro info")
+    private static void printToErr(String s) {
+        System.err.println(s);
     }
 
     protected static class GradleMessageBuilder extends ReproduceErrorMessageBuilder {
@@ -142,17 +149,22 @@ public class ReproduceInfoPrinter extends RunListener {
                 appendProperties(ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
             appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
-                             "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version");
+                             "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version", "build.snapshot");
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
+            appendOpt("tests.distribution", System.getProperty("tests.distribution"));
+            appendOpt("compiler.java", System.getProperty("compiler.java"));
+            appendOpt("runtime.java", System.getProperty("runtime.java"));
+            appendOpt("javax.net.ssl.keyStorePassword", System.getProperty("javax.net.ssl.keyStorePassword"));
+            appendOpt("javax.net.ssl.trustStorePassword", System.getProperty("javax.net.ssl.trustStorePassword"));
             return this;
         }
 
         public ReproduceErrorMessageBuilder appendClientYamlSuiteProperties() {
-            return appendProperties(REST_TESTS_SUITE, REST_TESTS_SPEC, REST_TESTS_BLACKLIST);
+            return appendProperties(REST_TESTS_SUITE, REST_TESTS_BLACKLIST);
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

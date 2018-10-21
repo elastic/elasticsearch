@@ -54,14 +54,18 @@ class DateMethodValueSource extends FieldDataValueSource {
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
         AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
         final Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues(), 0d);
+        NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues());
         return new DoubleDocValues(this) {
-          @Override
-          public double doubleVal(int docId) {
-            long millis = (long)docValues.get(docId);
-            calendar.setTimeInMillis(millis);
-            return calendar.get(calendarType);
-          }
+            @Override
+            public double doubleVal(int docId) throws IOException {
+                if (docValues.advanceExact(docId)) {
+                    long millis = (long)docValues.doubleValue();
+                    calendar.setTimeInMillis(millis);
+                    return calendar.get(calendarType);
+                } else {
+                    return 0;
+                }
+            }
         };
     }
 

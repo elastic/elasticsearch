@@ -8,5 +8,3 @@ include::overview.asciidoc[]
 include::low-level/index.asciidoc[]
 
 include::high-level/index.asciidoc[]
-
-include::license.asciidoc[]

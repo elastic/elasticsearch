@@ -1,12 +1,17 @@
 #!/bin/bash
 
-# This file contains some utilities to test the elasticsearch scripts,
-# the .deb/.rpm packages and the SysV/Systemd scripts.
+# This file contains some utilities to test the elasticsearch
+# tar distribution.
 
 # WARNING: This testing file must be executed as root and can
-# dramatically change your system. It removes the 'elasticsearch'
-# user/group and also many directories. Do not execute this file
-# unless you know exactly what you are doing.
+# dramatically change your system. It should only be executed
+# in a throw-away VM like those made by the Vagrantfile at
+# the root of the Elasticsearch source code. This should
+# cause the script to fail if it is executed any other way:
+[ -f /etc/is_vagrant_vm ] || {
+  >&2 echo "must be run on a vagrant VM"
+  exit 1
+}
 
 # Licensed to Elasticsearch under one or more contributor
 # license agreements. See the NOTICE file distributed with
@@ -30,10 +35,12 @@
 install_archive() {
     export ESHOME=${1:-/tmp/elasticsearch}
 
+    local version=$(cat version)
+
     echo "Unpacking tarball to $ESHOME"
     rm -rf /tmp/untar
     mkdir -p /tmp/untar
-    tar -xzpf elasticsearch*.tar.gz -C /tmp/untar
+    tar -xzpf "${PACKAGE_NAME}-${version}.tar.gz" -C /tmp/untar
 
     find /tmp/untar -depth -type d -name 'elasticsearch*' -exec mv {} "$ESHOME" \; > /dev/null
 
@@ -74,6 +81,8 @@ export_elasticsearch_paths() {
     export ESSCRIPTS="$ESCONFIG/scripts"
     export ESDATA="$ESHOME/data"
     export ESLOG="$ESHOME/logs"
+
+    export PACKAGE_NAME=${PACKAGE_NAME:-"elasticsearch-oss"}
 }
 
 # Checks that all directories & files are correctly installed
@@ -82,16 +91,19 @@ verify_archive_installation() {
     assert_file "$ESHOME" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin/elasticsearch" f elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/elasticsearch.in.sh" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/elasticsearch-env" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/elasticsearch-keystore" f elasticsearch elasticsearch 755
     assert_file "$ESHOME/bin/elasticsearch-plugin" f elasticsearch elasticsearch 755
-    assert_file "$ESHOME/bin/elasticsearch-translog" f elasticsearch elasticsearch 755
+    assert_file "$ESHOME/bin/elasticsearch-shard" f elasticsearch elasticsearch 755
     assert_file "$ESCONFIG" d elasticsearch elasticsearch 755
     assert_file "$ESCONFIG/elasticsearch.yml" f elasticsearch elasticsearch 660
     assert_file "$ESCONFIG/jvm.options" f elasticsearch elasticsearch 660
     assert_file "$ESCONFIG/log4j2.properties" f elasticsearch elasticsearch 660
     assert_file "$ESPLUGINS" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/lib" d elasticsearch elasticsearch 755
+    assert_file "$ESHOME/logs" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/NOTICE.txt" f elasticsearch elasticsearch 644
     assert_file "$ESHOME/LICENSE.txt" f elasticsearch elasticsearch 644
     assert_file "$ESHOME/README.textile" f elasticsearch elasticsearch 644
+    assert_file_not_exist "$ESCONFIG/elasticsearch.keystore"
 }

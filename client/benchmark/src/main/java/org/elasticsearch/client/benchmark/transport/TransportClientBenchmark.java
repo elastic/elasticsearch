@@ -79,7 +79,7 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
 
         @Override
         public boolean bulkIndex(List<String> bulkData) {
-            NoopBulkRequestBuilder builder = NoopBulkAction.INSTANCE.newRequestBuilder(client);
+            NoopBulkRequestBuilder builder = new NoopBulkRequestBuilder(client,NoopBulkAction.INSTANCE);
             for (String bulkItem : bulkData) {
                 builder.add(new IndexRequest(indexName, typeName).source(bulkItem.getBytes(StandardCharsets.UTF_8), XContentType.JSON));
             }
@@ -108,7 +108,7 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
         @Override
         public boolean search(String source) {
             final SearchResponse response;
-            NoopSearchRequestBuilder builder = NoopSearchAction.INSTANCE.newRequestBuilder(client);
+            NoopSearchRequestBuilder builder = new NoopSearchRequestBuilder(client, NoopSearchAction.INSTANCE);
             try {
                 builder.setIndices(indexName);
                 builder.setQuery(QueryBuilders.wrapperQuery(source));

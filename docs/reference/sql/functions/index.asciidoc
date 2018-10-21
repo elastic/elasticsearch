@@ -1,0 +1,22 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions]]
+== Functions and Operators
+
+{es-sql} provides a comprehensive set of built-in operators and functions:
+
+* <<sql-operators, Operators>>
+* <<sql-functions-aggs, Aggregate>>
+* <<sql-functions-datetime, Date-Time>>
+* <<sql-functions-search, Full-Text Search>>
+* <<sql-functions-math, Mathematical>>
+* <<sql-functions-string, String>>
+* <<sql-functions-type-conversion,Type Conversion>>
+
+include::operators.asciidoc[]
+include::aggs.asciidoc[]
+include::date-time.asciidoc[]
+include::search.asciidoc[]
+include::math.asciidoc[]
+include::string.asciidoc[]
+include::type-conversion.asciidoc[]

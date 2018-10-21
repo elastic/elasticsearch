@@ -40,8 +40,7 @@ public class StoredExpressionTests extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        builder.put("script.engine.expression.stored.update", "false");
-        builder.put("script.engine.expression.stored.search", "false");
+        builder.put("script.allowed_contexts", "update");
         return builder.build();
     }
 
@@ -52,35 +51,34 @@ public class StoredExpressionTests extends ESIntegTestCase {
 
     public void testAllOpsDisabledIndexedScripts() throws IOException {
         client().admin().cluster().preparePutStoredScript()
-                .setLang(ExpressionScriptEngineService.NAME)
                 .setId("script1")
-                .setContent(new BytesArray("{\"script\":\"2\"}"), XContentType.JSON)
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"expression\", \"source\": \"2\"} }"), XContentType.JSON)
                 .get();
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(new Script(ScriptType.STORED, ExpressionScriptEngineService.NAME, "script1", Collections.emptyMap())).get();
+                    .setScript(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
-            assertThat(e.getCause().getMessage(), containsString("scripts of type [stored], operation [update] and lang [expression] are not supported"));
+            assertThat(e.getCause().getMessage(), containsString("Failed to compile stored script [script1] using lang [expression]"));
         }
         try {
             client().prepareSearch()
-                    .setSource(
-                            new SearchSourceBuilder().scriptField("test1", new Script(ScriptType.STORED, "expression", "script1", Collections.emptyMap())))
+                    .setSource(new SearchSourceBuilder().scriptField("test1",
+                            new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())))
                     .setIndices("test").setTypes("scriptTest").get();
             fail("search script should have been rejected");
         } catch(Exception e) {
-            assertThat(e.toString(), containsString("scripts of type [stored], operation [search] and lang [expression] are disabled"));
+            assertThat(e.toString(), containsString("cannot execute scripts using [field] context"));
         }
         try {
             client().prepareSearch("test")
                     .setSource(
                             new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                    new Script(ScriptType.STORED, "expression", "script1", Collections.emptyMap())))).get();
+                                    new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())))).get();
         } catch (Exception e) {
-            assertThat(e.toString(), containsString("scripts of type [stored], operation [aggs] and lang [expression] are disabled"));
+            assertThat(e.toString(), containsString("cannot execute scripts using [aggs] context"));
         }
     }
 }

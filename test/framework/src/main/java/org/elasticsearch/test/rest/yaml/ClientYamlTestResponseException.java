@@ -32,7 +32,7 @@ public class ClientYamlTestResponseException extends IOException {
     private final ClientYamlTestResponse restTestResponse;
     private final ResponseException responseException;
 
-    ClientYamlTestResponseException(ResponseException responseException) throws IOException {
+    public ClientYamlTestResponseException(ResponseException responseException) throws IOException {
         super(responseException);
         this.responseException = responseException;
         this.restTestResponse = new ClientYamlTestResponse(responseException.getResponse());

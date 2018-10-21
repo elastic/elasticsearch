@@ -1,10 +1,12 @@
 [[java-query-dsl-type-query]]
 ==== Type Query
 
+deprecated[7.0.0, Types are being removed, prefer filtering on a field instead. For more information, please see {ref}/removal-of-types.html[Removal of mapping types].]
+
 See {ref}/query-dsl-type-query.html[Type Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = typeQuery("my_type"); <1>
+include-tagged::{query-dsl-test}[type]
 --------------------------------------------------
 <1> type

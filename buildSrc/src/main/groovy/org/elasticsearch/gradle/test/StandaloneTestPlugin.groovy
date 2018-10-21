@@ -24,6 +24,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.tasks.compile.JavaCompile
 
 /**
  * Configures the build to compile against Elasticsearch's test framework and
@@ -46,7 +47,7 @@ public class StandaloneTestPlugin implements Plugin<Project> {
         test.configure(BuildPlugin.commonTestConfig(project))
         BuildPlugin.configureCompile(project)
         test.classpath = project.sourceSets.test.runtimeClasspath
-        test.testClassesDir project.sourceSets.test.output.classesDir
+        test.testClassesDirs = project.sourceSets.test.output.classesDirs
         test.mustRunAfter(project.precommit)
         project.check.dependsOn(test)
     }

@@ -24,6 +24,7 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.HttpMethod;
 import com.amazonaws.regions.Region;
+import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.services.s3.S3ResponseMetadata;
@@ -118,14 +119,13 @@ import java.util.Date;
 import java.util.List;
 
 @SuppressForbidden(reason = "implements AWS api that uses java.io.File!")
-public class AmazonS3Wrapper implements AmazonS3 {
+public class AmazonS3Wrapper extends AbstractAmazonS3 {
 
     protected AmazonS3 delegate;
 
     public AmazonS3Wrapper(AmazonS3 delegate) {
         this.delegate = delegate;
     }
-
 
     @Override
     public void setEndpoint(String endpoint) {
@@ -143,12 +143,14 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public void changeObjectStorageClass(String bucketName, String key, StorageClass newStorageClass) throws AmazonClientException, AmazonServiceException {
+    public void changeObjectStorageClass(String bucketName, String key, StorageClass newStorageClass)
+            throws AmazonClientException, AmazonServiceException {
         delegate.changeObjectStorageClass(bucketName, key, newStorageClass);
     }
 
     @Override
-    public void setObjectRedirectLocation(String bucketName, String key, String newRedirectLocation) throws AmazonClientException, AmazonServiceException {
+    public void setObjectRedirectLocation(String bucketName, String key, String newRedirectLocation)
+            throws AmazonClientException, AmazonServiceException {
         delegate.setObjectRedirectLocation(bucketName, key, newRedirectLocation);
     }
 
@@ -178,12 +180,14 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public VersionListing listNextBatchOfVersions(VersionListing previousVersionListing) throws AmazonClientException, AmazonServiceException {
+    public VersionListing listNextBatchOfVersions(VersionListing previousVersionListing)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.listNextBatchOfVersions(previousVersionListing);
     }
 
     @Override
-    public VersionListing listVersions(String bucketName, String prefix, String keyMarker, String versionIdMarker, String delimiter, Integer maxResults) throws AmazonClientException, AmazonServiceException {
+    public VersionListing listVersions(String bucketName, String prefix, String keyMarker, String versionIdMarker,
+            String delimiter, Integer maxResults) throws AmazonClientException, AmazonServiceException {
         return delegate.listVersions(bucketName, prefix, keyMarker, versionIdMarker, delimiter, maxResults);
     }
 
@@ -218,7 +222,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public String getBucketLocation(GetBucketLocationRequest getBucketLocationRequest) throws AmazonClientException, AmazonServiceException {
+    public String getBucketLocation(GetBucketLocationRequest getBucketLocationRequest)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getBucketLocation(getBucketLocationRequest);
     }
 
@@ -233,7 +238,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public Bucket createBucket(String bucketName, com.amazonaws.services.s3.model.Region region) throws AmazonClientException, AmazonServiceException {
+    public Bucket createBucket(String bucketName, com.amazonaws.services.s3.model.Region region)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.createBucket(bucketName, region);
     }
 
@@ -248,7 +254,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public AccessControlList getObjectAcl(String bucketName, String key, String versionId) throws AmazonClientException, AmazonServiceException {
+    public AccessControlList getObjectAcl(String bucketName, String key, String versionId)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getObjectAcl(bucketName, key, versionId);
     }
 
@@ -263,17 +270,20 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public void setObjectAcl(String bucketName, String key, CannedAccessControlList acl) throws AmazonClientException, AmazonServiceException {
+    public void setObjectAcl(String bucketName, String key, CannedAccessControlList acl)
+            throws AmazonClientException, AmazonServiceException {
         delegate.setObjectAcl(bucketName, key, acl);
     }
 
     @Override
-    public void setObjectAcl(String bucketName, String key, String versionId, AccessControlList acl) throws AmazonClientException, AmazonServiceException {
+    public void setObjectAcl(String bucketName, String key, String versionId, AccessControlList acl)
+            throws AmazonClientException, AmazonServiceException {
         delegate.setObjectAcl(bucketName, key, versionId, acl);
     }
 
     @Override
-    public void setObjectAcl(String bucketName, String key, String versionId, CannedAccessControlList acl) throws AmazonClientException, AmazonServiceException {
+    public void setObjectAcl(String bucketName, String key, String versionId, CannedAccessControlList acl)
+            throws AmazonClientException, AmazonServiceException {
         delegate.setObjectAcl(bucketName, key, versionId, acl);
     }
 
@@ -313,7 +323,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public ObjectMetadata getObjectMetadata(GetObjectMetadataRequest getObjectMetadataRequest) throws AmazonClientException, AmazonServiceException {
+    public ObjectMetadata getObjectMetadata(GetObjectMetadataRequest getObjectMetadataRequest)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getObjectMetadata(getObjectMetadataRequest);
     }
 
@@ -328,7 +339,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public ObjectMetadata getObject(GetObjectRequest getObjectRequest, File destinationFile) throws AmazonClientException, AmazonServiceException {
+    public ObjectMetadata getObject(GetObjectRequest getObjectRequest, File destinationFile)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getObject(getObjectRequest, destinationFile);
     }
 
@@ -343,17 +355,20 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public void setBucketReplicationConfiguration(String bucketName, BucketReplicationConfiguration configuration) throws AmazonServiceException, AmazonClientException {
+    public void setBucketReplicationConfiguration(String bucketName, BucketReplicationConfiguration configuration)
+            throws AmazonServiceException, AmazonClientException {
         delegate.setBucketReplicationConfiguration(bucketName, configuration);
     }
 
     @Override
-    public void setBucketReplicationConfiguration(SetBucketReplicationConfigurationRequest setBucketReplicationConfigurationRequest) throws AmazonServiceException, AmazonClientException {
+    public void setBucketReplicationConfiguration(SetBucketReplicationConfigurationRequest setBucketReplicationConfigurationRequest)
+            throws AmazonServiceException, AmazonClientException {
         delegate.setBucketReplicationConfiguration(setBucketReplicationConfigurationRequest);
     }
 
     @Override
-    public BucketReplicationConfiguration getBucketReplicationConfiguration(String bucketName) throws AmazonServiceException, AmazonClientException {
+    public BucketReplicationConfiguration getBucketReplicationConfiguration(String bucketName)
+            throws AmazonServiceException, AmazonClientException {
         return delegate.getBucketReplicationConfiguration(bucketName);
     }
 
@@ -363,8 +378,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public void deleteBucketReplicationConfiguration(DeleteBucketReplicationConfigurationRequest request) throws AmazonServiceException,
-        AmazonClientException {
+    public void deleteBucketReplicationConfiguration(DeleteBucketReplicationConfigurationRequest request)
+            throws AmazonServiceException, AmazonClientException {
         delegate.deleteBucketReplicationConfiguration(request);
     }
 
@@ -384,12 +399,14 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public PutObjectResult putObject(String bucketName, String key, InputStream input, ObjectMetadata metadata) throws AmazonClientException, AmazonServiceException {
+    public PutObjectResult putObject(String bucketName, String key, InputStream input, ObjectMetadata metadata)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.putObject(bucketName, key, input, metadata);
     }
 
     @Override
-    public CopyObjectResult copyObject(String sourceBucketName, String sourceKey, String destinationBucketName, String destinationKey) throws AmazonClientException, AmazonServiceException {
+    public CopyObjectResult copyObject(String sourceBucketName, String sourceKey, String destinationBucketName, String destinationKey)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.copyObject(sourceBucketName, sourceKey, destinationBucketName, destinationKey);
     }
 
@@ -414,7 +431,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public DeleteObjectsResult deleteObjects(DeleteObjectsRequest deleteObjectsRequest) throws AmazonClientException, AmazonServiceException {
+    public DeleteObjectsResult deleteObjects(DeleteObjectsRequest deleteObjectsRequest)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.deleteObjects(deleteObjectsRequest);
     }
 
@@ -429,22 +447,26 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public BucketLoggingConfiguration getBucketLoggingConfiguration(String bucketName) throws AmazonClientException, AmazonServiceException {
+    public BucketLoggingConfiguration getBucketLoggingConfiguration(String bucketName)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getBucketLoggingConfiguration(bucketName);
     }
 
     @Override
-    public void setBucketLoggingConfiguration(SetBucketLoggingConfigurationRequest setBucketLoggingConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+    public void setBucketLoggingConfiguration(SetBucketLoggingConfigurationRequest setBucketLoggingConfigurationRequest)
+            throws AmazonClientException, AmazonServiceException {
         delegate.setBucketLoggingConfiguration(setBucketLoggingConfigurationRequest);
     }
 
     @Override
-    public BucketVersioningConfiguration getBucketVersioningConfiguration(String bucketName) throws AmazonClientException, AmazonServiceException {
+    public BucketVersioningConfiguration getBucketVersioningConfiguration(String bucketName)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getBucketVersioningConfiguration(bucketName);
     }
 
     @Override
-    public void setBucketVersioningConfiguration(SetBucketVersioningConfigurationRequest setBucketVersioningConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+    public void setBucketVersioningConfiguration(SetBucketVersioningConfigurationRequest setBucketVersioningConfigurationRequest)
+            throws AmazonClientException, AmazonServiceException {
         delegate.setBucketVersioningConfiguration(setBucketVersioningConfigurationRequest);
     }
 
@@ -494,7 +516,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public void deleteBucketCrossOriginConfiguration(DeleteBucketCrossOriginConfigurationRequest deleteBucketCrossOriginConfigurationRequest) {
+    public void deleteBucketCrossOriginConfiguration(
+            DeleteBucketCrossOriginConfigurationRequest deleteBucketCrossOriginConfigurationRequest) {
         delegate.deleteBucketCrossOriginConfiguration(deleteBucketCrossOriginConfigurationRequest);
     }
 
@@ -524,37 +547,45 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public BucketNotificationConfiguration getBucketNotificationConfiguration(String bucketName) throws AmazonClientException, AmazonServiceException {
+    public BucketNotificationConfiguration getBucketNotificationConfiguration(String bucketName)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getBucketNotificationConfiguration(bucketName);
     }
 
     @Override
-    public void setBucketNotificationConfiguration(SetBucketNotificationConfigurationRequest setBucketNotificationConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+    public void setBucketNotificationConfiguration(SetBucketNotificationConfigurationRequest setBucketNotificationConfigurationRequest)
+            throws AmazonClientException, AmazonServiceException {
         delegate.setBucketNotificationConfiguration(setBucketNotificationConfigurationRequest);
     }
 
     @Override
-    public void setBucketNotificationConfiguration(String bucketName, BucketNotificationConfiguration bucketNotificationConfiguration) throws AmazonClientException, AmazonServiceException {
+    public void setBucketNotificationConfiguration(String bucketName, BucketNotificationConfiguration bucketNotificationConfiguration)
+            throws AmazonClientException, AmazonServiceException {
         delegate.setBucketNotificationConfiguration(bucketName, bucketNotificationConfiguration);
     }
 
     @Override
-    public BucketWebsiteConfiguration getBucketWebsiteConfiguration(String bucketName) throws AmazonClientException, AmazonServiceException {
+    public BucketWebsiteConfiguration getBucketWebsiteConfiguration(String bucketName)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getBucketWebsiteConfiguration(bucketName);
     }
 
     @Override
-    public BucketWebsiteConfiguration getBucketWebsiteConfiguration(GetBucketWebsiteConfigurationRequest getBucketWebsiteConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+    public BucketWebsiteConfiguration getBucketWebsiteConfiguration(
+            GetBucketWebsiteConfigurationRequest getBucketWebsiteConfigurationRequest)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getBucketWebsiteConfiguration(getBucketWebsiteConfigurationRequest);
     }
 
     @Override
-    public void setBucketWebsiteConfiguration(String bucketName, BucketWebsiteConfiguration configuration) throws AmazonClientException, AmazonServiceException {
+    public void setBucketWebsiteConfiguration(String bucketName, BucketWebsiteConfiguration configuration)
+            throws AmazonClientException, AmazonServiceException {
         delegate.setBucketWebsiteConfiguration(bucketName, configuration);
     }
 
     @Override
-    public void setBucketWebsiteConfiguration(SetBucketWebsiteConfigurationRequest setBucketWebsiteConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+    public void setBucketWebsiteConfiguration(SetBucketWebsiteConfigurationRequest setBucketWebsiteConfigurationRequest)
+            throws AmazonClientException, AmazonServiceException {
         delegate.setBucketWebsiteConfiguration(setBucketWebsiteConfigurationRequest);
     }
 
@@ -564,7 +595,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public void deleteBucketWebsiteConfiguration(DeleteBucketWebsiteConfigurationRequest deleteBucketWebsiteConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+    public void deleteBucketWebsiteConfiguration(DeleteBucketWebsiteConfigurationRequest deleteBucketWebsiteConfigurationRequest)
+            throws AmazonClientException, AmazonServiceException {
         delegate.deleteBucketWebsiteConfiguration(deleteBucketWebsiteConfigurationRequest);
     }
 
@@ -574,7 +606,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public BucketPolicy getBucketPolicy(GetBucketPolicyRequest getBucketPolicyRequest) throws AmazonClientException, AmazonServiceException {
+    public BucketPolicy getBucketPolicy(GetBucketPolicyRequest getBucketPolicyRequest)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getBucketPolicy(getBucketPolicyRequest);
     }
 
@@ -594,7 +627,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public void deleteBucketPolicy(DeleteBucketPolicyRequest deleteBucketPolicyRequest) throws AmazonClientException, AmazonServiceException {
+    public void deleteBucketPolicy(DeleteBucketPolicyRequest deleteBucketPolicyRequest)
+            throws AmazonClientException, AmazonServiceException {
         delegate.deleteBucketPolicy(deleteBucketPolicyRequest);
     }
 
@@ -614,7 +648,8 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public InitiateMultipartUploadResult initiateMultipartUpload(InitiateMultipartUploadRequest request) throws AmazonClientException, AmazonServiceException {
+    public InitiateMultipartUploadResult initiateMultipartUpload(InitiateMultipartUploadRequest request)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.initiateMultipartUpload(request);
     }
 
@@ -634,12 +669,14 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public CompleteMultipartUploadResult completeMultipartUpload(CompleteMultipartUploadRequest request) throws AmazonClientException, AmazonServiceException {
+    public CompleteMultipartUploadResult completeMultipartUpload(CompleteMultipartUploadRequest request)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.completeMultipartUpload(request);
     }
 
     @Override
-    public MultipartUploadListing listMultipartUploads(ListMultipartUploadsRequest request) throws AmazonClientException, AmazonServiceException {
+    public MultipartUploadListing listMultipartUploads(ListMultipartUploadsRequest request)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.listMultipartUploads(request);
     }
 
@@ -674,12 +711,14 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public ObjectListing listNextBatchOfObjects(ListNextBatchOfObjectsRequest listNextBatchOfObjectsRequest) throws AmazonClientException, AmazonServiceException {
+    public ObjectListing listNextBatchOfObjects(ListNextBatchOfObjectsRequest listNextBatchOfObjectsRequest)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.listNextBatchOfObjects(listNextBatchOfObjectsRequest);
     }
 
     @Override
-    public VersionListing listNextBatchOfVersions(ListNextBatchOfVersionsRequest listNextBatchOfVersionsRequest) throws AmazonClientException, AmazonServiceException {
+    public VersionListing listNextBatchOfVersions(ListNextBatchOfVersionsRequest listNextBatchOfVersionsRequest)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.listNextBatchOfVersions(listNextBatchOfVersionsRequest);
     }
 
@@ -689,42 +728,58 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
-    public BucketLoggingConfiguration getBucketLoggingConfiguration(GetBucketLoggingConfigurationRequest getBucketLoggingConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+    public BucketLoggingConfiguration getBucketLoggingConfiguration(
+            GetBucketLoggingConfigurationRequest getBucketLoggingConfigurationRequest)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getBucketLoggingConfiguration(getBucketLoggingConfigurationRequest);
     }
 
     @Override
-    public BucketVersioningConfiguration getBucketVersioningConfiguration(GetBucketVersioningConfigurationRequest getBucketVersioningConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+    public BucketVersioningConfiguration getBucketVersioningConfiguration(
+            GetBucketVersioningConfigurationRequest getBucketVersioningConfigurationRequest)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getBucketVersioningConfiguration(getBucketVersioningConfigurationRequest);
     }
 
     @Override
-    public BucketLifecycleConfiguration getBucketLifecycleConfiguration(GetBucketLifecycleConfigurationRequest getBucketLifecycleConfigurationRequest) {
+    public BucketLifecycleConfiguration getBucketLifecycleConfiguration(
+            GetBucketLifecycleConfigurationRequest getBucketLifecycleConfigurationRequest) {
         return delegate.getBucketLifecycleConfiguration(getBucketLifecycleConfigurationRequest);
     }
 
     @Override
-    public BucketCrossOriginConfiguration getBucketCrossOriginConfiguration(GetBucketCrossOriginConfigurationRequest getBucketCrossOriginConfigurationRequest) {
+    public BucketCrossOriginConfiguration getBucketCrossOriginConfiguration(
+            GetBucketCrossOriginConfigurationRequest getBucketCrossOriginConfigurationRequest) {
         return delegate.getBucketCrossOriginConfiguration(getBucketCrossOriginConfigurationRequest);
     }
 
     @Override
-    public BucketTaggingConfiguration getBucketTaggingConfiguration(GetBucketTaggingConfigurationRequest getBucketTaggingConfigurationRequest) {
+    public BucketTaggingConfiguration getBucketTaggingConfiguration(
+            GetBucketTaggingConfigurationRequest getBucketTaggingConfigurationRequest) {
         return delegate.getBucketTaggingConfiguration(getBucketTaggingConfigurationRequest);
     }
 
     @Override
-    public BucketNotificationConfiguration getBucketNotificationConfiguration(GetBucketNotificationConfigurationRequest getBucketNotificationConfigurationRequest) throws AmazonClientException, AmazonServiceException {
+    public BucketNotificationConfiguration getBucketNotificationConfiguration(
+            GetBucketNotificationConfigurationRequest getBucketNotificationConfigurationRequest)
+            throws AmazonClientException, AmazonServiceException {
         return delegate.getBucketNotificationConfiguration(getBucketNotificationConfigurationRequest);
     }
 
     @Override
-    public BucketReplicationConfiguration getBucketReplicationConfiguration(GetBucketReplicationConfigurationRequest getBucketReplicationConfigurationRequest) throws AmazonServiceException, AmazonClientException {
+    public BucketReplicationConfiguration getBucketReplicationConfiguration(
+            GetBucketReplicationConfigurationRequest getBucketReplicationConfigurationRequest)
+            throws AmazonServiceException, AmazonClientException {
         return delegate.getBucketReplicationConfiguration(getBucketReplicationConfigurationRequest);
     }
 
     @Override
     public HeadBucketResult headBucket(HeadBucketRequest headBucketRequest) throws AmazonClientException, AmazonServiceException {
         return delegate.headBucket(headBucketRequest);
+    }
+
+    @Override
+    public void shutdown() {
+        delegate.shutdown();
     }
 }

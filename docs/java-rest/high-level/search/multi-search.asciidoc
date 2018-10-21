@@ -1,0 +1,89 @@
+[[java-rest-high-multi-search]]
+=== Multi-Search API
+
+The `multiSearch` API executes multiple <<java-rest-high-search,`search`>>
+requests in a single http request in parallel.
+
+[[java-rest-high-multi-search-request]]
+==== Multi-Search Request
+
+The `MultiSearchRequest` is built empty and you add all of the searches that
+you wish to execute to it:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-request-basic]
+--------------------------------------------------
+<1> Create an empty `MultiSearchRequest`.
+<2> Create an empty `SearchRequest` and populate it just like you
+would for a regular <<java-rest-high-search,`search`>>.
+<3> Add the `SearchRequest` to the `MultiSearchRequest`.
+<4> Build a second `SearchRequest` and add it to the `MultiSearchRequest`.
+
+===== Optional arguments
+
+The `SearchRequest`s inside of `MultiSearchRequest` support all of
+<<java-rest-high-search-request-optional,`search`>>'s optional arguments.
+For example:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-request-indices]
+--------------------------------------------------
+<1> Restricts the request to an index
+
+[[java-rest-high-multi-search-sync]]
+==== Synchronous Execution
+
+The `multiSearch` method executes `MultiSearchRequest`s synchronously:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-execute]
+--------------------------------------------------
+
+[[java-rest-high-multi-search-async]]
+==== Asynchronous Execution
+
+The `multiSearchAsync` method executes `MultiSearchRequest`s asynchronously,
+calling the provided `ActionListener` when the response is ready.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-execute-async]
+--------------------------------------------------
+<1> The `MultiSearchRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `MultiSearchResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed.
+<2> Called when the whole `SearchRequest` fails.
+
+==== MultiSearchResponse
+
+The `MultiSearchResponse` that is returned by executing the `multiSearch` method contains
+a `MultiSearchResponse.Item` for each `SearchRequest` in the
+`MultiSearchRequest`. Each `MultiSearchResponse.Item` contains an
+exception in `getFailure` if the request failed or a
+<<java-rest-high-search-response,`SearchResponse`>> in `getResponse` if
+the request succeeded:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[multi-search-response]
+--------------------------------------------------
+<1> The item for the first search.
+<2> It succeeded so `getFailure` returns null.
+<3> And there is a <<java-rest-high-search-response,`SearchResponse`>> in
+`getResponse`.
+<4> The item for the second search.

@@ -56,7 +56,7 @@ POST /sales/_search
         "max_price" : {
             "max" : {
                 "script" : {
-                    "inline" : "doc.price.value"
+                    "source" : "doc.price.value"
                 }
             }
         }
@@ -67,7 +67,7 @@ POST /sales/_search
 // TEST[setup:sales]
 
 This will use the <<modules-scripting-painless, Painless>> scripting language
-and no script parameters. To use a file script use the following syntax:
+and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -77,7 +77,7 @@ POST /sales/_search
         "max_price" : {
             "max" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "price"
                     }
@@ -88,9 +88,7 @@ POST /sales/_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:sales]
-
-TIP: For indexed scripts replace the `file` parameter with an `id` parameter.
+// TEST[setup:sales,stored_example_script]
 
 ==== Value Script
 
@@ -108,7 +106,7 @@ POST /sales/_search
             "max" : {
                 "field" : "price",
                 "script" : {
-                    "inline" : "_value * params.conversion_rate",
+                    "source" : "_value * params.conversion_rate",
                     "params" : {
                         "conversion_rate" : 1.2
                     }

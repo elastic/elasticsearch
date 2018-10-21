@@ -23,8 +23,9 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.ValueSource;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.Map;
 
@@ -37,14 +38,14 @@ public final class SetProcessor extends AbstractProcessor {
     public static final String TYPE = "set";
 
     private final boolean overrideEnabled;
-    private final TemplateService.Template field;
+    private final TemplateScript.Factory field;
     private final ValueSource value;
 
-    SetProcessor(String tag, TemplateService.Template field, ValueSource value)  {
+    SetProcessor(String tag, TemplateScript.Factory field, ValueSource value)  {
         this(tag, field, value, true);
     }
 
-    SetProcessor(String tag, TemplateService.Template field, ValueSource value, boolean overrideEnabled)  {
+    SetProcessor(String tag, TemplateScript.Factory field, ValueSource value, boolean overrideEnabled)  {
         super(tag);
         this.overrideEnabled = overrideEnabled;
         this.field = field;
@@ -55,7 +56,7 @@ public final class SetProcessor extends AbstractProcessor {
         return overrideEnabled;
     }
 
-    public TemplateService.Template getField() {
+    public TemplateScript.Factory getField() {
         return field;
     }
 
@@ -64,10 +65,11 @@ public final class SetProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) {
+    public IngestDocument execute(IngestDocument document) {
         if (overrideEnabled || document.hasField(field) == false || document.getFieldValue(field, Object.class) == null) {
             document.setFieldValue(field, value);
         }
+        return document;
     }
 
     @Override
@@ -77,10 +79,10 @@ public final class SetProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final TemplateService templateService;
+        private final ScriptService scriptService;
 
-        public Factory(TemplateService templateService) {
-            this.templateService = templateService;
+        public Factory(ScriptService scriptService) {
+            this.scriptService = scriptService;
         }
 
         @Override
@@ -89,12 +91,12 @@ public final class SetProcessor extends AbstractProcessor {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
             boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override", true);
-            TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "field", field, templateService);
+            TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
+                "field", field, scriptService);
             return new SetProcessor(
                     processorTag,
                     compiledTemplate,
-                    ValueSource.wrap(value, templateService),
+                    ValueSource.wrap(value, scriptService),
                     overrideEnabled);
         }
     }

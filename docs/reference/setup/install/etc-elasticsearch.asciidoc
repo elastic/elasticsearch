@@ -1,0 +1,12 @@
+Elasticsearch defaults to using `/etc/elasticsearch` for runtime configuration.
+The ownership of this directory and all files in this directory are set to
+`root:elasticsearch` on package installation and the directory has the `setgid`
+flag set so that any files and subdirectories created under `/etc/elasticsearch`
+are created with this ownership as well (e.g., if a keystore is created using
+the <<secure-settings,keystore tool>>). It is expected that this be maintained so
+that the Elasticsearch process can read the files under this directory via the
+group permissions.
+
+Elasticsearch loads its configuration from the
+`/etc/elasticsearch/elasticsearch.yml` file by default.  The format of this
+config file is explained in <<settings>>.

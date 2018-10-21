@@ -19,9 +19,9 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
@@ -56,8 +56,9 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
                 builder.field("test", "test");
             }
             builder.endObject();
-            client().performRequest("PUT", "/" + indexName + "/" + typeName + "/" + "1", emptyMap(),
-                new StringEntity(builder.string(), ContentType.APPLICATION_JSON));
+            Request request = new Request("PUT", "/" + indexName + "/" + typeName + "/" + "1");
+            request.setJsonEntity(Strings.toString(builder));
+            client().performRequest(request);
         }
     }
 
@@ -76,8 +77,14 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
 
     public void testTypeExists() throws IOException {
         createTestDoc();
-        headTestCase("/test/test", emptyMap(), equalTo(0));
-        headTestCase("/test/test", singletonMap("pretty", "true"), equalTo(0));
+        headTestCase("/test/_mapping/test", emptyMap(), greaterThan(0));
+        headTestCase("/test/_mapping/test", singletonMap("pretty", "true"), greaterThan(0));
+    }
+
+    public void testTypeDoesNotExist() throws IOException {
+        createTestDoc();
+        headTestCase("/test/_mapping/does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
+        headTestCase("/text/_mapping/test,does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
     public void testAliasExists() throws IOException {
@@ -102,10 +109,18 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             }
             builder.endObject();
 
-            client().performRequest("POST", "_aliases", emptyMap(), new StringEntity(builder.string(), ContentType.APPLICATION_JSON));
+            Request request = new Request("POST", "/_aliases");
+            request.setJsonEntity(Strings.toString(builder));
+            client().performRequest(request);
             headTestCase("/_alias/test_alias", emptyMap(), greaterThan(0));
             headTestCase("/test/_alias/test_alias", emptyMap(), greaterThan(0));
         }
+    }
+
+    public void testAliasDoesNotExist() throws IOException {
+        createTestDoc();
+        headTestCase("/_alias/test_alias", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
+        headTestCase("/test/_alias/test_alias", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
     public void testTemplateExists() throws IOException {
@@ -121,8 +136,9 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             }
             builder.endObject();
 
-            client().performRequest("PUT", "/_template/template", emptyMap(),
-                new StringEntity(builder.string(), ContentType.APPLICATION_JSON));
+            Request request = new Request("PUT", "/_template/template");
+            request.setJsonEntity(Strings.toString(builder));
+            client().performRequest(request);
             headTestCase("/_template/template", emptyMap(), greaterThan(0));
         }
     }
@@ -150,10 +166,23 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            client().performRequest("PUT", "/test-no-source", emptyMap(), new StringEntity(builder.string(), ContentType.APPLICATION_JSON));
+
+            Request request = new Request("PUT", "/test-no-source");
+            request.setJsonEntity(Strings.toString(builder));
+            client().performRequest(request);
             createTestDoc("test-no-source", "test-no-source");
             headTestCase("/test-no-source/test-no-source/1/_source", emptyMap(), NOT_FOUND.getStatus(), equalTo(0));
         }
+    }
+
+    public void testException() throws IOException {
+        /*
+         * This will throw an index not found exception which will be sent on the channel; previously when handling HEAD requests that would
+         * throw an exception, the content was swallowed and a content length header of zero was returned. Instead of swallowing the content
+         * we now let it rise up to the upstream channel so that it can compute the content length that would be returned. This test case is
+         * a test for this situation.
+         */
+        headTestCase("/index-not-found-exception", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
     private void headTestCase(final String url, final Map<String, String> params, final Matcher<Integer> matcher) throws IOException {
@@ -165,7 +194,11 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             final Map<String, String> params,
             final int expectedStatusCode,
             final Matcher<Integer> matcher) throws IOException {
-        Response response = client().performRequest("HEAD", url, params);
+        Request request = new Request("HEAD", url);
+        for (Map.Entry<String, String> param : params.entrySet()) {
+            request.addParameter(param.getKey(), param.getValue());
+        }
+        Response response = client().performRequest(request);
         assertEquals(expectedStatusCode, response.getStatusLine().getStatusCode());
         assertThat(Integer.valueOf(response.getHeader("Content-Length")), matcher);
         assertNull("HEAD requests shouldn't have a response body but " + url + " did", response.getEntity());

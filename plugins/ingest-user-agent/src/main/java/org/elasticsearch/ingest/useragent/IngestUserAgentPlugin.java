@@ -65,11 +65,11 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
         Map<String, UserAgentParser> userAgentParsers = new HashMap<>();
 
         UserAgentParser defaultParser = new UserAgentParser(DEFAULT_PARSER_NAME,
-                IngestUserAgentPlugin.class.getResourceAsStream("/regexes.yaml"), cache);
+                IngestUserAgentPlugin.class.getResourceAsStream("/regexes.yml"), cache);
         userAgentParsers.put(DEFAULT_PARSER_NAME, defaultParser);
 
         if (Files.exists(userAgentConfigDirectory) && Files.isDirectory(userAgentConfigDirectory)) {
-            PathMatcher pathMatcher = userAgentConfigDirectory.getFileSystem().getPathMatcher("glob:**.yaml");
+            PathMatcher pathMatcher = userAgentConfigDirectory.getFileSystem().getPathMatcher("glob:**.yml");
 
             try (Stream<Path> regexFiles = Files.find(userAgentConfigDirectory, 1,
                     (path, attr) -> attr.isRegularFile() && pathMatcher.matches(path))) {

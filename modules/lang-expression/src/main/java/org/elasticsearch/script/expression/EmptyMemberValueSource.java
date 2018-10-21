@@ -19,10 +19,6 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
 import org.apache.lucene.queries.function.ValueSource;
@@ -30,6 +26,10 @@ import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * ValueSource to return non-zero if a field is missing.
@@ -50,12 +50,11 @@ final class EmptyMemberValueSource extends ValueSource {
         final SortedNumericDoubleValues values = leafData.getDoubleValues();
         return new DoubleDocValues(this) {
             @Override
-            public double doubleVal(int doc) {
-                values.setDocument(doc);
-                if (values.count() == 0) {
-                    return 1;
-                } else {
+            public double doubleVal(int doc) throws IOException {
+                if (values.advanceExact(doc)) {
                     return 0;
+                } else {
+                    return 1;
                 }
             }
         };

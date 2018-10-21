@@ -25,6 +25,13 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+Note that the `has_parent` is a slow query compared to other queries in the
+query dsl due to the fact that it performs a join. The performance degrades
+as the number of matching parent documents increases. If you care about query
+performance you should not use this query. However if you do happen to use
+this query then use it as less as possible. Each `has_parent` query that gets
+added to a search request can increase query time significantly.
+
 [float]
 ==== Scoring capabilities
 
@@ -69,7 +76,7 @@ is not mapped.
 
 Child documents can't be sorted by fields in matching parent documents via the
 regular sort options. If you need to sort child documents by field in the parent
-documents then you can should use the `function_score` query and then just sort
+documents then you should use the `function_score` query and then just sort
 by `_score`.
 
 Sorting tags by parent document' `view_count` field:

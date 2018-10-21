@@ -1,0 +1,39 @@
+index :
+  analysis :
+    tokenizer :
+      standard :
+        type : standard
+    filter :
+      stop :
+        type : stop
+        stopwords : [test-stop]
+      stop2 :
+        type : stop
+        stopwords : [stop2-1, stop2-2]
+      my :
+        type : myfilter
+      dict_dec :
+        type : dictionary_decompounder
+        word_list : [donau, dampf, schiff, spargel, creme, suppe]
+    analyzer :
+      standard :
+        type : standard
+        stopwords : [test1, test2, test3]
+      custom1 :
+        tokenizer : standard
+        filter : [stop, stop2]
+      custom4 :
+        tokenizer : standard
+        filter : [my]
+      custom6 :
+        tokenizer : standard
+        position_increment_gap: 256
+      custom7 :
+        type : standard
+        version: 3.6
+      czechAnalyzerWithStemmer :
+        tokenizer : standard
+        filter : [lowercase, stop, czech_stem]
+      decompoundingAnalyzer :
+        tokenizer : standard
+        filter : [dict_dec]

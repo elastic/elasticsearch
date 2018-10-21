@@ -3,7 +3,7 @@ index:
     filter:
       doublemetaphonefilter:
         type: phonetic
-        encoder: doublemetaphone
+        encoder: double_metaphone
       metaphonefilter:
         type: phonetic
         encoder: metaphone
@@ -12,13 +12,17 @@ index:
         encoder: soundex
       refinedsoundexfilter:
         type: phonetic
-        encoder: refinedsoundex
+        encoder: refined_soundex
       caverphonefilter:
         type: phonetic
         encoder: caverphone
       beidermorsefilter:
         type: phonetic
-        encoder: beidermorse
+        encoder: beider_morse
+      beidermorsefilterfrench:
+        type: phonetic
+        encoder: beider_morse
+        languageset : [ "french" ]
       koelnerphonetikfilter:
         type: phonetic
         encoder: koelnerphonetik

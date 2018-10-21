@@ -23,9 +23,13 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Processor that removes existing fields. Nothing happens if the field is not present.
@@ -34,20 +38,32 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     public static final String TYPE = "remove";
 
-    private final TemplateService.Template field;
+    private final List<TemplateScript.Factory> fields;
+    private final boolean ignoreMissing;
 
-    RemoveProcessor(String tag, TemplateService.Template field) {
+    RemoveProcessor(String tag, List<TemplateScript.Factory> fields, boolean ignoreMissing) {
         super(tag);
-        this.field = field;
+        this.fields = new ArrayList<>(fields);
+        this.ignoreMissing = ignoreMissing;
     }
 
-    public TemplateService.Template getField() {
-        return field;
+    public List<TemplateScript.Factory> getFields() {
+        return fields;
     }
 
     @Override
-    public void execute(IngestDocument document) {
-        document.removeField(field);
+    public IngestDocument execute(IngestDocument document) {
+        if (ignoreMissing) {
+            fields.forEach(field -> {
+                String path = document.renderTemplate(field);
+                if (document.hasField(path)) {
+                    document.removeField(path);
+                }
+            });
+        } else {
+            fields.forEach(document::removeField);
+        }
+        return document;
     }
 
     @Override
@@ -57,19 +73,30 @@ public final class RemoveProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        private final TemplateService templateService;
+        private final ScriptService scriptService;
 
-        public Factory(TemplateService templateService) {
-            this.templateService = templateService;
+        public Factory(ScriptService scriptService) {
+            this.scriptService = scriptService;
         }
 
         @Override
         public RemoveProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
-            String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "field", field, templateService);
-            return new RemoveProcessor(processorTag, compiledTemplate);
+            final List<String> fields = new ArrayList<>();
+            final Object field = ConfigurationUtils.readObject(TYPE, processorTag, config, "field");
+            if (field instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<String> stringList = (List<String>) field;
+                fields.addAll(stringList);
+            } else {
+                fields.add((String) field);
+            }
+
+            final List<TemplateScript.Factory> compiledTemplates = fields.stream()
+                .map(f -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", f, scriptService))
+                .collect(Collectors.toList());
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            return new RemoveProcessor(processorTag, compiledTemplates, ignoreMissing);
         }
     }
 }

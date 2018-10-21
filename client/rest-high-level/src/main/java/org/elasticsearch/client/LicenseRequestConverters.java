@@ -25,9 +25,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.client.license.StartBasicRequest;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
+import org.elasticsearch.client.license.DeleteLicenseRequest;
+import org.elasticsearch.client.license.GetLicenseRequest;
+import org.elasticsearch.client.license.PutLicenseRequest;
 
 public class LicenseRequestConverters {
     static Request putLicense(PutLicenseRequest putLicenseRequest) {
@@ -47,7 +47,7 @@ public class LicenseRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license").build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
-        parameters.withLocal(getLicenseRequest.local());
+        parameters.withLocal(getLicenseRequest.isLocal());
         return request;
     }
 

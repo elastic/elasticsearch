@@ -84,6 +84,16 @@ SELECT MONTHNAME("hire_date") AS month, COUNT(*) AS count FROM "test_emp" GROUP 
 // dayNameWithHaving
 // SELECT DAYNAME("hire_date") FROM "test_emp" GROUP BY DAYNAME("hire_date") HAVING MAX("emp_no") > ASCII(DAYNAME("hire_date"));
 
+dayNameGroupBy
+SELECT DAYNAME(birth_date) AS dn FROM test_emp GROUP BY DAYNAME(birth_date) ORDER BY DAYNAME(birth_date) ASC NULLS FIRST LIMIT 10;
+
+monthNameGroupBy
+SELECT MONTHNAME(birth_date) AS mn FROM test_emp GROUP BY MONTHNAME(birth_date) ORDER BY MONTHNAME(birth_date) ASC NULLS FIRST LIMIT 10;
+
+quarterGroupBy
+SELECT QUARTER(birth_date) AS q FROM test_emp GROUP BY QUARTER(birth_date) ORDER BY QUARTER(birth_date) ASC NULLS FIRST LIMIT 10;
+
+
 dayNameWithDoubleGroupByAndOrderBy
 SELECT COUNT(*) c, DAYNAME(hire_date) day_name, DAY(hire_date) day FROM test_emp WHERE MONTHNAME(hire_date) = 'August' GROUP BY DAYNAME(hire_date), DAY(hire_date) ORDER BY DAYNAME(hire_date), DAY(hire_date);
 

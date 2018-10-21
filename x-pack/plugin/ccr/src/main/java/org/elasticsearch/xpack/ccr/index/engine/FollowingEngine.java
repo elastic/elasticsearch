@@ -26,6 +26,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
+import java.util.Optional;
 import java.util.OptionalLong;
 
 /**
@@ -111,9 +112,14 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    public NoOpResult noOp(NoOp noOp) {
-        // TODO: Make sure we process NoOp once.
-        return super.noOp(noOp);
+    protected Optional<Exception> preFlightCheckForNoOp(NoOp noOp) throws IOException {
+        if (noOp.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(noOp)) {
+            // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
+            final OptionalLong existingTerm = lookupPrimaryTerm(noOp.seqNo());
+            return Optional.of(new AlreadyProcessedFollowingEngineException(shardId, noOp.seqNo(), existingTerm));
+        } else {
+            return super.preFlightCheckForNoOp(noOp);
+        }
     }
 
     @Override

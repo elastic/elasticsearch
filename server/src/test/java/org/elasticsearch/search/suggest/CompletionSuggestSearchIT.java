@@ -54,7 +54,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -99,11 +98,10 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         int numDocs = randomIntBetween(3, 50);
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        Set<String> entrySet = new HashSet<>();
+        String[] entries = new String[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            String value = "a" + randomValueOtherThanMany(v -> entrySet.contains(v),
-                () -> randomAlphaOfLengthBetween(1, 10));
-            entrySet.add(value);
+            String value = "a" + randomAlphaOfLengthBetween(1, 10);
+            entries[i] = value;
             indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
                 .setSource(jsonBuilder()
                     .startObject()
@@ -114,8 +112,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                     .endObject()
                 ));
         }
-        String[] entries = entrySet.stream()
-            .toArray(String[]::new);
         Arrays.sort(entries);
         indexRandom(true, indexRequestBuilders);
         for (int i = 1; i < numDocs; i++) {

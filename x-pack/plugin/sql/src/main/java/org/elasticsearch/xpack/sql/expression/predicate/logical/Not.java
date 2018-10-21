@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.logical;
 
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.Params;
+import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -17,6 +19,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.sql.expression.gen.script.Scripts.nullSafeFilter;
 
 public class Not extends UnaryScalarFunction {
 
@@ -50,12 +54,14 @@ public class Not extends UnaryScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        throw new SqlIllegalArgumentException("Not supported yet");
+        return new UnaryPipe(location(), this, Expressions.pipe(field()), new NotLogicProcessor());
     }
 
     @Override
     public ScriptTemplate asScript() {
-        throw new SqlIllegalArgumentException("Not supported yet");
+        ScriptTemplate fieldScript = asScript(field());
+        Params params = ParamsBuilder.paramsBuilder().script(fieldScript.params()).build();
+        return new ScriptTemplate("!(" + nullSafeFilter(fieldScript) + ")", params, DataType.BOOLEAN);
     }
 
     @Override

@@ -1,0 +1,19 @@
+// Cannot be in sql-spec as the column name in H2 is translated to "!="
+negateEqualsInSelectClause
+SELECT NOT MONTH(birth_date) = 4, MONTH(birth_date), emp_no FROM "test_emp" ORDER BY 2;
+
+NOT((MONTH_OF_YEAR(birth_date [UTC])) == 5)|birth_date
+false                                      |1958-05-21T00:00:00Z
+true                                       |1959-10-01T00:00:00Z
+true                                       |1960-07-20T00:00:00Z
+null                                       |null
+null                                       |null
+null                                       |null
+null                                       |null
+null                                       |null
+null                                       |null
+null                                       |null
+null                                       |null
+null                                       |null
+null                                       |null
+;

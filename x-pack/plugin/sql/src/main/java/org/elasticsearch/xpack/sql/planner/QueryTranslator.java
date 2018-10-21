@@ -479,6 +479,14 @@ abstract class QueryTranslator {
         @Override
         protected QueryTranslation asQuery(Not not, boolean onAggs) {
             QueryTranslation translation = toQuery(not.field(), onAggs);
+            if (translation.query == null) {
+                ScriptTemplate notScript = not.asScript();
+                AggFilter aggFilter = null;
+                if (translation.aggFilter != null) {
+                    aggFilter = new AggFilter(translation.aggFilter.name(), notScript);
+                }
+                return new QueryTranslation(new ScriptQuery(not.location(), notScript), aggFilter);
+            }
             return new QueryTranslation(not(translation.query), translation.aggFilter);
         }
     }
@@ -515,16 +523,15 @@ abstract class QueryTranslator {
                 //
                 // Agg context means HAVING -> PipelineAggs
                 //
-                ScriptTemplate script = bc.asScript();
                 if (onAggs) {
-                    aggFilter = new AggFilter(at.id().toString(), script);
+                    aggFilter = new AggFilter(at.id().toString(), bc.asScript());
                 }
                 else {
                     // query directly on the field
                     if (at instanceof FieldAttribute) {
                         query = wrapIfNested(translateQuery(bc), ne);
                     } else {
-                        query = new ScriptQuery(at.location(), script);
+                        query = new ScriptQuery(at.location(), bc.asScript());
                     }
                 }
                 return new QueryTranslation(query, aggFilter);
@@ -585,11 +592,10 @@ abstract class QueryTranslator {
                 //
                 // Agg context means HAVING -> PipelineAggs
                 //
-                ScriptTemplate script = r.asScript();
                 Attribute at = ((NamedExpression) e).toAttribute();
 
                 if (onAggs) {
-                    aggFilter = new AggFilter(at.id().toString(), script);
+                    aggFilter = new AggFilter(at.id().toString(), r.asScript());
                 } else {
                     // typical range; no scripting involved
                     if (at instanceof FieldAttribute) {
@@ -599,7 +605,7 @@ abstract class QueryTranslator {
                     }
                     // scripted query
                     else {
-                        query = new ScriptQuery(at.location(), script);
+                        query = new ScriptQuery(at.location(), r.asScript());
                     }
                 }
                 return new QueryTranslation(query, aggFilter);

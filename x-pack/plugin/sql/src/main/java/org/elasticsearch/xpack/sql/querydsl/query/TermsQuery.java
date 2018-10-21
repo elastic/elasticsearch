@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 
@@ -24,7 +24,7 @@ public class TermsQuery extends LeafQuery {
     public TermsQuery(Location location, String term, List<Expression> values) {
         super(location);
         this.term = term;
-        this.values = values.stream().map(Expression::fold).collect(Collectors.toCollection(LinkedHashSet::new));
+        this.values = new LinkedHashSet<>(Foldables.valuesOf(values, values.get(0).dataType()));
     }
 
     @Override

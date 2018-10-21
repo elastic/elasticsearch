@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -63,14 +64,16 @@ public class IngestStats implements Writeable, ToXContentFragment {
             String pipelineId = in.readString();
             Stats pipelineStat = new Stats(in);
             this.pipelineStats.add(new PipelineStat(pipelineId, pipelineStat));
-            int processorsSize = in.readVInt();
-            List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
-            for (int j = 0; j < processorsSize; j++) {
-                String processorName = in.readString();
-                Stats processorStat = new Stats(in);
-                processorStatsPerPipeline.add(new ProcessorStat(processorName, processorStat));
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                int processorsSize = in.readVInt();
+                List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
+                for (int j = 0; j < processorsSize; j++) {
+                    String processorName = in.readString();
+                    Stats processorStat = new Stats(in);
+                    processorStatsPerPipeline.add(new ProcessorStat(processorName, processorStat));
+                }
+                this.processorStats.put(pipelineId, processorStatsPerPipeline);
             }
-            this.processorStats.put(pipelineId, processorStatsPerPipeline);
         }
     }
 
@@ -81,14 +84,16 @@ public class IngestStats implements Writeable, ToXContentFragment {
         for (PipelineStat pipelineStat : pipelineStats) {
             out.writeString(pipelineStat.getPipelineId());
             pipelineStat.getStats().writeTo(out);
-            List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.getPipelineId());
-            if(processorStatsForPipeline == null) {
-                out.writeVInt(0);
-            }else{
-                out.writeVInt(processorStatsForPipeline.size());
-                for (ProcessorStat processorStat : processorStatsForPipeline) {
-                    out.writeString(processorStat.getName());
-                    processorStat.getStats().writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                List<ProcessorStat> processorStatsForPipeline = processorStats.get(pipelineStat.getPipelineId());
+                if (processorStatsForPipeline == null) {
+                    out.writeVInt(0);
+                } else {
+                    out.writeVInt(processorStatsForPipeline.size());
+                    for (ProcessorStat processorStat : processorStatsForPipeline) {
+                        out.writeString(processorStat.getName());
+                        processorStat.getStats().writeTo(out);
+                    }
                 }
             }
         }

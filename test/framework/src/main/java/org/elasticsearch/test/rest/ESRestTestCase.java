@@ -260,7 +260,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     }
                 }
             } catch (final IOException e) {
-                throw new AssertionError("Error getting active tasks list", e);
+                throw new AssertionError("error getting active tasks list", e);
             }
         });
     }

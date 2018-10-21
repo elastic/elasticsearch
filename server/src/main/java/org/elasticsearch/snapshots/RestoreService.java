@@ -790,10 +790,11 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
             throw new SnapshotRestoreException(new Snapshot(repository, snapshotInfo.snapshotId()),
                                                "unsupported snapshot state [" + snapshotInfo.state() + "]");
         }
-        if (Version.CURRENT.before(snapshotInfo.version())) {
+        Version minVersion = clusterService.state().getNodes().getMinNodeVersion();
+        if (minVersion.before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(new Snapshot(repository, snapshotInfo.snapshotId()),
                                                "the snapshot was created with Elasticsearch version [" + snapshotInfo.version() +
-                                                   "] which is higher than the version of this node [" + Version.CURRENT + "]");
+                                                   "] which is higher than the version of this cluster [" + minVersion + "]");
         }
     }
 

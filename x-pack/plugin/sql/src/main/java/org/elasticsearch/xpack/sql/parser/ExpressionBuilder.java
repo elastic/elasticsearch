@@ -405,8 +405,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             ConvertTemplateContext convertTc = ctx.convertTemplate();
             String convertDataType = convertTc.dataType().getText().toUpperCase(Locale.ROOT);
             DataType dataType;
-            if (convertDataType.startsWith(DataType.MSSQL_DATATYPE_PREFIX)) {
-                dataType = DataType.fromMSSQLType(convertDataType);
+            if (convertDataType.startsWith(DataType.ODBC_DATATYPE_PREFIX)) {
+                dataType = DataType.fromODBCType(convertDataType);
                 if (dataType == null) {
                     throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
                 }

@@ -215,7 +215,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(DataType.INTEGER, mul.dataType());
     }
 
-    public void testConvertWithUnquotedMSSQLDataType() {
+    public void testConvertWithUnquotedODBCDataType() {
         Expression expr = parser.createExpression("CONVERT(1, Sql_BigInt)");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
@@ -224,7 +224,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(DataType.LONG, cast.dataType());
     }
 
-    public void testConvertWithQuotedMSSQLDataType() {
+    public void testConvertWithQuotedODBCDataType() {
         Expression expr = parser.createExpression("CONVERT(1, \"sql_BIGint\")");
         assertEquals(Cast.class, expr.getClass());
         Cast cast = (Cast) expr;
@@ -233,11 +233,9 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(DataType.LONG, cast.dataType());
     }
 
-    public void testConvertWithInvalidMSSQLDataType() {
+    public void testConvertWithInvalidODBCDataType() {
         ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, SQL_INVALID)"));
         assertEquals("line 1:13: Invalid data type [SQL_INVALID] provided", ex.getMessage());
-        ex = expectThrows(ParsingException.class, () -> parser.createExpression("CONVERT(1, SQL_INTERVAL_MONTH)"));
-        assertEquals("line 1:13: Invalid data type [SQL_INTERVAL_MONTH] provided", ex.getMessage());
     }
 
     public void testConvertWithInvalidESDataType() {

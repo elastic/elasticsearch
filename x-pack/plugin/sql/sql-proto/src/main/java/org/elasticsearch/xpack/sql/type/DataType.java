@@ -45,63 +45,63 @@ public enum DataType {
     DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        24,                24);
     // @formatter:on
 
-    public static final String MSSQL_DATATYPE_PREFIX = "SQL_";
+    public static final String ODBC_DATATYPE_PREFIX = "SQL_";
 
     private static final Map<SQLType, DataType> jdbcToEs;
-    private static final Map<String, DataType> mssqlToEs;
+    private static final Map<String, DataType> odbcToEs;
 
     static {
         jdbcToEs = Arrays.stream(DataType.values())
                 .filter(dataType -> dataType != TEXT && dataType != NESTED && dataType != SCALED_FLOAT) // Remove duplicates
                 .collect(Collectors.toMap(dataType -> dataType.jdbcType, dataType -> dataType));
 
-        mssqlToEs = new HashMap<>(36);
+        odbcToEs = new HashMap<>(36);
 
         // Numeric
-        mssqlToEs.put("SQL_BIT", BOOLEAN);
-        mssqlToEs.put("SQL_TINYINT", BYTE);
-        mssqlToEs.put("SQL_SMALLINT", SHORT);
-        mssqlToEs.put("SQL_INTEGER", INTEGER);
-        mssqlToEs.put("SQL_BIGINT", LONG);
-        mssqlToEs.put("SQL_FLOAT", FLOAT);
-        mssqlToEs.put("SQL_REAL", FLOAT);
-        mssqlToEs.put("SQL_DOUBLE", DOUBLE);
-        mssqlToEs.put("SQL_DECIMAL", DOUBLE);
-        mssqlToEs.put("SQL_NUMERIC", DOUBLE);
+        odbcToEs.put("SQL_BIT", BOOLEAN);
+        odbcToEs.put("SQL_TINYINT", BYTE);
+        odbcToEs.put("SQL_SMALLINT", SHORT);
+        odbcToEs.put("SQL_INTEGER", INTEGER);
+        odbcToEs.put("SQL_BIGINT", LONG);
+        odbcToEs.put("SQL_FLOAT", FLOAT);
+        odbcToEs.put("SQL_REAL", FLOAT);
+        odbcToEs.put("SQL_DOUBLE", DOUBLE);
+        odbcToEs.put("SQL_DECIMAL", DOUBLE);
+        odbcToEs.put("SQL_NUMERIC", DOUBLE);
 
         // String
-        mssqlToEs.put("SQL_GUID", KEYWORD);
-        mssqlToEs.put("SQL_CHAR", KEYWORD);
-        mssqlToEs.put("SQL_WCHAR", KEYWORD);
-        mssqlToEs.put("SQL_VARCHAR", TEXT);
-        mssqlToEs.put("SQL_WVARCHAR", TEXT);
-        mssqlToEs.put("SQL_LONGVARCHAR", TEXT);
-        mssqlToEs.put("SQL_WLONGVARCHAR", TEXT);
+        odbcToEs.put("SQL_GUID", KEYWORD);
+        odbcToEs.put("SQL_CHAR", KEYWORD);
+        odbcToEs.put("SQL_WCHAR", KEYWORD);
+        odbcToEs.put("SQL_VARCHAR", TEXT);
+        odbcToEs.put("SQL_WVARCHAR", TEXT);
+        odbcToEs.put("SQL_LONGVARCHAR", TEXT);
+        odbcToEs.put("SQL_WLONGVARCHAR", TEXT);
 
         // Binary
-        mssqlToEs.put("SQL_BINARY", BINARY);
-        mssqlToEs.put("SQL_VARBINARY", BINARY);
-        mssqlToEs.put("SQL_LONGVARBINARY", BINARY);
+        odbcToEs.put("SQL_BINARY", BINARY);
+        odbcToEs.put("SQL_VARBINARY", BINARY);
+        odbcToEs.put("SQL_LONGVARBINARY", BINARY);
 
         // Date
-        mssqlToEs.put("SQL_DATE", DATE);
-        mssqlToEs.put("SQL_TIME", DATE);
-        mssqlToEs.put("SQL_TIMESTAMP", DATE);
+        odbcToEs.put("SQL_DATE", DATE);
+        odbcToEs.put("SQL_TIME", DATE);
+        odbcToEs.put("SQL_TIMESTAMP", DATE);
 
         // Intervals - Currently Not Supported
-        mssqlToEs.put("SQL_INTERVAL_HOUR_TO_MINUTE", null);
-        mssqlToEs.put("SQL_INTERVAL_HOUR_TO_SECOND", null);
-        mssqlToEs.put("SQL_INTERVAL_MINUTE_TO_SECOND", null);
-        mssqlToEs.put("SQL_INTERVAL_MONTH", null);
-        mssqlToEs.put("SQL_INTERVAL_YEAR", null);
-        mssqlToEs.put("SQL_INTERVAL_YEAR_TO_MONTH", null);
-        mssqlToEs.put("SQL_INTERVAL_DAY", null);
-        mssqlToEs.put("SQL_INTERVAL_HOUR", null);
-        mssqlToEs.put("SQL_INTERVAL_MINUTE", null);
-        mssqlToEs.put("SQL_INTERVAL_SECOND", null);
-        mssqlToEs.put("SQL_INTERVAL_DAY_TO_HOUR", null);
-        mssqlToEs.put("SQL_INTERVAL_DAY_TO_MINUTE", null);
-        mssqlToEs.put("SQL_INTERVAL_DAY_TO_SECOND", null);
+        odbcToEs.put("SQL_INTERVAL_HOUR_TO_MINUTE", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_HOUR_TO_SECOND", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_MINUTE_TO_SECOND", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_MONTH", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_YEAR", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_YEAR_TO_MONTH", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_DAY", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_HOUR", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_MINUTE", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_SECOND", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_DAY_TO_HOUR", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_DAY_TO_MINUTE", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_DAY_TO_SECOND", UNSUPPORTED);
     }
 
     /**
@@ -214,8 +214,8 @@ public enum DataType {
         return jdbcToEs.get(jdbcType).javaClass();
     }
 
-    public static DataType fromMSSQLType(String mssqlType) {
-        return mssqlToEs.get(mssqlType);
+    public static DataType fromODBCType(String odbcType) {
+        return odbcToEs.get(odbcType);
     }
     /**
      * Creates returns DataType enum coresponding to the specified es type

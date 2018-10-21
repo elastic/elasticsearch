@@ -19,14 +19,20 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
+import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -36,17 +42,22 @@ import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.support.CertificateInfo;
+import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -415,6 +426,74 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
+    }
+
+    public void testDeleteRole() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        addRole("testrole");
+
+        {
+            // tag::delete-role-request
+            DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest(
+                "testrole");    // <1>
+            // end::delete-role-request
+
+            // tag::delete-role-execute
+            DeleteRoleResponse deleteRoleResponse = client.security().deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
+            // end::delete-role-execute
+
+            // tag::delete-role-response
+            boolean found = deleteRoleResponse.isFound();    // <1>
+            // end::delete-role-response
+            assertTrue(found);
+
+            // check if deleting the already deleted role again will give us a different response
+            deleteRoleResponse = client.security().deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
+            assertFalse(deleteRoleResponse.isFound());
+        }
+
+        {
+            DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest("testrole");
+
+            ActionListener<DeleteRoleResponse> listener;
+            //tag::delete-role-execute-listener
+            listener = new ActionListener<DeleteRoleResponse>() {
+                @Override
+                public void onResponse(DeleteRoleResponse deleteRoleResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::delete-role-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::delete-role-execute-async
+            client.security().deleteRoleAsync(deleteRoleRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::delete-role-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    // TODO: move all calls to high-level REST client once APIs for adding new role exist
+    private void addRole(String roleName) throws IOException {
+        Request addRoleRequest = new Request(HttpPost.METHOD_NAME, "/_xpack/security/role/" + roleName);
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.array("cluster", "all");
+            }
+            builder.endObject();
+            addRoleRequest.setEntity(new NStringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
+        }
+        client().performRequest(addRoleRequest);
     }
 
 }

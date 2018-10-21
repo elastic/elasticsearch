@@ -44,11 +44,11 @@ SELECT first_name f, last_name l, YEAR(dep.from_date) d FROM test_emp WHERE dep.
 
 f:s                  | l:s                  | d:i
 
-Alain                | Chappelet            | 1988
-Chirstian            | Koblick              | 1986
-Duangkaew            | Piveteau             | 1996
-Elvis                | Demeyer              | 1994
-Gino                 | Leonhardt            | 1989
+Chirstian            |Koblick               |1986           
+Duangkaew            |Piveteau              |1996           
+Gino                 |Leonhardt             |1989           
+Hidefumi             |Caine                 |1992           
+Jayson               |Mandell               |1999    
 ;
 
 filterPerNestedWithOrderByNested
@@ -56,11 +56,11 @@ SELECT first_name f, last_name l, YEAR(dep.from_date) d FROM test_emp WHERE dep.
 
 f:s                  | l:s                  | d:i
 
-Sreekrishna          | Servieres            | 1985
-Zhongwei             | Rosen                | 1986
-Chirstian            | Koblick              | 1986
-Vishv                | Zockler              | 1987
-Alain                | Chappelet            | 1988
+Sreekrishna          |Servieres             |1985           
+Zhongwei             |Rosen                 |1986           
+Chirstian            |Koblick               |1986           
+Vishv                |Zockler               |1987           
+null                 |Chappelet             |1988    
 ;
 
 filterPerNestedWithOrderByNestedWithAlias
@@ -92,11 +92,11 @@ SELECT first_name f, last_name l, YEAR(dep.from_date) start FROM test_emp WHERE 
 
 f:s                  | l:s                  | start:i
 
-Sreekrishna          | Servieres            | 1985
-Zhongwei             | Rosen                | 1986
-Chirstian            | Koblick              | 1986
-Alain                | Chappelet            | 1988
-Zvonko               | Nyanchama            | 1989
+Sreekrishna          |Servieres      |1985           
+Zhongwei             |Rosen          |1986           
+Chirstian            |Koblick        |1986           
+null                 |Chappelet      |1988           
+Zvonko               |Nyanchama      |1989     
 ;
 
 selectWithScalarOnNestedWithoutProjection
@@ -104,9 +104,9 @@ SELECT first_name f, last_name l FROM test_emp WHERE dep.dep_name = 'Production'
 
 f:s                  | l:s
 
-Sreekrishna          | Servieres
-Zhongwei             | Rosen
-Chirstian            | Koblick
-Alain                | Chappelet
-Zvonko               | Nyanchama
+Sreekrishna          |Servieres      
+Zhongwei             |Rosen          
+Chirstian            |Koblick        
+null                 |Chappelet      
+Zvonko               |Nyanchama  
 ;

@@ -19,12 +19,15 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.client.watcher.ActivateWatchRequest;
-import org.elasticsearch.client.watcher.ActivateWatchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
 import org.elasticsearch.client.watcher.ActionStatus;
 import org.elasticsearch.client.watcher.ActionStatus.AckStatus;
+import org.elasticsearch.client.watcher.ActivateWatchRequest;
+import org.elasticsearch.client.watcher.ActivateWatchResponse;
+import org.elasticsearch.client.watcher.StartWatchServiceRequest;
+import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,6 +41,18 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public class WatcherIT extends ESRestHighLevelClientTestCase {
+
+    public void testStartWatchService() throws Exception {
+        AcknowledgedResponse response =
+                highLevelClient().watcher().startWatchService(new StartWatchServiceRequest(), RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
+    }
+
+    public void testStopWatchService() throws Exception {
+        AcknowledgedResponse response =
+                highLevelClient().watcher().stopWatchService(new StopWatchServiceRequest(), RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
+    }
 
     public void testPutWatch() throws Exception {
         String watchId = randomAlphaOfLength(10);

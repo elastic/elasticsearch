@@ -41,7 +41,7 @@ public abstract class MathFunction extends UnaryScalarFunction {
 
     @Override
     public String processScript(String template) {
-        return super.processScript(format(Locale.ROOT, "Math.%s(%s)", mathFunction(), template));
+        return super.processScript(format(Locale.ROOT, "{sql}.%s(%s)", mathFunction(), template));
     }
 
     protected String mathFunction() {

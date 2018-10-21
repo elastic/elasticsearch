@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.security;
+package org.elasticsearch.client.security.support;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * An authenticated user
@@ -41,45 +40,47 @@ public final class User {
 
     static final ParseField USERNAME = new ParseField("username");
     static final ParseField ROLES = new ParseField("roles");
-    static final ParseField FULL_NAME = new ParseField("full_name");
-    static final ParseField EMAIL = new ParseField("email");
     static final ParseField METADATA = new ParseField("metadata");
     static final ParseField ENABLED = new ParseField("enabled");
+    static final ParseField FULL_NAME = new ParseField("full_name");
+    static final ParseField EMAIL = new ParseField("email");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<User, Void> PARSER = new ConstructingObjectParser<>("client_security_user",
-            a -> new User((String) a[0], ((List<String>) a[1]).toArray(new String[0]), (String) a[2], (String) a[3],
-                    (Map<String, Object>) a[4], (Boolean) a[5]));
+            a -> new User((String) a[0], ((List<String>) a[1]).toArray(new String[0]), (Map<String, Object>) a[4], (Boolean) a[5],
+                    (String) a[2], (String) a[3]));
     static {
         PARSER.declareString(constructorArg(), USERNAME);
-        PARSER.declareStringArray(optionalConstructorArg(), ROLES);
-        PARSER.declareStringOrNull(optionalConstructorArg(), FULL_NAME);
-        PARSER.declareStringOrNull(optionalConstructorArg(), EMAIL);
-        PARSER.<Map<String, Object>>declareObject(optionalConstructorArg(), (parser, c) -> parser.map(), METADATA);
+        PARSER.declareStringArray(constructorArg(), ROLES);
+        PARSER.<Map<String, Object>>declareObject(constructorArg(), (parser, c) -> parser.map(), METADATA);
         PARSER.declareBoolean(constructorArg(), ENABLED);
+        PARSER.declareStringOrNull(constructorArg(), FULL_NAME);
+        PARSER.declareStringOrNull(constructorArg(), EMAIL);
     }
 
     private final String username;
     private final String[] roles;
     private final Map<String, Object> metadata;
     private final boolean enabled;
-
     @Nullable private final String fullName;
     @Nullable private final String email;
 
-    private User(String username, @Nullable String[] roles, @Nullable String fullName, @Nullable String email,
-            @Nullable Map<String, Object> metadata, Boolean enabled) {
+    private User(String username, String[] roles, Map<String, Object> metadata, boolean enabled,
+                 @Nullable String fullName, @Nullable String email) {
+        assert username != null;
+        assert roles != null;
+        assert metadata != null;
         this.username = username;
-        this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
+        this.roles = roles;
+        this.metadata = Collections.unmodifiableMap(metadata);
+        this.enabled = enabled;
         this.fullName = fullName;
         this.email = email;
-        this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
-        this.enabled = enabled;
     }
 
     /**
      * @return  The principal of this user - effectively serving as the
-     *          unique identity of of the user.
+     *          unique identity of the user. Can never be {@code null}.
      */
     public String principal() {
         return this.username;
@@ -88,7 +89,7 @@ public final class User {
     /**
      * @return  The roles this user is associated with. The roles are
      *          identified by their unique names and each represents as
-     *          set of permissions
+     *          set of permissions. Can never be {@code null}.
      */
     public String[] roles() {
         return this.roles;
@@ -99,6 +100,13 @@ public final class User {
      */
     public Map<String, Object> metadata() {
         return metadata;
+    }
+
+    /**
+     * @return whether the user is enabled or not
+     */
+    public boolean enabled() {
+        return enabled;
     }
 
     /**
@@ -115,22 +123,14 @@ public final class User {
         return email;
     }
 
-    /**
-     * @return whether the user is enabled or not
-     */
-    public boolean enabled() {
-        return enabled;
-    }
-
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
         sb.append("User[username=").append(username);
         sb.append(",roles=[").append(Strings.arrayToCommaDelimitedString(roles)).append("]");
+        sb.append(",metadata=").append(metadata);
         sb.append(",fullName=").append(fullName);
         sb.append(",email=").append(email);
-        sb.append(",metadata=");
-        sb.append(metadata);
         sb.append("]");
         return sb.toString();
     }

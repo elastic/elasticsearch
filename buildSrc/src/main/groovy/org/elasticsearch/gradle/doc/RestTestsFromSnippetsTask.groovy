@@ -197,6 +197,11 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 previousTest = snippet
                 return
             }
+            if (snippet.testTearDown) {
+                testTearDown(snippet)
+                previousTest = snippet
+                return
+            }
             if (snippet.testResponse) {
                 response(snippet)
                 return
@@ -222,6 +227,10 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 if (previousTest != null && previousTest.testSetup) {
                     throw new InvalidUserDataException("// TEST[continued] " +
                         "cannot immediately follow // TESTSETUP: $test")
+                }
+                if (previousTest != null && previousTest.testTearDown) {
+                    throw new InvalidUserDataException("// TEST[continued] " +
+                        "cannot immediately follow // TEARDOWN: $test")
                 }
             } else {
                 current.println('---')
@@ -352,6 +361,16 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (snippet.setup != null) {
                 setup(snippet)
             }
+            body(snippet, true)
+        }
+
+        private void testTearDown(Snippet snippet) {
+            if (previousTest.testSetup == false && lastDocsPath == snippet.path) {
+                throw new InvalidUserDataException("$snippet must follow test setup or be first")
+            }
+            setupCurrent(snippet)
+            current.println('---')
+            current.println('teardown:')
             body(snippet, true)
         }
 

@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -104,8 +105,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected abstract String executor();
 
     /**
-     * Returns a new response instance for serialization. This is deprecated; new implementors
-     * should override {@link #read(StreamInput)} and use the {@link Writeable.Reader} interface.
+     * @deprecated new implementors should override {@link #read(StreamInput)} and use the
+     *             {@link Writeable.Reader} interface.
+     * @return a new response instance. Typically this is used for serialization using the
+     *         {@link Streamable#readFrom(StreamInput)} method.
      */
     @Deprecated
     protected abstract Response newResponse();

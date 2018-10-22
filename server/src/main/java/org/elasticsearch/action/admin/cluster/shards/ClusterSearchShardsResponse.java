@@ -61,25 +61,6 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
         }
     }
 
-    public ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes,
-                                       Map<String, AliasFilter> indicesAndFilters) {
-        this.groups = groups;
-        this.nodes = nodes;
-        this.indicesAndFilters = indicesAndFilters;
-    }
-
-    public ClusterSearchShardsGroup[] getGroups() {
-        return groups;
-    }
-
-    public DiscoveryNode[] getNodes() {
-        return nodes;
-    }
-
-    public Map<String, AliasFilter> getIndicesAndFilters() {
-        return indicesAndFilters;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
@@ -101,6 +82,25 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);
         }
+    }
+
+    public ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes,
+                                       Map<String, AliasFilter> indicesAndFilters) {
+        this.groups = groups;
+        this.nodes = nodes;
+        this.indicesAndFilters = indicesAndFilters;
+    }
+
+    public ClusterSearchShardsGroup[] getGroups() {
+        return groups;
+    }
+
+    public DiscoveryNode[] getNodes() {
+        return nodes;
+    }
+
+    public Map<String, AliasFilter> getIndicesAndFilters() {
+        return indicesAndFilters;
     }
 
     @Override

@@ -35,8 +35,7 @@ public class TextTemplateEngine extends AbstractComponent {
         String mediaType = compileParams(detectContentType(template));
         template = trimContentType(textTemplate);
 
-        int indexStartMustacheExpression = template.indexOf("{{");
-        if (indexStartMustacheExpression == -1) {
+        if (textTemplate.isUsingMustache() == false) {
             return template;
         }
 

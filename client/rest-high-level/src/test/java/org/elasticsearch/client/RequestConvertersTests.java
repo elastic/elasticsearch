@@ -60,6 +60,7 @@ import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -1590,6 +1591,19 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
         String idxString = Strings.arrayToCommaDelimitedString(indices);
         assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm/explain"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+    }
+
+    public void testRetryLifecycle() throws Exception {
+        String[] indices = randomIndicesNames(1, 10);
+        RetryLifecyclePolicyRequest req = new RetryLifecyclePolicyRequest(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
+        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        Request request = RequestConverters.retryLifecycle(req);
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        String idxString = Strings.arrayToCommaDelimitedString(indices);
+        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm/retry"));
         assertThat(request.getParameters(), equalTo(expectedParams));
     }
 

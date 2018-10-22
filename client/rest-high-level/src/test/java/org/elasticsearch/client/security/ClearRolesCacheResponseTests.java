@@ -47,7 +47,7 @@ public class ClearRolesCacheResponseTests extends ESTestCase {
             ClearRolesCacheResponse response = ClearRolesCacheResponse.fromXContent(parser);
             assertNotNull(response);
             assertThat(response.getNodes(), empty());
-            assertThat(response.getClusterName().value(), equalTo("cn"));
+            assertThat(response.getClusterName(), equalTo("cn"));
             assertThat(response.getHeader().getSuccessful(), equalTo(1));
             assertThat(response.getHeader().getFailed(), equalTo(1));
             assertThat(response.getHeader().getTotal(), equalTo(2));

@@ -37,7 +37,7 @@ import java.util.Objects;
  * A utility class to parse the Nodes Header returned by
  * {@link RestActions#buildNodesHeader(XContentBuilder, ToXContent.Params, BaseNodesResponse)}.
  */
-public class NodesResponseHeader {
+public final class NodesResponseHeader {
 
     public static final ParseField TOTAL = new ParseField("total");
     public static final ParseField SUCCESSFUL = new ParseField("successful");

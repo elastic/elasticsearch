@@ -28,9 +28,9 @@ import java.util.Arrays;
 /**
  * The request used to clear the cache for native roles stored in an index.
  */
-public final class ClearRolesCacheRequest implements Validatable, Closeable {
+public final class ClearRolesCacheRequest implements Validatable {
 
-    final String[] names;
+    private final String[] names;
 
     /**
      * Sets the roles for which caches will be evicted. When not set all the roles will be evicted from the cache.
@@ -63,10 +63,5 @@ public final class ClearRolesCacheRequest implements Validatable, Closeable {
     @Override
     public int hashCode() {
         return Arrays.hashCode(names);
-    }
-
-    @Override
-    public void close() throws IOException {
-
     }
 }

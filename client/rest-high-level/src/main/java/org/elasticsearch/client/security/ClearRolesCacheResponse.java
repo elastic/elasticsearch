@@ -20,28 +20,39 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.NodesResponseHeader;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The response object that will be returned when clearing the cache of native roles
  */
 public final class ClearRolesCacheResponse {
 
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<ClearRolesCacheResponse, Void> PARSER =
+        new ConstructingObjectParser<>("clear_roles_cache_response", false,
+            args -> new ClearRolesCacheResponse((List<Node>)args[0], (NodesResponseHeader) args[1], (String) args[2]));
+
+    static {
+        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Node.PARSER.apply(p, n),
+            new ParseField("nodes"));
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), NodesResponseHeader::fromXContent, new ParseField("_nodes"));
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("cluster_name"));
+    }
+
     private final List<Node> nodes;
     private final NodesResponseHeader header;
-    private ClusterName clusterName;
+    private final String clusterName;
 
-    public ClearRolesCacheResponse(List<Node> nodes, NodesResponseHeader header, ClusterName clusterName) {
+    public ClearRolesCacheResponse(List<Node> nodes, NodesResponseHeader header, String clusterName) {
         this.nodes = nodes;
         this.header = header;
-        this.clusterName = clusterName;
+        this.clusterName = Objects.requireNonNull(clusterName, "cluster name must be provided");
     }
 
     /** returns a list of nodes in which the cache was cleared */
@@ -50,11 +61,11 @@ public final class ClearRolesCacheResponse {
     }
 
     /**
-     * Get the {@link ClusterName} associated with all of the nodes.
+     * Get the cluster name associated with all of the nodes.
      *
      * @return Never {@code null}.
      */
-    public ClusterName getClusterName() {
+    public String getClusterName() {
         return clusterName;
     }
 
@@ -67,6 +78,13 @@ public final class ClearRolesCacheResponse {
     }
 
     public static class Node {
+
+        private static final ConstructingObjectParser<Node, String> PARSER =
+            new ConstructingObjectParser<>("clear_roles_cache_response_node", false, (args, id) -> new Node(id, (String) args[0]));
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
+        }
 
         private final String id;
         private final String name;
@@ -88,24 +106,4 @@ public final class ClearRolesCacheResponse {
     public static ClearRolesCacheResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
-
-    private static Node nodeFromXContent(String id, XContentParser parser) throws IOException {
-        ConstructingObjectParser<Node, Void> objectParser = new ConstructingObjectParser<>("clear_roles_cache_response_node",
-            false, args -> new Node(id, (String) args[0]));
-        objectParser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
-        return objectParser.parse(parser, null);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ClearRolesCacheResponse, Void> PARSER =
-        new ConstructingObjectParser<>("clear_roles_cache_response", false,
-            args -> new ClearRolesCacheResponse((List<Node>)args[0], (NodesResponseHeader) args[1], (ClusterName) args[2]));
-
-    static {
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> nodeFromXContent(n, p), new ParseField("nodes"));
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), NodesResponseHeader::fromXContent, new ParseField("_nodes"));
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> new ClusterName(p.text()),
-            new ParseField("cluster_name"), ObjectParser.ValueType.STRING);
-    }
-
 }

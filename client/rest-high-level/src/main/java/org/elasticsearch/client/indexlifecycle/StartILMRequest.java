@@ -19,17 +19,11 @@
 
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.TimedRequest;
 
-public class StartILMRequest extends AcknowledgedRequest<StartILMRequest> {
+public class StartILMRequest extends TimedRequest {
 
     public StartILMRequest() {
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

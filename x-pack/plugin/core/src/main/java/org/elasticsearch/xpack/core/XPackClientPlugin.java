@@ -58,7 +58,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.RemovePolicyForIndexAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.SetIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
@@ -343,7 +343,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 PutLifecycleAction.INSTANCE,
                 ExplainLifecycleAction.INSTANCE,
                 SetIndexLifecyclePolicyAction.INSTANCE,
-                RemovePolicyForIndexAction.INSTANCE,
+                RemoveIndexLifecyclePolicyAction.INSTANCE,
                 MoveToStepAction.INSTANCE,
                 RetryAction.INSTANCE
         );
@@ -400,6 +400,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(PersistentTaskState.class, RollupJobStatus.NAME, RollupJobStatus::new),
                 // ccr
                 new NamedWriteableRegistry.Entry(AutoFollowMetadata.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+                new NamedWriteableRegistry.Entry(MetaData.Custom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, AutoFollowMetadata.TYPE,
+                    in -> AutoFollowMetadata.readDiffFrom(MetaData.Custom.class, AutoFollowMetadata.TYPE, in)),
                 // ILM
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.INDEX_LIFECYCLE,
                     IndexLifecycleFeatureSetUsage::new),

@@ -53,7 +53,7 @@ public interface ServerTransportFilter {
             throws IOException;
 
     /**
-     * The server trasnport filter that should be used in nodes as it ensures that an incoming
+     * The server transport filter that should be used in nodes as it ensures that an incoming
      * request is properly authenticated and authorized
      */
     class NodeProfile implements ServerTransportFilter {

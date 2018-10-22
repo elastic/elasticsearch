@@ -12,12 +12,14 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.Step;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
     private final Index index;
@@ -58,7 +60,7 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
         Settings indexSettings = idxMeta.getSettings();
         LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-                && currentStepKey.equals(IndexLifecycleRunner.getCurrentStepKey(indexILMData))) {
+                && Objects.equals(currentStepKey, IndexLifecycleRunner.getCurrentStepKey(indexILMData))) {
             return IndexLifecycleRunner.addStepInfoToClusterState(index, currentState, stepInfo);
         } else {
             // either the policy has changed or the step is now
@@ -72,5 +74,21 @@ public class SetStepInfoUpdateTask extends ClusterStateUpdateTask {
     public void onFailure(String source, Exception e) {
         throw new ElasticsearchException("policy [" + policy + "] for index [" + index.getName()
                 + "] failed trying to set step info for step [" + currentStepKey + "].", e);
+    }
+
+    public static class ExceptionWrapper implements ToXContentObject {
+        private final Throwable exception;
+
+        public ExceptionWrapper(Throwable exception) {
+            this.exception = exception;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            ElasticsearchException.generateThrowableXContent(builder, params, exception);
+            builder.endObject();
+            return builder;
+        }
     }
 }

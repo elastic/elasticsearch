@@ -367,7 +367,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     }
                     aliases.add(alias);
                 } else {
-                    // If not, we have a non required alias for this index - no futher checking needed
+                    // If not, we have a non required alias for this index - no further checking needed
                     return null;
                 }
             }

@@ -1,0 +1,121 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-move-to-step]]
+=== Move To Step API
+++++
+<titleabbrev>Move To Step</titleabbrev>
+++++
+
+Moves a managed index into a specific execution step its policy
+
+==== Request
+
+`POST _ilm/move/<index>`
+
+==== Description
+
+WARNING: This is an expert API that may lead to unintended data loss. When used,
+an index's policy will begin executing at the specified step. It will execute
+the step specified even if it has already executed it. Since this is a, potentionally,
+dangerous action, specifying both the current step and next step to move to is
+required in the body of the request.
+
+This API changes the current step for the specified index to the step supplied in the body of the request
+
+==== Path Parameters
+
+`index` (required)::
+  (string) Identifier for the index.
+
+==== Request Parameters
+
+`timeout`::
+  (time units) Specifies the period of time to wait for the completion of the 
+  move operation. When this period of time elapses, the API fails and returns
+  an error. The default value is `30s`. For more information about time units, 
+  see <<time-units>>.
+
+`master_timeout`::
+  (time units) Specifies the period of time to wait for the connection with master.
+  When this period of time elapses, the API fails and returns an error.
+  The default value is `30s`. For more information about time units, see <<time-units>>.
+
+
+==== Examples
+
+The following example moves the index `my_index` from the initial step to the
+forcemerge step:
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "minimum_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my_index
+{
+  "settings": {
+    "index.lifecycle.name": "my_policy"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST _ilm/move/my_index
+{
+  "current_step": { <1>
+    "phase": "new",
+    "action": "complete",
+    "name": "complete"
+  },
+  "next_step": { <2>
+    "phase": "warm",
+    "action": "forcemerge",
+    "name": "forcemerge"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+<1> The step that the index is currently expected to be executing
+<2> The step that the index should move to when executing this request
+
+If the request does not encounter errors, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE
+
+NOTE: An error will be returned if the index is now longer executing the step
+specified in `current_step`. This is so the index is not moved from an
+unexpected step into the `next_step`.

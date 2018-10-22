@@ -559,7 +559,7 @@ public class IndicesService extends AbstractLifecycleComponent
             closeables.add(() -> service.close("metadata verification", false));
             service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY);
             if (metaData.equals(metaDataUpdate) == false) {
-                service.updateMetaData(metaDataUpdate);
+                service.updateMetaData(metaData, metaDataUpdate);
             }
         } finally {
             IOUtils.close(closeables);
@@ -1166,10 +1166,9 @@ public class IndicesService extends AbstractLifecycleComponent
         } else if (request.requestCache() == false) {
             return false;
         }
-        // if the reader is not a directory reader, we can't get the version from it
-        if ((context.searcher().getIndexReader() instanceof DirectoryReader) == false) {
-            return false;
-        }
+        // We use the cacheKey of the index reader as a part of a key of the IndicesRequestCache.
+        assert context.searcher().getIndexReader().getReaderCacheHelper() != null;
+
         // if now in millis is used (or in the future, a more generic "isDeterministic" flag
         // then we can't cache based on "now" key within the search request, as it is not deterministic
         if (context.getQueryShardContext().isCachable() == false) {

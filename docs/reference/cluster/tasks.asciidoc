@@ -132,6 +132,19 @@ number of requests and the destination indices. Many requests will only have an
 empty description because more detailed information about the request is not
 easily available or particularly helpful in identifying the request.
 
+[IMPORTANT]
+==============================
+
+`_tasks` requests with `detailed` may also return a `status`. This is a report
+of the internal status of the task. As such its format varies from task to task.
+While we try to keep the `status` for a particular task consistent from version
+to version this isn't always possible because we sometimes change the
+implementation. In that case we might remove fields from the `status` for a
+particular request so any parsing you do of the status might break in minor
+releases.
+
+==============================
+
 The task API can also be used to wait for completion of a particular task. The
 following call will block for 10 seconds or until the task with id
 `oTUltX4IQMOUUVeiohTt8A:12345` is completed.

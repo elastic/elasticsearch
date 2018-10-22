@@ -31,6 +31,10 @@ public class MlTasksTests extends ESTestCase {
         assertEquals(JobState.OPENED, MlTasks.getJobState("foo", tasksBuilder.build()));
     }
 
+    public void testGetJobState_GivenNull() {
+        assertEquals(JobState.CLOSED, MlTasks.getJobState("foo", null));
+    }
+
     public void testGetDatefeedState() {
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         // A missing task is a stopped datafeed
@@ -81,6 +85,10 @@ public class MlTasksTests extends ESTestCase {
                 new PersistentTasksCustomMetaData.Assignment("node-1", "test assignment"));
 
         assertThat(MlTasks.openJobIds(tasksBuilder.build()), containsInAnyOrder("foo-1", "bar"));
+    }
+
+    public void testOpenJobIds_GivenNull() {
+        assertThat(MlTasks.openJobIds(null), empty());
     }
 
     public void testTaskExistsForJob() {

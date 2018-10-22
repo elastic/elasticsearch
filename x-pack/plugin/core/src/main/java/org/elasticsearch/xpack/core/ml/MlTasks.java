@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -83,10 +84,14 @@ public final class MlTasks {
      * All anomaly detector jobs are returned regardless of the status of the
      * task (OPEN, CLOSED, FAILED etc).
      *
-     * @param tasks Persistent tasks
+     * @param tasks Persistent tasks. If null an empty set is returned.
      * @return The job Ids of anomaly detector job tasks
      */
-    public static Set<String> openJobIds(PersistentTasksCustomMetaData tasks) {
+    public static Set<String> openJobIds(@Nullable PersistentTasksCustomMetaData tasks) {
+        if (tasks == null) {
+            return Collections.emptySet();
+        }
+
         return tasks.findTasks(JOB_TASK_NAME, task -> true)
                 .stream()
                 .map(t -> t.getId().substring(JOB_TASK_ID_PREFIX.length()))

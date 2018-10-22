@@ -631,6 +631,44 @@ public class JobConfigProvider extends AbstractComponent {
                 , client::search);
     }
 
+    /**
+     * Check if a group exists, that is there exists a job that is a member of
+     * the group. If there are one or more jobs that define the group then
+     * the listener responds with true else an error.
+     *
+     * @param groupId The group Id
+     * @param listener Returns true or failure
+     */
+    public void groupExists(String groupId, ActionListener<Boolean> listener) {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE));
+        boolQueryBuilder.filter(new TermsQueryBuilder(Job.GROUPS.getPreferredName(), groupId));
+
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+                .query(boolQueryBuilder);
+        sourceBuilder.fetchSource(false);
+
+        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(sourceBuilder).request();
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            if (response.getHits().totalHits > 0) {
+                                listener.onResponse(Boolean.TRUE);
+                            } else {
+                                listener.onFailure(ExceptionsHelper.missingJobException(groupId));
+                            }
+                        },
+                        listener::onFailure)
+                , client::search);
+    }
+
+    /**
+     * Find jobs with custom rules defined.
+     * @param listener Jobs listener
+     */
     public void findJobsWithCustomRules(ActionListener<List<Job>> listener) {
         String customRulesPath = Strings.collectionToDelimitedString(Arrays.asList(Job.ANALYSIS_CONFIG.getPreferredName(),
                 AnalysisConfig.DETECTORS.getPreferredName(), Detector.CUSTOM_RULES_FIELD.getPreferredName()), ".");

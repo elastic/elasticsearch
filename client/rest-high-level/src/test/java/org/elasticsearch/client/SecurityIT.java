@@ -33,6 +33,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 
 public class SecurityIT extends ESRestHighLevelClientTestCase {
 
@@ -41,14 +42,21 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final PutUserRequest putUserRequest = randomPutUserRequest();
         final PutUserResponse putUserResponse = execute(putUserRequest, securityClient::putUser, securityClient::putUserAsync);
         assertThat(putUserResponse.isCreated(), is(true));
-        
+
         // correct password authenticate
         final String correctBasicAuthHeader = basicAuthHeader(putUserRequest.getUsername(), putUserRequest.getPassword());
         final AuthenticateResponse correctAuthenticateResponse = execute(securityClient::authenticate, securityClient::authenticateAsync,
                 authorizationRequestOptions(correctBasicAuthHeader));
+
         assertThat(correctAuthenticateResponse.getUser().username(), is(putUserRequest.getUsername()));
-        // nothing to see here (switched because easier to write)
-        assertThat(putUserRequest.getRoles(), contains(correctAuthenticateResponse.getUser().roles()));
+        if (putUserRequest.getRoles().isEmpty()) {
+            assertThat(correctAuthenticateResponse.getUser().roles(), is(empty()));
+        } else {
+            assertThat(correctAuthenticateResponse.getUser().roles(), contains(putUserRequest.getRoles().toArray()));
+        }
+        assertThat(correctAuthenticateResponse.getUser().metadata(), is(putUserRequest.getMetadata()));
+        assertThat(correctAuthenticateResponse.getUser().fullName(), is(putUserRequest.getFullName()));
+        assertThat(correctAuthenticateResponse.getUser().email(), is(putUserRequest.getEmail()));
     }
     
     // run as
@@ -56,9 +64,9 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
     private static PutUserRequest randomPutUserRequest() {
         final String username = randomAlphaOfLengthBetween(1, 4);
         final char[] password = randomAlphaOfLengthBetween(6, 10).toCharArray();
-        final List<String> roles = Arrays.asList(generateRandomStringArray(4, 4, false, true));
-        final String fullName = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
-        final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
+        final List<String> roles = Arrays.asList(generateRandomStringArray(3, 3, false, true));
+        final String fullName = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 3));
+        final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 3));
         final boolean enabled = randomBoolean();
         final Map<String, Object> metadata;
         metadata = new HashMap<>();

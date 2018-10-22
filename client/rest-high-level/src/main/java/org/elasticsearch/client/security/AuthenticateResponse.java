@@ -52,7 +52,7 @@ public final class AuthenticateResponse implements ToXContentObject {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AuthenticateResponse, Void> PARSER = new ConstructingObjectParser<>(
             "client_security_authenticate_response",
-            a -> new AuthenticateResponse(new User((String) a[0], ((List<String>) a[1]).toArray(new String[0]), (Map<String, Object>) a[2],
+            a -> new AuthenticateResponse(new User((String) a[0], ((List<String>) a[1]), (Map<String, Object>) a[2],
                     (String) a[3], (String) a[4]), (Boolean) a[5]));
     static {
         PARSER.declareString(constructorArg(), USERNAME);

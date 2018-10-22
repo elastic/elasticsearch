@@ -26,6 +26,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class AuthenticateResponseTests extends AbstractXContentTestCase<AuthenticateResponse> {
@@ -33,7 +34,7 @@ public class AuthenticateResponseTests extends AbstractXContentTestCase<Authenti
     @Override
     protected AuthenticateResponse createTestInstance() {
         final String username = randomAlphaOfLengthBetween(1, 4);
-        final String[] roles = generateRandomStringArray(4, 4, false, true);
+        final List<String> roles = Arrays.asList(generateRandomStringArray(4, 4, false, true));
         final Map<String, Object> metadata;
         metadata = new HashMap<>();
         if (randomBoolean()) {

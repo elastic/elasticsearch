@@ -22,9 +22,10 @@ package org.elasticsearch.client.security.user;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 
 /**
@@ -33,12 +34,12 @@ import java.util.Map;
 public final class User {
 
     private final String username;
-    private final String[] roles;
+    private final List<String> roles;
     private final Map<String, Object> metadata;
     @Nullable private final String fullName;
     @Nullable private final String email;
 
-    public User(String username, String[] roles, Map<String, Object> metadata, @Nullable String fullName, @Nullable String email) {
+    public User(String username, List<String> roles, Map<String, Object> metadata, @Nullable String fullName, @Nullable String email) {
         assert username != null;
         assert roles != null;
         assert metadata != null;
@@ -62,7 +63,7 @@ public final class User {
      *          identified by their unique names and each represents as
      *          set of permissions. Can never be {@code null}.
      */
-    public String[] roles() {
+    public List<String> roles() {
         return this.roles;
     }
 
@@ -91,7 +92,7 @@ public final class User {
     public String toString() {
         final StringBuilder sb = new StringBuilder();
         sb.append("User[username=").append(username);
-        sb.append(",roles=[").append(Strings.arrayToCommaDelimitedString(roles)).append("]");
+        sb.append(",roles=[").append(Strings.collectionToCommaDelimitedString(roles)).append("]");
         sb.append(",metadata=").append(metadata);
         sb.append(",fullName=").append(fullName);
         sb.append(",email=").append(email);
@@ -113,7 +114,7 @@ public final class User {
         if (!username.equals(user.username)) {
             return false;
         }
-        if (!Arrays.equals(roles, user.roles)) {
+        if (!roles.equals(user.roles)) {
             return false;
         }
         if (!metadata.equals(user.metadata)) {
@@ -127,12 +128,7 @@ public final class User {
 
     @Override
     public int hashCode() {
-        int result = username.hashCode();
-        result = 31 * result + Arrays.hashCode(roles);
-        result = 31 * result + metadata.hashCode();
-        result = 31 * result + (fullName != null ? fullName.hashCode() : 0);
-        result = 31 * result + (email != null ? email.hashCode() : 0);
-        return result;
+        return Objects.hash(username, roles, metadata, fullName, email);
     }
 
 }

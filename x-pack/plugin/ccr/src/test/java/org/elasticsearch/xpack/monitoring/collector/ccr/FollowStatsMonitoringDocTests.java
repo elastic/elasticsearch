@@ -168,7 +168,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"number_of_queued_writes\":" + numberOfQueuedWrites + ","
                                         + "\"mapping_version\":" + mappingVersion + ","
                                         + "\"total_fetch_time_millis\":" + totalFetchTimeMillis + ","
-                                        + "\"total_fetch_took_time_millis\":" + totalFetchTookTimeMillis + ","
+                                        + "\"total_fetch_leader_time_millis\":" + totalFetchTookTimeMillis + ","
                                         + "\"number_of_successful_fetches\":" + numberOfSuccessfulFetches + ","
                                         + "\"number_of_failed_fetches\":" + numberOfFailedFetches + ","
                                         + "\"operations_received\":" + operationsReceived + ","

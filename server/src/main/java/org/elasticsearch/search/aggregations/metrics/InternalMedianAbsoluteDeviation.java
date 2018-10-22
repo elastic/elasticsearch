@@ -111,14 +111,13 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(valuesSketch, medianAbsoluteDeviation);
+        return Objects.hash(valuesSketch);
     }
 
     @Override
     protected boolean doEquals(Object obj) {
         InternalMedianAbsoluteDeviation other = (InternalMedianAbsoluteDeviation) obj;
-        return Objects.equals(valuesSketch, other.valuesSketch)
-            && Objects.equals(medianAbsoluteDeviation, other.medianAbsoluteDeviation);
+        return Objects.equals(valuesSketch, other.valuesSketch);
     }
 
     @Override

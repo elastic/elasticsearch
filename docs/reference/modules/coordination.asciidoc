@@ -1,0 +1,461 @@
+[[modules-cluster-coordination]]
+== Cluster coordination
+
+The cluster coordination module is responsible for electing a master node and
+managing changes to the cluster state.
+
+[float]
+=== Quorum-based decision making
+
+Electing a master node and changing the cluster state both work robustly by
+using multiple nodes, only considering each action to have succeeded on receipt
+of responses from a majority of the master-eligible nodes in the cluster. The
+advantage of requiring a majority of nodes to respond is that it allows for
+nearly half of the master-eligible nodes to fail without preventing the cluster
+from making progress, but also does not allow the cluster to "split brain",
+i.e. to be partitioned into two pieces each of which may make decisions that
+are inconsistent with those of the other piece.
+
+Elasticsearch allows you to add and remove master-eligible nodes to a running
+cluster. In many cases you can do this simply by starting or stopping the nodes
+as required, as described in more detail below. As nodes are added or removed
+Elasticsearch maintains an optimal level of fault tolerance by updating the
+cluster's _configuration_, which is the set of master-eligible nodes whose
+responses are counted when making decisions such as electing a new master or
+committing a new cluster state. A decision is only made once more than half of
+the nodes _in the configuration_ have responded. Usually the cluster
+configuration is the same as the set of all the master-eligible nodes that are
+currently in the cluster, but in some situations they may be different. As long
+as more than half of the nodes in the configuration are still healthy then the
+cluster can still make progress. The configuration is managed automatically by
+Elasticsearch and stored in the cluster state so you can inspect its current
+contents by (TODO API call?).
+
+The way that the configuration is managed is controlled by the following
+settings. (TODO maybe not settings?)
+
+`cluster.master_nodes_failure_tolerance`::
+
+    Sets the number of master-eligible nodes whose simultaneous failure the
+    cluster should be able to tolerate. This imposes a lower bound on the size
+    of the configuration. Elasticsearch will not remove nodes from the
+    configuration if their removal would break this bound, and will not permit
+    this bound to be increased to a value that is too large for the current
+    configuration.
+
+The relationship between the number of master-eligible nodes in your cluster,
+the size of a majority, and the appropriate value for the
+`cluster.master_nodes_failure_tolerance` setting is shown below.
+
+[cols="<,<,<",options="header",]
+|=======================================================================================
+|Number of master-eligible nodes |Majority size |`cluster.master_nodes_failure_tolerance`
+|1                               |1             |0                             
+|2                               |2             |0                             
+|**3 (recommended)**             |**2**         |**1**                             
+|4                               |3             |1                             
+|5                               |3             |2                             
+|6                               |4             |2                             
+|7                               |4             |3                             
+|=======================================================================================
+
+The minimum configuration size is `2 * cluster.master_nodes_failure_tolerance + 1`:
+
+[cols="<,<",options="header",]
+|====================================================================
+|`cluster.master_nodes_failure_tolerance` |Minimum configuration size
+|0                                        |1
+|**1**                                    |**3**
+|2                                        |5
+|3                                        |7
+|====================================================================
+
+It is permissible, but not recommended, to set
+`cluster.master_nodes_failure_tolerance` too low for your cluster or, put
+differently, to have more master-eligible nodes than the minimum configuration
+size. To do so is _safe_ in the sense that the cluster will not suffer from a
+split-brain however this setting is configured, but if
+`cluster.master_nodes_failure_tolerance` is too low then your cluster may not
+tolerate as many failures as expected.
+
+[float]
+==== Even numbers of master-eligible nodes
+
+There should normally be an odd number of master-eligible nodes in a cluster.
+If there is an even number then Elasticsearch will put all but one of them into
+the configuration to ensure that the configuration has an odd size. This does
+not decrease the failure-tolerance of the cluster, and in fact improves it
+slightly: if the cluster is partitioned into two even halves then one of the
+halves will contain a majority of the masters and will be able to keep
+operating, whereas if all of the master-eligible nodes' votes were counted then
+neither side could make any progress in this situation.
+
+[float]
+==== Adding master-eligible nodes
+
+If you wish to add some master-eligible nodes to your cluster, simply configure
+the new nodes to find the existing cluster and start them up. Once the new
+nodes have joined the cluster, you may be able to increase the
+`cluster.master_nodes_failure_tolerance` setting to match. (TODO do we log
+info/warn messages about this?)
+
+[float]
+==== Removing master-eligible nodes
+
+If you wish to remove some of the master-eligible nodes in your cluster, you
+must first reduce the `cluster.master_nodes_failure_tolerance` setting to match
+the target cluster size before removing the extraneous nodes. This temporary
+situation is the only case in which `cluster.master_nodes_failure_tolerance`
+should be set lower than the recommended values above.
+
+You must also be careful not to remove too many master-eligible nodes all at
+the same time. For instance, if you currently have seven master-eligible nodes
+and you wish to reduce this to three, you cannot simply stop four of the nodes
+all at the same time: to do so would leave only three nodes remaining, which is
+less than half of the cluster, which means it cannot take any further actions.
+You should remove the nodes one-at-a-time and verify that each node has been
+removed from the configuration before moving onto the next one, using the
+`await_removal` API:
+
+[source,js]
+--------------------------------------------------
+# Explicit timeout of one minute
+GET /_nodes/node_name/await_removal?timeout=1m
+# Default timeout of 30 seconds
+GET /_nodes/node_name/await_removal
+--------------------------------------------------
+// CONSOLE
+
+The node (or nodes) for whose removal to wait are specified using
+<<cluster-nodes,node filters>> in place of `node_name` here.
+
+A special case of this is the case where there are only two master-eligible
+nodes and you wish to remove one of them. In this case neither node can be
+safely shut down since both nodes are required to reliably make progress, so
+you must first explicitly _retire_ one of the nodes. A retired node still works
+normally, but Elasticsearch will try and transfer it out of the current
+configuration so its vote is no longer required, and will never move a retired
+node back into the configuration. Once a node has been retired and is removed
+from the configuration, it is safe to shut it down. A node can be retired using
+the retirement API:
+
+[source,js]
+--------------------------------------------------
+# Retire node and wait for its removal up to the default timeout of 30 seconds
+POST /_nodes/node_name/retire
+# Retire node and wait for its removal up to one minute
+POST /_nodes/node_name/retire?timeout=1m
+--------------------------------------------------
+// CONSOLE
+
+The node to retire is specified using <<cluster-nodes,node filters>> in place
+of `node_name` here. If a call to the retirement API fails then the call can
+safely be retried. However if a retirement fails then it's possible the node
+cannot be removed from the configuration due to the
+`cluster.master_nodes_failure_tolerance` setting, so verify that this is set
+correctly first. A successful response guarantees that the node has been
+removed from the configuration and will not be reinstated.
+
+A node (or nodes) can be brought back out of retirement using the `unretire`
+API:
+
+[source,js]
+--------------------------------------------------
+POST /_nodes/node_name/unretire
+--------------------------------------------------
+// CONSOLE
+
+The node (or nodes) to reinstate are specified using <<cluster-nodes,node
+filters>> in place of `node_name` here. After being brought back out of
+retirement they may not immediately be added to the configuration.
+
+[float]
+=== Cluster bootstrapping
+
+A major risk when starting up a brand-new cluster is that you accidentally form
+two separate clusters instead of one. This could lead to data loss: you might
+start using both clusters before noticing that anything had gone wrong, and it
+might then be impossible to merge them together later.
+
+To illustrate how this could happen, imagine starting up a three-node cluster
+in which each node knows that it is going to be part of a three-node cluster. A
+majority of three nodes is two, so normally the first two nodes to discover
+each other will form a cluster and the third node will join them a short time
+later. However, imagine that four nodes were accidentally started instead of
+three: in this case there are enough nodes to form two separate clusters. Of
+course if each node is started manually then it's unlikely that too many nodes
+are started, but it's certainly possible to get into this situation if using a
+more automated orchestrator, particularly if a network partition happens at the
+wrong time.
+
+We avoid this by requiring a separate _cluster bootstrap_ process to take place
+on every brand-new cluster. This is only required the first time the whole
+cluster starts up: new nodes joining an established cluster can safely obtain
+all the information they need from the elected master, and nodes that have
+previously been part of a cluster will have stored to disk all the information
+required when restarting.
+
+The simplest way to bootstrap a cluster is to use the
+`elasticsearch-bootstrap-cluster` command-line tool:
+
+[source,txt]
+--------------------------------------------------
+$ bin/elasticsearch-bootstrap-cluster --failure-tolerance 1 \
+    --node http://10.0.12.1:9200/ --node http://10.0.13.1:9200/ \
+    --node https://10.0.14.1:9200/
+--------------------------------------------------
+
+The arguments to this tool are the target failure tolerance of the cluster and
+the addresses of (some of) its master-eligible nodes.
+
+If it is not possible to use this tool, you can also bootstrap the cluster via
+the API as described here. There are two steps to the bootstrapping process.
+Firstly, after all the nodes have started up, created their persistent node
+IDs, and discovered each other, the first step is to request a bootstrap
+document:
+
+[source,js]
+--------------------------------------------------
+# Return the current bootstrap document immediately
+GET /_cluster/bootstrap
+# Wait until the node has discovered at least 3 nodes, or 60 seconds has elapsed,
+# and then return the bootstrap document
+GET /_cluster/bootstrap?wait_for_nodes=3&timeout=60s
+--------------------------------------------------
+// CONSOLE
+
+The boostrap document contains information that the cluster needs to start up,
+and looks like the following.
+
+[source,js]
+--------------------------------------------------
+{
+  "master_nodes_failure_tolerance": 1,
+  "master_nodes":[
+    {"id":"USpTGYaBSIKbgSUJR2Z9lg"},
+    {"id":"gSUJR2Z9lgUSpTGYaBSIKb"},
+    {"id":"2Z9lgUSpTgSUYaBSIKbJRG"}
+  ]
+}
+--------------------------------------------------
+
+It is safe to repeatedly call `GET /_cluster/bootstrap`, and to call it on
+different nodes concurrently. This API will yield an error if the receiving
+node has already been bootstrapped or has joined an existing cluster.
+
+Once a bootstrap document has been received, it must then be sent back to the
+cluster to finish the bootstrapping process as follows:
+
+[source,js]
+--------------------------------------------------
+# send the bootstrap document back to the cluster
+POST /_cluster/bootstrap
+{
+  "master_nodes_failure_tolerance": 1,
+  "master_nodes":[
+    {"id":"USpTGYaBSIKbgSUJR2Z9lg"},
+    {"id":"gSUJR2Z9lgUSpTGYaBSIKb"},
+    {"id":"2Z9lgUSpTgSUYaBSIKbJRG"}
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+It is safe to repeatedly call `POST /_cluster/bootstrap`, and to call it on
+different nodes concurrently, but **it is vitally important** to use the same
+bootstrap document in each call.
+
+It is also possible to select the initial set of nodes in terms of their names
+rather than their IDs as follows.
+
+[source,js]
+--------------------------------------------------
+# send the bootstrap document back to the cluster
+POST /_cluster/bootstrap
+{
+  "master_nodes_failure_tolerance": 1,
+  "master_nodes":[
+    {"name":"master-a"},
+    {"name":"master-b"},
+    {"name":"master-c"}
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+This can be useful if the node names are known (and known to be unique) in
+advance, and means that the first `GET /_cluster/bootstrap` call is not
+necessary. As above, it is safe to repeatedly call `POST /_cluster/bootstrap`,
+and to call it on different nodes concurrently, but **it is vitally important**
+to use the same bootstrap document in each call.
+
+[float]
+=== Manually-triggered elections
+
+It is possible to request that a particular node takes over from the elected
+master as follows:
+
+[source,js]
+--------------------------------------------------
+POST /_nodes/node_name/start_election
+--------------------------------------------------
+// CONSOLE
+
+Elections are not guaranteed to succeed, and a new leader may be elected at any
+time so even if this election does succeed then there may be another election,
+so there is no guarantee that the chosen node will be the elected master for
+any length of time.
+
+[float]
+=== Unsafe disaster recovery
+
+In a disaster situation a cluster may have lost half or more of its
+master-eligible nodes and therefore be in a state in which it cannot elect a
+master. There is no way to recover from this situation without risking data
+loss, but if there is no other viable path forwards then this may be necessary.
+This can be performed with the following command on a surviving node:
+
+[source,js]
+--------------------------------------------------
+POST /_nodes/_local/force_become_leader
+--------------------------------------------------
+// CONSOLE
+
+This works by reducing `cluster.master_nodes_failure_tolerance` to 0 and then
+forcibly overriding the current configuration with one in which the handling
+node is the only voting master, so that it forms a quorum on its own. Because
+there is a risk of data loss when performing this command it requires the
+`accept_data_loss` parameter to be set to `true` in the URL.
+
+[float]
+=== Election scheduling
+
+Elasticsearch uses an election process to agree on an elected master node, both
+at startup and if the existing elected master fails. Any master-eligible node
+can start an election, and normally the first election that takes place will
+succeed. Elections only usually fail when two nodes both happen to start their
+elections at about the same time, so elections are scheduled randomly on each
+node to avoid this happening. Nodes will retry elections until a master is
+elected, backing off on failure, so that eventually an election will succeed
+with arbitrarily high probability. The following settings control the
+scheduling of elections.
+
+`cluster.election.initial_timeout`::
+
+    Sets the upper bound on how long a node will wait initially, or after a
+    leader failure, before attempting its first election. This defaults to
+    `100ms`.
+
+`cluster.election.back_off_time`::
+
+    Sets the amount to increase the upper bound on the wait before an election
+    on each election failure. Note that this is _linear_ backoff. This defaults
+    to `100ms`
+
+`cluster.election.max_timeout`::
+
+    Sets the maximum upper bound on how long a node will wait before attempting
+    an first election, so that an network partition that lasts for a long time
+    does not result in excessively sparse elections. This defaults to `10s`
+
+`cluster.election.duration`::
+
+    Sets how long each election is allowed to take before a node considers it
+    to have failed and schedules a retry. This defaults to `500ms`.
+
+[float]
+=== Fault detection
+
+An elected master periodically checks each of its followers in order to ensure
+that they are still connected and healthy, and in turn each follower
+periodically checks the health of the elected master. Elasticsearch allows for
+these checks occasionally to fail or timeout without taking any action, and
+will only consider a node to be truly faulty after a number of consecutive
+checks have failed. The following settings control the behaviour of fault
+detection.
+
+`cluster.fault_detection.follower_check.interval`::
+
+    Sets how long the elected master waits between checks of its followers.
+    Defaults to `1s`.
+
+`cluster.fault_detection.follower_check.timeout`::
+
+    Sets how long the elected master waits for a response to a follower check
+    before considering it to have failed. Defaults to `30s`.
+
+`cluster.fault_detection.follower_check.retry_count`::
+
+    Sets how many consecutive follower check failures must occur before the
+    elected master considers a follower node to be faulty and removes it from
+    the cluster. Defaults to `3`.
+
+`cluster.fault_detection.leader_check.interval`::
+
+    Sets how long each follower node waits between checks of its leader.
+    Defaults to `1s`.
+
+`cluster.fault_detection.leader_check.timeout`::
+
+    Sets how long each follower node waits for a response to a leader check
+    before considering it to have failed. Defaults to `30s`.
+
+`cluster.fault_detection.leader_check.retry_count`::
+
+    Sets how many consecutive leader check failures must occur before a
+    follower node considers the elected master to be faulty and attempts to
+    find or elect a new master. Defaults to `3`.
+
+
+[float]
+=== Discovery settings
+
+TODO move this to the discovery module docs
+
+Discovery operates in two phases: First, each node "probes" the addresses of
+all known nodes by connecting to each address and attempting to identify the
+node to which it is connected. Secondly it shares with the remote node a list
+of all of its peers and the remote node responds with _its_ peers in turn. The
+node then probes all the new nodes about which it just discovered, requests
+their peers, and so on, until it has discovered an elected master node or
+enough other masterless nodes that it can perform an election. If neither of
+these occur quickly enough then it tries again. This process is controlled by
+the following settings.
+
+`discovery.probe.connect_timeout`::
+
+    Sets how long to wait when attempting to connect to each address. Defaults
+    to `3s`.
+
+`discovery.probe.handshake_timeout`::
+
+    Sets how long to wait when attempting to identify the remote node via a
+    handshake. Defaults to `1s`.
+
+`discovery.find_peers_interval`::
+
+    Sets how long a node will wait before attempting another discovery round.
+
+`discovery.request_peers_timeout`::
+
+    Sets how long a node will wait after asking its peers again before
+    considering the request to have failed.
+
+[float]
+=== Miscellaneous timeouts
+
+`cluster.join.timeout`::
+
+    Sets how long a node will wait after sending a request to join a cluster
+    before it considers the request to have failed and retries. Defaults to
+    `60s`.
+
+`cluster.publish.timeout`::
+
+    Sets how long the elected master will wait after publishing a cluster state
+    update to receive acknowledgements from all its followers. If this timeout
+    occurs then the elected master may start to calculate and publish a
+    subsequent cluster state update, as long as it received enough
+    acknowledgements to know that the previous publication was committed; if it
+    did not receive enough acknowledgements to commit the update then it stands
+    down as the elected leader.

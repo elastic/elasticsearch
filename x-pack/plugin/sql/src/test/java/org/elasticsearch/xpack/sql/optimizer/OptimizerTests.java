@@ -29,12 +29,12 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
-import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.Not;
-import org.elasticsearch.xpack.sql.expression.predicate.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
@@ -204,7 +204,7 @@ public class OptimizerTests extends ESTestCase {
         // SELECT
         p = new Project(EMPTY, p, Arrays.asList(a, b));
         // ORDER BY
-        p = new OrderBy(EMPTY, p, singletonList(new Order(EMPTY, b, OrderDirection.ASC)));
+        p = new OrderBy(EMPTY, p, singletonList(new Order(EMPTY, b, OrderDirection.ASC, null)));
 
         LogicalPlan result = new ReplaceFoldableAttributes().apply(p);
         assertNotSame(p, result);
@@ -319,7 +319,7 @@ public class OptimizerTests extends ESTestCase {
         return ((Literal) new ConstantFolding().rule(f)).value();
     }
 
-    private static Object foldOperator(BinaryOperator b) {
+    private static Object foldOperator(BinaryOperator<?, ?, ?, ?> b) {
         return ((Literal) new ConstantFolding().rule(b)).value();
     }
 

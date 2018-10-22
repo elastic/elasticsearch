@@ -23,7 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -49,7 +49,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
         Arrays.sort(hits, Comparator.comparingInt(SearchHit::docId));
 
         int lastReaderId = -1;
-        SearchScript[] leafScripts = null;
+        FieldScript[] leafScripts = null;
         List<ScriptFieldsContext.ScriptField> scriptFields = context.scriptFields().fields();
         final IndexReader reader = context.searcher().getIndexReader();
         for (SearchHit hit : hits) {
@@ -64,7 +64,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 leafScripts[i].setDocument(docId);
                 final Object value;
                 try {
-                    value = leafScripts[i].run();
+                    value = leafScripts[i].execute();
                     CollectionUtils.ensureNoSelfReferences(value, "ScriptFieldsFetchSubPhase leaf script " + i);
                 } catch (RuntimeException e) {
                     if (scriptFields.get(i).ignoreException()) {
@@ -91,9 +91,9 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
         }
     }
 
-    private SearchScript[] createLeafScripts(LeafReaderContext context,
-                                             List<ScriptFieldsContext.ScriptField> scriptFields) {
-        SearchScript[] scripts = new SearchScript[scriptFields.size()];
+    private FieldScript[] createLeafScripts(LeafReaderContext context,
+                                            List<ScriptFieldsContext.ScriptField> scriptFields) {
+        FieldScript[] scripts = new FieldScript[scriptFields.size()];
         for (int i = 0; i < scripts.length; i++) {
             try {
                 scripts[i] = scriptFields.get(i).script().newInstance(context);

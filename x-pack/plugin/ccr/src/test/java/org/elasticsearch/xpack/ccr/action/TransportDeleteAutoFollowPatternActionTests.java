@@ -56,7 +56,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             .build();
 
         Request request = new Request();
-        request.setLeaderClusterAlias("eu_cluster");
+        request.setLeaderCluster("eu_cluster");
         AutoFollowMetadata result = TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState)
             .getMetaData()
             .custom(AutoFollowMetadata.TYPE);
@@ -85,7 +85,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             .build();
 
         Request request = new Request();
-        request.setLeaderClusterAlias("asia_cluster");
+        request.setLeaderCluster("asia_cluster");
         Exception e = expectThrows(ResourceNotFoundException.class,
             () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState));
         assertThat(e.getMessage(), equalTo("no auto-follow patterns for cluster alias [asia_cluster] found"));
@@ -97,7 +97,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             .build();
 
         Request request = new Request();
-        request.setLeaderClusterAlias("asia_cluster");
+        request.setLeaderCluster("asia_cluster");
         Exception e = expectThrows(ResourceNotFoundException.class,
             () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState));
         assertThat(e.getMessage(), equalTo("no auto-follow patterns for cluster alias [asia_cluster] found"));

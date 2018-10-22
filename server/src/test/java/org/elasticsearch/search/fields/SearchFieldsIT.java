@@ -106,7 +106,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
             scripts.put("doc['num1'].value * factor", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles num1 = (ScriptDocValues.Doubles) doc.get("num1");
-                Double factor = (Double) vars.get("factor");
+                Map<String, Object> params = (Map<String, Object>) vars.get("params");
+                Double factor = (Double) params.get("factor");
                 return num1.getValue() * factor;
             });
 

@@ -16,9 +16,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
-import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 import org.junit.Before;
 
@@ -883,7 +882,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     @After
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        XPackRestTestHelper.waitForPendingTasks(adminClient());
+        ESRestTestCase.waitForPendingTasks(adminClient());
     }
 
     private static class DatafeedBuilder {

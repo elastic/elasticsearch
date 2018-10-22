@@ -5,7 +5,7 @@ IMPORTANT: See <<removal-of-types>>.
 
 The index API adds or updates a typed JSON document in a specific index,
 making it searchable. The following example inserts the JSON document
-into the "twitter" index, under a type called "_doc" with an id of 1:
+into the "twitter" index, under a type called `_doc` with an id of 1:
 
 [source,js]
 --------------------------------------------------

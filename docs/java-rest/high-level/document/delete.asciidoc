@@ -10,7 +10,7 @@
 [id="{upid}-{api}-request"]
 ==== Delete Request
 
-A +{request}+ requires the following arguments:
+A +{request}+ has no arguments
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

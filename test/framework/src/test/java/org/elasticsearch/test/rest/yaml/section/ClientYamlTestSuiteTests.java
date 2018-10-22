@@ -89,10 +89,13 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         if (includeSetup) {
             assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(false));
             assertThat(restTestSuite.getSetupSection().getSkipSection().isEmpty(), equalTo(true));
-            assertThat(restTestSuite.getSetupSection().getDoSections().size(), equalTo(1));
-            assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getApi(), equalTo("indices.create"));
-            assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().size(), equalTo(1));
-            assertThat(restTestSuite.getSetupSection().getDoSections().get(0).getApiCallSection().getParams().get("index"),
+            assertThat(restTestSuite.getSetupSection().getExecutableSections().size(), equalTo(1));
+            final ExecutableSection maybeDoSection = restTestSuite.getSetupSection().getExecutableSections().get(0);
+            assertThat(maybeDoSection, instanceOf(DoSection.class));
+            final DoSection doSection = (DoSection) maybeDoSection;
+            assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.create"));
+            assertThat(doSection.getApiCallSection().getParams().size(), equalTo(1));
+            assertThat(doSection.getApiCallSection().getParams().get("index"),
                     equalTo("test_index"));
         } else {
             assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));

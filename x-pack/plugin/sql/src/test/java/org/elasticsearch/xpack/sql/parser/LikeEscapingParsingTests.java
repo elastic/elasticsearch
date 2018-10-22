@@ -39,7 +39,7 @@ public class LikeEscapingParsingTests extends ESTestCase {
         }
         assertThat(exp, instanceOf(Like.class));
         Like l = (Like) exp;
-        return l.right();
+        return l.pattern();
     }
 
     public void testNoEscaping() {

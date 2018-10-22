@@ -177,11 +177,7 @@ class NodeInfo {
             javaVersion = 8
         } else if (nodeVersion.onOrAfter("6.2.0") && nodeVersion.before("6.3.0")) {
             javaVersion = 9
-        } else if (project.inFipsJvm && nodeVersion.onOrAfter("6.3.0") && nodeVersion.before("6.4.0")) {
-            /*
-             * Elasticsearch versions before 6.4.0 cannot be run in a FIPS-140 JVM. If we're running
-             * bwc tests in a FIPS-140 JVM, ensure that the pre v6.4.0 nodes use a Java 10 JVM instead.
-             */
+        } else if (nodeVersion.onOrAfter("6.3.0") && nodeVersion.before("6.5.0")) {
             javaVersion = 10
         }
 

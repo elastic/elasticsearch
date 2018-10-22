@@ -81,9 +81,6 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
-import org.elasticsearch.protocol.xpack.license.PutLicenseRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -764,41 +761,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request putLicense(PutLicenseRequest putLicenseRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("license")
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        Params parameters = new Params(request);
-        parameters.withTimeout(putLicenseRequest.timeout());
-        parameters.withMasterTimeout(putLicenseRequest.masterNodeTimeout());
-        if (putLicenseRequest.isAcknowledge()) {
-            parameters.putParam("acknowledge", "true");
-        }
-        request.setJsonEntity(putLicenseRequest.getLicenseDefinition());
-        return request;
-    }
-
-    static Request getLicense(GetLicenseRequest getLicenseRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("license")
-            .build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        Params parameters = new Params(request);
-        parameters.withLocal(getLicenseRequest.local());
-        return request;
-    }
-
-    static Request deleteLicense(DeleteLicenseRequest deleteLicenseRequest) {
-        Request request = new Request(HttpDelete.METHOD_NAME, "/_xpack/license");
-        Params parameters = new Params(request);
-        parameters.withTimeout(deleteLicenseRequest.timeout());
-        parameters.withMasterTimeout(deleteLicenseRequest.masterNodeTimeout());
-        return request;
-    }
-
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
@@ -1218,3 +1180,4 @@ final class RequestConverters {
         }
     }
 }
+

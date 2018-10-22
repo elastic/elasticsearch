@@ -5,8 +5,7 @@ The explain api computes a score explanation for a query and a specific
 document. This can give useful feedback whether a document matches or
 didn't match a specific query.
 
-The `index` and `type` parameters expect a single index and a single
-type respectively.
+Note that a single index must be provided to the `index` parameter.
 
 [float]
 === Usage

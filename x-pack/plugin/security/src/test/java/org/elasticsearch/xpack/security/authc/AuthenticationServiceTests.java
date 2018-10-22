@@ -87,6 +87,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authenticationError;
+import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockCheckTokenInvalidationFromId;
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -187,6 +188,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             runnable.run();
             return null;
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        doAnswer(invocationOnMock -> {
+            Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
+            runnable.run();
+            return null;
+        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail,
@@ -897,7 +903,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             tokenService.createUserToken(expected, originatingAuth, tokenFuture, Collections.emptyMap(), true);
         }
         String token = tokenService.getUserTokenString(tokenFuture.get().v1());
+        when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         mockGetTokenFromId(tokenFuture.get().v1(), client);
+        mockCheckTokenInvalidationFromId(tokenFuture.get().v1(), client);
+        when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.indexExists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);
             service.authenticate("_action", message, (User)null, ActionListener.wrap(result -> {

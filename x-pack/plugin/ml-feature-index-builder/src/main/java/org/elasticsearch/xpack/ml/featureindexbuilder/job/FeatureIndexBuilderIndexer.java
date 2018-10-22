@@ -33,10 +33,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings.DOC_TYPE;
+import static org.elasticsearch.xpack.ml.featureindexbuilder.persistence.DataframeIndex.DOC_TYPE;
 
 public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Map<String, Object>, FeatureIndexBuilderJobStats> {
 
+    private static final String COMPOSITE_AGGREGATION_NAME = "_dataframe";
     private static final Logger logger = Logger.getLogger(FeatureIndexBuilderIndexer.class.getName());
     private FeatureIndexBuilderJob job;
 
@@ -58,7 +59,7 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
 
     @Override
     protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
-        final CompositeAggregation agg = searchResponse.getAggregations().get("feature");
+        final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
         return new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()), agg.afterKey(),
                 agg.getBuckets().isEmpty());
     }
@@ -99,7 +100,7 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
 
         List<CompositeValuesSourceBuilder<?>> sources = job.getConfig().getSourceConfig().getSources();
 
-        CompositeAggregationBuilder compositeAggregation = new CompositeAggregationBuilder("feature", sources);
+        CompositeAggregationBuilder compositeAggregation = new CompositeAggregationBuilder(COMPOSITE_AGGREGATION_NAME, sources);
         compositeAggregation.size(1000);
 
         if (position != null) {

@@ -42,6 +42,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
+        static final ParseField LEADER_CLUSTER_FIELD = new ParseField("leader_cluster");
+
         private static final ObjectParser<Request, String> PARSER = new ObjectParser<>("put_auto_follow_pattern_request", Request::new);
 
         private static final ParseField NAME_FIELD = new ParseField("name");
@@ -303,7 +305,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         public int hashCode() {
             return Objects.hash(
                     name,
-                leaderCluster,
+                    leaderCluster,
                     leaderIndexPatterns,
                     followIndexNamePattern,
                     maxBatchOperationCount,

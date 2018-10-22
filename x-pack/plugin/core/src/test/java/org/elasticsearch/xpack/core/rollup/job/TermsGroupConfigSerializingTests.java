@@ -19,6 +19,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomTermsGroupConfig;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCase<TermsGroupConfig> {
 
@@ -73,5 +74,60 @@ public class TermsGroupConfigSerializingTests extends AbstractSerializingTestCas
         config.validateMappings(responseMap, e);
         assertThat(e.validationErrors().get(0), equalTo("The field referenced by a terms group must be a [numeric] or " +
                 "[keyword/text] type, but found [geo_point] for field [my_field]"));
+    }
+
+    public void testValidateFieldMatchingNotAggregatable() {
+        ActionRequestValidationException e = new ActionRequestValidationException();
+        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
+
+        // Have to mock fieldcaps because the ctor's aren't public...
+        FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(false);
+        responseMap.put("my_field", Collections.singletonMap(getRandomType(), fieldCaps));
+
+        TermsGroupConfig config = new TermsGroupConfig("my_field");
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().get(0), equalTo("The field [my_field] must be aggregatable across all indices, but is not."));
+    }
+
+    public void testValidateMatchingField() {
+        ActionRequestValidationException e = new ActionRequestValidationException();
+        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
+        String type = getRandomType();
+
+        // Have to mock fieldcaps because the ctor's aren't public...
+        FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap(type, fieldCaps));
+
+        TermsGroupConfig config = new TermsGroupConfig("my_field");
+        config.validateMappings(responseMap, e);
+        if (e.validationErrors().size() != 0) {
+            fail(e.getMessage());
+        }
+    }
+
+    private String getRandomType() {
+        int n = randomIntBetween(0,8);
+        if (n == 0) {
+            return "keyword";
+        } else if (n == 1) {
+            return "text";
+        } else if (n == 2) {
+            return "long";
+        } else if (n == 3) {
+            return "integer";
+        } else if (n == 4) {
+            return "short";
+        } else if (n == 5) {
+            return "float";
+        } else if (n == 6) {
+            return "double";
+        } else if (n == 7) {
+            return "scaled_float";
+        } else if (n == 8) {
+            return "half_float";
+        }
+        return "long";
     }
 }

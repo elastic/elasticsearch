@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ConstructingObjectParserTests extends ESTestCase {
@@ -162,21 +161,6 @@ public class ConstructingObjectParserTests extends ESTestCase {
         HasCtorArguments parsed = HasCtorArguments.PARSER_ALL_OPTIONAL.apply(parser, null);
         assertEquals(1, parsed.mineral);
         assertEquals((Integer) 2, parsed.vegetable);
-    }
-
-    public void testRepeatedConstructorParam() throws IOException {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-                  "{\n"
-                + "  \"vegetable\": 1,\n"
-                + "  \"vegetable\": 2\n"
-                + "}");
-        Throwable e = expectThrows(XContentParseException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, null));
-        assertEquals("[has_required_arguments] failed to parse field [vegetable]", e.getMessage());
-        e = e.getCause();
-        assertThat(e, instanceOf(IllegalArgumentException.class));
-        assertEquals("Can't repeat param [vegetable]", e.getMessage());
     }
 
     public void testBadParam() throws IOException {

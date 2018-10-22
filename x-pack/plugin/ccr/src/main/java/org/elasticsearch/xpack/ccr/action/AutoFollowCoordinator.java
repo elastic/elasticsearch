@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -164,22 +163,14 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 final ClusterStateRequest request = new ClusterStateRequest();
                 request.clear();
                 request.metaData(true);
-
-                if ("_local_".equals(leaderClusterAlias)) {
-                    Client client = CcrLicenseChecker.wrapClient(AutoFollowCoordinator.this.client, headers);
-                    client.admin().cluster().state(
-                            request, ActionListener.wrap(r -> handler.accept(r.getState(), null), e -> handler.accept(null, e)));
-                } else {
-                    // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
-                    ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
-                            client,
-                            headers,
-                            leaderClusterAlias,
-                            request,
-                            e -> handler.accept(null, e),
-                            leaderClusterState -> handler.accept(leaderClusterState, null));
-                }
-
+                // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
+                ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
+                    client,
+                    headers,
+                    leaderClusterAlias,
+                    request,
+                    e -> handler.accept(null, e),
+                    leaderClusterState -> handler.accept(leaderClusterState, null));
             }
 
             @Override
@@ -305,9 +296,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
             ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-            if ("_local_".equals(clusterAlias) == false) {
-                request.setLeaderCluster(clusterAlias);
-            }
+            request.setLeaderCluster(clusterAlias);
             request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);
             request.setMaxBatchOperationCount(pattern.getMaxBatchOperationCount());
@@ -346,14 +335,6 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                                                     List<String> followedIndexUUIDs) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
             for (IndexMetaData leaderIndexMetaData : leaderClusterState.getMetaData()) {
-                // If an auto follow pattern has been set up for the local cluster then
-                // we should not automatically follow a leader index that is also a follow index because
-                // this can result into an index creation explosion.
-                if (leaderIndexMetaData.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY) != null &&
-                    clusterAlias.equals("_local_")) {
-                    continue;
-                }
-
                 if (autoFollowPattern.match(leaderIndexMetaData.getIndex().getName())) {
                     if (followedIndexUUIDs.contains(leaderIndexMetaData.getIndex().getUUID()) == false) {
                         // TODO: iterate over the indices in the followerClusterState and check whether a IndexMetaData

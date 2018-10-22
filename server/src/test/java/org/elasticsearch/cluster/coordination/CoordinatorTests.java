@@ -676,9 +676,10 @@ public class CoordinatorTests extends ESTestCase {
         // let followers elect a leader among themselves before healing the leader and running the publication
         cluster.runFor(DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
             + DEFAULT_ELECTION_DELAY, "elect new leader");
+        // cluster has two nodes in mode LEADER, in different terms ofc, and the one in the lower term won’t be able to publish anything
         leader.heal();
         AckCollector ackCollector = leader.submitValue(randomLong());
-        cluster.stabilise();
+        cluster.stabilise(); // TODO: check if can find a better bound here
         assertTrue("expected nack from " + leader, ackCollector.hasAckedUnsuccessfully(leader));
         assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
         assertTrue("expected nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));

@@ -387,7 +387,29 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise(); // would not work if disconnect1 were removed from the configuration
     }
 
-    public void testLeaderDisconnectionDetectedQuickly() {
+    public void testLeaderDisconnectionWithDisconnectEventDetectedQuickly() {
+        final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode originalLeader = cluster.getAnyLeader();
+        logger.info("--> disconnecting leader {}", originalLeader);
+        originalLeader.disconnect();
+        logger.info("--> followers get disconnect event for leader {} ", originalLeader);
+        cluster.getAllNodesExcept(originalLeader).forEach(cn -> cn.onDisconnectEventFrom(originalLeader));
+        // turn leader into candidate, which stabilisation asserts at the end
+        cluster.getAllNodesExcept(originalLeader).forEach(cn -> originalLeader.onDisconnectEventFrom(cn));
+        cluster.stabilise(DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
+            // then wait for a new election
+            + DEFAULT_ELECTION_DELAY
+            // wait for the removal to be committed
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            // then wait for the followup reconfiguration
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        assertThat(cluster.getAnyLeader().getId(), not(equalTo(originalLeader.getId())));
+    }
+
+    public void testLeaderDisconnectionWithoutDisconnectEventDetectedQuickly() {
         final Cluster cluster = new Cluster(randomIntBetween(3, 5));
         cluster.runRandomly();
         cluster.stabilise();
@@ -398,7 +420,6 @@ public class CoordinatorTests extends ESTestCase {
 
         cluster.stabilise(Math.max(
             // Each follower may have just sent a leader check, which receives no response
-            // TODO not necessary if notified of disconnection
             defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)
                 // then wait for the follower to check the leader
                 + defaultMillis(LEADER_CHECK_INTERVAL_SETTING)
@@ -408,7 +429,6 @@ public class CoordinatorTests extends ESTestCase {
                 + DEFAULT_ELECTION_DELAY,
 
             // ALSO the leader may have just sent a follower check, which receives no response
-            // TODO unnecessary if notified of disconnection
             defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING)
                 // wait for the leader to check its followers
                 + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
@@ -478,10 +498,27 @@ public class CoordinatorTests extends ESTestCase {
         final ClusterNode follower = cluster.getAnyNodeExcept(leader);
         logger.info("--> disconnecting follower {}", follower);
         follower.disconnect();
+        logger.info("--> leader {} and follower {} get disconnect event", leader, follower);
+        leader.onDisconnectEventFrom(follower);
+        follower.onDisconnectEventFrom(leader); // to turn follower into candidate, which stabilisation asserts at the end
+        cluster.stabilise(DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            // then wait for the followup reconfiguration
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
+    }
 
+    public void testFollowerDisconnectionWithoutDisconnectEventDetectedQuickly() {
+        final Cluster cluster = new Cluster(randomIntBetween(3, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        final ClusterNode follower = cluster.getAnyNodeExcept(leader);
+        logger.info("--> disconnecting follower {}", follower);
+        follower.disconnect();
         cluster.stabilise(Math.max(
             // the leader may have just sent a follower check, which receives no response
-            // TODO unnecessary if notified of disconnection
             defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING)
                 // wait for the leader to check the follower
                 + defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING)
@@ -493,7 +530,6 @@ public class CoordinatorTests extends ESTestCase {
                 + DEFAULT_CLUSTER_STATE_UPDATE_DELAY,
 
             // ALSO the follower may have just sent a leader check, which receives no response
-            // TODO not necessary if notified of disconnection
             defaultMillis(LEADER_CHECK_TIMEOUT_SETTING)
                 // then wait for the follower to check the leader
                 + defaultMillis(LEADER_CHECK_INTERVAL_SETTING)
@@ -627,25 +663,26 @@ public class CoordinatorTests extends ESTestCase {
     }
 
     public void testAckListenerReceivesNacksIfLeaderStandsDown() {
-        // TODO: needs support for handling disconnects
-//        final Cluster cluster = new Cluster(3);
-//        cluster.runRandomly();
-//        cluster.stabilise();
-//        final ClusterNode leader = cluster.getAnyLeader();
-//        final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
-//        final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
-//
-//        leader.partition();
-//        follower0.coordinator.handleDisconnectedNode(leader.localNode);
-//        follower1.coordinator.handleDisconnectedNode(leader.localNode);
-//        cluster.runUntil(cluster.getCurrentTimeMillis() + cluster.DEFAULT_ELECTION_TIME);
-//        AckCollector ackCollector = leader.submitRandomValue();
-//        cluster.runUntil(cluster.currentTimeMillis + Cluster.DEFAULT_DELAY_VARIABILITY);
-//        leader.connectionStatus = ConnectionStatus.CONNECTED;
-//        cluster.stabilise(cluster.DEFAULT_STABILISATION_TIME, 0L);
-//        assertTrue("expected nack from " + leader, ackCollector.hasAckedUnsuccessfully(leader));
-//        assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
-//        assertTrue("expected nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
+        final Cluster cluster = new Cluster(3);
+        cluster.runRandomly();
+        cluster.stabilise();
+        final ClusterNode leader = cluster.getAnyLeader();
+        final ClusterNode follower0 = cluster.getAnyNodeExcept(leader);
+        final ClusterNode follower1 = cluster.getAnyNodeExcept(leader, follower0);
+
+        leader.blackhole();
+        follower0.onDisconnectEventFrom(leader);
+        follower1.onDisconnectEventFrom(leader);
+        // let followers elect a leader among themselves before healing the leader and running the publication
+        cluster.runFor(DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
+            + DEFAULT_ELECTION_DELAY, "elect new leader");
+        // cluster has two nodes in mode LEADER, in different terms ofc, and the one in the lower term won’t be able to publish anything
+        leader.heal();
+        AckCollector ackCollector = leader.submitValue(randomLong());
+        cluster.stabilise(); // TODO: check if can find a better bound here
+        assertTrue("expected nack from " + leader, ackCollector.hasAckedUnsuccessfully(leader));
+        assertTrue("expected nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
+        assertTrue("expected nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
     }
 
     public void testAckListenerReceivesNacksFromFollowerInHigherTerm() {
@@ -1124,11 +1161,16 @@ public class CoordinatorTests extends ESTestCase {
         }
 
         ClusterNode getAnyNodeExcept(ClusterNode... clusterNodes) {
+            List<ClusterNode> filteredNodes = getAllNodesExcept(clusterNodes);
+            assert filteredNodes.isEmpty() == false;
+            return randomFrom(filteredNodes);
+        }
+
+        List<ClusterNode> getAllNodesExcept(ClusterNode... clusterNodes) {
             Set<String> forbiddenIds = Arrays.stream(clusterNodes).map(ClusterNode::getId).collect(Collectors.toSet());
             List<ClusterNode> acceptableNodes
                 = this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
-            assert acceptableNodes.isEmpty() == false;
-            return randomFrom(acceptableNodes);
+            return acceptableNodes;
         }
 
         ClusterNode getAnyNodePreferringLeaders() {
@@ -1365,6 +1407,10 @@ public class CoordinatorTests extends ESTestCase {
                 boolean blackholed = blackholedNodes.add(localNode.getId());
                 assert blackholed || unDisconnected == false;
                 return blackholed;
+            }
+
+            void onDisconnectEventFrom(ClusterNode clusterNode) {
+                transportService.disconnectFromNode(clusterNode.localNode);
             }
 
             ClusterState getLastAppliedClusterState() {

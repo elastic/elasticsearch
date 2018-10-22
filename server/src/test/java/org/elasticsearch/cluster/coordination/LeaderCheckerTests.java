@@ -21,10 +21,10 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -47,6 +47,7 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -145,7 +146,8 @@ public class LeaderCheckerTests extends ESTestCase {
             () -> assertTrue(leaderFailed.compareAndSet(false, true)));
 
         logger.info("--> creating first checker");
-        try (Releasable ignored = leaderChecker.startLeaderChecker(leader1)) {
+        leaderChecker.updateLeader(leader1);
+        {
             final long maxCheckCount = randomLongBetween(2, 1000);
             logger.info("--> checking that no failure is detected in {} checks", maxCheckCount);
             while (checkCount.get() < maxCheckCount) {
@@ -153,13 +155,15 @@ public class LeaderCheckerTests extends ESTestCase {
                 deterministicTaskQueue.advanceTime();
             }
         }
+        leaderChecker.updateLeader(null);
 
         logger.info("--> running remaining tasks");
         deterministicTaskQueue.runAllTasks();
         assertFalse(leaderFailed.get());
 
         logger.info("--> creating second checker");
-        try (Releasable ignored = leaderChecker.startLeaderChecker(leader2)) {
+        leaderChecker.updateLeader(leader2);
+        {
             checkCount.set(0);
             final long maxCheckCount = randomLongBetween(2, 1000);
             logger.info("--> checking again that no failure is detected in {} checks", maxCheckCount);
@@ -184,6 +188,7 @@ public class LeaderCheckerTests extends ESTestCase {
                     + leaderCheckTimeoutMillis // needed because a successful check response might be in flight at the time of failure
                 ));
         }
+        leaderChecker.updateLeader(null);
     }
 
     enum Response {
@@ -201,6 +206,10 @@ public class LeaderCheckerTests extends ESTestCase {
         final MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                if (action.equals(HANDSHAKE_ACTION_NAME)) {
+                    handleResponse(requestId, new TransportService.HandshakeResponse(node, ClusterName.DEFAULT, Version.CURRENT));
+                    return;
+                }
                 assertThat(action, equalTo(LEADER_CHECK_ACTION_NAME));
                 assertTrue(node.equals(leader));
                 final Response response = responseHolder[0];
@@ -237,7 +246,8 @@ public class LeaderCheckerTests extends ESTestCase {
         final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService,
             () -> assertTrue(leaderFailed.compareAndSet(false, true)));
 
-        try (Releasable ignored = leaderChecker.startLeaderChecker(leader)) {
+        leaderChecker.updateLeader(leader);
+        {
             while (deterministicTaskQueue.getCurrentTimeMillis() < 10 * LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis()) {
                 deterministicTaskQueue.runAllRunnableTasks();
                 deterministicTaskQueue.advanceTime();
@@ -253,12 +263,14 @@ public class LeaderCheckerTests extends ESTestCase {
 
             assertTrue(leaderFailed.get());
         }
+        leaderChecker.updateLeader(null);
 
         deterministicTaskQueue.runAllTasks();
         leaderFailed.set(false);
         responseHolder[0] = Response.SUCCESS;
 
-        try (Releasable ignored = leaderChecker.startLeaderChecker(leader)) {
+        leaderChecker.updateLeader(leader);
+        {
             while (deterministicTaskQueue.getCurrentTimeMillis() < 10 * LEADER_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).millis()) {
                 deterministicTaskQueue.runAllRunnableTasks();
                 deterministicTaskQueue.advanceTime();
@@ -272,6 +284,19 @@ public class LeaderCheckerTests extends ESTestCase {
             deterministicTaskQueue.advanceTime();
             deterministicTaskQueue.runAllRunnableTasks();
 
+            assertTrue(leaderFailed.get());
+        }
+
+        deterministicTaskQueue.runAllTasks();
+        leaderFailed.set(false);
+        responseHolder[0] = Response.SUCCESS;
+
+        leaderChecker.updateLeader(leader);
+        {
+            transportService.connectToNode(leader); // need to connect first for disconnect to have any effect
+
+            transportService.disconnectFromNode(leader);
+            deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(leaderFailed.get());
         }
     }

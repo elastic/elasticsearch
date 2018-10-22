@@ -23,19 +23,13 @@ import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 
 public class DeactivateWatchRequestTests extends ESTestCase {
 
     public void testNullId() {
-        ValidationException actual = expectThrows(ValidationException.class, () -> new DeactivateWatchRequest(null));
+        NullPointerException actual = expectThrows(NullPointerException.class, () -> new DeactivateWatchRequest(null));
         assertNotNull(actual);
-        assertThat(actual.validationErrors(), hasItem("watch id is missing"));
+        assertThat(actual.getMessage(), is("watch id is missing"));
     }
-
-    public void testInvalidId() {
-        ValidationException actual = expectThrows(ValidationException.class, () -> new DeactivateWatchRequest("Watch id has spaces"));
-        assertNotNull(actual);
-        assertThat(actual.validationErrors(), hasItem("watch id contains whitespace"));
-    }
-
 }

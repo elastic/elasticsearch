@@ -22,6 +22,7 @@ import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 
+import java.util.Objects;
 import java.util.Optional;
 
 public class DeactivateWatchRequest implements Validatable {
@@ -29,26 +30,12 @@ public class DeactivateWatchRequest implements Validatable {
 
     public DeactivateWatchRequest(String watchId) {
 
-        if (watchId == null) {
-            ValidationException exception = new ValidationException();
-            exception.addValidationError("watch id is missing");
-            throw exception;
-        } else if (PutWatchRequest.isValidId(watchId) == false) {
-            ValidationException exception = new ValidationException();
-            exception.addValidationError("watch id contains whitespace");
-            throw exception;
-        }
-
+        Objects.requireNonNull(watchId, "watch id is missing");
         this.watchId = watchId;
     }
 
     public String getWatchId() {
         return watchId;
     }
-
-     // as per discussion https://github.com/elastic/elasticsearch/pull/34192/files#r221994527, keeping validate method as a no-op relic
-    @Override
-    public Optional<ValidationException> validate() {
-        return Optional.empty();  // empty indicates no validation errors
-    }
 }
+

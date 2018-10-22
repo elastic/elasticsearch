@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -82,6 +83,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.hamcrest.Matchers.contains;
 
 public class OptimizerTests extends ESTestCase {
 
@@ -309,6 +311,16 @@ public class OptimizerTests extends ESTestCase {
             Arrays.asList(ONE, TWO, ONE, THREE, new Sub(EMPTY, THREE, ONE), ONE, FOUR, new Abs(EMPTY, new Sub(EMPTY, TWO, FIVE))));
         Literal result= (Literal) new ConstantFolding().rule(in);
         assertEquals(true, result.value());
+    }
+
+    public void testConstantFoldingIn_LeftValueNotFoldable() {
+        Project p = new Project(EMPTY, FROM(), Collections.singletonList(
+        new In(EMPTY, getFieldAttribute(),
+            Arrays.asList(ONE, TWO, ONE, THREE, new Sub(EMPTY, THREE, ONE), ONE, FOUR, new Abs(EMPTY, new Sub(EMPTY, TWO, FIVE))))));
+        p = (Project) new ConstantFolding().apply(p);
+        assertEquals(1, p.projections().size());
+        In in = (In) p.projections().get(0);
+        assertThat(Foldables.valuesOf(in.list(), DataType.INTEGER), contains(1 ,2 ,3 ,4));
     }
 
     public void testArithmeticFolding() {

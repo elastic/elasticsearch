@@ -19,7 +19,7 @@ the user name:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet?routing=kimchy
+POST /twitter/_doc?routing=kimchy
 {
     "user" : "kimchy",
     "postDate" : "2009-11-15T14:12:12",

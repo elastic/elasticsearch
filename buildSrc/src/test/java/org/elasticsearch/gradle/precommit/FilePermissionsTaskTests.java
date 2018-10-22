@@ -81,7 +81,8 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         return project;
     }
     private FilePermissionsTask createTask(Project project) {
-        FilePermissionsTask task = (FilePermissionsTask) project.task(singletonMap("type", FilePermissionsTask.class), "filePermissionsTask");
+        FilePermissionsTask task = (FilePermissionsTask) project.task(singletonMap("type", FilePermissionsTask.class),
+                "filePermissionsTask");
         return task;
     }
 }

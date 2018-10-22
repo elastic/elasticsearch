@@ -20,60 +20,31 @@
 package org.elasticsearch.client.security.user;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import java.util.List;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * An authenticated user
  */
 public final class User {
 
-    static final ParseField USERNAME = new ParseField("username");
-    static final ParseField ROLES = new ParseField("roles");
-    static final ParseField METADATA = new ParseField("metadata");
-    static final ParseField ENABLED = new ParseField("enabled");
-    static final ParseField FULL_NAME = new ParseField("full_name");
-    static final ParseField EMAIL = new ParseField("email");
-
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<User, Void> PARSER = new ConstructingObjectParser<>("client_security_user",
-            a -> new User((String) a[0], ((List<String>) a[1]).toArray(new String[0]), (Map<String, Object>) a[4], (Boolean) a[5],
-                    (String) a[2], (String) a[3]));
-    static {
-        PARSER.declareString(constructorArg(), USERNAME);
-        PARSER.declareStringArray(constructorArg(), ROLES);
-        PARSER.<Map<String, Object>>declareObject(constructorArg(), (parser, c) -> parser.map(), METADATA);
-        PARSER.declareBoolean(constructorArg(), ENABLED);
-        PARSER.declareStringOrNull(constructorArg(), FULL_NAME);
-        PARSER.declareStringOrNull(constructorArg(), EMAIL);
-    }
-
     private final String username;
     private final String[] roles;
     private final Map<String, Object> metadata;
-    private final boolean enabled;
     @Nullable private final String fullName;
     @Nullable private final String email;
 
-    private User(String username, String[] roles, Map<String, Object> metadata, boolean enabled,
-                 @Nullable String fullName, @Nullable String email) {
+    public User(String username, String[] roles, Map<String, Object> metadata, @Nullable String fullName, @Nullable String email) {
         assert username != null;
         assert roles != null;
         assert metadata != null;
         this.username = username;
         this.roles = roles;
         this.metadata = Collections.unmodifiableMap(metadata);
-        this.enabled = enabled;
         this.fullName = fullName;
         this.email = email;
     }
@@ -100,13 +71,6 @@ public final class User {
      */
     public Map<String, Object> metadata() {
         return metadata;
-    }
-
-    /**
-     * @return whether the user is enabled or not
-     */
-    public boolean enabled() {
-        return enabled;
     }
 
     /**
@@ -169,10 +133,6 @@ public final class User {
         result = 31 * result + (fullName != null ? fullName.hashCode() : 0);
         result = 31 * result + (email != null ? email.hashCode() : 0);
         return result;
-    }
-
-    public static User fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
     }
 
 }

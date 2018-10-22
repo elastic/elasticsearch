@@ -43,13 +43,11 @@ import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
@@ -273,7 +271,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(user.fullName(), nullValue());
             assertThat(user.email(), nullValue());
             assertThat(user.metadata().isEmpty(), is(true));
-            assertThat(user.enabled(), is(true));
+            assertThat(response.enabled(), is(true));
         }
 
         {
@@ -297,6 +295,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::authenticate-execute-async
             client.security().authenticateAsync(RequestOptions.DEFAULT, listener); // <1>
             // end::authenticate-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 

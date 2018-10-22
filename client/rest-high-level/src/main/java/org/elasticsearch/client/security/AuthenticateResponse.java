@@ -20,26 +20,71 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 /**
- * The response for the authenticate call. The user object is the only field
- * of this response. It contains all user metadata which Elasticsearch uses
- * to map roles, etc.
+ * The response for the authenticate call. The response contains two fields: a
+ * user field and a boolean flag signaling if the user is enabled or not. The
+ * user object contains all user metadata which Elasticsearch uses to map roles,
+ * etc.
  */
-public final class AuthenticateResponse {
+public final class AuthenticateResponse implements ToXContentObject {
 
-    private final User user;
+    static final ParseField USERNAME = new ParseField("username");
+    static final ParseField ROLES = new ParseField("roles");
+    static final ParseField METADATA = new ParseField("metadata");
+    static final ParseField FULL_NAME = new ParseField("full_name");
+    static final ParseField EMAIL = new ParseField("email");
+    static final ParseField ENABLED = new ParseField("enabled");
 
-    public AuthenticateResponse(User user) {
-        this.user = user;
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<AuthenticateResponse, Void> PARSER = new ConstructingObjectParser<>(
+            "client_security_authenticate_response",
+            a -> new AuthenticateResponse(new User((String) a[0], ((List<String>) a[1]).toArray(new String[0]), (Map<String, Object>) a[2],
+                    (String) a[3], (String) a[4]), (Boolean) a[5]));
+    static {
+        PARSER.declareString(constructorArg(), USERNAME);
+        PARSER.declareStringArray(constructorArg(), ROLES);
+        PARSER.<Map<String, Object>>declareObject(constructorArg(), (parser, c) -> parser.map(), METADATA);
+        PARSER.declareStringOrNull(optionalConstructorArg(), FULL_NAME);
+        PARSER.declareStringOrNull(optionalConstructorArg(), EMAIL);
+        PARSER.declareBoolean(constructorArg(), ENABLED);
     }
 
+    private final User user;
+    private final boolean enabled;
+
+    public AuthenticateResponse(User user, boolean enabled) {
+        this.user = user;
+        this.enabled = enabled;
+    }
+
+    /**
+     * @return The effective user. This is the authenticated user, or, when
+     *         submitting requests on behalf of other users, it is the
+     *         impersonated user.
+     */
     public User getUser() {
         return user;
+    }
+
+    /**
+     * @return whether the user is enabled or not
+     */
+    public boolean enabled() {
+        return enabled;
     }
 
     @Override
@@ -51,15 +96,32 @@ public final class AuthenticateResponse {
             return false;
         }
         final AuthenticateResponse that = (AuthenticateResponse) o;
-        return user.equals(that.user);
+        return user.equals(that.user) && enabled == that.enabled;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(user);
+        return Objects.hash(user, enabled);
     }
 
     public static AuthenticateResponse fromXContent(XContentParser parser) throws IOException {
-        return new AuthenticateResponse(User.fromXContent(parser));
+        return PARSER.parse(parser, null);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(USERNAME.getPreferredName(), user.principal());
+        builder.field(ROLES.getPreferredName(), user.roles());
+        builder.field(METADATA.getPreferredName(), user.metadata());
+        if (user.fullName() != null) {
+            builder.field(FULL_NAME.getPreferredName(), user.fullName());
+        }
+        if (user.email() != null) {
+            builder.field(EMAIL.getPreferredName(), user.email());
+        }
+        builder.field(ENABLED.getPreferredName(), enabled);
+        builder.endObject();
+        return builder;
     }
 }

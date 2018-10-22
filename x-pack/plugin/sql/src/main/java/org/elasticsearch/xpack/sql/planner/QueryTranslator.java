@@ -32,15 +32,14 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.expression.predicate.And;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.Not;
-import org.elasticsearch.xpack.sql.expression.predicate.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Less
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AndAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
@@ -394,10 +394,10 @@ abstract class QueryTranslator {
 
     // TODO: need to optimize on ngram
     // TODO: see whether escaping is needed
-    static class Likes extends ExpressionTranslator<BinaryPredicate> {
+    static class Likes extends ExpressionTranslator<RegexMatch> {
 
         @Override
-        protected QueryTranslation asQuery(BinaryPredicate e, boolean onAggs) {
+        protected QueryTranslation asQuery(RegexMatch e, boolean onAggs) {
             Query q = null;
             boolean inexact = true;
             String target = null;
@@ -412,7 +412,7 @@ abstract class QueryTranslator {
             }
 
             if (e instanceof Like) {
-                LikePattern p = ((Like) e).right();
+                LikePattern p = ((Like) e).pattern();
                 if (inexact) {
                     q = new QueryStringQuery(e.location(), p.asLuceneWildcard(), target);
                 }
@@ -459,10 +459,10 @@ abstract class QueryTranslator {
         }
     }
 
-    static class BinaryLogic extends ExpressionTranslator<BinaryPredicate> {
+    static class BinaryLogic extends ExpressionTranslator<org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogic> {
 
         @Override
-        protected QueryTranslation asQuery(BinaryPredicate e, boolean onAggs) {
+        protected QueryTranslation asQuery(org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogic e, boolean onAggs) {
             if (e instanceof And) {
                 return and(e.location(), toQuery(e.left(), onAggs), toQuery(e.right(), onAggs));
             }

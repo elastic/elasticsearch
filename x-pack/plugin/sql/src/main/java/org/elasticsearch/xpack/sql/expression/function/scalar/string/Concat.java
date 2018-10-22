@@ -15,10 +15,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.Locale;
-
-import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor.doProcessInScripts;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.ConcatFunctionProcessor.process;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
@@ -58,7 +55,7 @@ public class Concat extends BinaryScalarFunction {
 
     @Override
     public Object fold() {
-        return doProcessInScripts(left().fold(), right().fold());
+        return process(left().fold(), right().fold());
     }
     
     @Override
@@ -71,18 +68,6 @@ public class Concat extends BinaryScalarFunction {
         return NodeInfo.create(this, Concat::new, left(), right());
     }
 
-    @Override
-    protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
-                "concat",
-                leftScript.template(),
-                rightScript.template()),
-                paramsBuilder()
-                    .script(leftScript.params()).script(rightScript.params())
-                    .build(), dataType());
-    }
-    
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),

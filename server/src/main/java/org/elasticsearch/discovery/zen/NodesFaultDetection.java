@@ -226,7 +226,7 @@ public class NodesFaultDetection extends FaultDetection {
                 .withTimeout(pingRetryTimeout).build();
             transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, new TransportResponseHandler<PingResponse>() {
                         @Override
-                        public PingResponse read(StreamInput in) {
+                        public PingResponse read(StreamInput in) throws IOException {
                             return new PingResponse(in);
                         }
 
@@ -359,7 +359,8 @@ public class NodesFaultDetection extends FaultDetection {
         private PingResponse() {
         }
 
-        private PingResponse(StreamInput in) {
+        private PingResponse(StreamInput in) throws IOException {
+            super(in);
         }
     }
 }

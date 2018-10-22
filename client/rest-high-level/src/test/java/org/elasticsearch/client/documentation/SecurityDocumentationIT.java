@@ -266,7 +266,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             User user = response.getUser(); // <1>
             //end::authenticate-response
 
-            assertThat(user.principal(), is("test_user"));
+            assertThat(user.username(), is("test_user"));
             assertThat(user.roles(), equalTo(new String[] {"superuser"}));
             assertThat(user.fullName(), nullValue());
             assertThat(user.email(), nullValue());
@@ -381,7 +381,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-		public void testChangePassword() throws Exception {
+    public void testChangePassword() throws Exception {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
         char[] newPassword = new char[]{'n', 'e', 'w', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};

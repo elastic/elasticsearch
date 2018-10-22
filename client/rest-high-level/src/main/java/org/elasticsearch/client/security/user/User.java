@@ -53,7 +53,7 @@ public final class User {
      * @return  The principal of this user - effectively serving as the
      *          unique identity of the user. Can never be {@code null}.
      */
-    public String principal() {
+    public String username() {
         return this.username;
     }
 

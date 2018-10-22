@@ -45,7 +45,7 @@ public final class AuthenticateRequest implements Validatable, ToXContentObject 
     }
 
     @Override
-    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject().endObject();
     }
 

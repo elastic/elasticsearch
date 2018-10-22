@@ -111,7 +111,7 @@ public final class AuthenticateResponse implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(USERNAME.getPreferredName(), user.principal());
+        builder.field(USERNAME.getPreferredName(), user.username());
         builder.field(ROLES.getPreferredName(), user.roles());
         builder.field(METADATA.getPreferredName(), user.metadata());
         if (user.fullName() != null) {

@@ -88,7 +88,7 @@ public final class ExceptionsHelper {
             }
             if (counter++ > 10) {
                 // dear god, if we got more than 10 levels down, WTF? just bail
-                logger.warn("Exception cause unwrapping ran for 10 levels...", t);
+                logger.warn("Exception cause unwrapping ran for 10 levels... ", t);
                 return result;
             }
             result = result.getCause();

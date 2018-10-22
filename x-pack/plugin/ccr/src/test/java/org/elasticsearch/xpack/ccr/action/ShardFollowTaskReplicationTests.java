@@ -311,7 +311,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 operations.removeAll(bulkOps);
                 BulkShardOperationsRequest bulkRequest = new BulkShardOperationsRequest(group.getPrimary().shardId(),
                     group.getPrimary().getHistoryUUID(), bulkOps, -1);
-                new CCRAction(bulkRequest, new PlainActionFuture<>(), group).execute();
+                new CcrAction(bulkRequest, new PlainActionFuture<>(), group).execute();
                 if (randomInt(100) < 10) {
                     group.getPrimary().flush(new FlushRequest());
                 }
@@ -409,7 +409,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(),
                         followerHistoryUUID, operations, maxSeqNoOfUpdates);
                     ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
-                    new CCRAction(request, listener, followerGroup).execute();
+                    new CcrAction(request, listener, followerGroup).execute();
                 };
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
             }
@@ -493,9 +493,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
-    class CCRAction extends ReplicationAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
+    class CcrAction extends ReplicationAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
 
-        CCRAction(BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener, ReplicationGroup group) {
+        CcrAction(BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener, ReplicationGroup group) {
             super(request, listener, group, "ccr");
         }
 

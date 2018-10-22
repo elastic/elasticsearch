@@ -27,8 +27,6 @@ import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
-import static java.util.Collections.singletonMap;
-
 public class EmptyDirTaskTests extends GradleUnitTestCase {
 
     @Rule
@@ -45,11 +43,11 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         emptyDirTask.setDir(newEmptyFolder);
         emptyDirTask.create();
 
-        assertEquals(true, newEmptyFolder.exists());
-        assertEquals(true, newEmptyFolder.isDirectory());
-        assertEquals(true, newEmptyFolder.canExecute());
-        assertEquals(true, newEmptyFolder.canRead());
-        assertEquals(true, newEmptyFolder.canWrite());
+        assertTrue(newEmptyFolder.exists());
+        assertTrue(newEmptyFolder.isDirectory());
+        assertTrue(newEmptyFolder.canExecute());
+        assertTrue(newEmptyFolder.canRead());
+        assertTrue(newEmptyFolder.canWrite());
     }
 
     public void testCreateEmptyDirNoPermissions() throws Exception {
@@ -63,24 +61,25 @@ public class EmptyDirTaskTests extends GradleUnitTestCase {
         emptyDirTask.setDir(newEmptyFolder);
         emptyDirTask.create();
 
-        assertEquals(true, newEmptyFolder.exists());
-        assertEquals(true, newEmptyFolder.isDirectory());
-        assertEquals(false, newEmptyFolder.canExecute());
-        assertEquals(false, newEmptyFolder.canRead());
-        assertEquals(false, newEmptyFolder.canWrite());
+        assertTrue(newEmptyFolder.exists());
+        assertTrue(newEmptyFolder.isDirectory());
+        assertFalse(newEmptyFolder.canExecute());
+        assertFalse(newEmptyFolder.canRead());
+        assertFalse(newEmptyFolder.canWrite());
     }
 
     private File getNewTempFolderFile() throws IOException {
         File newEmptyFolder = temporaryFolder.newFolder("newEmptyFolder");
         newEmptyFolder.delete();
-        assertEquals(false, newEmptyFolder.exists());
+        assertFalse(newEmptyFolder.exists());
         return newEmptyFolder;
     }
 
     private Project createProject() throws IOException {
         return ProjectBuilder.builder().withProjectDir(temporaryFolder.newFolder()).build();
     }
+
     private EmptyDirTask createTask(Project project) {
-        return (EmptyDirTask) project.task(singletonMap("type", EmptyDirTask.class), "emptyDirTask");
+        return project.getTasks().create("emptyDirTask", EmptyDirTask.class);
     }
 }

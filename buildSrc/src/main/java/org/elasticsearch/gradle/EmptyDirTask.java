@@ -32,9 +32,7 @@ import org.gradle.internal.nativeintegration.filesystem.Chmod;
  */
 public class EmptyDirTask extends DefaultTask {
 
-    @Input
     private File dir;
-    @Input
     private int dirMode = 0755;
 
     /**
@@ -51,12 +49,12 @@ public class EmptyDirTask extends DefaultTask {
         throw new UnsupportedOperationException();
     }
 
-    public Object getDir() {
+    @Input
+    public File getDir() {
         return dir;
     }
 
     /**
-     *
      * @param dir The directory to create
      */
     public void setDir(File dir) {
@@ -64,19 +62,18 @@ public class EmptyDirTask extends DefaultTask {
     }
 
     /**
-     *
      * @param dir The path of the directory to create. Takes a String and coerces it to a file.
      */
     public void setDir(String dir) {
         this.dir = getProject().file(dir);
     }
 
+    @Input
     public int getDirMode() {
         return dirMode;
     }
 
     /**
-     *
      * @param dirMode The permissions to apply to the new directory
      */
     public void setDirMode(int dirMode) {

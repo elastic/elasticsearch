@@ -74,12 +74,12 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
 
     @Override
     protected boolean logEsResultSet() {
-        return false;
+        return true;
     }
 
     @Override
     protected final void doTest() throws Throwable {
-        try (Connection csv = csvConnection(testCase.expectedResults); Connection es = esJdbc()) {
+        try (Connection csv = csvConnection(testCase); Connection es = esJdbc()) {
 
             // pass the testName as table for debugging purposes (in case the underlying reader is missing)
             ResultSet expected = executeCsvQuery(csv, testName);

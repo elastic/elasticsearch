@@ -3,7 +3,7 @@
 
 The get API allows to get a typed JSON document from the index based on
 its id. The following example gets a JSON document from an index called
-twitter, under a type called _doc, with id valued 0:
+twitter, under a type called `_doc`, with id valued 0:
 
 [source,js]
 --------------------------------------------------

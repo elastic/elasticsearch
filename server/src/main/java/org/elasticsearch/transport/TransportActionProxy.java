@@ -109,6 +109,7 @@ public final class TransportActionProxy {
         }
 
         ProxyRequest(StreamInput in, Writeable.Reader<T> reader) throws IOException {
+            super(in);
             targetNode = new DiscoveryNode(in);
             wrapped = reader.read(in);
         }

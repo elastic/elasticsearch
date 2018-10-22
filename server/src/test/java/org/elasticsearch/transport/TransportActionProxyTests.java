@@ -128,7 +128,7 @@ public class TransportActionProxyTests extends ESTestCase {
                 @Override
                 public void handleException(TransportException exp) {
                     try {
-                    throw new AssertionError(exp);
+                        throw new AssertionError(exp);
                     } finally {
                         latch.countDown();
                     }
@@ -230,6 +230,7 @@ public class TransportActionProxyTests extends ESTestCase {
         }
 
         SimpleTestResponse(StreamInput in) throws IOException {
+            super(in);
             this.targetNode = in.readString();
         }
 

@@ -24,7 +24,7 @@ public class TermsQuery extends LeafQuery {
     public TermsQuery(Location location, String term, List<Expression> values) {
         super(location);
         this.term = term;
-        this.values = new LinkedHashSet<>(Foldables.valuesOf(values, values.get(0).dataType()));
+        this.values = new LinkedHashSet<>(Foldables.valuesOf(values, values.get(0).dataType(), true));
     }
 
     @Override

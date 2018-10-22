@@ -229,6 +229,8 @@ public enum DataType {
     public boolean isCompatibleWith(DataType other) {
         if (this == other) {
             return true;
+        } else if (this == NULL || other == NULL) {
+            return true;
         } else if (isString() && other.isString()) {
             return true;
         } else if (isNumeric() && other.isNumeric()) {

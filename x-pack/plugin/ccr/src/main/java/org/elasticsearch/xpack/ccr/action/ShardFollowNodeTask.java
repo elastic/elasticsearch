@@ -28,6 +28,8 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -369,6 +371,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
             fatalException = ExceptionsHelper.convertToElastic(e);
+            LOGGER.warn("shard follow task encounter non-retryable error", e);
         }
     }
 
@@ -387,6 +390,14 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return true;
         } else if (NetworkExceptionHelper.isCloseConnectionException(e)) {
             return true;
+        } else {
+            final TransportException transportError = (TransportException) ExceptionsHelper.unwrap(e.getCause(), TransportException.class);
+            if (transportError != null) {
+                if (transportError instanceof NodeNotConnectedException ||
+                    (transportError.getMessage() != null && transportError.getMessage().contains("TransportService is closed"))) {
+                    return true;
+                }
+            }
         }
 
         final Throwable actual = ExceptionsHelper.unwrapCause(e);

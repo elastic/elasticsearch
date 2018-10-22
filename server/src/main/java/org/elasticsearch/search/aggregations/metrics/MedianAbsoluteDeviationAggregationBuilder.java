@@ -43,7 +43,7 @@ import java.util.Objects;
 
 public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSource.Numeric, MedianAbsoluteDeviationAggregationBuilder> {
 
-    public static final String NAME = "mad";
+    public static final String NAME = "median_absolute_deviation";
 
     private static final ParseField COMPRESSION_FIELD = new ParseField("compression");
 

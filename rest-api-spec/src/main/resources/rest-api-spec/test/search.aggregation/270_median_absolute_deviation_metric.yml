@@ -47,10 +47,10 @@ setup:
         body:
           aggs:
             mad_int:
-              mad:
+              median_absolute_deviation:
                 field: int_field
             mad_double:
-              mad:
+              median_absolute_deviation:
                 field: double_field
 
   - match: { hits.total: 3 }
@@ -67,11 +67,11 @@ setup:
         body:
           aggs:
             mad_int:
-              mad:
+              median_absolute_deviation:
                 field: int_field
                 compression: 500
             mad_double:
-              mad:
+              median_absolute_deviation:
                 field: double_field
                 compression: 500
 
@@ -89,7 +89,7 @@ setup:
         body:
           aggs:
             mad_missing:
-              mad:
+              median_absolute_deviation:
                 field: incomplete_field
                 missing: 3000
 
@@ -107,7 +107,7 @@ setup:
         body:
           aggs:
             mad:
-              mad:
+              median_absolute_deviation:
                 field: int_field
                 compression: 0
 
@@ -117,6 +117,6 @@ setup:
         body:
           aggs:
             mad:
-              mad:
+              median_absolute_deviation:
                 field: int_field
                 compression: -1

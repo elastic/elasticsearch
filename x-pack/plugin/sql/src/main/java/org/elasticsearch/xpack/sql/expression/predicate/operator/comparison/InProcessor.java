@@ -11,18 +11,19 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
-class InProcessor implements Processor {
+public class InProcessor implements Processor {
 
     public static final String NAME = "in";
 
     private final List<Processor> processsors;
 
-    InProcessor(List<Processor> processors) {
+    public InProcessor(List<Processor> processors) {
         this.processsors = processors;
     }
 
-    InProcessor(StreamInput in) throws IOException {
+    public InProcessor(StreamInput in) throws IOException {
         processsors = in.readNamedWriteableList(Processor.class);
     }
 
@@ -38,13 +39,27 @@ class InProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        Object leftValue = processsors.get(0).process(input);
-        for (int i = 1; i < processsors.size(); i++) {
+        Object leftValue = processsors.get(processsors.size() - 1).process(input);
+
+        for (int i = 0; i < processsors.size() - 1; i++) {
             Boolean compResult = Comparisons.eq(leftValue, processsors.get(i).process(input));
             if (compResult != null && compResult) {
                 return true;
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        InProcessor that = (InProcessor) o;
+        return Objects.equals(processsors, that.processsors);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(processsors);
     }
 }

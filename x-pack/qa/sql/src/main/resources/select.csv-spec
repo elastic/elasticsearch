@@ -26,7 +26,7 @@ false            |true
 
 
 //
-// SELECT with IN
+// SELECT with IN and table columns
 //
 inWithTableColumn
 SELECT emp_no IN (10000, 10001, 10002) FROM test_emp ORDER BY 1;

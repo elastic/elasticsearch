@@ -163,6 +163,6 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
 
     @Override
     public int hashCode() {
-    return Objects.hash(state, currentPosition, upgradedDocumentID);
+        return Objects.hash(state, currentPosition, upgradedDocumentID);
     }
 }

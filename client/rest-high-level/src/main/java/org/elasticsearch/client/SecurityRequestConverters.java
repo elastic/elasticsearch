@@ -19,9 +19,13 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.DeleteRoleMappingRequest;
+import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.ChangePasswordRequest;
@@ -62,6 +66,18 @@ final class SecurityRequestConverters {
         return request;
     }
 
+    static Request putRoleMapping(final PutRoleMappingRequest putRoleMappingRequest) throws IOException {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/role_mapping")
+            .addPathPart(putRoleMappingRequest.getName())
+            .build();
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putRoleMappingRequest, REQUEST_BODY_CONTENT_TYPE));
+        final RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(putRoleMappingRequest.getRefreshPolicy());
+        return request;
+    }
+
     static Request enableUser(EnableUserRequest enableUserRequest) {
         return setUserEnabled(enableUserRequest);
     }
@@ -89,5 +105,27 @@ final class SecurityRequestConverters {
             .addPathPart("_clear_cache")
             .build();
         return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request deleteRoleMapping(DeleteRoleMappingRequest deleteRoleMappingRequest) {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/role_mapping")
+            .addPathPart(deleteRoleMappingRequest.getName())
+            .build();
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        final RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(deleteRoleMappingRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request deleteRole(DeleteRoleRequest deleteRoleRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/role")
+            .addPathPart(deleteRoleRequest.getName())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
+        return request;
     }
 }

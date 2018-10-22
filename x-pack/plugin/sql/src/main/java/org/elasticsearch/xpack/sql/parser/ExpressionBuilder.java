@@ -17,21 +17,22 @@ import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Order;
+import org.elasticsearch.xpack.sql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.Not;
-import org.elasticsearch.xpack.sql.expression.predicate.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
@@ -286,9 +287,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.PLUS:
                 return value;
             case SqlBaseParser.MINUS:
+                if (value instanceof Literal) { // Minus already processed together with literal number
+                    return value;
+                }
                 return new Neg(source(ctx.operator), value);
             default:
-                throw new ParsingException(loc, "Unknown arithemtic {}", ctx.operator.getText());
+                throw new ParsingException(loc, "Unknown arithmetic {}", ctx.operator.getText());
         }
     }
 
@@ -311,7 +315,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.MINUS:
                 return new Sub(loc, left, right);
             default:
-                throw new ParsingException(loc, "Unknown arithemtic {}", ctx.operator.getText());
+                throw new ParsingException(loc, "Unknown arithmetic {}", ctx.operator.getText());
         }
     }
 
@@ -346,7 +350,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Order visitOrderBy(OrderByContext ctx) {
         return new Order(source(ctx), expression(ctx.expression()),
-            ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC);
+                ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC,
+                ctx.NULLS() != null ? (ctx.FIRST() != null ? NullsPosition.FIRST : NullsPosition.LAST) : null);
     }
 
     @Override
@@ -483,38 +488,40 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
+        String ctxText = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
         double value;
         try {
-            value = Double.parseDouble(ctx.getText());
+            value = Double.parseDouble(ctxText);
         } catch (NumberFormatException nfe) {
-            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctx.getText());
+            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctxText);
         }
         if (Double.isInfinite(value)) {
-            throw new ParsingException(source(ctx), "Number [{}] is too large", ctx.getText());
+            throw new ParsingException(source(ctx), "Number [{}] is too large", ctxText);
         }
         if (Double.isNaN(value)) {
-            throw new ParsingException(source(ctx), "[{}] cannot be parsed as a number (NaN)", ctx.getText());
+            throw new ParsingException(source(ctx), "[{}] cannot be parsed as a number (NaN)", ctxText);
         }
         return new Literal(source(ctx), Double.valueOf(value), DataType.DOUBLE);
     }
 
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
+        String ctxText = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
         long value;
         try {
-            value = Long.parseLong(ctx.getText());
+            value = Long.parseLong(ctxText);
         } catch (NumberFormatException nfe) {
             try {
-                BigInteger bi = new BigInteger(ctx.getText());
+                BigInteger bi = new BigInteger(ctxText);
                 try {
                     bi.longValueExact();
                 } catch (ArithmeticException ae) {
-                    throw new ParsingException(source(ctx), "Number [{}] is too large", ctx.getText());
+                    throw new ParsingException(source(ctx), "Number [{}] is too large", ctxText);
                 }
             } catch (NumberFormatException ex) {
                 // parsing fails, go through
             }
-            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctx.getText());
+            throw new ParsingException(source(ctx), "Cannot parse number [{}]", ctxText);
         }
 
         DataType type = DataType.LONG;
@@ -680,5 +687,22 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         return new Literal(source(ctx), string, DataType.KEYWORD);
+    }
+
+    private boolean hasMinusFromParent(SqlBaseParser.NumberContext ctx) {
+        ParserRuleContext parentCtx = ctx.getParent();
+        if (parentCtx != null && parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
+            parentCtx = parentCtx.getParent();
+            if (parentCtx != null && parentCtx instanceof SqlBaseParser.ConstantDefaultContext) {
+                parentCtx = parentCtx.getParent();
+                if (parentCtx != null && parentCtx instanceof SqlBaseParser.ValueExpressionDefaultContext) {
+                    parentCtx = parentCtx.getParent();
+                    if (parentCtx != null && parentCtx instanceof SqlBaseParser.ArithmeticUnaryContext) {
+                        return ((ArithmeticUnaryContext) parentCtx).MINUS() != null;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

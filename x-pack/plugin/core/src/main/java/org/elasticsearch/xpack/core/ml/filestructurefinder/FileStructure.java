@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -103,6 +104,7 @@ public class FileStructure implements ToXContentObject, Writeable {
     public static final ParseField JAVA_TIMESTAMP_FORMATS = new ParseField("java_timestamp_formats");
     public static final ParseField NEED_CLIENT_TIMEZONE = new ParseField("need_client_timezone");
     public static final ParseField MAPPINGS = new ParseField("mappings");
+    public static final ParseField INGEST_PIPELINE = new ParseField("ingest_pipeline");
     public static final ParseField FIELD_STATS = new ParseField("field_stats");
     public static final ParseField EXPLANATION = new ParseField("explanation");
 
@@ -128,6 +130,7 @@ public class FileStructure implements ToXContentObject, Writeable {
         PARSER.declareStringArray(Builder::setJavaTimestampFormats, JAVA_TIMESTAMP_FORMATS);
         PARSER.declareBoolean(Builder::setNeedClientTimezone, NEED_CLIENT_TIMEZONE);
         PARSER.declareObject(Builder::setMappings, (p, c) -> new TreeMap<>(p.map()), MAPPINGS);
+        PARSER.declareObject(Builder::setIngestPipeline, (p, c) -> p.mapOrdered(), INGEST_PIPELINE);
         PARSER.declareObject(Builder::setFieldStats, (p, c) -> {
             Map<String, FieldStats> fieldStats = new TreeMap<>();
             while (p.nextToken() == XContentParser.Token.FIELD_NAME) {
@@ -157,6 +160,7 @@ public class FileStructure implements ToXContentObject, Writeable {
     private final String timestampField;
     private final boolean needClientTimezone;
     private final SortedMap<String, Object> mappings;
+    private final Map<String, Object> ingestPipeline;
     private final SortedMap<String, FieldStats> fieldStats;
     private final List<String> explanation;
 
@@ -164,8 +168,8 @@ public class FileStructure implements ToXContentObject, Writeable {
                          Format format, String multilineStartPattern, String excludeLinesPattern, List<String> columnNames,
                          Boolean hasHeaderRow, Character delimiter, Character quote, Boolean shouldTrimFields, String grokPattern,
                          String timestampField, List<String> jodaTimestampFormats, List<String> javaTimestampFormats,
-                         boolean needClientTimezone, Map<String, Object> mappings, Map<String, FieldStats> fieldStats,
-                         List<String> explanation) {
+                         boolean needClientTimezone, Map<String, Object> mappings, Map<String, Object> ingestPipeline,
+                         Map<String, FieldStats> fieldStats, List<String> explanation) {
 
         this.numLinesAnalyzed = numLinesAnalyzed;
         this.numMessagesAnalyzed = numMessagesAnalyzed;
@@ -188,6 +192,7 @@ public class FileStructure implements ToXContentObject, Writeable {
             (javaTimestampFormats == null) ? null : Collections.unmodifiableList(new ArrayList<>(javaTimestampFormats));
         this.needClientTimezone = needClientTimezone;
         this.mappings = Collections.unmodifiableSortedMap(new TreeMap<>(mappings));
+        this.ingestPipeline = (ingestPipeline == null) ? null : Collections.unmodifiableMap(new LinkedHashMap<>(ingestPipeline));
         this.fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(fieldStats));
         this.explanation = Collections.unmodifiableList(new ArrayList<>(explanation));
     }
@@ -212,6 +217,7 @@ public class FileStructure implements ToXContentObject, Writeable {
         timestampField = in.readOptionalString();
         needClientTimezone = in.readBoolean();
         mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
+        ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readMap()) : null;
         fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(StreamInput::readString, FieldStats::new)));
         explanation = Collections.unmodifiableList(in.readList(StreamInput::readString));
     }
@@ -262,6 +268,12 @@ public class FileStructure implements ToXContentObject, Writeable {
         out.writeOptionalString(timestampField);
         out.writeBoolean(needClientTimezone);
         out.writeMap(mappings);
+        if (ingestPipeline == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeMap(ingestPipeline);
+        }
         out.writeMap(fieldStats, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         out.writeCollection(explanation, StreamOutput::writeString);
     }
@@ -342,6 +354,10 @@ public class FileStructure implements ToXContentObject, Writeable {
         return mappings;
     }
 
+    public Map<String, Object> getIngestPipeline() {
+        return ingestPipeline;
+    }
+
     public SortedMap<String, FieldStats> getFieldStats() {
         return fieldStats;
     }
@@ -397,6 +413,9 @@ public class FileStructure implements ToXContentObject, Writeable {
         }
         builder.field(NEED_CLIENT_TIMEZONE.getPreferredName(), needClientTimezone);
         builder.field(MAPPINGS.getPreferredName(), mappings);
+        if (ingestPipeline != null) {
+            builder.field(INGEST_PIPELINE.getPreferredName(), ingestPipeline);
+        }
         if (fieldStats.isEmpty() == false) {
             builder.startObject(FIELD_STATS.getPreferredName());
             for (Map.Entry<String, FieldStats> entry : fieldStats.entrySet()) {
@@ -476,6 +495,7 @@ public class FileStructure implements ToXContentObject, Writeable {
         private List<String> javaTimestampFormats;
         private boolean needClientTimezone;
         private Map<String, Object> mappings;
+        private Map<String, Object> ingestPipeline;
         private Map<String, FieldStats> fieldStats = Collections.emptyMap();
         private List<String> explanation;
 
@@ -579,6 +599,11 @@ public class FileStructure implements ToXContentObject, Writeable {
 
         public Builder setMappings(Map<String, Object> mappings) {
             this.mappings = Objects.requireNonNull(mappings);
+            return this;
+        }
+
+        public Builder setIngestPipeline(Map<String, Object> ingestPipeline) {
+            this.ingestPipeline = ingestPipeline;
             return this;
         }
 
@@ -708,7 +733,8 @@ public class FileStructure implements ToXContentObject, Writeable {
 
             return new FileStructure(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
                 multilineStartPattern, excludeLinesPattern, columnNames, hasHeaderRow, delimiter, quote, shouldTrimFields, grokPattern,
-                timestampField, jodaTimestampFormats, javaTimestampFormats, needClientTimezone, mappings, fieldStats, explanation);
+                timestampField, jodaTimestampFormats, javaTimestampFormats, needClientTimezone, mappings, ingestPipeline, fieldStats,
+                explanation);
         }
     }
 }

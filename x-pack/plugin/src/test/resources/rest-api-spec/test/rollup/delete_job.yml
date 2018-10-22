@@ -62,6 +62,10 @@ setup:
                  - "min"
                  - "max"
                  - "sum"
+              - field: "the_field"
+                metrics:
+                 - "max"
+                 - "min"
             timeout: "20s"
           stats:
             pages_processed: 0
@@ -109,6 +113,10 @@ setup:
                  - "min"
                  - "max"
                  - "sum"
+              - field: "the_field"
+                metrics:
+                 - "max"
+                 - "min"
             timeout: "20s"
           stats:
             pages_processed: 0
@@ -156,6 +164,10 @@ setup:
                  - "min"
                  - "max"
                  - "sum"
+              - field: "the_field"
+                metrics:
+                 - "max"
+                 - "min"
             timeout: "20s"
           stats:
             pages_processed: 0
@@ -177,7 +189,7 @@ setup:
   - is_true: acknowledged
 
 ---
-"Test delete non-existant job":
+"Test delete non-existent job":
 
   - do:
       catch: /the task with id does_not_exist doesn't exist/

@@ -522,7 +522,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(response.getStatsResponses().get(0).status().numberOfFailedFetches(), greaterThanOrEqualTo(1L));
             ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
             assertThat(fatalException, notNullValue());
-            assertThat(fatalException.getRootCause().getMessage(), equalTo("no such index"));
+            assertThat(fatalException.getRootCause().getMessage(), equalTo("no such index [index1]"));
         });
         pauseFollow("index2");
         ensureNoCcrTasks();
@@ -552,7 +552,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(response.getStatsResponses().get(0).status().numberOfFailedBulkOperations(), greaterThanOrEqualTo(1L));
             ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
             assertThat(fatalException, notNullValue());
-            assertThat(fatalException.getMessage(), equalTo("no such index"));
+            assertThat(fatalException.getMessage(), equalTo("no such index [index2]"));
         });
         pauseFollow("index2");
         ensureNoCcrTasks();

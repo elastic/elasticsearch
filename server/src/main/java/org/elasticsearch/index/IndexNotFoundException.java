@@ -37,7 +37,7 @@ public final class IndexNotFoundException extends ResourceNotFoundException {
     }
 
     public IndexNotFoundException(String index, Throwable cause) {
-        super("no such index: [" + index + "]", cause);
+        super("no such index [" + index + "]", cause);
         setIndex(index);
     }
 
@@ -46,7 +46,7 @@ public final class IndexNotFoundException extends ResourceNotFoundException {
     }
 
     public IndexNotFoundException(Index index, Throwable cause) {
-        super("no such index: " + index.toString(), cause);
+        super("no such index " + index.toString(), cause);
         setIndex(index);
     }
 

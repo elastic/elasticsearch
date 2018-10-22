@@ -43,6 +43,7 @@ public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTe
 
     static ResumeFollowAction.Request createTestRequest() {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        request.setLeaderCluster(randomAlphaOfLength(4));
         request.setLeaderIndex(randomAlphaOfLength(4));
         request.setFollowerIndex(randomAlphaOfLength(4));
         if (randomBoolean()) {
@@ -71,6 +72,7 @@ public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTe
 
     public void testValidate() {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        request.setLeaderCluster("leader_cluster");
         request.setLeaderIndex("index1");
         request.setFollowerIndex("index2");
         request.setMaxRetryDelay(TimeValue.ZERO);

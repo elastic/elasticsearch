@@ -109,7 +109,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                         Tuple.tuple(randomIntBetween(0, Integer.MAX_VALUE), new ElasticsearchException("shard is sad"))));
         final long timeSinceLastFetchMillis = randomNonNegativeLong();
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
-                "cluster_alias:leader_index",
+                "leader_cluster",
+                "leader_index",
                 "follower_index",
                 shardId,
                 leaderGlobalCheckpoint,
@@ -153,7 +154,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"timestamp\":\"" + new DateTime(nodeTimestamp, DateTimeZone.UTC).toString() +  "\""
                                 + "},"
                                 + "\"ccr_stats\":{"
-                                        + "\"leader_index\":\"cluster_alias:leader_index\","
+                                        + "\"leader_cluster\":\"leader_cluster\","
+                                        + "\"leader_index\":\"leader_index\","
                                         + "\"follower_index\":\"follower_index\","
                                         + "\"shard_id\":" + shardId + ","
                                         + "\"leader_global_checkpoint\":" + leaderGlobalCheckpoint + ","
@@ -195,7 +197,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions =
             new TreeMap<>(Collections.singletonMap(1L, Tuple.tuple(2, new ElasticsearchException("shard is sad"))));
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
-            "cluster_alias:leader_index",
+            "leader_cluster",
+            "leader_index",
             "follower_index",
             0,
             1,

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.LicenseService;
@@ -23,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.CCRIntegTestCase.removeCCRRelatedMetadataFromClusterState;
 
 public abstract class CCRSingleNodeTestCase extends ESSingleNodeTestCase {
 
@@ -52,7 +54,10 @@ public abstract class CCRSingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @After
-    public void remoteLocalRemote() {
+    public void remoteLocalRemote() throws Exception {
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        removeCCRRelatedMetadataFromClusterState(clusterService);
+
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());

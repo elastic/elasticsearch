@@ -40,7 +40,7 @@ public class ScriptModule {
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {
         CORE_CONTEXTS = Stream.of(
-            SearchScript.CONTEXT,
+            FieldScript.CONTEXT,
             AggregationScript.CONTEXT,
             ScoreScript.CONTEXT,
             NumberSortScript.CONTEXT,

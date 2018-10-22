@@ -18,7 +18,7 @@ import java.util.TimeZone;
 public class MonthName extends NamedDateTimeFunction {
     
     public MonthName(Location location, Expression field, TimeZone timeZone) {
-        super(location, field, timeZone);
+        super(location, field, timeZone, NameExtractor.MONTH_NAME);
     }
 
     @Override
@@ -30,10 +30,4 @@ public class MonthName extends NamedDateTimeFunction {
     protected MonthName replaceChild(Expression newChild) {
         return new MonthName(location(), newChild, timeZone());
     }
-
-    @Override
-    protected NameExtractor nameExtractor() {
-        return NameExtractor.MONTH_NAME;
-    }
-
 }

@@ -43,7 +43,7 @@ import javax.sql.DataSource;
  * This class tries to cater to both audiences - use the legacy, Writer way if needed though strive to use the
  * proper typical approach, that of specifying intention and output (file) in the URL.
  *
- * For this reason the {@link System#out} and {@link System#err} are being refered in this class though are used only
+ * For this reason the {@link System#out} and {@link System#err} are being referred in this class though are used only
  * when needed.
  */
 public final class Debug {

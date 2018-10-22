@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.input.simple;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -29,7 +28,7 @@ public class SimpleInputTests extends ESTestCase {
         Map<String, Object> data = new HashMap<>();
         data.put("foo", "bar");
         data.put("baz", new ArrayList<String>() );
-        ExecutableInput staticInput = new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(data)), logger);
+        ExecutableInput staticInput = new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(data)));
 
         Input.Result staticResult = staticInput.execute(null, new Payload.Simple());
         assertEquals(staticResult.payload().data().get("foo"), "bar");
@@ -43,7 +42,7 @@ public class SimpleInputTests extends ESTestCase {
         data.put("baz", new ArrayList<String>());
 
         XContentBuilder jsonBuilder = jsonBuilder().map(data);
-        InputFactory parser = new SimpleInputFactory(Settings.builder().build());
+        InputFactory parser = new SimpleInputFactory();
         XContentParser xContentParser = createParser(jsonBuilder);
         xContentParser.nextToken();
         ExecutableInput input = parser.parseExecutable("_id", xContentParser);
@@ -59,7 +58,7 @@ public class SimpleInputTests extends ESTestCase {
     public void testParserInvalid() throws Exception {
         XContentBuilder jsonBuilder = jsonBuilder().value("just a string");
 
-        InputFactory parser = new SimpleInputFactory(Settings.builder().build());
+        InputFactory parser = new SimpleInputFactory();
         XContentParser xContentParser = createParser(jsonBuilder);
         xContentParser.nextToken();
         try {

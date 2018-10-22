@@ -150,7 +150,7 @@ public interface Transport extends LifecycleComponent {
     }
 
     /**
-     * This class represents a response context that encapsulates the actual response handler, the action and the conneciton it was
+     * This class represents a response context that encapsulates the actual response handler, the action and the connection it was
      * executed on.
      */
     final class ResponseContext<T extends TransportResponse> {

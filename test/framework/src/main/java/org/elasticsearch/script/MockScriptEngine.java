@@ -93,6 +93,17 @@ public class MockScriptEngine implements ScriptEngine {
         if (context.instanceClazz.equals(SearchScript.class)) {
             SearchScript.Factory factory = mockCompiled::createSearchScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(FieldScript.class)) {
+            FieldScript.Factory factory = (parameters, lookup) ->
+                ctx -> new FieldScript(parameters, lookup, ctx) {
+                    @Override
+                    public Object execute() {
+                        Map<String, Object> vars = createVars(parameters);
+                        vars.putAll(getLeafLookup().asMap());
+                        return script.apply(vars);
+                    }
+                };
+            return context.factoryClazz.cast(factory);
         } else if(context.instanceClazz.equals(TermsSetQueryScript.class)) {
             TermsSetQueryScript.Factory factory = (parameters, lookup) -> (TermsSetQueryScript.LeafFactory) ctx
                 -> new TermsSetQueryScript(parameters, lookup, ctx) {
@@ -102,6 +113,70 @@ public class MockScriptEngine implements ScriptEngine {
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
                     return (Number) script.apply(vars);
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(NumberSortScript.class)) {
+            NumberSortScript.Factory factory = (parameters, lookup) -> new NumberSortScript.LeafFactory() {
+                @Override
+                public NumberSortScript newInstance(final LeafReaderContext ctx) {
+                    return new NumberSortScript(parameters, lookup, ctx) {
+                        @Override
+                        public double execute() {
+                            Map<String, Object> vars = new HashMap<>(parameters);
+                            vars.put("params", parameters);
+                            vars.put("doc", getDoc());
+                            return ((Number) script.apply(vars)).doubleValue();
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return false;
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(StringSortScript.class)) {
+            StringSortScript.Factory factory = (parameters, lookup) -> (StringSortScript.LeafFactory) ctx
+                -> new StringSortScript(parameters, lookup, ctx) {
+                @Override
+                public String execute() {
+                    Map<String, Object> vars = new HashMap<>(parameters);
+                    vars.put("params", parameters);
+                    vars.put("doc", getDoc());
+                    return String.valueOf(script.apply(vars));
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(IngestScript.class)) {
+            IngestScript.Factory factory = vars -> new IngestScript(vars) {
+                @Override
+                public void execute(Map<String, Object> ctx) {
+                    script.apply(ctx);
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if(context.instanceClazz.equals(AggregationScript.class)) {
+            AggregationScript.Factory factory = (parameters, lookup) -> new AggregationScript.LeafFactory() {
+                @Override
+                public AggregationScript newInstance(final LeafReaderContext ctx) {
+                    return new AggregationScript(parameters, lookup, ctx) {
+                        @Override
+                        public Object execute() {
+                            Map<String, Object> vars = new HashMap<>(parameters);
+                            vars.put("params", parameters);
+                            vars.put("doc", getDoc());
+                            vars.put("_score", get_score());
+                            vars.put("_value", get_value());
+                            return script.apply(vars);
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needs_score() {
+                    return true;
                 }
             };
             return context.factoryClazz.cast(factory);
@@ -212,6 +287,12 @@ public class MockScriptEngine implements ScriptEngine {
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
 
+    private Map<String, Object> createVars(Map<String, Object> params) {
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("params", params);
+        return vars;
+    }
+
     public class MockCompiledScript {
 
         private final String name;
@@ -305,11 +386,6 @@ public class MockScriptEngine implements ScriptEngine {
                 @Override
                 public Object run() {
                     return script.apply(ctx);
-                }
-
-                @Override
-                public long runAsLong() {
-                    return ((Number) run()).longValue();
                 }
 
                 @Override

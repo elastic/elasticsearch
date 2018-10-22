@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
 
@@ -34,7 +33,7 @@ import static org.mockito.Mockito.mock;
 public class FunctionRegistryTests extends ESTestCase {
     public void testNoArgFunction() {
         UnresolvedFunction ur = uf(STANDARD);
-        FunctionRegistry r = new FunctionRegistry(Collections.singletonList(def(DummyFunction.class, DummyFunction::new)));
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
 
@@ -51,11 +50,10 @@ public class FunctionRegistryTests extends ESTestCase {
 
     public void testUnaryFunction() {
         UnresolvedFunction ur = uf(STANDARD, mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(Collections.singletonList(
-            def(DummyFunction.class, (Location l, Expression e) -> {
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression e) -> {
             assertSame(e, ur.children().get(0));
             return new DummyFunction(l);
-        })));
+        }));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertFalse(def.datetime());
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
@@ -79,12 +77,11 @@ public class FunctionRegistryTests extends ESTestCase {
     public void testUnaryDistinctAwareFunction() {
         boolean urIsDistinct = randomBoolean();
         UnresolvedFunction ur = uf(urIsDistinct ? DISTINCT : STANDARD, mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(Collections.singletonList(
-            def(DummyFunction.class, (Location l, Expression e, boolean distinct) -> {
-                assertEquals(urIsDistinct, distinct);
-                assertSame(e, ur.children().get(0));
-                return new DummyFunction(l);
-            })));
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression e, boolean distinct) -> {
+                    assertEquals(urIsDistinct, distinct);
+                    assertSame(e, ur.children().get(0));
+                    return new DummyFunction(l);
+        }));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
         assertFalse(def.datetime());
@@ -104,12 +101,11 @@ public class FunctionRegistryTests extends ESTestCase {
         boolean urIsExtract = randomBoolean();
         UnresolvedFunction ur = uf(urIsExtract ? EXTRACT : STANDARD, mock(Expression.class));
         TimeZone providedTimeZone = randomTimeZone();
-        FunctionRegistry r = new FunctionRegistry(Collections.singletonList(
-            def(DummyFunction.class, (Location l, Expression e, TimeZone tz) -> {
-                assertEquals(providedTimeZone, tz);
-                assertSame(e, ur.children().get(0));
-                return new DummyFunction(l);
-            })));
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression e, TimeZone tz) -> {
+                    assertEquals(providedTimeZone, tz);
+                    assertSame(e, ur.children().get(0));
+                    return new DummyFunction(l);
+        }));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(providedTimeZone, def).location());
         assertTrue(def.datetime());
@@ -132,12 +128,11 @@ public class FunctionRegistryTests extends ESTestCase {
 
     public void testBinaryFunction() {
         UnresolvedFunction ur = uf(STANDARD, mock(Expression.class), mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(Collections.singletonList(
-            def(DummyFunction.class, (Location l, Expression lhs, Expression rhs) -> {
-                assertSame(lhs, ur.children().get(0));
-                assertSame(rhs, ur.children().get(1));
-                return new DummyFunction(l);
-            })));
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression lhs, Expression rhs) -> {
+                    assertSame(lhs, ur.children().get(0));
+                    assertSame(rhs, ur.children().get(1));
+                    return new DummyFunction(l);
+        }));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.location(), ur.buildResolved(randomTimeZone(), def).location());
         assertFalse(def.datetime());
@@ -163,14 +158,34 @@ public class FunctionRegistryTests extends ESTestCase {
                     .buildResolved(randomTimeZone(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
     }
+    
+    public void testAliasNameIsTheSameAsAFunctionName() {
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "ALIAS"));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                r.addToMap(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION")));
+        assertEquals(iae.getMessage(), "alias [DUMMY_FUNCTION] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]");
+    }
+    
+    public void testDuplicateAliasInTwoDifferentFunctionsFromTheSameBatch() {
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "ALIAS"),
+                        def(DummyFunction2.class, DummyFunction2::new, "ALIAS")));
+        assertEquals(iae.getMessage(), "alias [ALIAS] is used by [DUMMY_FUNCTION(ALIAS)] and [DUMMY_FUNCTION2]");
+    }
+    
+    public void testDuplicateAliasInTwoDifferentFunctionsFromTwoDifferentBatches() {
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "ALIAS"));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
+                r.addToMap(def(DummyFunction2.class, DummyFunction2::new, "ALIAS")));
+        assertEquals(iae.getMessage(), "alias [ALIAS] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]");
+    }
 
     public void testFunctionResolving() {
         UnresolvedFunction ur = uf(STANDARD, mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(
-            Collections.singletonList(def(DummyFunction.class, (Location l, Expression e) -> {
+        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Location l, Expression e) -> {
             assertSame(e, ur.children().get(0));
             return new DummyFunction(l);
-        }, "DUMMY_FUNC")));
+        }, "DUMMY_FUNC"));
 
         // Resolve by primary name
         FunctionDefinition def = r.resolveFunction(r.resolveAlias("DuMMy_FuncTIon"));
@@ -239,6 +254,12 @@ public class FunctionRegistryTests extends ESTestCase {
         @Override
         protected Pipe makePipe() {
             return null;
+        }
+    }
+    
+    public static class DummyFunction2 extends DummyFunction {
+        public DummyFunction2(Location location) {
+            super(location);
         }
     }
 }

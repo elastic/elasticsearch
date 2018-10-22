@@ -150,6 +150,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34667")
     public void testDedupByPrimaryTerm() throws Exception {
         Map<Long, Long> latestOperations = new HashMap<>();
         List<Integer> terms = Arrays.asList(between(1, 1000), between(1000, 2000));

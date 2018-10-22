@@ -43,6 +43,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
+        private static final ParseField LEADER_CLUSTER_FIELD = new ParseField("leader_cluster");
         private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
         private static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
         private static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
@@ -55,6 +56,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         private static final ObjectParser<Request, String> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
+            PARSER.declareString(Request::setLeaderCluster, LEADER_CLUSTER_FIELD);
             PARSER.declareString(Request::setLeaderIndex, LEADER_INDEX_FIELD);
             PARSER.declareString(Request::setFollowerIndex, FOLLOWER_INDEX_FIELD);
             PARSER.declareInt(Request::setMaxBatchOperationCount, MAX_BATCH_OPERATION_COUNT);
@@ -90,6 +92,16 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
                 }
             }
             return request;
+        }
+
+        private String leaderCluster;
+
+        public String getLeaderCluster() {
+            return leaderCluster;
+        }
+
+        public void setLeaderCluster(String leaderCluster) {
+            this.leaderCluster = leaderCluster;
         }
 
         private String leaderIndex;
@@ -189,6 +201,9 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException e = null;
 
+            if (leaderCluster == null) {
+                e = addValidationError(LEADER_CLUSTER_FIELD.getPreferredName() + " is missing", e);
+            }
             if (leaderIndex == null) {
                 e = addValidationError(LEADER_INDEX_FIELD.getPreferredName() + " is missing", e);
             }
@@ -227,6 +242,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
+            leaderCluster = in.readString();
             leaderIndex = in.readString();
             followerIndex = in.readString();
             maxBatchOperationCount = in.readOptionalVInt();
@@ -241,6 +257,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeString(leaderCluster);
             out.writeString(leaderIndex);
             out.writeString(followerIndex);
             out.writeOptionalVInt(maxBatchOperationCount);
@@ -256,6 +273,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();
             {
+                builder.field(LEADER_CLUSTER_FIELD.getPreferredName(), leaderCluster);
                 builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
                 builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
                 if (maxBatchOperationCount != null) {
@@ -296,6 +314,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
                     Objects.equals(maxWriteBufferSize, request.maxWriteBufferSize) &&
                     Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
                     Objects.equals(pollTimeout, request.pollTimeout) &&
+                    Objects.equals(leaderCluster, request.leaderCluster) &&
                     Objects.equals(leaderIndex, request.leaderIndex) &&
                     Objects.equals(followerIndex, request.followerIndex);
         }
@@ -303,6 +322,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             return Objects.hash(
+                    leaderCluster,
                     leaderIndex,
                     followerIndex,
                     maxBatchOperationCount,

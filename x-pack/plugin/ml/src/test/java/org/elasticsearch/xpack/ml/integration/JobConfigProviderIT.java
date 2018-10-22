@@ -38,10 +38,12 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -270,7 +272,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
     }
 
     public void testAllowNoJobs() throws InterruptedException {
-        AtomicReference<Set<String>> jobIdsHolder = new AtomicReference<>();
+        AtomicReference<SortedSet<String>> jobIdsHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         blockingCall(actionListener -> jobConfigProvider.expandJobsIds("_all", false, true, actionListener),
@@ -312,7 +314,8 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
         // Job Ids
-        Set<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("_all", true, false, actionListener));
+        SortedSet<String> expandedIds = blockingCall(actionListener ->
+                jobConfigProvider.expandJobsIds("_all", true, false, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("tom", "dick", "harry", "harry-jnr")), expandedIds);
 
         expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("*", true, true, actionListener));
@@ -325,7 +328,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertEquals(new TreeSet<>(Arrays.asList("harry", "harry-jnr", "tom")), expandedIds);
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        AtomicReference<Set<String>> jobIdsHolder = new AtomicReference<>();
+        AtomicReference<SortedSet<String>> jobIdsHolder = new AtomicReference<>();
         blockingCall(actionListener -> jobConfigProvider.expandJobsIds("tom,missing1,missing2", true, false, actionListener),
                 jobIdsHolder, exceptionHolder);
         assertNull(jobIdsHolder.get());
@@ -373,7 +376,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
         // Test job IDs only
-        Set<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("foo*", true, true, actionListener));
+        SortedSet<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("foo*", true, true, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("foo-1", "foo-2")), expandedIds);
 
         expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("*-1", true, true,actionListener));
@@ -415,7 +418,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
-        Set<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("foo*", true, true, actionListener));
+        SortedSet<String> expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("foo*", true, true, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("foo-1", "foo-2")), expandedIds);
 
         expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIds("foo*", true, false, actionListener));
@@ -445,17 +448,17 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
-        Set<String> expandedIds = blockingCall(actionListener ->
+        SortedSet<String> expandedIds = blockingCall(actionListener ->
                 jobConfigProvider.expandGroupIds(Collections.singletonList("fruit"), actionListener));
-        assertThat(expandedIds, containsInAnyOrder("apples", "pears", "tomato"));
+        assertThat(expandedIds, contains("apples", "pears", "tomato"));
 
         expandedIds = blockingCall(actionListener ->
                 jobConfigProvider.expandGroupIds(Collections.singletonList("veg"), actionListener));
-        assertThat(expandedIds, containsInAnyOrder("broccoli", "potato", "tomato"));
+        assertThat(expandedIds, contains("broccoli", "potato", "tomato"));
 
         expandedIds = blockingCall(actionListener ->
                 jobConfigProvider.expandGroupIds(Arrays.asList("fruit", "veg"), actionListener));
-        assertThat(expandedIds, containsInAnyOrder("apples", "pears", "broccoli", "potato", "tomato"));
+        assertThat(expandedIds, contains("apples", "broccoli", "pears", "potato", "tomato"));
 
         expandedIds = blockingCall(actionListener ->
                 jobConfigProvider.expandGroupIds(Collections.singletonList("unknown-group"), actionListener));

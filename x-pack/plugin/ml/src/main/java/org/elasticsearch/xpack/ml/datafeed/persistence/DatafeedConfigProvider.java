@@ -64,6 +64,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -346,7 +348,7 @@ public class DatafeedConfigProvider extends AbstractComponent {
      *                     wildcard then setting this true will not suppress the exception
      * @param listener The expanded datafeed IDs listener
      */
-    public void expandDatafeedIds(String expression, boolean allowNoDatafeeds, ActionListener<Set<String>> listener) {
+    public void expandDatafeedIds(String expression, boolean allowNoDatafeeds, ActionListener<SortedSet<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
         sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
@@ -362,7 +364,7 @@ public class DatafeedConfigProvider extends AbstractComponent {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         response -> {
-                            Set<String> datafeedIds = new HashSet<>();
+                            SortedSet<String> datafeedIds = new TreeSet<>();
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
                                 datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());

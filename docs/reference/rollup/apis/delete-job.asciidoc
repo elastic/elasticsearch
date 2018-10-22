@@ -99,12 +99,12 @@ A 404 `resource_not_found` exception will be thrown:
         "root_cause" : [
             {
                 "type" : "resource_not_found_exception",
-                "reason" : "the task with id does_not_exist doesn't exist",
+                "reason" : "the task with id [does_not_exist] doesn't exist",
                 "stack_trace": ...
             }
         ],
         "type" : "resource_not_found_exception",
-        "reason" : "the task with id does_not_exist doesn't exist",
+        "reason" : "the task with id [does_not_exist] doesn't exist",
         "stack_trace": ...
     },
     "status": 404

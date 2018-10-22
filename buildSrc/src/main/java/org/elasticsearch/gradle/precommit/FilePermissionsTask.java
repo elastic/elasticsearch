@@ -54,7 +54,6 @@ public class FilePermissionsTask extends DefaultTask {
             // exclude sh files that might have the executable bit set
             .exclude("**/*.sh");
 
-    @OutputFile
     private File outputMarker = new File(getProject().getBuildDir(), "markers/filePermissions");
 
     public FilePermissionsTask() {
@@ -102,6 +101,7 @@ public class FilePermissionsTask extends DefaultTask {
         Files.write(outputMarker.toPath(), "done".getBytes("UTF-8"));
     }
 
+    @OutputFile
     public File getOutputMarker() {
         return outputMarker;
     }

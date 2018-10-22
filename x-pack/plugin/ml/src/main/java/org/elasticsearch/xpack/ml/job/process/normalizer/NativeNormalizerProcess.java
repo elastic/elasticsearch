@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.LengthEncodedWriter;
@@ -29,7 +29,7 @@ import java.util.concurrent.TimeoutException;
  * Normalizer process using native code.
  */
 class NativeNormalizerProcess implements NormalizerProcess {
-    private static final Logger LOGGER = Loggers.getLogger(NativeNormalizerProcess.class);
+    private static final Logger LOGGER = LogManager.getLogger(NativeNormalizerProcess.class);
 
     private final String jobId;
     private final Settings settings;

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -49,7 +49,7 @@ import java.util.concurrent.TimeoutException;
  * Autodetect process using native code.
  */
 class NativeAutodetectProcess implements AutodetectProcess {
-    private static final Logger LOGGER = Loggers.getLogger(NativeAutodetectProcess.class);
+    private static final Logger LOGGER = LogManager.getLogger(NativeAutodetectProcess.class);
 
     private static final Duration WAIT_FOR_KILL_TIMEOUT = Duration.ofMillis(1000);
 

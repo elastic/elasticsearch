@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,7 +27,7 @@ import java.io.PipedOutputStream;
  * - It can be used to produce results in testing that do not vary based on changes to the real normalization algorithms
  */
 public class MultiplyingNormalizerProcess implements NormalizerProcess {
-    private static final Logger LOGGER = Loggers.getLogger(MultiplyingNormalizerProcess.class);
+    private static final Logger LOGGER = LogManager.getLogger(MultiplyingNormalizerProcess.class);
 
     private final Settings settings;
     private final double factor;

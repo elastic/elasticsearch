@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
-import org.elasticsearch.common.logging.Loggers;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -80,7 +80,7 @@ public abstract class FileStructureTestCase extends ESTestCase {
 
     @After
     public void printExplanation() {
-        Loggers.getLogger(getClass()).info("Explanation:\n" + String.join("\n", explanation));
+        LogManager.getLogger(getClass()).info("Explanation:\n" + String.join("\n", explanation));
     }
 
     protected Boolean randomHasByteOrderMarker(String charset) {

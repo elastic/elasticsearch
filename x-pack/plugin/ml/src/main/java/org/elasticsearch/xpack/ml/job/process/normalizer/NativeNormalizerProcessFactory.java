@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -22,7 +22,7 @@ import java.util.concurrent.ExecutorService;
 
 public class NativeNormalizerProcessFactory implements NormalizerProcessFactory {
 
-    private static final Logger LOGGER = Loggers.getLogger(NativeNormalizerProcessFactory.class);
+    private static final Logger LOGGER = LogManager.getLogger(NativeNormalizerProcessFactory.class);
     private static final NamedPipeHelper NAMED_PIPE_HELPER = new NamedPipeHelper();
     private static final Duration PROCESS_STARTUP_TIMEOUT = Duration.ofSeconds(10);
 

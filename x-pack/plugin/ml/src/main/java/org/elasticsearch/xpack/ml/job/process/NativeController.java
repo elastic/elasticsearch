@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.job.process;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.job.process.logging.CppLogMessageHandler;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
@@ -28,7 +28,7 @@ import java.util.concurrent.TimeoutException;
  * Maintains the connection to the native controller daemon that can start other processes.
  */
 public class NativeController {
-    private static final Logger LOGGER = Loggers.getLogger(NativeController.class);
+    private static final Logger LOGGER = LogManager.getLogger(NativeController.class);
 
     /**
      * Process controller native program name

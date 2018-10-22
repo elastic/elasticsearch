@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import java.util.List;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import java.util.List;
 
 /**
  * Find the minimum value in matched documents.
@@ -46,9 +47,6 @@ public class Min extends NumericAggregate implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBe(
-            field(),
-            e -> e.dataType().isNumeric() || e.dataType() == DataType.DATE,
-            Expressions.getErrorMessageForNumericRequirement(field()));
+        return Expressions.typeMustBeNumericOrDate(field());
     }
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -121,12 +122,16 @@ public final class Expressions {
     }
 
     public static TypeResolution typeMustBeNumeric(Expression e) {
-        return e.dataType().isNumeric() ?
-            TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(getErrorMessageForNumericRequirement(e));
+        return e.dataType().isNumeric() ? TypeResolution.TYPE_RESOLVED : new TypeResolution(numericErrorMessage(e));
     }
 
-    public static String getErrorMessageForNumericRequirement(Expression e) {
+    public static TypeResolution typeMustBeNumericOrDate(Expression e) {
+        return e.dataType().isNumeric() || e.dataType() == DataType.DATE ?
+            TypeResolution.TYPE_RESOLVED :
+            new TypeResolution(numericErrorMessage(e));
+    }
+
+    private static String numericErrorMessage(Expression e) {
         return "Argument required to be numeric ('" + Expressions.name(e) + "' of type '" + e.dataType().esType + "')";
     }
 }

@@ -688,14 +688,30 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
-        logger.info("Running moreLikeThis");
-        SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class, () ->
+        {
+            logger.info("Running moreLikeThis with one item without routing attribute");
+            SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class, () ->
+                client().prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[]{
+                    new Item("test", "type1", "1")
+                }).minTermFreq(1).minDocFreq(1)).get());
+
+            Throwable cause = exception.getCause();
+            assertThat(cause, instanceOf(RoutingMissingException.class));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+        }
+
+        {
+            logger.info("Running moreLikeThis with one item with routing attribute and two items without routing attribute");
+            SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class, () ->
             client().prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[]{
-                new Item("test", "type1", "1")
+                new Item("test", "type1", "1").routing("1"),
+                new Item("test", "type1", "2"),
+                new Item("test", "type1", "3")
             }).minTermFreq(1).minDocFreq(1)).get());
 
-        Throwable cause = exception.getCause();
-        assertThat(cause, instanceOf(RoutingMissingException.class));
-        assertThat(cause.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+            Throwable cause = exception.getCause();
+            assertThat(cause, instanceOf(RoutingMissingException.class));
+            assertThat(cause.getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
+        }
     }
 }

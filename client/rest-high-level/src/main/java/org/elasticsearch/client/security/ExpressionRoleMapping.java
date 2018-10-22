@@ -22,12 +22,15 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.parser.RoleMapperExpressionParser;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * A representation of a single role-mapping.
@@ -37,13 +40,17 @@ import java.util.Map;
  */
 public final class ExpressionRoleMapping {
 
-    static final ObjectParser<Builder, String> PARSER = new ObjectParser<>("role-mapping", Builder::new);
+    @SuppressWarnings("unchecked")
+    static final ConstructingObjectParser<ExpressionRoleMapping.Builder, Void> PARSER = new ConstructingObjectParser<>("role-mapping", true,
+            args -> new ExpressionRoleMapping.Builder((List<String>) args[0], (RoleMapperExpression) args[1], (Map<String, Object>) args[2],
+                    (boolean) args[3]));
 
     static {
-        PARSER.declareStringArray(Builder::roles, Fields.ROLES);
-        PARSER.declareField(Builder::rules, RoleMapperExpressionParser::parseObject, Fields.RULES, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField(Builder::metadata, XContentParser::map, Fields.METADATA, ObjectParser.ValueType.OBJECT);
-        PARSER.declareBoolean(Builder::enabled, Fields.ENABLED);
+        PARSER.declareStringArray(constructorArg(), Fields.ROLES);
+        PARSER.declareField(constructorArg(), (parser, context) -> RoleMapperExpressionParser.fromXContent(parser), Fields.RULES,
+                ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(constructorArg(), XContentParser::map, Fields.METADATA, ObjectParser.ValueType.OBJECT);
+        PARSER.declareBoolean(constructorArg(), Fields.ENABLED);
     }
 
     private final String name;
@@ -146,24 +153,11 @@ public final class ExpressionRoleMapping {
         private Map<String, Object> metadata = Collections.emptyMap();
         private Boolean enabled;
 
-        Builder rules(RoleMapperExpression expression) {
+        Builder(List<String> roles, RoleMapperExpression expression, Map<String, Object> metadata, boolean enabled) {
             this.rules = expression;
-            return this;
-        }
-
-        Builder roles(List<String> roles) {
-            this.roles = roles;
-            return this;
-        }
-
-        Builder metadata(Map<String, Object> metadata) {
-            this.metadata = metadata;
-            return this;
-        }
-
-        Builder enabled(boolean enabled) {
+            this.roles = Collections.unmodifiableList(roles);
+            this.metadata = Collections.unmodifiableMap(metadata);
             this.enabled = enabled;
-            return this;
         }
 
         ExpressionRoleMapping build(String name) {

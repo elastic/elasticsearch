@@ -45,6 +45,10 @@ import java.util.List;
 public final class RoleMapperExpressionParser {
     public static final ParseField FIELD = new ParseField("field");
 
+    public static RoleMapperExpression fromXContent(final XContentParser parser) throws IOException {
+        return new RoleMapperExpressionParser().parse("rules", parser);
+    }
+
     /**
      * This function exists to be compatible with
      * {@link org.elasticsearch.common.xcontent.ContextParser#parse(XContentParser, Object)}

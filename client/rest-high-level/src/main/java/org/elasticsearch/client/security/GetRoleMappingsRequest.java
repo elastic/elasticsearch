@@ -20,24 +20,23 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.set.Sets;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
 /**
  * Request object to get role mappings
  */
-public final class GetRoleMappingsRequest implements Validatable, ToXContentObject {
-    private Set<String> roleMappingNames = new HashSet<>();
+public final class GetRoleMappingsRequest implements Validatable {
+    private final Set<String> roleMappingNames;
 
     public GetRoleMappingsRequest(final String... roleMappingNames) {
         if (roleMappingNames != null) {
-            Arrays.stream(roleMappingNames).forEach(rm -> this.roleMappingNames.add(rm));
+           this.roleMappingNames = Collections.unmodifiableSet(Sets.newHashSet(roleMappingNames));
+        } else {
+           this.roleMappingNames = Collections.emptySet();
         }
     }
 
@@ -64,11 +63,6 @@ public final class GetRoleMappingsRequest implements Validatable, ToXContentObje
         final GetRoleMappingsRequest other = (GetRoleMappingsRequest) obj;
 
         return Objects.equals(roleMappingNames, other.roleMappingNames);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().endObject();
     }
 
 }

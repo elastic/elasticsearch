@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,7 +32,7 @@ import java.util.List;
  */
 public final class GetRoleMappingsResponse {
 
-    private List<ExpressionRoleMapping> mappings;
+    private final List<ExpressionRoleMapping> mappings;
 
     public GetRoleMappingsResponse(List<ExpressionRoleMapping> mappings) {
         this.mappings = Collections.unmodifiableList(mappings);
@@ -56,22 +56,15 @@ public final class GetRoleMappingsResponse {
     }
 
     public static GetRoleMappingsResponse fromXContent(XContentParser parser) throws IOException {
-        List<ExpressionRoleMapping> roleMappings = new ArrayList<>();
+        final List<ExpressionRoleMapping> roleMappings = new ArrayList<>();
 
-        parser.nextToken();
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            // Move to the role mapping field
-            parser.nextToken();
-            while (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                String name = parser.currentName();
-                ExpressionRoleMapping.Builder builder = ExpressionRoleMapping.PARSER.parse(parser, null);
-                roleMappings.add(builder.build(name));
-                // Move to the next role mapping field
-                parser.nextToken();
-            }
-        } else {
-            throw new ParsingException(parser.getTokenLocation(), "Expected token [{}] but found token [{}]",
-                    XContentParser.Token.START_OBJECT, parser.currentToken());
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            String name = parser.currentName();
+            ExpressionRoleMapping.Builder builder = ExpressionRoleMapping.PARSER.parse(parser, null);
+            roleMappings.add(builder.build(name));
         }
 
         return new GetRoleMappingsResponse(roleMappings);

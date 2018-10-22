@@ -106,8 +106,8 @@ public class SecurityRequestConvertersTests extends ESTestCase {
 
     public void testGetRoleMappings() throws IOException {
         int noOfRoleMappingNames = randomIntBetween(0, 2);
-        final String[] roleMappingNames = randomArray(noOfRoleMappingNames, noOfRoleMappingNames, String[]::new, () -> randomAlphaOfLength(
-                5));
+        final String[] roleMappingNames =
+                randomArray(noOfRoleMappingNames, noOfRoleMappingNames, String[]::new, () -> randomAlphaOfLength(5));
         final GetRoleMappingsRequest getRoleMappingsRequest = new GetRoleMappingsRequest(roleMappingNames);
 
         final Request request = SecurityRequestConverters.getRoleMappings(getRoleMappingsRequest);
@@ -116,8 +116,8 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         if (noOfRoleMappingNames == 0) {
             assertEquals("/_xpack/security/role_mapping", request.getEndpoint());
         } else {
-            assertEquals("/_xpack/security/role_mapping/" + Strings.collectionToCommaDelimitedString(getRoleMappingsRequest
-                    .getRoleMappingNames()), request.getEndpoint());
+            assertEquals("/_xpack/security/role_mapping/" +
+                    Strings.collectionToCommaDelimitedString(getRoleMappingsRequest.getRoleMappingNames()), request.getEndpoint());
         }
         assertEquals(Collections.emptyMap(), request.getParameters());
         assertNull(request.getEntity());

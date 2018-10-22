@@ -132,7 +132,7 @@ public final class SecurityClient {
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role-mapping.html">
      * the docs</a> for more.
      *
-     * @param request request {@link GetRoleMappingsRequest} with role mapping name(s).
+     * @param request {@link GetRoleMappingsRequest} with role mapping name(s).
      * If no role mapping name is provided then retrieves all role mappings.
      * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion

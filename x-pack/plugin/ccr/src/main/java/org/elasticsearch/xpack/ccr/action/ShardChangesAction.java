@@ -68,7 +68,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         private TimeValue pollTimeout = TransportResumeFollowAction.DEFAULT_POLL_TIMEOUT;
         private ByteSizeValue maxBatchSize = TransportResumeFollowAction.DEFAULT_MAX_BATCH_SIZE;
 
-        private volatile long relativeStartNanos;
+        private long relativeStartNanos;
 
         public Request(ShardId shardId, String expectedHistoryUUID) {
             super(shardId.getIndexName());
@@ -145,6 +145,9 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             expectedHistoryUUID = in.readString();
             pollTimeout = in.readTimeValue();
             maxBatchSize = new ByteSizeValue(in);
+
+            // Starting the clock in order to know how much time is spent on fetching operations:
+            relativeStartNanos = System.nanoTime();
         }
 
         @Override
@@ -331,7 +334,6 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                 final Request request,
                 final ShardId shardId,
                 final ActionListener<Response> listener) throws IOException {
-            request.relativeStartNanos = System.nanoTime();
             final IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             final IndexShard indexShard = indexService.getShard(request.getShard().id());
             final SeqNoStats seqNoStats = indexShard.seqNoStats();

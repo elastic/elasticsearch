@@ -92,7 +92,6 @@ buildRestTests.docs = fileTree(projectDir) {
     exclude 'build'
     // These file simply doesn't pass yet. We should figure out how to fix them.
     exclude 'en/watcher/reference/actions.asciidoc'
-    exclude 'en/rest-api/graph/explore.asciidoc'
 }
 
 Map<String, String> setups = buildRestTests.setups

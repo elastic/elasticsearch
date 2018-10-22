@@ -19,9 +19,11 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
+import com.amazonaws.services.s3.model.HeadBucketRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
@@ -66,14 +68,23 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
         // Note: the method client.doesBucketExist() may return 'true' is the bucket exists
         // but we don't have access to it (ie, 403 Forbidden response code)
-        // Also, if invalid security credentials are used to execute this method, the
-        // client is not able to distinguish between bucket permission errors and
-        // invalid credential errors, and this method could return an incorrect result.
         try (AmazonS3Reference clientReference = clientReference()) {
             SocketAccess.doPrivilegedVoid(() -> {
-                if (clientReference.client().doesBucketExist(bucket) == false) {
-                    throw new IllegalArgumentException("The bucket [" + bucket + "] does not exist. Please create it before "
-                            + " creating an s3 snapshot repository backed by it.");
+                try {
+                    clientReference.client().headBucket(new HeadBucketRequest(bucket));
+                } catch (final AmazonServiceException e) {
+                    if (e.getStatusCode() == 301) {
+                        throw new IllegalArgumentException("the bucket [" + bucket + "] is in a different region than you configured", e);
+                    } else if (e.getStatusCode() == 403) {
+                        throw new IllegalArgumentException("you do not have permissions to access the bucket [" + bucket + "]", e);
+                    } else if (e.getStatusCode() == 404) {
+                        throw new IllegalArgumentException(
+                                "the bucket [" + bucket + "] does not exist;"
+                                        + " please create it before creating an S3 snapshot repository backed by it",
+                                e);
+                    } else {
+                        throw new IllegalArgumentException("error checking the existence of bucket [" + bucket + "]", e);
+                    }
                 }
             });
         }
@@ -158,7 +169,9 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         return cannedACL;
     }
 
-    public StorageClass getStorageClass() { return storageClass; }
+    public StorageClass getStorageClass() {
+        return storageClass;
+    }
 
     public static StorageClass initStorageClass(String storageClass) {
         if ((storageClass == null) || storageClass.equals("")) {

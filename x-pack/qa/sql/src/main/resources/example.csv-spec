@@ -3,6 +3,10 @@
 // name of the test - translated into 'testName'
 name
 
+// optional schema declaration - needs to start with schema:: followed by list of columnName:ColumnType
+// suitable for snippets included in the docs
+schema::A:d,B:d,C:i
+
 // ES SQL query
 SELECT COUNT(*) FROM "emp";
 

@@ -1,23 +1,28 @@
+[float]
 [[breaking_70_java_changes]]
 === Java API changes
 
+[float]
 ==== `isShardsAcked` deprecated in `6.2` has been removed
 
 `isShardsAcked` has been replaced by `isShardsAcknowledged` in
 `CreateIndexResponse`, `RolloverResponse` and
 `CreateIndexClusterStateUpdateResponse`.
 
+[float]
 ==== `prepareExecute` removed from the client api
 
 The `prepareExecute` method which created a request builder has been
 removed from the client api. Instead, construct a builder for the
 appropriate request directly.
 
+[float]
 ==== Some Aggregation classes have moved packages
 
 * All classes present in `org.elasticsearch.search.aggregations.metrics.*` packages
 were moved to a single `org.elasticsearch.search.aggregations.metrics` package.
 
+[float]
 ==== `Retry.withBackoff` methods with `Settings` removed
 
 The variants of `Retry.withBackoff` that included `Settings` have been removed

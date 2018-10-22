@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.fulltext;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextUtils;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
 

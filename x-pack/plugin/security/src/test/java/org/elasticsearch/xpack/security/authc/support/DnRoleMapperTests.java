@@ -200,27 +200,27 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testParseFile() throws Exception {
         Path file = getDataPath("role_mapping.yml");
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
-        Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
+        Map<String, List<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), is(3));
 
         DN dn = new DN("cn=avengers,ou=marvel,o=superheros");
-        assertThat(mappings, hasKey(dn));
-        Set<String> roles = mappings.get(dn);
+        assertThat(mappings, hasKey(dn.toNormalizedString()));
+        List<String> roles = mappings.get(dn.toNormalizedString());
         assertThat(roles, notNullValue());
         assertThat(roles, hasSize(2));
         assertThat(roles, containsInAnyOrder("security", "avenger"));
 
         dn = new DN("cn=shield,ou=marvel,o=superheros");
-        assertThat(mappings, hasKey(dn));
-        roles = mappings.get(dn);
+        assertThat(mappings, hasKey(dn.toNormalizedString()));
+        roles = mappings.get(dn.toNormalizedString());
         assertThat(roles, notNullValue());
         assertThat(roles, hasSize(1));
         assertThat(roles, contains("security"));
 
         dn = new DN("cn=Horatio Hornblower,ou=people,o=sevenSeas");
-        assertThat(mappings, hasKey(dn));
-        roles = mappings.get(dn);
+        assertThat(mappings, hasKey(dn.toNormalizedString()));
+        roles = mappings.get(dn.toNormalizedString());
         assertThat(roles, notNullValue());
         assertThat(roles, hasSize(1));
         assertThat(roles, contains("avenger"));
@@ -230,7 +230,7 @@ public class DnRoleMapperTests extends ESTestCase {
         Path file = createTempDir().resolve("foo.yaml");
         Files.createFile(file);
         Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG, null);
-        Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
+        Map<String, List<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<String> events = CapturingLogger.output(logger.getName(), Level.DEBUG);
@@ -242,7 +242,7 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
         Path file = createTempDir().resolve(randomAlphaOfLength(10));
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
-        Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
+        Map<String, List<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name", false);
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
 
@@ -272,7 +272,7 @@ public class DnRoleMapperTests extends ESTestCase {
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
         Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
-        Map<DN, Set<String>> mappings = DnRoleMapper.parseFileLenient(file, logger, "_type", "_name");
+        Map<String, List<String>> mappings = DnRoleMapper.parseFileLenient(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);

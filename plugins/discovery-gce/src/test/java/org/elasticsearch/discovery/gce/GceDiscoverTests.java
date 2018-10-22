@@ -171,6 +171,16 @@ public class GceDiscoverTests extends ESIntegTestCase {
                 }
 
                 @Override
+                public String projectId() {
+                    return PROJECT_SETTING.get(settings);
+                }
+
+                @Override
+                public List<String> zones() {
+                    return ZONE_SETTING.get(settings);
+                }
+
+                @Override
                 public void close() throws IOException {
                 }
             };

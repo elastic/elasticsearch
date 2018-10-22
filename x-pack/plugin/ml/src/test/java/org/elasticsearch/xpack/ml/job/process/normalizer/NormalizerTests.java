@@ -29,7 +29,7 @@ public class NormalizerTests extends ESTestCase {
     private static final String INDEX_NAME = "foo-index";
     private static final String QUANTILES_STATE = "someState";
     private static final int BUCKET_SPAN = 600;
-    private static final double INITIAL_SCORE = 2.0;
+    private static final double INITIAL_SCORE = 3.0;
     private static final double FACTOR = 2.0;
 
     private Bucket generateBucket(Date timestamp) throws IOException {

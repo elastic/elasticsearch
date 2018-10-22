@@ -43,7 +43,7 @@ public class TestThreadInfoPatternConverterTests extends ESTestCase {
         // Test threads get the test name
         assertEquals(getTestName(), threadInfo(Thread.currentThread().getName()));
 
-        // Suite initalization gets "suite"
+        // Suite initialization gets "suite"
         assertEquals("suite", suiteInfo);
 
         // And stuff that doesn't match anything gets wrapped in [] so we can see it

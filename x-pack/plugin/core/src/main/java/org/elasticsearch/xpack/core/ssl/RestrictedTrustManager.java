@@ -6,9 +6,8 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -35,15 +34,14 @@ import java.util.stream.Collectors;
  * The underlying certificate validation is delegated to another TrustManager.
  */
 public final class RestrictedTrustManager extends X509ExtendedTrustManager {
-
+    private static final Logger logger = LogManager.getLogger(RestrictedTrustManager.class);
     private static final String CN_OID = "2.5.4.3";
     private static final int SAN_CODE_OTHERNAME = 0;
-    private final Logger logger;
+
     private final X509ExtendedTrustManager delegate;
     private final CertificateTrustRestrictions trustRestrictions;
 
-    public RestrictedTrustManager(Settings settings, X509ExtendedTrustManager delegate, CertificateTrustRestrictions restrictions) {
-        this.logger = Loggers.getLogger(getClass(), settings);
+    public RestrictedTrustManager(X509ExtendedTrustManager delegate, CertificateTrustRestrictions restrictions) {
         this.delegate = delegate;
         this.trustRestrictions = restrictions;
         logger.debug("Configured with trust restrictions: [{}]", restrictions);

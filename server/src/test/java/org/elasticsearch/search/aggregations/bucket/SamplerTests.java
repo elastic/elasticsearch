@@ -26,7 +26,7 @@ public class SamplerTests extends BaseAggregationTestCase<SamplerAggregationBuil
 
     @Override
     protected final SamplerAggregationBuilder createTestAggregatorBuilder() {
-        SamplerAggregationBuilder factory = new SamplerAggregationBuilder("foo");
+        SamplerAggregationBuilder factory = new SamplerAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             factory.shardSize(randomIntBetween(1, 1000));
         }

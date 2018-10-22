@@ -121,7 +121,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parser);
         assertThat(parsed.getAggregatorFactories(), hasSize(0));
         assertThat(parsed.getPipelineAggregatorFactories(), hasSize(1));
-        PipelineAggregationBuilder newAgg = parsed.getPipelineAggregatorFactories().get(0);
+        PipelineAggregationBuilder newAgg = parsed.getPipelineAggregatorFactories().iterator().next();
         assertNull(parser.nextToken());
         assertNotNull(newAgg);
         return newAgg;

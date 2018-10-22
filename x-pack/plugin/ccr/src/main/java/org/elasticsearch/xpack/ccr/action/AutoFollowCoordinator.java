@@ -33,8 +33,8 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.CreateAndFollowIndexAction;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -163,33 +163,25 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 final ClusterStateRequest request = new ClusterStateRequest();
                 request.clear();
                 request.metaData(true);
-
-                if ("_local_".equals(leaderClusterAlias)) {
-                    Client client = CcrLicenseChecker.wrapClient(AutoFollowCoordinator.this.client, headers);
-                    client.admin().cluster().state(
-                            request, ActionListener.wrap(r -> handler.accept(r.getState(), null), e -> handler.accept(null, e)));
-                } else {
-                    // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
-                    ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
-                            client,
-                            headers,
-                            leaderClusterAlias,
-                            request,
-                            e -> handler.accept(null, e),
-                            leaderClusterState -> handler.accept(leaderClusterState, null));
-                }
-
+                // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
+                ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
+                    client,
+                    headers,
+                    leaderClusterAlias,
+                    request,
+                    e -> handler.accept(null, e),
+                    leaderClusterState -> handler.accept(leaderClusterState, null));
             }
 
             @Override
             void createAndFollow(Map<String, String> headers,
-                                 FollowIndexAction.Request followRequest,
+                                 ResumeFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
-                CreateAndFollowIndexAction.Request request = new CreateAndFollowIndexAction.Request(followRequest);
+                PutFollowAction.Request request = new PutFollowAction.Request(followRequest);
                 followerClient.execute(
-                    CreateAndFollowIndexAction.INSTANCE,
+                    PutFollowAction.INSTANCE,
                     request,
                     ActionListener.wrap(r -> successHandler.run(), failureHandler)
                 );
@@ -259,8 +251,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                     if (leaderClusterState != null) {
                         assert e == null;
                         final List<String> followedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(clusterAlias);
-                        final List<Index> leaderIndicesToFollow =
-                            getLeaderIndicesToFollow(autoFollowPattern, leaderClusterState, followerClusterState, followedIndices);
+                        final List<Index> leaderIndicesToFollow = getLeaderIndicesToFollow(clusterAlias, autoFollowPattern,
+                            leaderClusterState, followerClusterState, followedIndices);
                         if (leaderIndicesToFollow.isEmpty()) {
                             finalise(slot, new AutoFollowResult(clusterAlias));
                         } else {
@@ -303,14 +295,13 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
-            String leaderIndexNameWithClusterAliasPrefix = clusterAlias.equals("_local_") ? leaderIndexName :
-                clusterAlias + ":" + leaderIndexName;
-            FollowIndexAction.Request request = new FollowIndexAction.Request();
-            request.setLeaderIndex(leaderIndexNameWithClusterAliasPrefix);
+            ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+            request.setLeaderCluster(clusterAlias);
+            request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);
             request.setMaxBatchOperationCount(pattern.getMaxBatchOperationCount());
             request.setMaxConcurrentReadBatches(pattern.getMaxConcurrentReadBatches());
-            request.setMaxOperationSizeInBytes(pattern.getMaxOperationSizeInBytes());
+            request.setMaxBatchSize(pattern.getMaxBatchSize());
             request.setMaxConcurrentWriteBatches(pattern.getMaxConcurrentWriteBatches());
             request.setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
             request.setMaxRetryDelay(pattern.getMaxRetryDelay());
@@ -337,7 +328,8 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             }
         }
 
-        static List<Index> getLeaderIndicesToFollow(AutoFollowPattern autoFollowPattern,
+        static List<Index> getLeaderIndicesToFollow(String clusterAlias,
+                                                    AutoFollowPattern autoFollowPattern,
                                                     ClusterState leaderClusterState,
                                                     ClusterState followerClusterState,
                                                     List<String> followedIndexUUIDs) {
@@ -368,18 +360,19 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                                                                                       Index indexToFollow) {
             return currentState -> {
                 AutoFollowMetadata currentAutoFollowMetadata = currentState.metaData().custom(AutoFollowMetadata.TYPE);
-
-                Map<String, List<String>> newFollowedIndexUUIDS =
-                    new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
-                newFollowedIndexUUIDS.get(clusterAlias).add(indexToFollow.getUUID());
-
-                ClusterState.Builder newState = ClusterState.builder(currentState);
-                AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
+                Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
+                newFollowedIndexUUIDS.compute(clusterAlias, (key, existingUUIDs) -> {
+                    assert existingUUIDs != null;
+                    List<String> newUUIDs = new ArrayList<>(existingUUIDs);
+                    newUUIDs.add(indexToFollow.getUUID());
+                    return Collections.unmodifiableList(newUUIDs);
+                });
+                final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
                     newFollowedIndexUUIDS, currentAutoFollowMetadata.getHeaders());
-                newState.metaData(MetaData.builder(currentState.getMetaData())
-                    .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata)
-                    .build());
-                return newState.build();
+                return ClusterState.builder(currentState)
+                    .metaData(MetaData.builder(currentState.getMetaData())
+                        .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build())
+                    .build();
             };
         }
 
@@ -398,7 +391,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
         abstract void createAndFollow(
             Map<String, String> headers,
-            FollowIndexAction.Request followRequest,
+            ResumeFollowAction.Request followRequest,
             Runnable successHandler,
             Consumer<Exception> failureHandler
         );

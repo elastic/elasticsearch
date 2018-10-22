@@ -20,6 +20,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -27,7 +28,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -45,7 +45,7 @@ import static org.junit.Assert.assertTrue;
 
 
 public final class CorruptionUtils {
-    private static Logger logger = ESLoggerFactory.getLogger("test");
+    private static final Logger logger = LogManager.getLogger(CorruptionUtils.class);
     private CorruptionUtils() {}
 
     public static void corruptIndex(Random random, Path indexPath, boolean corruptSegments) throws IOException {

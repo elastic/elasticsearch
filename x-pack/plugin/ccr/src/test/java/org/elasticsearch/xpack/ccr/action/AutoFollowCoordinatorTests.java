@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.FollowIndexAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -85,17 +85,18 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             void getLeaderClusterState(Map<String, String> headers,
                                        String leaderClusterAlias,
                                        BiConsumer<ClusterState, Exception> handler) {
-                assertThat(headers, sameInstance(autoFollowHeaders.get("remote")));
+                assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
                 handler.accept(leaderState, null);
             }
 
             @Override
             void createAndFollow(Map<String, String> headers,
-                                 FollowIndexAction.Request followRequest,
+                                 ResumeFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
-                assertThat(headers, sameInstance(autoFollowHeaders.get("remote")));
-                assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
+                assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
+                assertThat(followRequest.getLeaderCluster(), equalTo("remote"));
+                assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();
             }
@@ -149,7 +150,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
             @Override
             void createAndFollow(Map<String, String> headers,
-                                 FollowIndexAction.Request followRequest,
+                                 ResumeFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 fail("should not get here");
@@ -210,10 +211,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
             @Override
             void createAndFollow(Map<String, String> headers,
-                                 FollowIndexAction.Request followRequest,
+                                 ResumeFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
-                assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
+                assertThat(followRequest.getLeaderCluster(), equalTo("remote"));
+                assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 successHandler.run();
             }
@@ -272,10 +274,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
             @Override
             void createAndFollow(Map<String, String> headers,
-                                 FollowIndexAction.Request followRequest,
+                                 ResumeFollowAction.Request followRequest,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
-                assertThat(followRequest.getLeaderIndex(), equalTo("remote:logs-20190101"));
+                assertThat(followRequest.getLeaderCluster(), equalTo("remote"));
+                assertThat(followRequest.getLeaderIndex(), equalTo("logs-20190101"));
                 assertThat(followRequest.getFollowerIndex(), equalTo("logs-20190101"));
                 failureHandler.accept(failure);
             }
@@ -318,7 +321,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .metaData(imdBuilder)
             .build();
 
-        List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, leaderState, followerState, Collections.emptyList());
+        List<Index> result = AutoFollower.getLeaderIndicesToFollow("remote", autoFollowPattern, leaderState, followerState,
+            Collections.emptyList());
         result.sort(Comparator.comparing(Index::getName));
         assertThat(result.size(), equalTo(5));
         assertThat(result.get(0).getName(), equalTo("metrics-0"));
@@ -328,7 +332,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(result.get(4).getName(), equalTo("metrics-4"));
 
         List<String> followedIndexUUIDs = Collections.singletonList(leaderState.metaData().index("metrics-2").getIndexUUID());
-        result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, leaderState, followerState, followedIndexUUIDs);
+        result = AutoFollower.getLeaderIndicesToFollow("remote", autoFollowPattern, leaderState, followerState, followedIndexUUIDs);
         result.sort(Comparator.comparing(Index::getName));
         assertThat(result.size(), equalTo(4));
         assertThat(result.get(0).getName(), equalTo("metrics-0"));
@@ -357,7 +361,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
-            new CcrLicenseChecker(() -> true)
+            new CcrLicenseChecker(() -> true, () -> false)
         );
 
         autoFollowCoordinator.updateStats(Collections.singletonList(

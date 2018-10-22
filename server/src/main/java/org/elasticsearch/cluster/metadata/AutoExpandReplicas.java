@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * This class acts as a functional wrapper around the {@code index.auto_expand_replicas} setting.
@@ -93,7 +93,7 @@ public final class AutoExpandReplicas {
         return Math.min(maxReplicas, numDataNodes-1);
     }
 
-    Optional<Integer> getDesiredNumberOfReplicas(int numDataNodes) {
+    private OptionalInt getDesiredNumberOfReplicas(int numDataNodes) {
         if (enabled) {
             final int min = getMinReplicas();
             final int max = getMaxReplicas(numDataNodes);
@@ -105,10 +105,10 @@ public final class AutoExpandReplicas {
             }
 
             if (numberOfReplicas >= min && numberOfReplicas <= max) {
-                return Optional.of(numberOfReplicas);
+                return OptionalInt.of(numberOfReplicas);
             }
         }
-        return Optional.empty();
+        return OptionalInt.empty();
     }
 
     @Override

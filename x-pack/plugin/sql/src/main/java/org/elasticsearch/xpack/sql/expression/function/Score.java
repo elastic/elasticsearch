@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.Function;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import static java.util.Collections.emptyList;
-
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 /**
  * Function referring to the {@code _score} in a search. Only available
@@ -58,5 +60,15 @@ public class Score extends Function {
     @Override
     public int hashCode() {
         return location().hashCode();
+    }
+
+    @Override
+    protected Pipe makePipe() {
+        throw new SqlIllegalArgumentException("Scoring cannot be computed on the client");
+    }
+
+    @Override
+    public ScriptTemplate asScript() {
+        throw new SqlIllegalArgumentException("Scoring cannot be scripted");
     }
 }

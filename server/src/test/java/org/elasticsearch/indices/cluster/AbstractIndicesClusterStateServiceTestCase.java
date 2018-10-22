@@ -279,10 +279,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public void updateMetaData(IndexMetaData indexMetaData) {
-            indexSettings.updateIndexMetaData(indexMetaData);
+        public void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
+            indexSettings.updateIndexMetaData(newIndexMetaData);
             for (MockIndexShard shard: shards.values()) {
-                shard.updateTerm(indexMetaData.primaryTerm(shard.shardId().id()));
+                shard.updateTerm(newIndexMetaData.primaryTerm(shard.shardId().id()));
             }
         }
 
@@ -324,7 +324,6 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
      * Mock for {@link IndexShard}
      */
     protected class MockIndexShard implements IndicesClusterStateService.Shard {
-        private volatile long clusterStateVersion;
         private volatile ShardRouting shardRouting;
         private volatile RecoveryState recoveryState;
         private volatile Set<String> inSyncAllocationIds;
@@ -372,7 +371,6 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             this.shardRouting = shardRouting;
             if (shardRouting.primary()) {
                 term = newPrimaryTerm;
-                this.clusterStateVersion = applyingClusterStateVersion;
                 this.inSyncAllocationIds = inSyncAllocationIds;
                 this.routingTable = routingTable;
             }

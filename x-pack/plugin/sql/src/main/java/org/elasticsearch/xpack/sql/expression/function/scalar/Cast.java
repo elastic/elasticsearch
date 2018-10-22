@@ -6,12 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -74,18 +71,8 @@ public class Cast extends UnaryScalarFunction {
     }
 
     @Override
-    protected ScriptTemplate asScriptFrom(ScalarFunctionAttribute scalar) {
-        return scalar.script();
-    }
-
-    @Override
-    protected ScriptTemplate asScriptFrom(FieldAttribute field) {
-        return new ScriptTemplate(field.name(), Params.EMPTY, field.dataType());
-    }
-
-    @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new UnaryProcessorDefinition(location(), this, ProcessorDefinitions.toProcessorDefinition(field()),
+    protected Pipe makePipe() {
+        return new UnaryPipe(location(), this, Expressions.pipe(field()),
                 new CastProcessor(DataTypeConversion.conversionFor(from(), to())));
     }
 

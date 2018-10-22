@@ -1,12 +1,18 @@
 ---
 "One big string":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
   - do:
       bulk:
+        include_type_name: false
         refresh: true
         body: |
-          {"index": {"_index": "test_index", "_type": "test_type", "_id": "test_id"}}
+          {"index": {"_index": "test_index", "_id": "test_id"}}
           {"f1": "v1", "f2": 42}
-          {"index": {"_index": "test_index", "_type": "test_type", "_id": "test_id2"}}
+          {"index": {"_index": "test_index", "_id": "test_id2"}}
           {"f1": "v2", "f2": 47}
 
   - do:

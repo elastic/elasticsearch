@@ -19,12 +19,12 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
@@ -371,9 +371,8 @@ public class ScopedSettingsTests extends ESTestCase {
             listResults.clear();
             listResults.putAll(map);
         };
-        boolean omitDefaults = randomBoolean();
-        service.addAffixMapUpdateConsumer(listSetting, listConsumer, (s, k) -> {}, omitDefaults);
-        service.addAffixMapUpdateConsumer(intSetting, intConsumer, (s, k) -> {}, omitDefaults);
+        service.addAffixMapUpdateConsumer(listSetting, listConsumer, (s, k) -> {});
+        service.addAffixMapUpdateConsumer(intSetting, intConsumer, (s, k) -> {});
         assertEquals(0, listResults.size());
         assertEquals(0, intResults.size());
         service.applySettings(Settings.builder()
@@ -403,7 +402,6 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(2, listResults.size());
         assertEquals(2, intResults.size());
 
-
         listResults.clear();
         intResults.clear();
 
@@ -416,17 +414,9 @@ public class ScopedSettingsTests extends ESTestCase {
         assertNull("test wasn't changed", intResults.get("test"));
         assertEquals(8, intResults.get("test_1").intValue());
         assertNull("test_list wasn't changed", listResults.get("test_list"));
-        if (omitDefaults) {
-            assertNull(listResults.get("test_list_1"));
-            assertFalse(listResults.containsKey("test_list_1"));
-            assertEquals(0, listResults.size());
-            assertEquals(1, intResults.size());
-        } else {
-            assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
-            assertEquals(1, listResults.size());
-            assertEquals(1, intResults.size());
-        }
-
+        assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
+        assertEquals(1, listResults.size());
+        assertEquals(1, intResults.size());
     }
 
     public void testAffixMapConsumerNotCalledWithNull() {
@@ -442,7 +432,7 @@ public class ScopedSettingsTests extends ESTestCase {
             affixResults.clear();
             affixResults.putAll(map);
         };
-        service.addAffixMapUpdateConsumer(prefixSetting, consumer, (s, k) -> {}, randomBoolean());
+        service.addAffixMapUpdateConsumer(prefixSetting, consumer, (s, k) -> {});
         assertEquals(0, affixResults.size());
         service.applySettings(Settings.builder()
                 .put("eggplant._name", 2)
@@ -905,8 +895,8 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testLoggingUpdates() {
-        final Level level = ESLoggerFactory.getRootLogger().getLevel();
-        final Level testLevel = ESLoggerFactory.getLogger("test").getLevel();
+        final Level level = LogManager.getRootLogger().getLevel();
+        final Level testLevel = LogManager.getLogger("test").getLevel();
         Level property = randomFrom(Level.values());
         Settings.Builder builder = Settings.builder().put("logger.level", property);
         try {
@@ -916,33 +906,33 @@ public class ScopedSettingsTests extends ESTestCase {
                     IllegalArgumentException.class,
                     () -> settings.validate(Settings.builder().put("logger._root", "boom").build(), false));
             assertEquals("Unknown level constant [BOOM].", ex.getMessage());
-            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
-            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build());
-            assertEquals(property, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(property, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger.test", "TRACE").build());
-            assertEquals(Level.TRACE, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(Level.TRACE, LogManager.getLogger("test").getLevel());
             settings.applySettings(Settings.builder().build());
-            assertEquals(property, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(property, LogManager.getLogger("test").getLevel());
         } finally {
-            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
-            Loggers.setLevel(ESLoggerFactory.getLogger("test"), testLevel);
+            Loggers.setLevel(LogManager.getRootLogger(), level);
+            Loggers.setLevel(LogManager.getLogger("test"), testLevel);
         }
     }
 
     public void testFallbackToLoggerLevel() {
-        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+        final Level level = LogManager.getRootLogger().getLevel();
         try {
             ClusterSettings settings =
                 new ClusterSettings(Settings.builder().put("logger.level", "ERROR").build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(level, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().put("logger._root", "TRACE").build());
-            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.TRACE, LogManager.getRootLogger().getLevel());
             settings.applySettings(Settings.builder().build()); // here we fall back to 'logger.level' which is our default.
-            assertEquals(Level.ERROR, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(Level.ERROR, LogManager.getRootLogger().getLevel());
         } finally {
-            Loggers.setLevel(ESLoggerFactory.getRootLogger(), level);
+            Loggers.setLevel(LogManager.getRootLogger(), level);
         }
     }
 

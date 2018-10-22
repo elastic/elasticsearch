@@ -47,6 +47,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
@@ -59,6 +60,7 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -101,6 +103,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class InternalEngine extends Engine {
@@ -138,7 +141,6 @@ public class InternalEngine extends Engine {
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
     private final AtomicBoolean pendingTranslogRecovery = new AtomicBoolean(false);
-    public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeqNoOfNonAppendOnlyOperations = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -154,6 +156,7 @@ public class InternalEngine extends Engine {
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
+    private final KeyedLock<Long> noOpKeyedLock = new KeyedLock<>();
 
     @Nullable
     private final String historyUUID;
@@ -189,7 +192,6 @@ public class InternalEngine extends Engine {
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
                 assert translog.getGeneration() != null;
                 this.translog = translog;
-                this.localCheckpointTracker = createLocalCheckpointTracker(localCheckpointTrackerSupplier);
                 this.softDeleteEnabled = engineConfig.getIndexSettings().isSoftDeleteEnabled();
                 this.softDeletesPolicy = newSoftDeletesPolicy();
                 this.combinedDeletionPolicy =
@@ -223,6 +225,8 @@ public class InternalEngine extends Engine {
             for (ReferenceManager.RefreshListener listener: engineConfig.getInternalRefreshListener()) {
                 this.internalSearcherManager.addListener(listener);
             }
+            this.localCheckpointTracker = createLocalCheckpointTracker(engineConfig, lastCommittedSegmentInfos, logger,
+                () -> acquireSearcher("create_local_checkpoint_tracker", SearcherScope.INTERNAL), localCheckpointTrackerSupplier);
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getCheckpoint());
             this.internalSearcherManager.addListener(lastRefreshedCheckpointListener);
             success = true;
@@ -238,16 +242,29 @@ public class InternalEngine extends Engine {
         logger.trace("created new InternalEngine");
     }
 
-    private LocalCheckpointTracker createLocalCheckpointTracker(
-        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) throws IOException {
-        final long maxSeqNo;
-        final long localCheckpoint;
-        final SequenceNumbers.CommitInfo seqNoStats =
-            SequenceNumbers.loadSeqNoInfoFromLuceneCommit(store.readLastCommittedSegmentsInfo().userData.entrySet());
-        maxSeqNo = seqNoStats.maxSeqNo;
-        localCheckpoint = seqNoStats.localCheckpoint;
-        logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
-        return localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
+    private static LocalCheckpointTracker createLocalCheckpointTracker(EngineConfig engineConfig, SegmentInfos lastCommittedSegmentInfos,
+        Logger logger, Supplier<Searcher> searcherSupplier, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
+        try {
+            final SequenceNumbers.CommitInfo seqNoStats =
+                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommittedSegmentInfos.userData.entrySet());
+            final long maxSeqNo = seqNoStats.maxSeqNo;
+            final long localCheckpoint = seqNoStats.localCheckpoint;
+            logger.trace("recovered maximum sequence number [{}] and local checkpoint [{}]", maxSeqNo, localCheckpoint);
+            final LocalCheckpointTracker tracker = localCheckpointTrackerSupplier.apply(maxSeqNo, localCheckpoint);
+            // Operations that are optimized using max_seq_no_of_updates optimization must not be processed twice; otherwise, they will
+            // create duplicates in Lucene. To avoid this we check the LocalCheckpointTracker to see if an operation was already processed.
+            // Thus, we need to restore the LocalCheckpointTracker bit by bit to ensure the consistency between LocalCheckpointTracker and
+            // Lucene index. This is not the only solution since we can bootstrap max_seq_no_of_updates with max_seq_no of the commit to
+            // disable the MSU optimization during recovery. Here we prefer to maintain the consistency of LocalCheckpointTracker.
+            if (localCheckpoint < maxSeqNo && engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
+                try (Searcher searcher = searcherSupplier.get()) {
+                    Lucene.scanSeqNosInReader(searcher.getDirectoryReader(), localCheckpoint + 1, maxSeqNo, tracker::markSeqNoAsCompleted);
+                }
+            }
+            return tracker;
+        } catch (IOException ex) {
+            throw new EngineCreationFailureException(engineConfig.getShardId(), "failed to create local checkpoint tracker", ex);
+        }
     }
 
     private SoftDeletesPolicy newSoftDeletesPolicy() throws IOException {
@@ -606,7 +623,7 @@ public class InternalEngine extends Engine {
                                     // in the case of a already pruned translog generation we might get null here - yet very unlikely
                                     TranslogLeafReader reader = new TranslogLeafReader((Translog.Index) operation, engineConfig
                                         .getIndexSettings().getIndexVersionCreated());
-                                    return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader)),
+                                    return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader), reader::close),
                                         new VersionsAndSeqNoResolver.DocIdAndVersion(0, ((Translog.Index) operation).version(), reader, 0));
                                 }
                             } catch (IOException e) {
@@ -665,6 +682,8 @@ public class InternalEngine extends Engine {
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
                     status = OpVsLuceneDocStatus.OP_NEWER;
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
+                    assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
+                        "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
                     // load term to tie break
                     final long existingTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docAndSeqNo, op.uid().field());
                     if (op.primaryTerm() > existingTerm) {
@@ -875,7 +894,7 @@ public class InternalEngine extends Engine {
              * requests, we can assert the replica have not seen the document of that append-only request, thus we can apply optimization.
              */
             assert index.version() == 1L : "can optimize on replicas but incoming version is [" + index.version() + "]";
-            plan = IndexingStrategy.optimizedAppendOnly(index.seqNo());
+            plan = IndexingStrategy.optimizedAppendOnly(index.seqNo(), 1L);
         } else {
             if (appendOnlyRequest == false) {
                 maxSeqNoOfNonAppendOnlyOperations.updateAndGet(curr -> Math.max(index.seqNo(), curr));
@@ -927,7 +946,7 @@ public class InternalEngine extends Engine {
                 plan = IndexingStrategy.overrideExistingAsIfNotThere(generateSeqNoForOperation(index), 1L);
                 versionMap.enforceSafeAccess();
             } else {
-                plan = IndexingStrategy.optimizedAppendOnly(generateSeqNoForOperation(index));
+                plan = IndexingStrategy.optimizedAppendOnly(generateSeqNoForOperation(index), 1L);
             }
         } else {
             versionMap.enforceSafeAccess();
@@ -976,6 +995,7 @@ public class InternalEngine extends Engine {
             if (plan.addStaleOpToLucene) {
                 addStaleDocs(index.docs(), indexWriter);
             } else if (plan.useLuceneUpdateDocument) {
+                assert assertMaxSeqNoOfUpdatesIsAdvanced(index.uid(), plan.seqNoForIndexing, true, true);
                 updateDocs(index.uid(), index.docs(), indexWriter);
             } else {
                 // document does not exists, we can optimize for create, but double check if assertions are running
@@ -1081,11 +1101,11 @@ public class InternalEngine extends Engine {
                     Optional.of(earlyResultOnPreFlightError);
         }
 
-        static IndexingStrategy optimizedAppendOnly(long seqNoForIndexing) {
-            return new IndexingStrategy(true, false, true, false, seqNoForIndexing, 1, null);
+        public static IndexingStrategy optimizedAppendOnly(long seqNoForIndexing, long versionForIndexing) {
+            return new IndexingStrategy(true, false, true, false, seqNoForIndexing, versionForIndexing, null);
         }
 
-        static IndexingStrategy skipDueToVersionConflict(
+        public static IndexingStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, boolean currentNotFoundOrDeleted, long currentVersion, long term) {
             final IndexResult result = new IndexResult(e, currentVersion, term);
             return new IndexingStrategy(
@@ -1103,7 +1123,8 @@ public class InternalEngine extends Engine {
             return new IndexingStrategy(true, true, true, false, seqNoForIndexing, versionForIndexing, null);
         }
 
-        static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long seqNoForIndexing, long versionForIndexing) {
+        public static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long seqNoForIndexing,
+                                                            long versionForIndexing) {
             return new IndexingStrategy(currentNotFoundOrDeleted, false, false, false, seqNoForIndexing, versionForIndexing, null);
         }
 
@@ -1275,8 +1296,8 @@ public class InternalEngine extends Engine {
         return plan;
     }
 
-    private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan)
-        throws IOException {
+    private DeleteResult deleteInLucene(Delete delete, DeletionStrategy plan) throws IOException {
+        assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), plan.seqNoOfDeletion, false, false);
         try {
             if (softDeleteEnabled) {
                 final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
@@ -1341,7 +1362,7 @@ public class InternalEngine extends Engine {
                 Optional.empty() : Optional.of(earlyResultOnPreflightError);
         }
 
-        static DeletionStrategy skipDueToVersionConflict(
+        public static DeletionStrategy skipDueToVersionConflict(
                 VersionConflictEngineException e, long currentVersion, long term, boolean currentlyDeleted) {
             final long unassignedSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
             final DeleteResult deleteResult = new DeleteResult(e, currentVersion, term, unassignedSeqNo, currentlyDeleted == false);
@@ -1388,32 +1409,42 @@ public class InternalEngine extends Engine {
         assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
         assert noOp.seqNo() > SequenceNumbers.NO_OPS_PERFORMED;
         final long seqNo = noOp.seqNo();
-        try {
-            Exception failure = null;
-            if (softDeleteEnabled) {
-                try {
-                    final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(noOp.reason());
-                    tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
-                    // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version field.
-                    // 1L is selected to optimize the compression because it might probably be the most common value in version field.
-                    tombstone.version().setLongValue(1L);
-                    assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
-                    final ParseContext.Document doc = tombstone.docs().get(0);
-                    assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
-                        : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
-                    doc.add(softDeletesField);
-                    indexWriter.addDocument(doc);
-                } catch (Exception ex) {
-                    if (maybeFailEngine("noop", ex)) {
-                        throw ex;
+        try (Releasable ignored = noOpKeyedLock.acquire(seqNo)) {
+            final NoOpResult noOpResult;
+            final Optional<Exception> preFlightError = preFlightCheckForNoOp(noOp);
+            if (preFlightError.isPresent()) {
+                noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo(), preFlightError.get());
+            } else {
+                Exception failure = null;
+                if (softDeleteEnabled) {
+                    try {
+                        final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(noOp.reason());
+                        tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
+                        // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version field.
+                        // 1L is selected to optimize the compression because it might probably be the most common value in version field.
+                        tombstone.version().setLongValue(1L);
+                        assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
+                        final ParseContext.Document doc = tombstone.docs().get(0);
+                        assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
+                            : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
+                        doc.add(softDeletesField);
+                        indexWriter.addDocument(doc);
+                    } catch (Exception ex) {
+                        if (maybeFailEngine("noop", ex)) {
+                            throw ex;
+                        }
+                        failure = ex;
                     }
-                    failure = ex;
                 }
-            }
-            final NoOpResult noOpResult = failure != null ? new NoOpResult(getPrimaryTerm(), noOp.seqNo(), failure) : new NoOpResult(getPrimaryTerm(), noOp.seqNo());
-            if (noOp.origin().isFromTranslog() == false) {
-                final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
-                noOpResult.setTranslogLocation(location);
+                if (failure == null) {
+                    noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo());
+                } else {
+                    noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo(), failure);
+                }
+                if (noOp.origin().isFromTranslog() == false && noOpResult.getResultType() == Result.Type.SUCCESS) {
+                    final Translog.Location location = translog.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
+                    noOpResult.setTranslogLocation(location);
+                }
             }
             noOpResult.setTook(System.nanoTime() - noOp.startTime());
             noOpResult.freeze();
@@ -1423,6 +1454,14 @@ public class InternalEngine extends Engine {
                 localCheckpointTracker.markSeqNoAsCompleted(seqNo);
             }
         }
+    }
+
+    /**
+     * Executes a pre-flight check for a given NoOp.
+     * If this method returns a non-empty result, the engine won't process this NoOp and returns a failure.
+     */
+    protected Optional<Exception> preFlightCheckForNoOp(final NoOp noOp) throws IOException {
+        return Optional.empty();
     }
 
     @Override
@@ -2084,7 +2123,7 @@ public class InternalEngine extends Engine {
             if (warmer != null) {
                 try {
                     assert searcher.getIndexReader() instanceof ElasticsearchDirectoryReader : "this class needs an ElasticsearchDirectoryReader but got: " + searcher.getIndexReader().getClass();
-                    warmer.warm(new Searcher("top_reader_warming", searcher));
+                    warmer.warm(new Searcher("top_reader_warming", searcher, () -> {}));
                 } catch (Exception e) {
                     if (isEngineClosed.get() == false) {
                         logger.warn("failed to prepare/warm", e);
@@ -2330,6 +2369,22 @@ public class InternalEngine extends Engine {
         localCheckpointTracker.waitForOpsToComplete(seqNo);
     }
 
+    /**
+     * Checks if the given operation has been processed in this engine or not.
+     * @return true if the given operation was processed; otherwise false.
+     */
+    protected final boolean hasBeenProcessedBefore(Operation op) {
+        if (Assertions.ENABLED) {
+            assert op.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO : "operation is not assigned seq_no";
+            if (op.operationType() == Operation.TYPE.NO_OP) {
+                assert noOpKeyedLock.isHeldByCurrentThread(op.seqNo());
+            } else {
+                assert versionMap.assertKeyedLockHeldByCurrentThread(op.uid().bytes());
+            }
+        }
+        return localCheckpointTracker.contains(op.seqNo());
+    }
+
     @Override
     public SeqNoStats getSeqNoStats(long globalCheckpoint) {
         return localCheckpointTracker.getStats(globalCheckpoint);
@@ -2398,9 +2453,7 @@ public class InternalEngine extends Engine {
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         // TODO: Should we defer the refresh until we really need it?
         ensureOpen();
-        if (lastRefreshedCheckpoint() < toSeqNo) {
-            refresh(source, SearcherScope.INTERNAL);
-        }
+        refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
@@ -2510,6 +2563,15 @@ public class InternalEngine extends Engine {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
     }
 
+    /**
+     * Refresh this engine **internally** iff the requesting seq_no is greater than the last refreshed checkpoint.
+     */
+    protected final void refreshIfNeeded(String source, long requestingSeqNo) {
+        if (lastRefreshedCheckpoint() < requestingSeqNo) {
+            refresh(source, SearcherScope.INTERNAL);
+        }
+    }
+
     private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
         final AtomicLong refreshedCheckpoint;
         private long pendingCheckpoint;
@@ -2556,6 +2618,29 @@ public class InternalEngine extends Engine {
         assert maxUnsafeAutoIdTimestamp.get() <= maxSeenAutoIdTimestamp.get();
     }
 
+    private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {
+        final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
+        // If the primary is on an old version which does not replicate msu, we need to relax this assertion for that.
+        if (maxSeqNoOfUpdates == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_5_0);
+            return true;
+        }
+        // We treat a delete on the tombstones on replicas as a regular document, then use updateDocument (not addDocument).
+        if (allowDeleted) {
+            final VersionValue versionValue = versionMap.getVersionForAssert(id.bytes());
+            if (versionValue != null && versionValue.isDelete()) {
+                return true;
+            }
+        }
+        // Operations can be processed on a replica in a different order than on the primary. If the order on the primary is index-1,
+        // delete-2, index-3, and the order on a replica is index-1, index-3, delete-2, then the msu of index-3 on the replica is 2
+        // even though it is an update (overwrites index-1). We should relax this assertion if there is a pending gap in the seq_no.
+        if (relaxIfGapInSeqNo && getLocalCheckpoint() < maxSeqNoOfUpdates) {
+            return true;
+        }
+        assert seqNo <= maxSeqNoOfUpdates : "id=" + id + " seq_no=" + seqNo + " msu=" + maxSeqNoOfUpdates;
+        return true;
+    }
 
     @Override
     public void initializeMaxSeqNoOfUpdatesOrDeletes() {

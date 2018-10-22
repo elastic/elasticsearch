@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -29,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Custom metadata that contains auto follow patterns and what leader indices an auto follow pattern has already followed.
@@ -79,16 +81,19 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
     public AutoFollowMetadata(Map<String, AutoFollowPattern> patterns,
                               Map<String, List<String>> followedLeaderIndexUUIDs,
                               Map<String, Map<String, String>> headers) {
-        this.patterns = patterns;
-        this.followedLeaderIndexUUIDs = followedLeaderIndexUUIDs;
-        this.headers = Collections.unmodifiableMap(headers);
+        this.patterns = Collections.unmodifiableMap(patterns);
+        this.followedLeaderIndexUUIDs = Collections.unmodifiableMap(followedLeaderIndexUUIDs.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> Collections.unmodifiableList(e.getValue()))));
+        this.headers = Collections.unmodifiableMap(headers.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> Collections.unmodifiableMap(e.getValue()))));
     }
 
     public AutoFollowMetadata(StreamInput in) throws IOException {
-        patterns = in.readMap(StreamInput::readString, AutoFollowPattern::new);
-        followedLeaderIndexUUIDs = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
-        headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString,
-            valIn -> Collections.unmodifiableMap(valIn.readMap(StreamInput::readString, StreamInput::readString))));
+        this(
+            in.readMap(StreamInput::readString, AutoFollowPattern::new),
+            in.readMapOfLists(StreamInput::readString, StreamInput::readString),
+            in.readMap(StreamInput::readString, valIn -> valIn.readMap(StreamInput::readString, StreamInput::readString))
+        );
     }
 
     public Map<String, AutoFollowPattern> getPatterns() {
@@ -170,11 +175,11 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
     public static class AutoFollowPattern implements Writeable, ToXContentObject {
 
-        private static final ParseField LEADER_PATTERNS_FIELD = new ParseField("leader_patterns");
-        private static final ParseField FOLLOW_PATTERN_FIELD = new ParseField("follow_pattern");
+        public static final ParseField LEADER_PATTERNS_FIELD = new ParseField("leader_index_patterns");
+        public static final ParseField FOLLOW_PATTERN_FIELD = new ParseField("follow_index_pattern");
         public static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
         public static final ParseField MAX_CONCURRENT_READ_BATCHES = new ParseField("max_concurrent_read_batches");
-        public static final ParseField MAX_BATCH_SIZE_IN_BYTES = new ParseField("max_batch_size_in_bytes");
+        public static final ParseField MAX_BATCH_SIZE = new ParseField("max_batch_size");
         public static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
         public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
         public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
@@ -184,14 +189,18 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         private static final ConstructingObjectParser<AutoFollowPattern, Void> PARSER =
             new ConstructingObjectParser<>("auto_follow_pattern",
                 args -> new AutoFollowPattern((List<String>) args[0], (String) args[1], (Integer) args[2], (Integer) args[3],
-                    (Long) args[4], (Integer) args[5], (Integer) args[6], (TimeValue) args[7], (TimeValue) args[8]));
+                    (ByteSizeValue) args[4], (Integer) args[5], (Integer) args[6], (TimeValue) args[7], (TimeValue) args[8]));
 
         static {
             PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LEADER_PATTERNS_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FOLLOW_PATTERN_FIELD);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_BATCH_OPERATION_COUNT);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_CONCURRENT_READ_BATCHES);
-            PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MAX_BATCH_SIZE_IN_BYTES);
+            PARSER.declareField(
+                    ConstructingObjectParser.optionalConstructorArg(),
+                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_BATCH_SIZE.getPreferredName()),
+                    MAX_BATCH_SIZE,
+                    ObjectParser.ValueType.STRING);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_CONCURRENT_WRITE_BATCHES);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_WRITE_BUFFER_SIZE);
             PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
@@ -206,7 +215,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         private final String followIndexPattern;
         private final Integer maxBatchOperationCount;
         private final Integer maxConcurrentReadBatches;
-        private final Long maxOperationSizeInBytes;
+        private final ByteSizeValue maxBatchSize;
         private final Integer maxConcurrentWriteBatches;
         private final Integer maxWriteBufferSize;
         private final TimeValue maxRetryDelay;
@@ -216,7 +225,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                                  String followIndexPattern,
                                  Integer maxBatchOperationCount,
                                  Integer maxConcurrentReadBatches,
-                                 Long maxOperationSizeInBytes,
+                                 ByteSizeValue maxBatchSize,
                                  Integer maxConcurrentWriteBatches,
                                  Integer maxWriteBufferSize,
                                  TimeValue maxRetryDelay,
@@ -225,7 +234,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             this.followIndexPattern = followIndexPattern;
             this.maxBatchOperationCount = maxBatchOperationCount;
             this.maxConcurrentReadBatches = maxConcurrentReadBatches;
-            this.maxOperationSizeInBytes = maxOperationSizeInBytes;
+            this.maxBatchSize = maxBatchSize;
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
             this.maxWriteBufferSize = maxWriteBufferSize;
             this.maxRetryDelay = maxRetryDelay;
@@ -237,7 +246,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             followIndexPattern = in.readOptionalString();
             maxBatchOperationCount = in.readOptionalVInt();
             maxConcurrentReadBatches = in.readOptionalVInt();
-            maxOperationSizeInBytes = in.readOptionalLong();
+            maxBatchSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxConcurrentWriteBatches = in.readOptionalVInt();
             maxWriteBufferSize = in.readOptionalVInt();
             maxRetryDelay = in.readOptionalTimeValue();
@@ -268,8 +277,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             return maxConcurrentReadBatches;
         }
 
-        public Long getMaxOperationSizeInBytes() {
-            return maxOperationSizeInBytes;
+        public ByteSizeValue getMaxBatchSize() {
+            return maxBatchSize;
         }
 
         public Integer getMaxConcurrentWriteBatches() {
@@ -294,7 +303,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             out.writeOptionalString(followIndexPattern);
             out.writeOptionalVInt(maxBatchOperationCount);
             out.writeOptionalVInt(maxConcurrentReadBatches);
-            out.writeOptionalLong(maxOperationSizeInBytes);
+            out.writeOptionalWriteable(maxBatchSize);
             out.writeOptionalVInt(maxConcurrentWriteBatches);
             out.writeOptionalVInt(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
@@ -313,8 +322,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             if (maxConcurrentReadBatches != null) {
                 builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
             }
-            if (maxOperationSizeInBytes != null) {
-                builder.field(MAX_BATCH_SIZE_IN_BYTES.getPreferredName(), maxOperationSizeInBytes);
+            if (maxBatchSize != null) {
+                builder.field(MAX_BATCH_SIZE.getPreferredName(), maxBatchSize.getStringRep());
             }
             if (maxConcurrentWriteBatches != null) {
                 builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
@@ -342,29 +351,28 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             if (o == null || getClass() != o.getClass()) return false;
             AutoFollowPattern that = (AutoFollowPattern) o;
             return Objects.equals(leaderIndexPatterns, that.leaderIndexPatterns) &&
-                Objects.equals(followIndexPattern, that.followIndexPattern) &&
-                Objects.equals(maxBatchOperationCount, that.maxBatchOperationCount) &&
-                Objects.equals(maxConcurrentReadBatches, that.maxConcurrentReadBatches) &&
-                Objects.equals(maxOperationSizeInBytes, that.maxOperationSizeInBytes) &&
-                Objects.equals(maxConcurrentWriteBatches, that.maxConcurrentWriteBatches) &&
-                Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
-                Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
-                Objects.equals(pollTimeout, that.pollTimeout);
+                    Objects.equals(followIndexPattern, that.followIndexPattern) &&
+                    Objects.equals(maxBatchOperationCount, that.maxBatchOperationCount) &&
+                    Objects.equals(maxConcurrentReadBatches, that.maxConcurrentReadBatches) &&
+                    Objects.equals(maxBatchSize, that.maxBatchSize) &&
+                    Objects.equals(maxConcurrentWriteBatches, that.maxConcurrentWriteBatches) &&
+                    Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
+                    Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
+                    Objects.equals(pollTimeout, that.pollTimeout);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(
-                leaderIndexPatterns,
-                followIndexPattern,
-                maxBatchOperationCount,
-                maxConcurrentReadBatches,
-                maxOperationSizeInBytes,
-                maxConcurrentWriteBatches,
-                maxWriteBufferSize,
-                maxRetryDelay,
-                pollTimeout
-            );
+                    leaderIndexPatterns,
+                    followIndexPattern,
+                    maxBatchOperationCount,
+                    maxConcurrentReadBatches,
+                    maxBatchSize,
+                    maxConcurrentWriteBatches,
+                    maxWriteBufferSize,
+                    maxRetryDelay,
+                    pollTimeout);
         }
     }
 

@@ -223,6 +223,7 @@ public class TcpTransportTests extends ESTestCase {
 
             StreamInput streamIn = reference.streamInput();
             streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
+            @SuppressWarnings("unused")
             int len = streamIn.readInt();
             long requestId = streamIn.readLong();
             assertEquals(42, requestId);

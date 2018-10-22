@@ -1,11 +1,15 @@
 ---
 "Not supported versions":
 
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
  - do:
       catch:            /Validation|Invalid/
       update:
+          include_type_name: false
           index:        test_1
-          type:         test
           id:           1
           version:      2
           version_type: external
@@ -16,8 +20,8 @@
  - do:
       catch:            /Validation|Invalid/
       update:
+          include_type_name: false
           index:        test_1
-          type:         test
           id:           1
           version:      2
           version_type: external_gte

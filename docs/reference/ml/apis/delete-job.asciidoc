@@ -41,6 +41,9 @@ separated list.
   (boolean) Use to forcefully delete an opened job; this method is quicker than
   closing and deleting the job.
 
+`wait_for_completion`::
+  (boolean) Specifies whether the request should return immediately or wait
+  until the job deletion completes. Defaults to `true`.
 
 ==== Authorization
 
@@ -67,3 +70,22 @@ When the job is deleted, you receive the following results:
 }
 ----
 // TESTRESPONSE
+
+In the next example we delete the `total-requests` job asynchronously:
+
+[source,js]
+--------------------------------------------------
+DELETE _xpack/ml/anomaly_detectors/total-requests?wait_for_completion=false
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:setup:server_metrics_job]
+
+When `wait_for_completion` is set to `false`, the response contains the id
+of the job deletion task:
+[source,js]
+----
+{
+  "task": "oTUltX4IQMOUUVeiohTt8A:39"
+}
+----
+// TESTRESPONSE[s/"task": "oTUltX4IQMOUUVeiohTt8A:39"/"task": $body.task/]

@@ -1,0 +1,122 @@
+setup:
+  - skip:
+        version: " - 6.4.99"
+        reason:  "added in 6.5.0"
+  - do:
+        indices.create:
+            index: test
+            body:
+              settings:
+                number_of_replicas: 0
+              mappings:
+                _doc:
+                  properties:
+                    int_field:
+                      type: integer
+                    double_field:
+                      type: double
+                    incomplete_field:
+                      type: integer
+  - do:
+        bulk:
+          refresh: true
+          body:
+            - index:
+                _index: test
+                _type: _doc
+            - int_field: 100
+              double_field: 100.0
+              incomplete_field: 1000
+            - index:
+                _index: test
+                _type: _doc
+            - int_field: 200
+              double_field: 200.0
+              incomplete_field: 2000
+            - index:
+                _index: test
+                _type: _doc
+            - int_field: 300
+              double_field: 300.0
+
+---
+"basic test":
+
+  - do:
+      search:
+        body:
+          aggs:
+            mad_int:
+              mad:
+                field: int_field
+            mad_double:
+              mad:
+                field: double_field
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+
+  - match: { aggregations.mad_int.value: 100 }
+  - match: { aggregations.mad_double.value: 100 }
+
+---
+"with setting compression":
+
+  - do:
+      search:
+        body:
+          aggs:
+            mad_int:
+              mad:
+                field: int_field
+                compression: 500
+            mad_double:
+              mad:
+                field: double_field
+                compression: 500
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+
+  - match: { aggregations.mad_int.value: 100 }
+  - match: { aggregations.mad_double.value: 100 }
+
+---
+"missing value":
+
+  - do:
+      search:
+        body:
+          aggs:
+            mad_missing:
+              mad:
+                field: incomplete_field
+                missing: 3000
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+
+  - match: { aggregations.mad_missing.value: 1000 }
+
+---
+"bad arguments":
+
+  - do:
+      catch: /\[compression\] must be greater than 0. Found \[0.0\] in \[mad\]/
+      search:
+        body:
+          aggs:
+            mad:
+              mad:
+                field: int_field
+                compression: 0
+
+  - do:
+      catch: /\[compression\] must be greater than 0. Found \[-1.0\] in \[mad\]/
+      search:
+        body:
+          aggs:
+            mad:
+              mad:
+                field: int_field
+                compression: -1

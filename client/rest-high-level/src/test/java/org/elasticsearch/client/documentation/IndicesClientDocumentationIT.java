@@ -264,9 +264,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             {
                 // tag::create-index-request-mappings
-                request.mapping("tweet", // <1>
+                request.mapping("_doc", // <1>
                         "{\n" +
-                        "  \"tweet\": {\n" +
+                        "  \"_doc\": {\n" +
                         "    \"properties\": {\n" +
                         "      \"message\": {\n" +
                         "        \"type\": \"text\"\n" +
@@ -288,10 +288,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 message.put("type", "text");
                 Map<String, Object> properties = new HashMap<>();
                 properties.put("message", message);
-                Map<String, Object> tweet = new HashMap<>();
-                tweet.put("properties", properties);
-                jsonMap.put("tweet", tweet);
-                request.mapping("tweet", jsonMap); // <1>
+                Map<String, Object> mapping = new HashMap<>();
+                mapping.put("properties", properties);
+                jsonMap.put("_doc", mapping);
+                request.mapping("_doc", jsonMap); // <1>
                 //end::create-index-mappings-map
                 CreateIndexResponse createIndexResponse = client.indices().create(request);
                 assertTrue(createIndexResponse.isAcknowledged());
@@ -302,7 +302,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 builder.startObject();
                 {
-                    builder.startObject("tweet");
+                    builder.startObject("_doc");
                     {
                         builder.startObject("properties");
                         {
@@ -317,7 +317,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     builder.endObject();
                 }
                 builder.endObject();
-                request.mapping("tweet", builder); // <1>
+                request.mapping("_doc", builder); // <1>
                 //end::create-index-mappings-xcontent
                 CreateIndexResponse createIndexResponse = client.indices().create(request);
                 assertTrue(createIndexResponse.isAcknowledged());
@@ -325,7 +325,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             {
                 request = new CreateIndexRequest("twitter4");
                 //tag::create-index-mappings-shortcut
-                request.mapping("tweet", "message", "type=text"); // <1>
+                request.mapping("_doc", "message", "type=text"); // <1>
                 //end::create-index-mappings-shortcut
                 CreateIndexResponse createIndexResponse = client.indices().create(request);
                 assertTrue(createIndexResponse.isAcknowledged());
@@ -361,7 +361,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "        \"number_of_replicas\" : 0\n" +
                     "    },\n" +
                     "    \"mappings\" : {\n" +
-                    "        \"tweet\" : {\n" +
+                    "        \"_doc\" : {\n" +
                     "            \"properties\" : {\n" +
                     "                \"message\" : { \"type\" : \"text\" }\n" +
                     "            }\n" +
@@ -431,7 +431,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             // tag::put-mapping-request
             PutMappingRequest request = new PutMappingRequest("twitter"); // <1>
-            request.type("tweet"); // <2>
+            request.type("_doc"); // <2>
             // end::put-mapping-request
 
             {
@@ -521,7 +521,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
 
         {
-            PutMappingRequest request = new PutMappingRequest("twitter").type("tweet");
+            PutMappingRequest request = new PutMappingRequest("twitter").type("_doc");
 
             // tag::put-mapping-execute-listener
             ActionListener<PutMappingResponse> listener =
@@ -1482,5 +1482,4 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
-
 }

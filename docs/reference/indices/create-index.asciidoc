@@ -84,7 +84,7 @@ PUT test
         "number_of_shards" : 1
     },
     "mappings" : {
-        "type1" : {
+        "_doc" : {
             "properties" : {
                 "field1" : { "type" : "text" }
             }

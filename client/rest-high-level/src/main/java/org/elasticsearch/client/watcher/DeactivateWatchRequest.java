@@ -19,11 +19,9 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 
 import java.util.Objects;
-import java.util.Optional;
 
 public class DeactivateWatchRequest implements Validatable {
     private final String watchId;
@@ -31,6 +29,10 @@ public class DeactivateWatchRequest implements Validatable {
     public DeactivateWatchRequest(String watchId) {
 
         Objects.requireNonNull(watchId, "watch id is missing");
+        if (PutWatchRequest.isValidId(watchId) == false) {
+            throw new IllegalArgumentException("watch id contains whitespace");
+        }
+
         this.watchId = watchId;
     }
 

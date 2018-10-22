@@ -19,10 +19,8 @@
 
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
 public class DeactivateWatchRequestTests extends ESTestCase {
@@ -32,4 +30,12 @@ public class DeactivateWatchRequestTests extends ESTestCase {
         assertNotNull(actual);
         assertThat(actual.getMessage(), is("watch id is missing"));
     }
+
+    public void testInvalidId() {
+        IllegalArgumentException actual = expectThrows(IllegalArgumentException.class,
+            () -> new DeactivateWatchRequest("Watch id has spaces"));
+        assertNotNull(actual);
+        assertThat(actual.getMessage(), is("watch id contains whitespace"));
+    }
+
 }

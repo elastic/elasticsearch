@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
@@ -129,5 +130,23 @@ public class BaseTasksResponse extends ActionResponse {
             }
             builder.endArray();
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        BaseTasksResponse response = (BaseTasksResponse) o;
+        return taskFailures.equals(response.taskFailures)
+            && nodeFailures.equals(response.nodeFailures);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(taskFailures, nodeFailures);
     }
 }

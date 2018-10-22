@@ -164,12 +164,12 @@ public class DeleteRollupJobAction extends Action<DeleteRollupJobAction.Response
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DeleteRollupJobAction.Response response = (DeleteRollupJobAction.Response) o;
-            return acknowledged == response.acknowledged;
+            return super.equals(o) && acknowledged == response.acknowledged;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(acknowledged);
+            return Objects.hash(super.hashCode(), acknowledged);
         }
     }
 }

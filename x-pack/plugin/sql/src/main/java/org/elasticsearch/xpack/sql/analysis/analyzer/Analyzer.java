@@ -487,7 +487,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (ordinal != null) {
                         changed = true;
                         if (ordinal > 0 && ordinal <= max) {
-                            newOrder.add(new Order(order.location(), orderBy.child().output().get(ordinal - 1), order.direction()));
+                            newOrder.add(new Order(order.location(), orderBy.child().output().get(ordinal - 1), order.direction(),
+                                    order.nullsPosition()));
                         }
                         else {
                             throw new AnalysisException(order, "Invalid %d specified in OrderBy (valid range is [1, %d])", ordinal, max);

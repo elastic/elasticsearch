@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -21,7 +22,7 @@ import java.util.function.BiConsumer;
  */
 public class CustomInMemoryRolesProvider
     extends AbstractComponent
-    implements BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>> {
+    implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
     public static final String INDEX = "foo";
     public static final String ROLE_A = "roleA";
@@ -35,7 +36,7 @@ public class CustomInMemoryRolesProvider
     }
 
     @Override
-    public void accept(Set<String> roles, ActionListener<Set<RoleDescriptor>> listener) {
+    public void accept(Set<String> roles, ActionListener<RoleRetrievalResult> listener) {
         Set<RoleDescriptor> roleDescriptors = new HashSet<>();
         for (String role : roles) {
             if (rolePermissionSettings.containsKey(role)) {
@@ -52,6 +53,6 @@ public class CustomInMemoryRolesProvider
             }
         }
 
-        listener.onResponse(roleDescriptors);
+        listener.onResponse(RoleRetrievalResult.success(roleDescriptors));
     }
 }

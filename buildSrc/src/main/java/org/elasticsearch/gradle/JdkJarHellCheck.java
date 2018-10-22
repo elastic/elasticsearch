@@ -43,7 +43,7 @@ public class JdkJarHellCheck {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                 String entry = root.relativize(file).toString().replace('\\', '/');
-                if (entry.endsWith(".class")) {
+                if (entry.endsWith(".class") && entry.endsWith("module-info.class") == false) {
                     if (ext.getResource(entry) != null) {
                         detected.add(
                             entry

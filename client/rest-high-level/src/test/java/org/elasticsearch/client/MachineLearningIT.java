@@ -33,6 +33,7 @@ import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
+import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -41,6 +42,8 @@ import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
+import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
+import org.elasticsearch.client.ml.GetDatafeedStatsResponse;
 import org.elasticsearch.client.ml.GetJobRequest;
 import org.elasticsearch.client.ml.GetJobResponse;
 import org.elasticsearch.client.ml.GetJobStatsRequest;
@@ -65,6 +68,8 @@ import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.client.ml.datafeed.DatafeedState;
+import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -147,17 +152,33 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(response.jobs().stream().map(Job::getId).collect(Collectors.toList()), hasItems(jobId1, jobId2));
     }
 
-    public void testDeleteJob() throws Exception {
+    public void testDeleteJob_GivenWaitForCompletionIsTrue() throws Exception {
         String jobId = randomValidJobId();
         Job job = buildJob(jobId);
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
 
-        AcknowledgedResponse response = execute(new DeleteJobRequest(jobId),
+        DeleteJobResponse response = execute(new DeleteJobRequest(jobId),
             machineLearningClient::deleteJob,
             machineLearningClient::deleteJobAsync);
 
-        assertTrue(response.isAcknowledged());
+        assertTrue(response.getAcknowledged());
+        assertNull(response.getTask());
+    }
+
+    public void testDeleteJob_GivenWaitForCompletionIsFalse() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        DeleteJobRequest deleteJobRequest = new DeleteJobRequest(jobId);
+        deleteJobRequest.setWaitForCompletion(false);
+
+        DeleteJobResponse response = execute(deleteJobRequest, machineLearningClient::deleteJob, machineLearningClient::deleteJobAsync);
+
+        assertNull(response.getAcknowledged());
+        assertNotNull(response.getTask());
     }
 
     public void testOpenJob() throws Exception {
@@ -567,6 +588,76 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 () -> execute(request, machineLearningClient::stopDatafeed, machineLearningClient::stopDatafeedAsync));
             assertThat(exception.status().getStatus(), equalTo(404));
         }
+    }
+
+    public void testGetDatafeedStats() throws Exception {
+        String jobId1 = "ml-get-datafeed-stats-test-id-1";
+        String jobId2 = "ml-get-datafeed-stats-test-id-2";
+        String indexName = "datafeed_stats_data_1";
+
+        // Set up the index
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+
+        // create the job and the datafeed
+        Job job1 = buildJob(jobId1);
+        putJob(job1);
+        openJob(job1);
+
+        Job job2 = buildJob(jobId2);
+        putJob(job2);
+
+        String datafeedId1 = createAndPutDatafeed(jobId1, indexName);
+        String datafeedId2 = createAndPutDatafeed(jobId2, indexName);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        machineLearningClient.startDatafeed(new StartDatafeedRequest(datafeedId1), RequestOptions.DEFAULT);
+
+        GetDatafeedStatsRequest request = new GetDatafeedStatsRequest(datafeedId1);
+
+        // Test getting specific
+        GetDatafeedStatsResponse response =
+            execute(request, machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync);
+
+        assertEquals(1, response.count());
+        assertThat(response.datafeedStats(), hasSize(1));
+        assertThat(response.datafeedStats().get(0).getDatafeedId(), equalTo(datafeedId1));
+        assertThat(response.datafeedStats().get(0).getDatafeedState().toString(), equalTo(DatafeedState.STARTED.toString()));
+
+        // Test getting all explicitly
+        request = GetDatafeedStatsRequest.getAllDatafeedStatsRequest();
+        response = execute(request, machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync);
+
+        assertTrue(response.count() >= 2L);
+        assertTrue(response.datafeedStats().size() >= 2L);
+        assertThat(response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
+            hasItems(datafeedId1, datafeedId2));
+
+        // Test getting all implicitly
+        response =
+            execute(new GetDatafeedStatsRequest(), machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync);
+
+        assertTrue(response.count() >= 2L);
+        assertTrue(response.datafeedStats().size() >= 2L);
+        assertThat(response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
+            hasItems(datafeedId1, datafeedId2));
+
+        // Test getting all with wildcard
+        request = new GetDatafeedStatsRequest("ml-get-datafeed-stats-test-id-*");
+        response = execute(request, machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync);
+        assertEquals(2L, response.count());
+        assertThat(response.datafeedStats(), hasSize(2));
+        assertThat(response.datafeedStats().stream().map(DatafeedStats::getDatafeedId).collect(Collectors.toList()),
+            hasItems(datafeedId1, datafeedId2));
+
+        // Test when allow_no_jobs is false
+        final GetDatafeedStatsRequest erroredRequest = new GetDatafeedStatsRequest("datafeeds-that-do-not-exist*");
+        erroredRequest.setAllowNoDatafeeds(false);
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(erroredRequest, machineLearningClient::getDatafeedStats, machineLearningClient::getDatafeedStatsAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
     }
 
     public void testPreviewDatafeed() throws Exception {

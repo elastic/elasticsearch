@@ -29,7 +29,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static java.util.Collections.singletonMap;
 
-public class EmptyDirTaskTest extends GradleUnitTestCase {
+public class EmptyDirTaskTests extends GradleUnitTestCase {
 
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();

@@ -16,16 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack;
+package org.elasticsearch.client.license;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.client.Validatable;
 
-public class XPackUsageRequest extends MasterNodeRequest<XPackUsageRequest> {
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
+public class GetLicenseRequest implements Validatable {
+
+    protected boolean local = false;
+
+    public GetLicenseRequest() {
     }
 
+    public boolean isLocal() {
+        return local;
+    }
+
+    public void setLocal(boolean local) {
+        this.local = local;
+    }
 }

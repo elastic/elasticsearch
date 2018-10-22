@@ -16,23 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.license;
 
-import org.elasticsearch.action.ActionResponse;
+package org.elasticsearch.client.security;
 
-public class GetLicenseResponse extends ActionResponse {
+import org.elasticsearch.client.Validatable;
 
-    private String license;
+import java.util.Objects;
 
-    GetLicenseResponse() {
+/**
+ * A request delete a role from the security index
+ */
+public final class DeleteRoleRequest implements Validatable {
+
+    private final String name;
+    private final RefreshPolicy refreshPolicy;
+
+    public DeleteRoleRequest(String name) {
+        this(name,  RefreshPolicy.IMMEDIATE);
     }
 
-    public GetLicenseResponse(String license) {
-        this.license = license;
+    public DeleteRoleRequest(String name, RefreshPolicy refreshPolicy) {
+        this.name = Objects.requireNonNull(name, "name is required");
+        this.refreshPolicy = Objects.requireNonNull(refreshPolicy, "refresh policy is required");
     }
 
-    public String getLicenseDefinition() {
-        return license;
+    public String getName() {
+        return name;
     }
 
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
+    }
 }

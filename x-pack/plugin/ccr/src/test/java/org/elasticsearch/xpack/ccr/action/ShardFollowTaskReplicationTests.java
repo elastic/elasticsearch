@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -233,7 +234,6 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34412")
     public void testRetryBulkShardOperations() throws Exception {
         try (ReplicationGroup leaderGroup = createGroup(between(0, 1));
              ReplicationGroup followerGroup = createFollowGroup(between(1, 3))) {
@@ -241,6 +241,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             followerGroup.startAll();
             leaderGroup.appendDocs(between(10, 100));
             leaderGroup.refresh("test");
+            for (int numNoOps = between(1, 10), i = 0; i < numNoOps; i++) {
+                long seqNo = leaderGroup.getPrimary().seqNoStats().getMaxSeqNo() + 1;
+                Engine.NoOp noOp = new Engine.NoOp(seqNo, leaderGroup.getPrimary().getOperationPrimaryTerm(),
+                    Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), "test-" + i);
+                for (IndexShard shard : leaderGroup) {
+                    getEngine(shard).noOp(noOp);
+                }
+            }
             for (String deleteId : randomSubsetOf(IndexShardTestCase.getShardDocUIDs(leaderGroup.getPrimary()))) {
                 BulkItemResponse resp = leaderGroup.delete(new DeleteRequest("test", "type", deleteId));
                 assertThat(resp.getFailure(), nullValue());
@@ -277,11 +285,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
             shardFollowTask.start(followerGroup.getPrimary().getHistoryUUID(), leadingPrimary.getGlobalCheckpoint(),
                 leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(), followerSeqNoStats.getGlobalCheckpoint(), followerSeqNoStats.getMaxSeqNo());
-            assertBusy(() -> {
-                assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leadingPrimary.getGlobalCheckpoint()));
-                assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
-            });
-            shardFollowTask.markAsCompleted();
+            try {
+                assertBusy(() -> {
+                    assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leadingPrimary.getGlobalCheckpoint()));
+                    assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
+                });
+            } finally {
+                shardFollowTask.markAsCompleted();
+            }
         }
     }
 
@@ -345,7 +356,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
     private ReplicationGroup createFollowGroup(int replicas) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+        settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB));
         return createGroup(replicas, settingsBuilder.build());
     }
 

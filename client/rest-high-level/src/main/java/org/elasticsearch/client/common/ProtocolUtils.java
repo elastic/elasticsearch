@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.protocol.xpack.common;
+package org.elasticsearch.client.common;
 
 import java.util.Arrays;
 import java.util.Map;

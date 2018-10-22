@@ -9,7 +9,7 @@
 [[java-rest-high-watcher-stop-watch-service-execution]]
 ==== Execution
 
-{xpack-ref}/watcher-api-stop.html[Stop watcher] enables you
+{ref}/watcher-api-stop.html[Stop watcher] enables you
 to manually stop the watch service. Submit the following request
 to stop the watch service:
 

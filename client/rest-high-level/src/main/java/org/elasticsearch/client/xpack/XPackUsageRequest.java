@@ -16,15 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.xpack;
 
-import java.io.IOException;
+import org.elasticsearch.client.TimedRequest;
 
-import org.elasticsearch.test.ESTestCase;
+public class XPackUsageRequest extends TimedRequest {
 
-public class LicenseStatusTests extends ESTestCase {
-    public void testSerialization() throws IOException {
-        LicenseStatus status = randomFrom(LicenseStatus.values());
-        assertSame(status, copyWriteable(status, writableRegistry(), LicenseStatus::readFrom));
-    }
 }

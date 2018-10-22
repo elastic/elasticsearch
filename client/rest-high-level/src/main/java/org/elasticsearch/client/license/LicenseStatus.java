@@ -16,26 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.license;
+package org.elasticsearch.client.license;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
+/**
+ * Status of an X-Pack license.
+ */
+public enum LicenseStatus {
 
-import java.io.IOException;
+    ACTIVE("active"),
+    INVALID("invalid"),
+    EXPIRED("expired");
 
+    private final String label;
 
-public class GetLicenseRequest extends MasterNodeReadRequest<GetLicenseRequest> {
-
-    public GetLicenseRequest() {
+    LicenseStatus(String label) {
+        this.label = label;
     }
 
-    public GetLicenseRequest(StreamInput in) throws IOException {
-        super(in);
+    public String label() {
+        return label;
     }
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    public static LicenseStatus fromString(String value) {
+        switch (value) {
+            case "active":
+                return ACTIVE;
+            case "invalid":
+                return INVALID;
+            case "expired":
+                return EXPIRED;
+            default:
+                throw new IllegalArgumentException("unknown license status [" + value + "]");
+        }
     }
 }

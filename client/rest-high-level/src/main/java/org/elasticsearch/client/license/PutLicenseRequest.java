@@ -16,16 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.protocol.xpack.license;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+package org.elasticsearch.client.license;
 
+import org.elasticsearch.client.TimedRequest;
 
-public class DeleteLicenseRequest extends AcknowledgedRequest<DeleteLicenseRequest> {
+public class PutLicenseRequest extends TimedRequest {
 
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    private String licenseDefinition;
+    private boolean acknowledge = false;
+
+    public PutLicenseRequest() {
+    }
+
+    public void setLicenseDefinition(String licenseDefinition) {
+        this.licenseDefinition = licenseDefinition;
+    }
+
+    public String getLicenseDefinition() {
+        return licenseDefinition;
+    }
+
+    public void setAcknowledge(boolean acknowledge) {
+        this.acknowledge = acknowledge;
+    }
+
+    public boolean isAcknowledge() {
+        return acknowledge;
     }
 }

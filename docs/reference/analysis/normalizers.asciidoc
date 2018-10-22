@@ -48,7 +48,7 @@ PUT index
     }
   },
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "keyword",

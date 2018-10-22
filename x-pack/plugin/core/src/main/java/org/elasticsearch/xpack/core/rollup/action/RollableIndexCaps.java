@@ -9,14 +9,15 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Represents the rollup capabilities of a non-rollup index.  E.g. what values/aggregations
@@ -25,24 +26,23 @@ import java.util.Objects;
  *
  * The index name can either be a single index, or an index pattern (logstash-*)
  */
-public class RollableIndexCaps implements Writeable, ToXContentFragment {
-    static ParseField ROLLUP_JOBS = new ParseField("rollup_jobs");
+public class RollableIndexCaps implements Writeable, ToXContentObject {
+    private static final ParseField ROLLUP_JOBS = new ParseField("rollup_jobs");
 
-    private String indexName;
-    private List<RollupJobCaps> jobCaps;
+    private final String indexName;
+    private final List<RollupJobCaps> jobCaps;
 
-    public RollableIndexCaps(String indexName) {
+    public RollableIndexCaps(String indexName, List<RollupJobCaps> caps) {
         this.indexName = indexName;
-        this.jobCaps = new ArrayList<>();
+        this.jobCaps = Collections.unmodifiableList(Objects.requireNonNull(caps)
+            .stream()
+            .sorted(Comparator.comparing(RollupJobCaps::getJobID))
+            .collect(Collectors.toList()));
     }
 
     public RollableIndexCaps(StreamInput in) throws IOException {
         this.indexName = in.readString();
         this.jobCaps = in.readList(RollupJobCaps::new);
-    }
-
-    public void addJobCap(RollupJobCaps jobCap) {
-        jobCaps.add(jobCap);
     }
 
     public String getIndexName() {
@@ -62,8 +62,9 @@ public class RollableIndexCaps implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(indexName);
-        jobCaps.sort(Comparator.comparing(RollupJobCaps::getJobID));
-        builder.field(ROLLUP_JOBS.getPreferredName(), jobCaps);
+        {
+            builder.field(ROLLUP_JOBS.getPreferredName(), jobCaps);
+        }
         builder.endObject();
         return builder;
     }
@@ -81,7 +82,7 @@ public class RollableIndexCaps implements Writeable, ToXContentFragment {
         RollableIndexCaps that = (RollableIndexCaps) other;
 
         return Objects.equals(this.jobCaps, that.jobCaps)
-                && Objects.equals(this.indexName, that.indexName);
+            && Objects.equals(this.indexName, that.indexName);
     }
 
     @Override

@@ -237,6 +237,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.isMappingUpToDate()).thenReturn(true);
         when(securityIndex.isIndexUpToDate()).thenReturn(true);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();

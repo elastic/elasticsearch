@@ -152,8 +152,11 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
     }
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
-        if (securityIndex.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(false);
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client.prepareDelete(SecurityIndexManager.SECURITY_INDEX_NAME,

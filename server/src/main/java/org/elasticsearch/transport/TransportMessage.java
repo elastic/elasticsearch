@@ -39,9 +39,16 @@ public abstract class TransportMessage implements Streamable, Writeable {
         return remoteAddress;
     }
 
+    /**
+     * Constructs a new empty transport message
+     */
     public TransportMessage() {
     }
 
+    /**
+     * Constructs a new transport message with the data from the {@link StreamInput}. This is
+     * currently a no-op
+     */
     public TransportMessage(StreamInput in) throws IOException {
     }
 

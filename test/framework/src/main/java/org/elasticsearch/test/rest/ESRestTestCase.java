@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest;
 
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.HttpStatus;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
@@ -31,6 +32,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +54,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import javax.net.ssl.SSLContext;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -70,6 +73,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
@@ -205,6 +209,60 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected static RestClient adminClient() {
         return adminClient;
+    }
+
+    /**
+     * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete.
+     *
+     * @param adminClient the admin client
+     * @throws Exception if an exception is thrown while checking the outstanding tasks
+     */
+    public static void waitForPendingTasks(final RestClient adminClient) throws Exception {
+        waitForPendingTasks(adminClient, taskName -> false);
+    }
+
+    /**
+     * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified filter is used
+     * to filter out outstanding tasks that are expected to be there.
+     *
+     * @param adminClient the admin client
+     * @param taskFilter  predicate used to filter tasks that are expected to be there
+     * @throws Exception if an exception is thrown while checking the outstanding tasks
+     */
+    public static void waitForPendingTasks(final RestClient adminClient, final Predicate<String> taskFilter) throws Exception {
+        assertBusy(() -> {
+            try {
+                final Request request = new Request("GET", "/_cat/tasks");
+                request.addParameter("detailed", "true");
+                final Response response = adminClient.performRequest(request);
+                /*
+                 * Check to see if there are outstanding tasks; we exclude the list task itself, and any expected outstanding tasks using
+                 * the specified task filter.
+                 */
+                if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+                    try (BufferedReader responseReader = new BufferedReader(
+                            new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
+                        int activeTasks = 0;
+                        String line;
+                        final StringBuilder tasksListString = new StringBuilder();
+                        while ((line = responseReader.readLine()) != null) {
+                            final String taskName = line.split("\\s+")[0];
+                            if (taskName.startsWith(ListTasksAction.NAME) || taskFilter.test(taskName)) {
+                                continue;
+                            }
+                            activeTasks++;
+                            tasksListString.append(line);
+                            tasksListString.append('\n');
+                        }
+                        assertEquals(activeTasks + " active tasks found:\n" + tasksListString, 0, activeTasks);
+                    }
+                }
+            } catch (final IOException e) {
+                throw new AssertionError("error getting active tasks list", e);
+            }
+        });
     }
 
     /**
@@ -413,32 +471,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void waitForPendingRollupTasks() throws Exception {
-        assertBusy(() -> {
-            try {
-                Request request = new Request("GET", "/_cat/tasks");
-                request.addParameter("detailed", "true");
-                Response response = adminClient().performRequest(request);
-
-                try (BufferedReader responseReader = new BufferedReader(
-                        new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
-                    int activeTasks = 0;
-                    String line;
-                    StringBuilder tasksListString = new StringBuilder();
-                    while ((line = responseReader.readLine()) != null) {
-
-                        // We only care about Rollup jobs, otherwise this fails too easily due to unrelated tasks
-                        if (line.startsWith("xpack/rollup/job") == true) {
-                            activeTasks++;
-                            tasksListString.append(line).append('\n');
-                        }
-                    }
-                    assertEquals(activeTasks + " active tasks found:\n" + tasksListString, 0, activeTasks);
-                }
-            } catch (IOException e) {
-                // Throw an assertion error so we retry
-                throw new AssertionError("Error getting active tasks list", e);
-            }
-        });
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
 
     /**

@@ -64,9 +64,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         new Setting<>("indices.breaker.request.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
     public static final Setting<ByteSizeValue> ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.memorySizeSetting("indices.breaker.accounting.limit", "100%", Property.NodeScope);
+        Setting.memorySizeSetting("indices.breaker.accounting.limit", "100%", Property.Dynamic, Property.NodeScope);
     public static final Setting<Double> ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING =
-        Setting.doubleSetting("indices.breaker.accounting.overhead", 1.0d, 0.0d, Property.NodeScope);
+        Setting.doubleSetting("indices.breaker.accounting.overhead", 1.0d, 0.0d, Property.Dynamic, Property.NodeScope);
     public static final Setting<CircuitBreaker.Type> ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING =
         new Setting<>("indices.breaker.accounting.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
 
@@ -129,6 +129,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         clusterSettings.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING, FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setFieldDataBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING, IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setInFlightRequestsBreakerLimit);
         clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING, REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setRequestBreakerLimit);
+        clusterSettings.addSettingsUpdateConsumer(ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING, ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING, this::setAccountingBreakerLimit);
     }
 
     private void setRequestBreakerLimit(ByteSizeValue newRequestMax, Double newRequestOverhead) {
@@ -155,6 +156,14 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         registerBreaker(newFielddataSettings);
         HierarchyCircuitBreakerService.this.fielddataSettings = newFielddataSettings;
         logger.info("Updated breaker settings field data: {}", newFielddataSettings);
+    }
+
+    private void setAccountingBreakerLimit(ByteSizeValue newAccountingMax, Double newAccountingOverhead) {
+        BreakerSettings newAccountingSettings = new BreakerSettings(CircuitBreaker.ACCOUNTING, newAccountingMax.getBytes(),
+            newAccountingOverhead, HierarchyCircuitBreakerService.this.inFlightRequestsSettings.getType());
+        registerBreaker(newAccountingSettings);
+        HierarchyCircuitBreakerService.this.accountingSettings = newAccountingSettings;
+        logger.info("Updated breaker settings for accounting requests: {}", newAccountingSettings);
     }
 
     private boolean validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {

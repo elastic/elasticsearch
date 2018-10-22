@@ -113,6 +113,8 @@ public abstract class MetaDataStateFormat<T> {
                     builder.endObject();
                 }
                 CodecUtil.writeFooter(out);
+            } catch (IllegalStateException e) {
+                throw new IOException(e);
             }
 
             stateDir.sync(Collections.singleton(tmpFileName));

@@ -19,7 +19,7 @@ a document containing a percolator query should be indexed:
 --------------------------------------------------
 // create an index with a percolator field with the name 'query':
 client.admin().indices().prepareCreate("myIndexName")
-                        .addMapping("_doc", "content", "type=text")
+                        .addMapping("_doc", "query", "type=percolator", "content", "type=text")
                         .get();
 
 //This is the query we're registering in the percolator

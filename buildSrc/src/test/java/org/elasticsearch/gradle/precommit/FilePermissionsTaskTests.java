@@ -34,7 +34,7 @@ import org.junit.rules.TemporaryFolder;
 
 import static java.util.Collections.singletonMap;
 
-public class FilePermissionsTaskTest extends GradleUnitTestCase {
+public class FilePermissionsTaskTests extends GradleUnitTestCase {
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
 

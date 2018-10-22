@@ -95,7 +95,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         // indices are empty since they are serialized separately
     }
 
-    public void testReadWriteState() throws IOException {
+    public void testReadWriteState() throws IOException, WriteStateException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
@@ -103,6 +103,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -116,6 +117,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
             assertThat(read, equalTo(state));
         }
+        final int version2 = between(version, Integer.MAX_VALUE);
         DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         format.write(state2, dirs);
 
@@ -134,7 +136,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public void testVersionMismatch() throws IOException {
+    public void testVersionMismatch() throws IOException, WriteStateException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
@@ -143,6 +145,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -158,7 +161,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public void testCorruption() throws IOException {
+    public void testCorruption() throws IOException, WriteStateException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
@@ -166,6 +169,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -229,7 +233,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public void testLoadState() throws IOException {
+    public void testLoadState() throws IOException, WriteStateException {
         final Path[] dirs = new Path[randomIntBetween(1, 5)];
         int numStates = randomIntBetween(1, 5);
         List<MetaData> meta = new ArrayList<>();
@@ -264,7 +268,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
             assertThat(deserialized, notNullValue());
             assertThat(deserialized.getVersion(), equalTo(original.getVersion()));
             assertThat(deserialized.getMappingVersion(), equalTo(original.getMappingVersion()));
-            assertThat(deserialized.getSettingsVersion(), equalTo(original.getSettingsVersion()));
             assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
             assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
         }
@@ -288,7 +291,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    private DummyState writeAndReadStateSuccessfully(Format format, Path... paths) throws IOException {
+    private DummyState writeAndReadStateSuccessfully(Format format, Path... paths) throws IOException, WriteStateException {
         format.noFailures();
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                 randomDouble(), randomBoolean());
@@ -306,7 +309,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public void testFailWriteAndReadPreviousState() throws IOException {
+    public void testFailWriteAndReadPreviousState() throws IOException, WriteStateException {
         Path path = createTempDir();
         Format format = new Format("foo-");
 
@@ -317,7 +320,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
                     Format.FAIL_FSYNC_TMP_FILE, Format.FAIL_RENAME_TMP_FILE);
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                     randomDouble(), randomBoolean());
-            expectThrows(IOException.class, () -> format.write(newState, path));
+            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.write(newState, path));
+            assertFalse(ex.isDirty());
+
             format.noFailures();
             assertEquals(initialState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path));
         }
@@ -325,7 +330,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         writeAndReadStateSuccessfully(format, path);
     }
 
-    public void testFailWriteAndReadAnyState() throws IOException {
+    public void testFailWriteAndReadAnyState() throws IOException, WriteStateException {
         Path path = createTempDir();
         Format format = new Format("foo-");
         Set<DummyState> possibleStates = new HashSet<>();
@@ -338,7 +343,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                     randomDouble(), randomBoolean());
             possibleStates.add(newState);
-            expectThrows(IOException.class, () -> format.write(newState, path));
+            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.write(newState, path));
+            assertTrue(ex.isDirty());
+
             format.noFailures();
             assertTrue(possibleStates.contains(format.loadLatestState(logger, NamedXContentRegistry.EMPTY, path)));
         }
@@ -346,28 +353,31 @@ public class MetaDataStateFormatTests extends ESTestCase {
         writeAndReadStateSuccessfully(format, path);
     }
 
-    public void testFailCopyStateToExtraLocation() throws IOException {
+    public void testFailCopyTmpFileToExtraLocation() throws IOException, WriteStateException {
         Path paths[] = new Path[randomIntBetween(2, 5)];
         for (int i = 0; i < paths.length; i++) {
             paths[i] = createTempDir();
         }
         Format format = new Format("foo-");
 
-        writeAndReadStateSuccessfully(format, paths);
+        DummyState initialState = writeAndReadStateSuccessfully(format, paths);
 
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             format.failOnMethods(Format.FAIL_OPEN_STATE_FILE_WHEN_COPYING);
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                     randomDouble(), randomBoolean());
-            expectThrows(IOException.class, () -> format.write(newState, paths));
+            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.write(newState, paths));
+            assertFalse(ex.isDirty());
+
             format.noFailures();
-            assertEquals(newState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
+            assertEquals(initialState, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
         }
 
         writeAndReadStateSuccessfully(format, paths);
     }
 
-    public void testFailRandomlyAndReadAnyState() throws IOException {
+
+    public void testFailRandomlyAndReadAnyState() throws IOException, WriteStateException {
         Path paths[] = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < paths.length; i++) {
             paths[i] = createTempDir();
@@ -382,14 +392,24 @@ public class MetaDataStateFormatTests extends ESTestCase {
             format.failRandomly();
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                     randomDouble(), randomBoolean());
-            possibleStates.add(newState);
             try {
                 format.write(newState, paths);
-            } catch (Exception e) {
-                // since we're injecting failures at random it's ok if exception is thrown, it's also ok if exception is not thrown
+                //if write is successful, the only possible state we can read is the one that was just written
+                possibleStates.clear();
+                possibleStates.add(newState);
+            } catch (WriteStateException e) {
+                //if dirty flag is not set, read might return only old state
+                if (e.isDirty()) {
+                    //if dirty flag is set, read might return old state or new state
+                    possibleStates.add(newState);
+                }
             }
+
             format.noFailures();
-            assertTrue(possibleStates.contains(format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths)));
+            //we call loadLatestState not on full path set, but only on random paths from this set. This is to emulate disk failures.
+            Path[] randomPaths = randomSubsetOf(randomIntBetween(1, paths.length), paths).toArray(new Path[0]);
+            DummyState stateOnDisk = format.loadLatestState(logger, NamedXContentRegistry.EMPTY, randomPaths);
+            assertTrue(possibleStates.contains(stateOnDisk));
         }
 
         writeAndReadStateSuccessfully(format, paths);

@@ -51,6 +51,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -390,7 +391,11 @@ public final class NodeEnvironment  implements Closeable {
             metaData = new NodeMetaData(generateNodeId(settings));
         }
         // we write again to make sure all paths have the latest state file
-        NodeMetaData.FORMAT.write(metaData, paths);
+        try {
+            NodeMetaData.FORMAT.write(metaData, paths);
+        } catch (WriteStateException e) {
+            throw new IOException(e);
+        }
         return metaData;
     }
 

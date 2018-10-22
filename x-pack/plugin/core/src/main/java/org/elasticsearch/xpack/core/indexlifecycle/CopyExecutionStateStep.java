@@ -23,9 +23,11 @@ import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionStat
  */
 public class CopyExecutionStateStep extends ClusterStateActionStep {
     public static final String NAME = "copy_execution_state";
-    private String shrunkIndexPrefix;
 
     private static final Logger logger = LogManager.getLogger(CopyExecutionStateStep.class);
+    
+    private String shrunkIndexPrefix;
+
 
     public CopyExecutionStateStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
         super(key, nextStepKey);

@@ -172,7 +172,7 @@ public class JobManager extends AbstractComponent {
     public void expandJobs(String expression, boolean allowNoJobs, ActionListener<QueryPage<Job>> jobsListener) {
         Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoJobs, clusterService.state());
 
-        jobConfigProvider.expandJobs(expression, allowNoJobs, ActionListener.wrap(
+        jobConfigProvider.expandJobs(expression, allowNoJobs, false, ActionListener.wrap(
                 jobBuilders -> {
                     // Check for duplicate jobs
                     for (Job.Builder jb : jobBuilders) {

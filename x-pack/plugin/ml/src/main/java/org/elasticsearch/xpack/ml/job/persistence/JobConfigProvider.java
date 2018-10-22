@@ -47,6 +47,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -489,11 +490,12 @@ public class JobConfigProvider extends AbstractComponent {
      * @param allowNoJobs if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
+     * @param excludeDeleting If true exclude jobs marked as deleting
      * @param listener The expanded job Ids listener
      */
-    public void expandJobsIds(String expression, boolean allowNoJobs, ActionListener<Set<String>> listener) {
+    public void expandJobsIds(String expression, boolean allowNoJobs, boolean excludeDeleting, ActionListener<Set<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens));
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
         sourceBuilder.docValueField(Job.ID.getPreferredName());
@@ -535,21 +537,22 @@ public class JobConfigProvider extends AbstractComponent {
     }
 
     /**
-     * The same logic as {@link #expandJobsIds(String, boolean, ActionListener)} but
+     * The same logic as {@link #expandJobsIds(String, boolean, boolean, ActionListener)} but
      * the full anomaly detector job configuration is returned.
      *
-     * See {@link #expandJobsIds(String, boolean, ActionListener)}
+     * See {@link #expandJobsIds(String, boolean, boolean, ActionListener)}
      *
      * @param expression the expression to resolve
      * @param allowNoJobs if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
+     * @param excludeDeleting If true exclude jobs marked as deleting
      * @param listener The expanded jobs listener
      */
     // NORELEASE jobs should be paged or have a mechanism to return all jobs if there are many of them
-    public void expandJobs(String expression, boolean allowNoJobs, ActionListener<List<Job.Builder>> listener) {
+    public void expandJobs(String expression, boolean allowNoJobs, boolean excludeDeleting, ActionListener<List<Job.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens));
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
@@ -594,7 +597,7 @@ public class JobConfigProvider extends AbstractComponent {
 
     /**
      * Expands the list of job group Ids to the set of jobs which are members of the groups.
-     * Unlike {@link #expandJobsIds(String, boolean, ActionListener)} it is not an error
+     * Unlike {@link #expandJobsIds(String, boolean, boolean, ActionListener)} it is not an error
      * if a group Id does not exist.
      * Wildcard expansion of group Ids is not supported.
      *
@@ -698,9 +701,9 @@ public class JobConfigProvider extends AbstractComponent {
         }
     }
 
-    private QueryBuilder buildQuery(String [] tokens) {
+    private QueryBuilder buildQuery(String [] tokens, boolean excludeDeleting) {
         QueryBuilder jobQuery = new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE);
-        if (Strings.isAllOrWildcard(tokens)) {
+        if (Strings.isAllOrWildcard(tokens) && excludeDeleting == false) {
             // match all
             return jobQuery;
         }
@@ -708,6 +711,16 @@ public class JobConfigProvider extends AbstractComponent {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(jobQuery);
         BoolQueryBuilder shouldQueries = new BoolQueryBuilder();
+
+        if (excludeDeleting) {
+            // field exists only when the job is marked as deleting
+            shouldQueries.mustNot(new ExistsQueryBuilder(Job.DELETING.getPreferredName()));
+
+            if (Strings.isAllOrWildcard(tokens)) {
+                boolQueryBuilder.filter(shouldQueries);
+                return boolQueryBuilder;
+            }
+        }
 
         List<String> terms = new ArrayList<>();
         for (String token : tokens) {

@@ -105,30 +105,7 @@ public abstract class CCRIntegTestCase extends ESTestCase {
     public void afterTest() throws Exception {
         String masterNode = clusterGroup.followerCluster.getMasterName();
         ClusterService clusterService = clusterGroup.followerCluster.getInstance(ClusterService.class, masterNode);
-
-        CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("purge-cluster-state", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                ClusterState.Builder newState = ClusterState.builder(currentState);
-                newState.metaData(MetaData.builder(currentState.getMetaData())
-                    .removeCustom(AutoFollowMetadata.TYPE)
-                    .removeCustom(PersistentTasksCustomMetaData.TYPE)
-                    .build());
-                return newState.build();
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                latch.countDown();
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                latch.countDown();
-            }
-        });
-        latch.await();
+        removeCCRRelatedMetadataFromClusterState(clusterService);
 
         try {
             clusterGroup.leaderCluster.beforeIndexDeletion();
@@ -284,6 +261,32 @@ public abstract class CCRIntegTestCase extends ESTestCase {
         RefreshResponse actionGet = client.admin().indices().prepareRefresh(indices).execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
+    }
+
+    static void removeCCRRelatedMetadataFromClusterState(ClusterService clusterService) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("remove-ccr-related-metadata", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                ClusterState.Builder newState = ClusterState.builder(currentState);
+                newState.metaData(MetaData.builder(currentState.getMetaData())
+                    .removeCustom(AutoFollowMetadata.TYPE)
+                    .removeCustom(PersistentTasksCustomMetaData.TYPE)
+                    .build());
+                return newState.build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                latch.countDown();
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
+            }
+        });
+        latch.await();
     }
 
     static class ClusterGroup implements Closeable {

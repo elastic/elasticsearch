@@ -25,6 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -240,6 +241,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             followerGroup.startAll();
             leaderGroup.appendDocs(between(10, 100));
             leaderGroup.refresh("test");
+            for (int numNoOps = between(1, 10), i = 0; i < numNoOps; i++) {
+                long seqNo = leaderGroup.getPrimary().seqNoStats().getMaxSeqNo() + 1;
+                Engine.NoOp noOp = new Engine.NoOp(seqNo, leaderGroup.getPrimary().getOperationPrimaryTerm(),
+                    Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), "test-" + i);
+                for (IndexShard shard : leaderGroup) {
+                    getEngine(shard).noOp(noOp);
+                }
+            }
             for (String deleteId : randomSubsetOf(IndexShardTestCase.getShardDocUIDs(leaderGroup.getPrimary()))) {
                 BulkItemResponse resp = leaderGroup.delete(new DeleteRequest("test", "type", deleteId));
                 assertThat(resp.getFailure(), nullValue());
@@ -276,11 +285,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
             shardFollowTask.start(followerGroup.getPrimary().getHistoryUUID(), leadingPrimary.getGlobalCheckpoint(),
                 leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(), followerSeqNoStats.getGlobalCheckpoint(), followerSeqNoStats.getMaxSeqNo());
-            assertBusy(() -> {
-                assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leadingPrimary.getGlobalCheckpoint()));
-                assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
-            });
-            shardFollowTask.markAsCompleted();
+            try {
+                assertBusy(() -> {
+                    assertThat(followerGroup.getPrimary().getGlobalCheckpoint(), equalTo(leadingPrimary.getGlobalCheckpoint()));
+                    assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup);
+                });
+            } finally {
+                shardFollowTask.markAsCompleted();
+            }
         }
     }
 
@@ -299,7 +311,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 operations.removeAll(bulkOps);
                 BulkShardOperationsRequest bulkRequest = new BulkShardOperationsRequest(group.getPrimary().shardId(),
                     group.getPrimary().getHistoryUUID(), bulkOps, -1);
-                new CCRAction(bulkRequest, new PlainActionFuture<>(), group).execute();
+                new CcrAction(bulkRequest, new PlainActionFuture<>(), group).execute();
                 if (randomInt(100) < 10) {
                     group.getPrimary().flush(new FlushRequest());
                 }
@@ -397,7 +409,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(),
                         followerHistoryUUID, operations, maxSeqNoOfUpdates);
                     ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
-                    new CCRAction(request, listener, followerGroup).execute();
+                    new CcrAction(request, listener, followerGroup).execute();
                 };
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
             }
@@ -481,9 +493,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
-    class CCRAction extends ReplicationAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
+    class CcrAction extends ReplicationAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
 
-        CCRAction(BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener, ReplicationGroup group) {
+        CcrAction(BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener, ReplicationGroup group) {
             super(request, listener, group, "ccr");
         }
 

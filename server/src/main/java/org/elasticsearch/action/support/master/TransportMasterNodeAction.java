@@ -219,19 +219,19 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         final String actionName = getMasterActionName(masterNode);
                         transportService.sendRequest(masterNode, actionName, request,
                             new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::read) {
-                            @Override
-                            public void handleException(final TransportException exp) {
-                                Throwable cause = exp.unwrapCause();
-                                if (cause instanceof ConnectTransportException) {
-                                    // we want to retry here a bit to see if a new master is elected
-                                    logger.debug("connection exception while trying to forward request with action name [{}] to " +
-                                            "master node [{}], scheduling a retry. Error: [{}]",
-                                        actionName, nodes.getMasterNode(), exp.getDetailedMessage());
-                                    retry(cause, masterChangePredicate);
-                                } else {
-                                    listener.onFailure(exp);
+                                @Override
+                                public void handleException(final TransportException exp) {
+                                    Throwable cause = exp.unwrapCause();
+                                    if (cause instanceof ConnectTransportException) {
+                                        // we want to retry here a bit to see if a new master is elected
+                                        logger.debug("connection exception while trying to forward request with action name [{}] to " +
+                                                "master node [{}], scheduling a retry. Error: [{}]",
+                                            actionName, nodes.getMasterNode(), exp.getDetailedMessage());
+                                        retry(cause, masterChangePredicate);
+                                    } else {
+                                        listener.onFailure(exp);
+                                    }
                                 }
-                            }
                         });
                     }
                 }

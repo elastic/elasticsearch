@@ -317,9 +317,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 message.put("type", "text");
                 Map<String, Object> properties = new HashMap<>();
                 properties.put("message", message);
-                Map<String, Object> _doc = new HashMap<>();
-                _doc.put("properties", properties);
-                jsonMap.put("_doc", _doc);
+                Map<String, Object> mapping = new HashMap<>();
+                mapping.put("properties", properties);
+                jsonMap.put("_doc", mapping);
                 request.mapping("_doc", jsonMap); // <1>
                 //end::create-index-mappings-map
                 CreateIndexResponse createIndexResponse = client.indices().create(request, RequestOptions.DEFAULT);
@@ -623,7 +623,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::get-mapping-response
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = getMappingResponse.mappings(); // <1>
             MappingMetaData typeMapping = allMappings.get("twitter").get("_doc"); // <2>
-            Map<String, Object> _docMapping = typeMapping.sourceAsMap(); // <3>
+            Map<String, Object> mapping = typeMapping.sourceAsMap(); // <3>
             // end::get-mapping-response
 
             Map<String, String> type = new HashMap<>();
@@ -632,7 +632,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             field.put("message", type);
             Map<String, Object> expected = new HashMap<>();
             expected.put("properties", field);
-            assertThat(_docMapping, equalTo(expected));
+            assertThat(mapping, equalTo(expected));
         }
     }
 
@@ -683,7 +683,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             listener = ActionListener.wrap(r -> {
                 ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> allMappings = r.mappings();
                 MappingMetaData typeMapping = allMappings.get("twitter").get("_doc");
-                Map<String, Object> _docMapping = typeMapping.sourceAsMap();
+                Map<String, Object> mapping = typeMapping.sourceAsMap();
 
                 Map<String, String> type = new HashMap<>();
                 type.put("type", "text");
@@ -691,7 +691,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 field.put("message", type);
                 Map<String, Object> expected = new HashMap<>();
                 expected.put("properties", field);
-                assertThat(_docMapping, equalTo(expected));
+                assertThat(mapping, equalTo(expected));
                 latchListener.onResponse(r);
             }, e -> {
                 latchListener.onFailure(e);
@@ -2135,9 +2135,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             message.put("type", "text");
             Map<String, Object> properties = new HashMap<>();
             properties.put("message", message);
-            Map<String, Object> _doc = new HashMap<>();
-            _doc.put("properties", properties);
-            jsonMap.put("_doc", _doc);
+            Map<String, Object> mapping = new HashMap<>();
+            mapping.put("properties", properties);
+            jsonMap.put("_doc", mapping);
             request.mapping("_doc", jsonMap); // <1>
             //end::put-template-request-mappings-map
             assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());

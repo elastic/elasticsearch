@@ -24,10 +24,9 @@ import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
@@ -35,12 +34,13 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ExpressionTests extends ESTestCase {
+public class ExpressionFieldScriptTests extends ESTestCase {
     private ExpressionScriptEngine service;
     private SearchLookup lookup;
 
@@ -48,7 +48,7 @@ public class ExpressionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        NumberFieldType fieldType = new NumberFieldType(NumberType.DOUBLE);
+        NumberFieldMapper.NumberFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.fullName("field")).thenReturn(fieldType);
         when(mapperService.fullName("alias")).thenReturn(fieldType);
@@ -68,16 +68,9 @@ public class ExpressionTests extends ESTestCase {
         lookup = new SearchLookup(mapperService, ignored -> fieldData, null);
     }
 
-    private SearchScript.LeafFactory compile(String expression) {
-        SearchScript.Factory factory = service.compile(null, expression, SearchScript.CONTEXT, Collections.emptyMap());
+    private FieldScript.LeafFactory compile(String expression) {
+        FieldScript.Factory factory = service.compile(null, expression, FieldScript.CONTEXT, Collections.emptyMap());
         return factory.newFactory(Collections.emptyMap(), lookup);
-    }
-
-    public void testNeedsScores() {
-        assertFalse(compile("1.2").needs_score());
-        assertFalse(compile("doc['field'].value").needs_score());
-        assertTrue(compile("1/_score").needs_score());
-        assertTrue(compile("doc['field'].value * _score").needs_score());
     }
 
     public void testCompileError() {
@@ -95,18 +88,18 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testFieldAccess() throws IOException {
-        SearchScript script = compile("doc['field'].value").newInstance(null);
+        FieldScript script = compile("doc['field'].value").newInstance(null);
         script.setDocument(1);
 
-        double result = script.runAsDouble();
-        assertEquals(2.718, result, 0.0);
+        Object result = script.execute();
+        assertThat(result, equalTo(2.718));
     }
 
     public void testFieldAccessWithFieldAlias() throws IOException {
-        SearchScript script = compile("doc['alias'].value").newInstance(null);
+        FieldScript script = compile("doc['alias'].value").newInstance(null);
         script.setDocument(1);
 
-        double result = script.runAsDouble();
-        assertEquals(2.718, result, 0.0);
+        Object result = script.execute();
+        assertThat(result, equalTo(2.718));
     }
 }

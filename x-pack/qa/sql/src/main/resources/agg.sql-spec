@@ -139,12 +139,22 @@ aggCountOnColumnAndMultipleHaving
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender ;
 aggCountOnColumnAndMultipleHavingEquals
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c = 63 ORDER BY gender ;
+//
+// Count(column) = Column(*) which is a bug
+// https://github.com/elastic/elasticsearch/issues/34549
+//
 aggCountOnColumnAndMultipleHavingWithLimit
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender LIMIT 1;
-aggCountOnColumnAndHavingBetween
-SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender;
-aggCountOnColumnAndHavingBetweenWithLimit
+aggCountOnColumnAndHavingBetween-Ignore
+SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender ASC;
+aggCountOnColumnAndHavingBetweenWithLimit-Ignore
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender LIMIT 1;
+aggCountStarAndMultipleHavingWithLimit
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender LIMIT 1;
+aggCountStarAndHavingBetween
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender ASC;
+aggCountStarAndHavingBetweenWithLimit
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender LIMIT 1;
 aggCountOnColumnAndHavingOnAliasAndFunction
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND COUNT(gender) < 70 ORDER BY gender;
 aggCountOnColumnAndHavingOnAliasAndFunctionWildcard -> COUNT(*/1) vs COUNT(gender)
@@ -413,3 +423,21 @@ aggRepeatFunctionBetweenSelectAndHaving
 SELECT gender, COUNT(DISTINCT languages) AS c FROM test_emp GROUP BY gender HAVING count(DISTINCT languages) > 0 ORDER BY gender;
 
 
+
+//
+// NULL tests
+//
+selectGenderWithNullsAndGroupByGender
+SELECT gender, COUNT(*) count FROM test_emp GROUP BY gender ORDER BY gender;
+selectFirstNameWithNullsAndGroupByFirstName
+SELECT first_name FROM test_emp GROUP BY first_name ORDER BY first_name;
+selectCountWhereIsNull
+SELECT COUNT(*) count FROM test_emp WHERE first_name IS NULL;
+selectLanguagesCountWithNullsAndGroupByLanguage
+SELECT languages l, COUNT(*) c FROM test_emp GROUP BY languages ORDER BY languages;
+selectHireDateGroupByHireDate
+SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
+selectHireDateGroupByHireDate
+SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
+selectSalaryGroupBySalary
+SELECT salary, COUNT(*) c FROM test_emp GROUP BY salary ORDER BY salary DESC;

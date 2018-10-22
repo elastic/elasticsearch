@@ -502,6 +502,8 @@ public class CoordinatorTests extends ESTestCase {
         leader.onDisconnectEventFrom(follower);
         follower.onDisconnectEventFrom(leader); // to turn follower into candidate, which stabilisation asserts at the end
         cluster.stabilise(DEFAULT_DELAY_VARIABILITY // disconnect is scheduled
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            // then wait for the followup reconfiguration
             + DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
         assertThat(cluster.getAnyLeader().getId(), equalTo(leader.getId()));
     }

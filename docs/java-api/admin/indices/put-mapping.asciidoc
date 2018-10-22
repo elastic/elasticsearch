@@ -25,5 +25,3 @@ include-tagged::{client-tests}/IndicesDocumentationIT.java[putMapping-request-so
 <1> Puts a mapping on existing index called `twitter`
 <2> Adds a new field `name` to the mapping
 <3> The type can be also provided within the source
-
-:base-dir!:

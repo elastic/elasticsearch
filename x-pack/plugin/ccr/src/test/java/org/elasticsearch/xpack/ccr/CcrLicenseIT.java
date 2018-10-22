@@ -17,17 +17,17 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.xpack.CCRSingleNodeTestCase;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
-import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -36,11 +36,16 @@ import java.util.concurrent.CountDownLatch;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CcrLicenseIT extends ESSingleNodeTestCase {
+public class CcrLicenseIT extends CCRSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singletonList(NonCompliantLicenseLocalStateCcr.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.EMPTY;
     }
 
     public void testThatFollowingIndexIsUnavailableWithNonCompliantLicense() throws InterruptedException {
@@ -192,15 +197,6 @@ public class CcrLicenseIT extends ESSingleNodeTestCase {
     private void assertNonCompliantLicense(final Exception e) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
         assertThat(e.getMessage(), equalTo("current license is non-compliant for [ccr]"));
-    }
-
-    private ResumeFollowAction.Request getFollowRequest() {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setLeaderIndex("leader");
-        request.setFollowerIndex("follower");
-        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
-        request.setPollTimeout(TimeValue.timeValueMillis(10));
-        return request;
     }
 
 }

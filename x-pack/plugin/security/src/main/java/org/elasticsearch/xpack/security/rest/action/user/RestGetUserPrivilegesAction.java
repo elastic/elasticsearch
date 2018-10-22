@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -52,7 +54,11 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final String username = securityContext.getUser().principal();
+        final User user = securityContext.getUser();
+        if (user == null) {
+            return restChannel -> { throw new ElasticsearchSecurityException("there is no authenticated user"); };
+        }
+        final String username = user.principal();
         final GetUserPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareGetUserPrivileges(username);
         return channel -> requestBuilder.execute(new RestListener(channel));
     }

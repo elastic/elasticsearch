@@ -464,7 +464,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         @SuppressWarnings("unchecked")
         Map<String, Object> termsScript = (Map<String, Object>) terms.get("script");
         assertEquals(3, termsScript.size());
-        assertEquals("Math.abs(doc[params.v0].value)", termsScript.get("source"));
+        assertEquals("InternalSqlScriptUtils.abs(InternalSqlScriptUtils.docValue(doc,params.v0))", termsScript.get("source"));
         assertEquals("painless", termsScript.get("lang"));
 
         @SuppressWarnings("unchecked")
@@ -494,7 +494,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
             }
         }
         Collections.sort(aggKeys);
-        assertEquals("having" + aggKeys.get(1), aggFilterKey);
+        assertEquals("having." + aggKeys.get(1), aggFilterKey);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> having = (Map<String, Object>) aggregations2.get(aggFilterKey);
@@ -513,7 +513,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         @SuppressWarnings("unchecked")
         Map<String, Object> filterScript = (Map<String, Object>) bucketSelector.get("script");
         assertEquals(3, filterScript.size());
-        assertEquals("(params.a0) > (params.v0)", filterScript.get("source"));
+        assertEquals("InternalSqlScriptUtils.gt(params.a0,params.v0)", filterScript.get("source"));
         assertEquals("painless", filterScript.get("lang"));
         @SuppressWarnings("unchecked")
         Map<String, Object> filterScriptParams = (Map<String, Object>) filterScript.get("params");

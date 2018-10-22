@@ -23,9 +23,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.gradle.api.DefaultTask;
@@ -61,16 +61,28 @@ public class FilePermissionsTask extends DefaultTask {
         setDescription("Checks java source files for correct file permissions");
     }
 
+    private static boolean isExecutableFile(File file) {
+        try {
+            Set<PosixFilePermission> permissions = Files.getFileAttributeView(file.toPath(), PosixFileAttributeView.class)
+                    .readAttributes()
+                    .permissions();
+            return permissions.contains(PosixFilePermission.OTHERS_EXECUTE)
+                    || permissions.contains(PosixFilePermission.OWNER_EXECUTE)
+                    || permissions.contains(PosixFilePermission.GROUP_EXECUTE);
+        } catch (IOException e) {
+            throw new IllegalStateException("unable to read the file " + file + " attributes", e);
+        }
+    }
+
     /**
      * Returns the files this task will check
      */
     @InputFiles
-    public FileCollection files() {
+    public FileCollection getFiles() {
         SourceSetContainer sourceSets = getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
-        Object[] fileTreeStream = sourceSets.stream()
+        return getProject().files(sourceSets.stream()
                 .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
-                .toArray();
-        return getProject().files(fileTreeStream);
+                .toArray());
     }
 
     @TaskAction
@@ -78,17 +90,10 @@ public class FilePermissionsTask extends DefaultTask {
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             throw new StopExecutionException();
         }
-
-        List<String> failures = new ArrayList<String>();
-        for (File f : files()) {
-            PosixFileAttributeView fileAttributeView = Files.getFileAttributeView(f.toPath(), PosixFileAttributeView.class);
-            Set<PosixFilePermission> permissions = fileAttributeView.readAttributes().permissions();
-            if (permissions.contains(PosixFilePermission.OTHERS_EXECUTE)
-                    || permissions.contains(PosixFilePermission.OWNER_EXECUTE)
-                    || permissions.contains(PosixFilePermission.GROUP_EXECUTE)) {
-                failures.add("Source file is executable: " + f);
-            }
-        }
+        List<String> failures = getFiles().getFiles().stream()
+                .filter(FilePermissionsTask::isExecutableFile)
+                .map(file -> "Source file is executable: " + file)
+                .collect(Collectors.toList());
 
         if (!failures.isEmpty()) {
             throw new GradleException("Found invalid file permissions:\n" + String.join("\n", failures));

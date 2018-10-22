@@ -62,7 +62,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("security-index-manager-tests");
     private static final ClusterState EMPTY_CLUSTER_STATE = new ClusterState.Builder(CLUSTER_NAME).build();
-    public static final String INDEX_NAME = ".security";
+    private static final String INDEX_NAME = ".security";
     private static final String TEMPLATE_NAME = "SecurityIndexManagerTests-template";
     private SecurityIndexManager manager;
     private Map<Action<?>, Map<ActionRequest, ActionListener<?>>> actions;
@@ -86,7 +86,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 actions.put(action, map);
             }
         };
-        manager = new SecurityIndexManager(Settings.EMPTY, client, INDEX_NAME, clusterService);
+        manager = new SecurityIndexManager(client, INDEX_NAME, clusterService);
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() throws IOException {

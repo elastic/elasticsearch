@@ -24,9 +24,9 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.CCRIntegTestCase.removeCCRRelatedMetadataFromClusterState;
+import static org.elasticsearch.xpack.CcrIntegTestCase.removeCCRRelatedMetadataFromClusterState;
 
-public abstract class CCRSingleNodeTestCase extends ESSingleNodeTestCase {
+public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {

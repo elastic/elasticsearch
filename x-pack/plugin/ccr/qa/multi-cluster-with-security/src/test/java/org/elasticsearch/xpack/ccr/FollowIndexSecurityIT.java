@@ -80,7 +80,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             refresh(allowedIndex);
             verifyDocuments(adminClient(), allowedIndex, numDocs);
         } else {
-            follow(allowedIndex, allowedIndex);
+            follow(client(), allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(client(), allowedIndex, numDocs));
             assertThat(countCcrNodeTasks(), equalTo(1));
             assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex));
@@ -93,7 +93,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
                 assertThat(countCcrNodeTasks(), equalTo(0));
             });
 
-            resumeFollow(allowedIndex, allowedIndex);
+            resumeFollow(allowedIndex);
             assertThat(countCcrNodeTasks(), equalTo(1));
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/pause_follow")));
             // Make sure that there are no other ccr relates operations running:
@@ -106,11 +106,11 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_close")));
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/unfollow")));
-            Exception e = expectThrows(ResponseException.class, () -> resumeFollow(allowedIndex, allowedIndex));
+            Exception e = expectThrows(ResponseException.class, () -> resumeFollow(allowedIndex));
             assertThat(e.getMessage(), containsString("follow index [" + allowedIndex + "] does not have ccr metadata"));
 
             // User does not have manage_follow_index index privilege for 'unallowedIndex':
-            e = expectThrows(ResponseException.class, () -> follow(unallowedIndex, unallowedIndex));
+            e = expectThrows(ResponseException.class, () -> follow(client(), unallowedIndex, unallowedIndex));
             assertThat(e.getMessage(),
                 containsString("action [indices:admin/xpack/ccr/put_follow] is unauthorized for user [test_ccr]"));
             // Verify that the follow index has not been created and no node tasks are running
@@ -119,7 +119,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
 
             // User does have manage_follow_index index privilege on 'allowed' index,
             // but not read / monitor roles on 'disallowed' index:
-            e = expectThrows(ResponseException.class, () -> follow(unallowedIndex, allowedIndex));
+            e = expectThrows(ResponseException.class, () -> follow(client(), unallowedIndex, allowedIndex));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
                 "privilege for action [indices:monitor/stats] is missing, " +
                 "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
@@ -127,16 +127,20 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
             assertThat(indexExists(adminClient(), unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
 
-            e = expectThrows(ResponseException.class, () -> resumeFollow(unallowedIndex, unallowedIndex));
+            follow(adminClient(), unallowedIndex, unallowedIndex);
+            pauseFollow(adminClient(), unallowedIndex);
+
+            e = expectThrows(ResponseException.class, () -> resumeFollow(unallowedIndex));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
                 "privilege for action [indices:monitor/stats] is missing, " +
                 "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
-            assertThat(indexExists(adminClient(), unallowedIndex), is(false));
-            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
 
             e = expectThrows(ResponseException.class,
                 () -> client().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow")));
             assertThat(e.getMessage(), containsString("action [indices:admin/xpack/ccr/unfollow] is unauthorized for user [test_ccr]"));
+            assertOK(adminClient().performRequest(new Request("POST", "/" + unallowedIndex + "/_close")));
+            assertOK(adminClient().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow")));
+            assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
         }
     }
 
@@ -187,7 +191,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         // Cleanup by deleting auto follow pattern and pause following:
         request = new Request("DELETE", "/_ccr/auto_follow/test_pattern");
         assertOK(client().performRequest(request));
-        pauseFollow(allowedIndex);
+        pauseFollow(client(), allowedIndex);
     }
 
     private int countCcrNodeTasks() throws IOException {
@@ -228,18 +232,17 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
-    private static void resumeFollow(String leaderIndex, String followIndex) throws IOException {
+    private static void resumeFollow(String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_ccr/resume_follow");
-        request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"" + leaderIndex +
-            "\", \"poll_timeout\": \"10ms\"}");
+        request.setJsonEntity("{\"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
-    private static void follow(String leaderIndex, String followIndex) throws IOException {
+    private static void follow(RestClient client, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
         request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"" + leaderIndex +
             "\", \"poll_timeout\": \"10ms\"}");
-        assertOK(client().performRequest(request));
+        assertOK(client.performRequest(request));
     }
 
     void verifyDocuments(RestClient client, String index, int expectedNumDocs) throws IOException {
@@ -302,7 +305,7 @@ public class FollowIndexSecurityIT extends ESRestTestCase {
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
-    private static void pauseFollow(String followIndex) throws IOException {
+    private static void pauseFollow(RestClient client, String followIndex) throws IOException {
         assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/pause_follow")));
     }
 

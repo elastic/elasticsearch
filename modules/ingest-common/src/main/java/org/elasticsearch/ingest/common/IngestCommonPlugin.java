@@ -31,6 +31,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.ThreadWatchdog;
+import org.elasticsearch.ingest.DropProcessor;
+import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;

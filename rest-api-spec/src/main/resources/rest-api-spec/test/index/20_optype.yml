@@ -1,10 +1,14 @@
 ---
 "Optype":
 
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
  - do:
       index:
+          include_type_name: false
           index:    test_1
-          type:     test
           id:       1
           op_type:  create
           body:   { foo: bar }
@@ -12,16 +16,16 @@
  - do:
       catch:      conflict
       index:
+          include_type_name: false
           index:    test_1
-          type:     test
           id:       1
           op_type:  create
           body:   { foo: bar }
 
  - do:
       index:
+          include_type_name: false
           index:    test_1
-          type:     test
           id:       1
           op_type:  index
           body:   { foo: bar }

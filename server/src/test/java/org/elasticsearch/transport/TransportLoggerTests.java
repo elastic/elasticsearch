@@ -55,7 +55,7 @@ public class TransportLoggerTests extends ESTestCase {
     }
 
     public void testLoggingHandler() throws IOException {
-        TransportLogger transportLogger = new TransportLogger(Settings.EMPTY);
+        TransportLogger transportLogger = new TransportLogger();
 
         final String writePattern =
             ".*\\[length: \\d+" +

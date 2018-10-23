@@ -143,6 +143,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testGetPipeline() throws IOException {
         RestHighLevelClient client = highLevelClient();
 

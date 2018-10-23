@@ -37,6 +37,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -319,8 +320,11 @@ public class FileRolesStoreTests extends ESTestCase {
             threadPool = new TestThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
-            FileRolesStore store = new FileRolesStore(settings, env, watcherService, latch::countDown,
-                    new XPackLicenseState(Settings.EMPTY));
+            final Set<String> modifiedRoles = new HashSet<>();
+            FileRolesStore store = new FileRolesStore(settings, env, watcherService, roleSet -> {
+                    modifiedRoles.addAll(roleSet);
+                    latch.countDown();
+                }, new XPackLicenseState(Settings.EMPTY));
 
             Set<RoleDescriptor> descriptors = store.roleDescriptors(Collections.singleton("role1"));
             assertThat(descriptors, notNullValue());
@@ -344,6 +348,8 @@ public class FileRolesStoreTests extends ESTestCase {
                 fail("Waited too long for the updated file to be picked up");
             }
 
+            assertEquals(1, modifiedRoles.size());
+            assertTrue(modifiedRoles.contains("role5"));
             final TransportRequest request = mock(TransportRequest.class);
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
@@ -354,6 +360,49 @@ public class FileRolesStoreTests extends ESTestCase {
             assertThat(role.cluster().check("cluster:monitor/foo/bar", request), is(true));
             assertThat(role.cluster().check("cluster:admin/foo/bar", request), is(false));
 
+            // truncate to remove some
+            final Set<String> truncatedFileRolesModified = new HashSet<>();
+            final CountDownLatch truncateLatch = new CountDownLatch(1);
+            store = new FileRolesStore(settings, env, watcherService, roleSet -> {
+                truncatedFileRolesModified.addAll(roleSet);
+                truncateLatch.countDown();
+            }, new XPackLicenseState(Settings.EMPTY));
+
+            final Set<String> allRolesPreTruncate = store.getAllRoleNames();
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING)) {
+                writer.append("role5:").append(System.lineSeparator());
+                writer.append("  cluster:").append(System.lineSeparator());
+                writer.append("    - 'MONITOR'");
+            }
+
+            truncateLatch.await();
+            assertEquals(allRolesPreTruncate.size() - 1, truncatedFileRolesModified.size());
+            assertTrue(allRolesPreTruncate.contains("role5"));
+            assertFalse(truncatedFileRolesModified.contains("role5"));
+            descriptors = store.roleDescriptors(Collections.singleton("role5"));
+            assertThat(descriptors, notNullValue());
+            assertEquals(1, descriptors.size());
+
+            // modify
+            final Set<String> modifiedFileRolesModified = new HashSet<>();
+            final CountDownLatch modifyLatch = new CountDownLatch(1);
+            store = new FileRolesStore(settings, env, watcherService, roleSet -> {
+                modifiedFileRolesModified.addAll(roleSet);
+                modifyLatch.countDown();
+            }, new XPackLicenseState(Settings.EMPTY));
+
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING)) {
+                writer.append("role5:").append(System.lineSeparator());
+                writer.append("  cluster:").append(System.lineSeparator());
+                writer.append("    - 'ALL'");
+            }
+
+            modifyLatch.await();
+            assertEquals(1, modifiedFileRolesModified.size());
+            assertTrue(modifiedFileRolesModified.contains("role5"));
+            descriptors = store.roleDescriptors(Collections.singleton("role5"));
+            assertThat(descriptors, notNullValue());
+            assertEquals(1, descriptors.size());
         } finally {
             if (watcherService != null) {
                 watcherService.stop();

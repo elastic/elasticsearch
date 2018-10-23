@@ -185,11 +185,22 @@ public class CollectionUtilsTests extends ESTestCase {
         CollectionUtils.ensureNoSelfReferences(emptyMap(), "test with empty map");
         CollectionUtils.ensureNoSelfReferences(null, "test with null");
 
-        Map<String, Object> map = new HashMap<>();
-        map.put("field", map);
+        {
+            Map<String, Object> map = new HashMap<>();
+            map.put("field", map);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () ->  CollectionUtils.ensureNoSelfReferences(map, "test with self ref"));
-        assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref)"));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> CollectionUtils.ensureNoSelfReferences(map, "test with self ref value"));
+            assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref value)"));
+        }
+        {
+            Map<Object, Object> map = new HashMap<>();
+            map.put(map, 1);
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> CollectionUtils.ensureNoSelfReferences(map, "test with self ref key"));
+            assertThat(e.getMessage(), containsString("Iterable object is self-referencing itself (test with self ref key)"));
+        }
+
     }
 }

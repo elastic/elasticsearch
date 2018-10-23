@@ -19,9 +19,13 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.HeadBucketRequest;
+import com.amazonaws.services.s3.model.HeadBucketResult;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -57,9 +61,10 @@ public class RepositoryCredentialsTests extends ESTestCase {
             }
 
             @Override
-            public boolean doesBucketExist(String bucketName) {
-                return true;
+            public HeadBucketResult headBucket(HeadBucketRequest headBucketRequest) throws AmazonClientException, AmazonServiceException {
+                return new HeadBucketResult();
             }
+
         }
 
         static final class ProxyS3Service extends S3Service {

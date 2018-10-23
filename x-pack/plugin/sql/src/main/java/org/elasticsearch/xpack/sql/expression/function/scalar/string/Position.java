@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
+import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringStringProcessor.BinaryStringStringOperation;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
@@ -34,10 +34,10 @@ public class Position extends BinaryStringStringFunction {
     }
 
     @Override
-    protected ProcessorDefinition makeProcessorDefinition() {
-        return new BinaryStringStringProcessorDefinition(location(), this,
-                ProcessorDefinitions.toProcessorDefinition(left()),
-                ProcessorDefinitions.toProcessorDefinition(right()),
+    protected Pipe makePipe() {
+        return new BinaryStringStringPipe(location(), this,
+                Expressions.pipe(left()),
+                Expressions.pipe(right()),
                 BinaryStringStringOperation.POSITION);
     }
 
@@ -45,5 +45,4 @@ public class Position extends BinaryStringStringFunction {
     protected NodeInfo<Position> info() {
         return NodeInfo.create(this, Position::new, left(), right());
     }
-
 }

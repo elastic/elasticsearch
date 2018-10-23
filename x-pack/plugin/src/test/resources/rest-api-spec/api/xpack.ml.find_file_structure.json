@@ -8,7 +8,13 @@
       "params": {
         "lines_to_sample": {
           "type": "int",
-          "description": "Optional parameter to specify how many lines of the file to include in the analysis"
+          "description": "How many lines of the file should be included in the analysis",
+          "default": 1000
+        },
+        "timeout": {
+          "type": "time",
+          "description": "Timeout after which the analysis will be aborted",
+          "default": "25s"
         },
         "charset": {
           "type": "string",
@@ -49,11 +55,12 @@
         },
         "timestamp_format": {
           "type": "string",
-          "description": "Optional parameter to specify the timestamp format in the file"
+          "description": "Optional parameter to specify the timestamp format in the file - may be either a Joda or Java time format"
         },
         "explain": {
           "type": "boolean",
-          "description": "Optional parameter to include a commentary on how the structure was derived"
+          "description": "Whether to include a commentary on how the structure was derived",
+          "default": false
         }
       }
     },

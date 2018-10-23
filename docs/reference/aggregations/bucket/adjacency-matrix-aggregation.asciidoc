@@ -6,9 +6,6 @@ The request provides a collection of named filter expressions, similar to the `f
 request. 
 Each bucket in the response represents a non-empty cell in the matrix of intersecting filters.
 
-beta[The `adjacency_matrix` aggregation is a new feature and we may evolve its design as we get feedback on its use.  As a result, the API for this feature may change in non-backwards compatible ways]
-
-
 Given filters named `A`, `B` and `C` the response would return buckets with the following names:
 
 

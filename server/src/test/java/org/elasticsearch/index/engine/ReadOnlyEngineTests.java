@@ -95,6 +95,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             // Close and reopen the main engine
             InternalEngineTests.trimUnsafeCommits(config);
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
+                recoveringEngine.initializeMaxSeqNoOfUpdatesOrDeletes();
                 recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));

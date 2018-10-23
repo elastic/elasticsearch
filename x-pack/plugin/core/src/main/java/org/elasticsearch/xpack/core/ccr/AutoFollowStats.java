@@ -121,28 +121,33 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED.getPreferredName(), numberOfFailedFollowIndices);
-            builder.field(NUMBER_OF_FAILED_REMOTE_CLUSTER_STATE_REQUESTS.getPreferredName(), numberOfFailedRemoteClusterStateRequests);
-            builder.field(NUMBER_OF_SUCCESSFUL_INDICES_AUTO_FOLLOWED.getPreferredName(), numberOfSuccessfulFollowIndices);
-            builder.startArray(RECENT_AUTO_FOLLOW_ERRORS.getPreferredName());
-            {
-                for (final Map.Entry<String, ElasticsearchException> entry : recentAutoFollowErrors.entrySet()) {
+            toXContentFragment(builder, params);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder toXContentFragment(final XContentBuilder builder, final Params params) throws IOException {
+        builder.field(NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED.getPreferredName(), numberOfFailedFollowIndices);
+        builder.field(NUMBER_OF_FAILED_REMOTE_CLUSTER_STATE_REQUESTS.getPreferredName(), numberOfFailedRemoteClusterStateRequests);
+        builder.field(NUMBER_OF_SUCCESSFUL_INDICES_AUTO_FOLLOWED.getPreferredName(), numberOfSuccessfulFollowIndices);
+        builder.startArray(RECENT_AUTO_FOLLOW_ERRORS.getPreferredName());
+        {
+            for (final Map.Entry<String, ElasticsearchException> entry : recentAutoFollowErrors.entrySet()) {
+                builder.startObject();
+                {
+                    builder.field(LEADER_INDEX.getPreferredName(), entry.getKey());
+                    builder.field(AUTO_FOLLOW_EXCEPTION.getPreferredName());
                     builder.startObject();
                     {
-                        builder.field(LEADER_INDEX.getPreferredName(), entry.getKey());
-                        builder.field(AUTO_FOLLOW_EXCEPTION.getPreferredName());
-                        builder.startObject();
-                        {
-                            ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue());
-                        }
-                        builder.endObject();
+                        ElasticsearchException.generateThrowableXContent(builder, params, entry.getValue());
                     }
                     builder.endObject();
                 }
+                builder.endObject();
             }
-            builder.endArray();
         }
-        builder.endObject();
+        builder.endArray();
         return builder;
     }
 

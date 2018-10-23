@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.joda.time.DateTimeZone;
 
@@ -40,7 +40,7 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
 
     @Override
     public final Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-            ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser, QueryShardContext context) {
+                                  ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser, QueryShardContext context) {
         if (relation == ShapeRelation.DISJOINT) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                     "] does not support DISJOINT ranges");

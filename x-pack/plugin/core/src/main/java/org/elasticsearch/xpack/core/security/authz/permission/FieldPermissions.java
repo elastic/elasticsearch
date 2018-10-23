@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -44,7 +43,6 @@ public final class FieldPermissions implements Accountable {
 
     private static final long BASE_FIELD_PERM_DEF_BYTES = RamUsageEstimator.shallowSizeOf(new FieldPermissionsDefinition(null, null));
     private static final long BASE_FIELD_GROUP_BYTES = RamUsageEstimator.shallowSizeOf(new FieldGrantExcludeGroup(null, null));
-    private static final long BASE_HASHSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(HashSet.class);
     private static final long BASE_HASHSET_ENTRY_SIZE;
     static {
         HashMap<String, Object> map = new HashMap<>();
@@ -163,7 +161,7 @@ public final class FieldPermissions implements Accountable {
         return permittedFieldsAutomatonIsTotal || permittedFieldsAutomaton.run(fieldName);
     }
 
-    FieldPermissionsDefinition getFieldPermissionsDefinition() {
+    public FieldPermissionsDefinition getFieldPermissionsDefinition() {
         return fieldPermissionsDefinition;
     }
 

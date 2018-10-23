@@ -295,7 +295,6 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
                                                        .put("indices.memory.index_buffer_size", "4mb").build());
         IndexShard shard0 = test.getShard(0);
         IndexShard shard1 = test.getShard(1);
-        IndexShard shard2 = test.getShard(2);
         controller.simulateIndexing(shard0);
         controller.simulateIndexing(shard0);
         controller.simulateIndexing(shard0);

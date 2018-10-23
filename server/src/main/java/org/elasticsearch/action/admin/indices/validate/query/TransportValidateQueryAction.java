@@ -200,7 +200,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         } catch (QueryShardException|ParsingException e) {
             valid = false;
             error = e.getDetailedMessage();
-        } catch (AssertionError|IOException e) {
+        } catch (AssertionError e) {
             valid = false;
             error = e.getMessage();
         } finally {
@@ -210,7 +210,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
     }
 
-    private String explain(SearchContext context, boolean rewritten) throws IOException {
+    private String explain(SearchContext context, boolean rewritten) {
         Query query = context.query();
         if (rewritten && query instanceof MatchNoDocsQuery) {
             return context.parsedQuery().query().toString();

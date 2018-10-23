@@ -28,8 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -566,8 +566,8 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
                 QueryShardContext shardContext = context.getQueryShardContext();
-                SearchScript.Factory factory = shardContext.getScriptService().compile(field.script(), SearchScript.CONTEXT);
-                SearchScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), shardContext.lookup());
+                FieldScript.Factory factory = shardContext.getScriptService().compile(field.script(), FieldScript.CONTEXT);
+                FieldScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), shardContext.lookup());
                 fields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), searchScript, field.ignoreFailure()));
             }
@@ -721,7 +721,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                     factory.storedFieldsContext =
                         StoredFieldsContext.fromXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), parser);
                 } else if (SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    List<String> fieldDataFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         FieldAndFormat ff = FieldAndFormat.fromXContent(parser);
                         factory.docValueField(ff.field, ff.format);

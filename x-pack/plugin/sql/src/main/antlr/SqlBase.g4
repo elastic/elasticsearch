@@ -88,7 +88,7 @@ queryTerm
     ;
 
 orderBy
-    : expression ordering=(ASC | DESC)?
+    : expression ordering=(ASC | DESC)? (NULLS nullOrdering=(FIRST | LAST))?
     ;
 
 querySpecification
@@ -218,11 +218,9 @@ primaryExpression
     : castExpression                                                                 #cast
     | extractExpression                                                              #extract
     | constant                                                                       #constantDefault
-    | ASTERISK                                                                       #star
     | (qualifiedName DOT)? ASTERISK                                                  #star
     | functionExpression                                                             #function
     | '(' query ')'                                                                  #subqueryExpression
-    | identifier                                                                     #columnReference
     | qualifiedName                                                                  #dereference
     | '(' expression ')'                                                             #parenthesizedExpression
     ;
@@ -309,8 +307,8 @@ unquoteIdentifier
     ;
 
 number
-    : (PLUS | MINUS)? DECIMAL_VALUE  #decimalLiteral
-    | (PLUS | MINUS)? INTEGER_VALUE  #integerLiteral
+    : DECIMAL_VALUE         #decimalLiteral
+    | INTEGER_VALUE         #integerLiteral
     ;
 
 string
@@ -359,6 +357,7 @@ EXISTS: 'EXISTS';
 EXPLAIN: 'EXPLAIN';
 EXTRACT: 'EXTRACT';
 FALSE: 'FALSE';
+FIRST: 'FIRST';
 FORMAT: 'FORMAT';
 FROM: 'FROM';
 FULL: 'FULL';
@@ -370,6 +369,7 @@ IN: 'IN';
 INNER: 'INNER';
 IS: 'IS';
 JOIN: 'JOIN';
+LAST: 'LAST';
 LEFT: 'LEFT';
 LIKE: 'LIKE';
 LIMIT: 'LIMIT';
@@ -378,6 +378,7 @@ MATCH: 'MATCH';
 NATURAL: 'NATURAL';
 NOT: 'NOT';
 NULL: 'NULL';
+NULLS: 'NULLS';
 ON: 'ON';
 OPTIMIZED: 'OPTIMIZED';
 OR: 'OR';
@@ -456,7 +457,7 @@ DIGIT_IDENTIFIER
     ;
 
 TABLE_IDENTIFIER
-    : (LETTER | DIGIT | '_' | '@' | ASTERISK)+
+    : (LETTER | DIGIT | '_')+
     ;
 
 QUOTED_IDENTIFIER

@@ -26,7 +26,7 @@ public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggrega
 
     @Override
     protected final CardinalityAggregationBuilder createTestAggregatorBuilder() {
-        CardinalityAggregationBuilder factory = new CardinalityAggregationBuilder("foo", null);
+        CardinalityAggregationBuilder factory = new CardinalityAggregationBuilder(randomAlphaOfLengthBetween(3, 10), null);
         String field = randomNumericField();
         randomFieldOrScript(factory, field);
         if (randomBoolean()) {

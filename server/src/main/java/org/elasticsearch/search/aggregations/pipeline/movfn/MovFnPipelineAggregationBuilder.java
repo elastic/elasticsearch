@@ -39,7 +39,7 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Collection;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -173,8 +173,8 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
     }
 
     @Override
-    public void doValidate(AggregatorFactory<?> parent, List<AggregationBuilder> aggFactories,
-                           List<PipelineAggregationBuilder> pipelineAggregatoractories) {
+    public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggFactories,
+                           Collection<PipelineAggregationBuilder> pipelineAggregatoractories) {
         if (window <= 0) {
             throw new IllegalArgumentException("[" + WINDOW.getPreferredName() + "] must be a positive, non-zero integer.");
         }

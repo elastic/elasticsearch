@@ -91,7 +91,7 @@ public class ChildrenIT extends ParentChildTestCase {
                 String category = categories[j] = uniqueCategories[catIndex++ % uniqueCategories.length];
                 Control control = categoryToControl.get(category);
                 if (control == null) {
-                    categoryToControl.put(category, control = new Control(category));
+                    categoryToControl.put(category, control = new Control());
                 }
                 control.articleIds.add(id);
             }
@@ -457,14 +457,8 @@ public class ChildrenIT extends ParentChildTestCase {
     }
 
     private static final class Control {
-
-        final String category;
         final Set<String> articleIds = new HashSet<>();
         final Set<String> commentIds = new HashSet<>();
         final Map<String, Set<String>> commenterToCommentId = new HashMap<>();
-
-        private Control(String category) {
-            this.category = category;
-        }
     }
 }

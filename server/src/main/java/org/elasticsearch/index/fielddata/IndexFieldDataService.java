@@ -97,7 +97,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         final IndexFieldDataCache cache = fieldDataCaches.remove(fieldName);
         if (cache != null) {
             try {
-                cache.clear();
+                cache.clear(fieldName);
             } catch (Exception e) {
                 exceptions.add(e);
             }

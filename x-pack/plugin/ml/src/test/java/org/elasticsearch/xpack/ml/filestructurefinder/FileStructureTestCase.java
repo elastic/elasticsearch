@@ -68,6 +68,9 @@ public abstract class FileStructureTestCase extends ESTestCase {
         "</log4j:event>\n" +
         "\n";
 
+    // This doesn't need closing because it has an infinite timeout
+    protected static final TimeoutChecker NOOP_TIMEOUT_CHECKER = new TimeoutChecker("unit test", null, null);
+
     protected List<String> explanation;
 
     @Before

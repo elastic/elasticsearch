@@ -28,7 +28,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("eu_cluster");
+        request.setLeaderCluster("eu_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
@@ -51,7 +51,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut_existingLeaderIndices() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("eu_cluster");
+        request.setLeaderCluster("eu_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
@@ -90,21 +90,24 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut_existingLeaderIndicesAndAutoFollowMetadata() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderClusterAlias("eu_cluster");
+        request.setLeaderCluster("eu_cluster");
         request.setLeaderIndexPatterns(Arrays.asList("logs-*", "transactions-*"));
 
         Map<String, AutoFollowMetadata.AutoFollowPattern> existingAutoFollowPatterns = new HashMap<>();
         List<String> existingPatterns = new ArrayList<>();
         existingPatterns.add("transactions-*");
         existingAutoFollowPatterns.put("eu_cluster",
-            new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null, null));
+            new AutoFollowMetadata.AutoFollowPattern(existingPatterns, null, null, null, null, null, null, null, null));
         Map<String, List<String>> existingAlreadyFollowedIndexUUIDS = new HashMap<>();
         List<String> existingUUIDS = new ArrayList<>();
         existingUUIDS.add("_val");
         existingAlreadyFollowedIndexUUIDS.put("eu_cluster", existingUUIDS);
+        Map<String, Map<String, String>> existingHeaders = new HashMap<>();
+        existingHeaders.put("eu_cluster", Collections.singletonMap("key", "val"));
+
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
             .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
-                new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS)))
+                new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
             .build();
 
         int numLeaderIndices = randomIntBetween(1, 8);
@@ -129,6 +132,8 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         assertThat(autoFollowMetadata.getPatterns().get("eu_cluster").getLeaderIndexPatterns().get(1), equalTo("transactions-*"));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("eu_cluster").size(), equalTo(numLeaderIndices + 1));
+        assertThat(autoFollowMetadata.getHeaders().size(), equalTo(1));
+        assertThat(autoFollowMetadata.getHeaders().get("eu_cluster"), notNullValue());
     }
 
 }

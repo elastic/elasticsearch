@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.sql.JDBCType;
 import java.sql.SQLException;
+import java.sql.SQLType;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -18,10 +19,10 @@ import java.util.stream.Collectors;
 class PreparedQuery {
 
     static class ParamInfo {
-        JDBCType type;
+        SQLType type;
         Object value;
 
-        ParamInfo(Object value, JDBCType type) {
+        ParamInfo(Object value, SQLType type) {
             this.value = value;
             this.type = type;
         }
@@ -43,7 +44,7 @@ class PreparedQuery {
         return params[param - 1];
     }
 
-    void setParam(int param, Object value, JDBCType type) throws JdbcSQLException {
+    void setParam(int param, Object value, SQLType type) throws JdbcSQLException {
         if (param < 1 || param > params.length) {
             throw new JdbcSQLException("Invalid parameter index [" + param + "]");
         }

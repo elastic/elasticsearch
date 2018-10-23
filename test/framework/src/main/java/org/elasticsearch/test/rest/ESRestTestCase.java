@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest;
 
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.HttpStatus;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
@@ -31,6 +32,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -52,8 +54,12 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import javax.net.ssl.SSLContext;
+
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyManagementException;
@@ -67,6 +73,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
@@ -205,9 +212,63 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete.
+     *
+     * @param adminClient the admin client
+     * @throws Exception if an exception is thrown while checking the outstanding tasks
+     */
+    public static void waitForPendingTasks(final RestClient adminClient) throws Exception {
+        waitForPendingTasks(adminClient, taskName -> false);
+    }
+
+    /**
+     * Wait for outstanding tasks to complete. The specified admin client is used to check the outstanding tasks and this is done using
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete. The specified filter is used
+     * to filter out outstanding tasks that are expected to be there.
+     *
+     * @param adminClient the admin client
+     * @param taskFilter  predicate used to filter tasks that are expected to be there
+     * @throws Exception if an exception is thrown while checking the outstanding tasks
+     */
+    public static void waitForPendingTasks(final RestClient adminClient, final Predicate<String> taskFilter) throws Exception {
+        assertBusy(() -> {
+            try {
+                final Request request = new Request("GET", "/_cat/tasks");
+                request.addParameter("detailed", "true");
+                final Response response = adminClient.performRequest(request);
+                /*
+                 * Check to see if there are outstanding tasks; we exclude the list task itself, and any expected outstanding tasks using
+                 * the specified task filter.
+                 */
+                if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
+                    try (BufferedReader responseReader = new BufferedReader(
+                            new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
+                        int activeTasks = 0;
+                        String line;
+                        final StringBuilder tasksListString = new StringBuilder();
+                        while ((line = responseReader.readLine()) != null) {
+                            final String taskName = line.split("\\s+")[0];
+                            if (taskName.startsWith(ListTasksAction.NAME) || taskFilter.test(taskName)) {
+                                continue;
+                            }
+                            activeTasks++;
+                            tasksListString.append(line);
+                            tasksListString.append('\n');
+                        }
+                        assertEquals(activeTasks + " active tasks found:\n" + tasksListString, 0, activeTasks);
+                    }
+                }
+            } catch (final IOException e) {
+                throw new AssertionError("error getting active tasks list", e);
+            }
+        });
+    }
+
+    /**
      * Returns whether to preserve the state of the cluster upon completion of this test. Defaults to false. If true, overrides the value of
-     * {@link #preserveIndicesUponCompletion()}, {@link #preserveTemplatesUponCompletion()}, {@link #preserveReposUponCompletion()}, and
-     * {@link #preserveSnapshotsUponCompletion()}.
+     * {@link #preserveIndicesUponCompletion()}, {@link #preserveTemplatesUponCompletion()}, {@link #preserveReposUponCompletion()},
+     * {@link #preserveSnapshotsUponCompletion()}, and {@link #preserveRollupJobsUponCompletion()}.
      *
      * @return true if the state of the cluster should be preserved
      */
@@ -263,7 +324,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
-    private void wipeCluster() throws IOException {
+    /**
+     * Returns whether to preserve the rollup jobs of this test. Defaults to
+     * not preserving them. Only runs at all if xpack is installed on the
+     * cluster being tested.
+     */
+    protected boolean preserveRollupJobsUponCompletion() {
+        return false;
+    }
+
+    private void wipeCluster() throws Exception {
+        boolean hasXPack = hasXPack();
+
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
@@ -278,7 +350,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         // wipe index templates
         if (preserveTemplatesUponCompletion() == false) {
-            if (hasXPack()) {
+            if (hasXPack) {
                 /*
                  * Delete only templates that xpack doesn't automatically
                  * recreate. Deleting them doesn't hurt anything, but it
@@ -309,6 +381,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         // wipe cluster settings
         if (preserveClusterSettings() == false) {
             wipeClusterSettings();
+        }
+
+        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
+            wipeRollupJobs();
+            waitForPendingRollupTasks();
         }
     }
 
@@ -370,6 +447,31 @@ public abstract class ESRestTestCase extends ESTestCase {
             request.setJsonEntity(Strings.toString(clearCommand));
             adminClient().performRequest(request);
         }
+    }
+
+    private void wipeRollupJobs() throws IOException {
+        Response response = adminClient().performRequest(new Request("GET", "/_xpack/rollup/job/_all"));
+        Map<String, Object> jobs = entityAsMap(response);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> jobConfigs =
+                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
+
+        if (jobConfigs == null) {
+            return;
+        }
+
+        for (Map<String, Object> jobConfig : jobConfigs) {
+            @SuppressWarnings("unchecked")
+            String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
+            Request request = new Request("DELETE", "/_xpack/rollup/job/" + jobId);
+            request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
+            logger.debug("deleting rollup job [{}]", jobId);
+            adminClient().performRequest(request);
+        }
+    }
+
+    private void waitForPendingRollupTasks() throws Exception {
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
 
     /**
@@ -635,7 +737,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith(".monitoring-")) {
             return true;
         }
-        if (name.startsWith(".watch-history-")) {
+        if (name.startsWith(".watch") || name.startsWith(".triggered_watches")) {
             return true;
         }
         if (name.startsWith(".ml-")) {

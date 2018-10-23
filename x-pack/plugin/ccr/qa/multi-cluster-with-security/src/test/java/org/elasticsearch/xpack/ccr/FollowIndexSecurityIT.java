@@ -60,7 +60,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             refresh(allowedIndex);
             verifyDocuments(allowedIndex, numDocs, "*:*");
         } else {
-            followIndex(client(), allowedIndex, allowedIndex);
+            followIndex(client(), "leader_cluster", allowedIndex, allowedIndex);
             assertBusy(() -> verifyDocuments(allowedIndex, numDocs, "*:*"));
             assertThat(countCcrNodeTasks(), equalTo(1));
             assertBusy(() -> verifyCcrMonitoring(allowedIndex, allowedIndex));
@@ -90,7 +90,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             assertThat(e.getMessage(), containsString("follow index [" + allowedIndex + "] does not have ccr metadata"));
 
             // User does not have manage_follow_index index privilege for 'unallowedIndex':
-            e = expectThrows(ResponseException.class, () -> followIndex(client(), unallowedIndex, unallowedIndex));
+            e = expectThrows(ResponseException.class, () -> followIndex(client(), "leader_cluster", unallowedIndex, unallowedIndex));
             assertThat(e.getMessage(),
                 containsString("action [indices:admin/xpack/ccr/put_follow] is unauthorized for user [test_ccr]"));
             // Verify that the follow index has not been created and no node tasks are running
@@ -99,7 +99,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             // User does have manage_follow_index index privilege on 'allowed' index,
             // but not read / monitor roles on 'disallowed' index:
-            e = expectThrows(ResponseException.class, () -> followIndex(client(), unallowedIndex, allowedIndex));
+            e = expectThrows(ResponseException.class, () -> followIndex(client(), "leader_cluster", unallowedIndex, allowedIndex));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
                 "privilege for action [indices:monitor/stats] is missing, " +
                 "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
@@ -107,14 +107,13 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             assertThat(indexExists(unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
 
-            follow(adminClient(), unallowedIndex, unallowedIndex);
+            followIndex(adminClient(), "leader_cluster", unallowedIndex, unallowedIndex);
             pauseFollow(adminClient(), unallowedIndex);
 
             e = expectThrows(ResponseException.class, () -> resumeFollow(unallowedIndex));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
                 "privilege for action [indices:monitor/stats] is missing, " +
                 "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
-            assertThat(indexExists(unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
 
             e = expectThrows(ResponseException.class,

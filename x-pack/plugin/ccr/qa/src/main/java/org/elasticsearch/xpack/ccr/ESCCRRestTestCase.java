@@ -57,10 +57,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertOK(adminClient().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
-    protected static void resumeFollow(String leaderIndex, String followIndex) throws IOException {
+    protected static void resumeFollow(String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_ccr/resume_follow");
-        request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"" + leaderIndex +
-            "\", \"poll_timeout\": \"10ms\"}");
+        request.setJsonEntity("{\"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
@@ -69,14 +68,22 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected static void followIndex(String leaderCluster, String leaderIndex, String followIndex) throws IOException {
+        followIndex(client(), leaderCluster, leaderIndex, followIndex);
+    }
+
+    protected static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
         request.setJsonEntity("{\"leader_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
             "\", \"poll_timeout\": \"10ms\"}");
-        assertOK(client().performRequest(request));
+        assertOK(client.performRequest(request));
     }
 
     protected static void pauseFollow(String followIndex) throws IOException {
-        assertOK(client().performRequest(new Request("POST", "/" + followIndex + "/_ccr/pause_follow")));
+        pauseFollow(client(), followIndex);
+    }
+
+    protected static void pauseFollow(RestClient client, String followIndex) throws IOException {
+        assertOK(client.performRequest(new Request("POST", "/" + followIndex + "/_ccr/pause_follow")));
     }
 
     protected static void verifyDocuments(final String index, final int expectedNumDocs, final String query) throws IOException {

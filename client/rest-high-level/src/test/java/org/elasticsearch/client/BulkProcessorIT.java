@@ -345,16 +345,16 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
     private static BytesArray bytesBulkRequest(String localIndex, String localType, int id) throws IOException {
         String action = Strings.toString(jsonBuilder()
             .startObject()
-            .startObject("index")
-            .field("_index", localIndex)
-            .field("_type", localType)
-            .field("_id", Integer.toString(id))
-            .endObject()
+                .startObject("index")
+                    .field("_index", localIndex)
+                    .field("_type", localType)
+                    .field("_id", Integer.toString(id))
+                .endObject()
             .endObject()
         );
         String source = Strings.toString(jsonBuilder()
             .startObject()
-            .field("field", randomRealisticUnicodeOfLengthBetween(1, 30))
+                .field("field", randomRealisticUnicodeOfLengthBetween(1, 30))
             .endObject()
         );
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 
@@ -83,9 +82,11 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testInvalidEpochMilliParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
+        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("invalid"));
+        assertThat(e.getMessage(), is("invalid number [invalid]"));
 
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> formatter.parse("invalid"));
-        assertThat(e.getMessage(), containsString("could not parse input [invalid] with date formatter [epoch_millis]"));
+        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("123.1234567"));
+        assertThat(e.getMessage(), containsString("too much granularity after dot [123.1234567]"));
     }
 
     // this is not in the duelling tests, because the epoch second parser in joda time drops the milliseconds after the comma
@@ -106,6 +107,10 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(Instant.from(formatter.parse("1234.1234567")).getNano(), is(123_456_700));
         assertThat(Instant.from(formatter.parse("1234.12345678")).getNano(), is(123_456_780));
         assertThat(Instant.from(formatter.parse("1234.123456789")).getNano(), is(123_456_789));
+
+        assertThat(Instant.from(formatter.parse("-1234.567")).toEpochMilli(), is(-1234567L));
+        assertThat(Instant.from(formatter.parse("-1234")).getNano(), is(0));
+
         DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.1234567890"));
         assertThat(e.getMessage(), is("too much granularity after dot [1234.1234567890]"));
         e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.123456789013221"));

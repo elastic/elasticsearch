@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.ElasticsearchParseException;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -59,7 +57,12 @@ class EpochMillisDateFormatter implements DateFormatter {
                     // this is BWC compatible to joda time, nothing after the dot is allowed
                     return Instant.ofEpochMilli(milliSeconds).atZone(ZoneOffset.UTC);
                 }
-                if (inputs[1].length() > 9) {
+                // scientific notation it is!
+                if (inputs[1].contains("e")) {
+                    return Instant.ofEpochMilli(Double.valueOf(input).longValue()).atZone(ZoneOffset.UTC);
+                }
+
+                if (inputs[1].length() > 6) {
                     throw new DateTimeParseException("too much granularity after dot [" + input + "]", input, 0);
                 }
                 Long nanos = new BigDecimal(inputs[1]).movePointRight(6 - inputs[1].length()).longValueExact();
@@ -71,10 +74,9 @@ class EpochMillisDateFormatter implements DateFormatter {
                 return Instant.ofEpochMilli(Long.valueOf(input)).atZone(ZoneOffset.UTC);
             }
         } catch (NumberFormatException e) {
-            throw new ElasticsearchParseException("could not parse input [" + input + "] with date formatter [epoch_millis]", e);
+            throw new DateTimeParseException("invalid number [" + input + "]", input, 0, e);
         }
     }
-
     @Override
     public DateFormatter withZone(ZoneId zoneId) {
         if (ZoneOffset.UTC.equals(zoneId) == false) {

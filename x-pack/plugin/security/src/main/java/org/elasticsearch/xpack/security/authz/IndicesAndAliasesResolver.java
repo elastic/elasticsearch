@@ -192,7 +192,6 @@ class IndicesAndAliasesResolver {
         if (indicesRequest instanceof AliasesRequest) {
             //special treatment for AliasesRequest since we need to replace wildcards among the specified aliases too.
             //AliasesRequest extends IndicesRequest.Replaceable, hence its indices have already been properly replaced.
-            assert indicesRequest instanceof IndicesRequest.Replaceable;
             AliasesRequest aliasesRequest = (AliasesRequest) indicesRequest;
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(),

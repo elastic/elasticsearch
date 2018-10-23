@@ -64,7 +64,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -2244,11 +2243,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
             final ShardStateMetaData newShardStateMetadata =
                     new ShardStateMetaData(newRouting.primary(), indexSettings.getUUID(), newRouting.allocationId());
-            try {
-                ShardStateMetaData.FORMAT.write(newShardStateMetadata, shardPath.getShardStatePath());
-            } catch (WriteStateException e) {
-                throw new IOException(e);
-            }
+            ShardStateMetaData.FORMAT.write(newShardStateMetadata, shardPath.getShardStatePath());
         } else {
             logger.trace("{} skip writing shard state, has been written before", shardId);
         }

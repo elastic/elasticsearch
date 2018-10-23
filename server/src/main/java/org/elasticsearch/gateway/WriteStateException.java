@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.gateway;
 
+import java.io.IOException;
+
 /**
  * This exception is thrown when there is a problem of writing state to disk. <br>
  * If {@link #isDirty()} returns false, state is guaranteed to be not written to disk.
  * If {@link #isDirty()} returns true, we don't know if state is written to disk.
  */
-public class WriteStateException extends Exception {
+public class WriteStateException extends IOException {
     private boolean dirty;
 
     public WriteStateException(boolean dirty, String message, Exception cause) {

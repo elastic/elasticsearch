@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -402,11 +401,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         // create _state of IndexMetaData
         try(NodeEnvironment nodeEnvironment = new NodeEnvironment(environment.settings(), environment)) {
             final Path[] paths = nodeEnvironment.indexPaths(indexMetaData.getIndex());
-            try {
-                IndexMetaData.FORMAT.write(indexMetaData, paths);
-            } catch (WriteStateException e) {
-                throw new IOException(e);
-            }
+            IndexMetaData.FORMAT.write(indexMetaData, paths);
             logger.info("--> index metadata persisted to {} ", Arrays.toString(paths));
         }
     }

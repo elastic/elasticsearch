@@ -53,7 +53,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetaData;
 import org.elasticsearch.gateway.MetaDataStateFormat;
-import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -461,11 +460,8 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         final ShardStateMetaData newShardStateMetaData =
             new ShardStateMetaData(shardStateMetaData.primary, shardStateMetaData.indexUUID, newAllocationId);
 
-        try {
-            ShardStateMetaData.FORMAT.write(newShardStateMetaData, shardStatePath);
-        } catch (WriteStateException e) {
-            throw new IOException(e);
-        }
+        ShardStateMetaData.FORMAT.write(newShardStateMetaData, shardStatePath);
+
         terminal.println("");
         terminal.println("You should run the following command to allocate this shard:");
 

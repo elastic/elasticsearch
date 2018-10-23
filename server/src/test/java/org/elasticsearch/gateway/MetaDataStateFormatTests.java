@@ -95,7 +95,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         // indices are empty since they are serialized separately
     }
 
-    public void testReadWriteState() throws IOException, WriteStateException {
+    public void testReadWriteState() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
@@ -136,7 +136,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public void testVersionMismatch() throws IOException, WriteStateException {
+    public void testVersionMismatch() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
@@ -161,7 +161,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public void testCorruption() throws IOException, WriteStateException {
+    public void testCorruption() throws IOException {
         Path[] dirs = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = createTempDir();
@@ -233,7 +233,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public void testLoadState() throws IOException, WriteStateException {
+    public void testLoadState() throws IOException {
         final Path[] dirs = new Path[randomIntBetween(1, 5)];
         int numStates = randomIntBetween(1, 5);
         List<MetaData> meta = new ArrayList<>();
@@ -291,7 +291,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    private DummyState writeAndReadStateSuccessfully(Format format, Path... paths) throws IOException, WriteStateException {
+    private DummyState writeAndReadStateSuccessfully(Format format, Path... paths) throws IOException {
         format.noFailures();
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                 randomDouble(), randomBoolean());
@@ -309,7 +309,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public void testFailWriteAndReadPreviousState() throws IOException, WriteStateException {
+    public void testFailWriteAndReadPreviousState() throws IOException {
         Path path = createTempDir();
         Format format = new Format("foo-");
 
@@ -330,7 +330,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         writeAndReadStateSuccessfully(format, path);
     }
 
-    public void testFailWriteAndReadAnyState() throws IOException, WriteStateException {
+    public void testFailWriteAndReadAnyState() throws IOException {
         Path path = createTempDir();
         Format format = new Format("foo-");
         Set<DummyState> possibleStates = new HashSet<>();
@@ -377,7 +377,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
     }
 
 
-    public void testFailRandomlyAndReadAnyState() throws IOException, WriteStateException {
+    public void testFailRandomlyAndReadAnyState() throws IOException {
         Path paths[] = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < paths.length; i++) {
             paths[i] = createTempDir();

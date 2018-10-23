@@ -28,7 +28,7 @@ public final class IndexNotFoundException extends ResourceNotFoundException {
      * Construct with a custom message.
      */
     public IndexNotFoundException(String message, String index) {
-        super(message);
+        super("no such index [" + index + "] and " + message);
         setIndex(index);
     }
 

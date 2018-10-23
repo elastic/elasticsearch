@@ -11,7 +11,7 @@ including the query itself (similar to GORM criteria builder):
 --------------------------------------------------
 def search = node.client.search {
     indices "test"
-    types "type1"
+    types "_doc"
     source {
         query {
             term(test: "value")
@@ -52,7 +52,7 @@ Term query where multiple values are provided (see
 --------------------------------------------------
 def search = node.client.search {
     indices "test"
-    types "type1"
+    types "_doc"
     source {
         query {
             terms(test: ["value1", "value2"])
@@ -68,7 +68,7 @@ Query string (see
 --------------------------------------------------
 def search = node.client.search {
     indices "test"
-    types "type1"
+    types "_doc"
     source {
         query {
             query_string(
@@ -86,7 +86,7 @@ Pagination (see
 --------------------------------------------------
 def search = node.client.search {
     indices "test"
-    types "type1"
+    types "_doc"
     source {
         from = 0
         size = 10
@@ -103,7 +103,7 @@ Sorting (see {ref}/search-request-sort.html[sort]):
 --------------------------------------------------
 def search = node.client.search {
     indices "test"
-    types "type1"
+    types "_doc"
     source {
         query {
             term(test: "value")

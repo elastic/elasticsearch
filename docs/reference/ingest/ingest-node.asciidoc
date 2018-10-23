@@ -1260,6 +1260,21 @@ Reference key modifier example
 * error = REFUSED
 |====== 
 
+[[drop-processor]]
+=== Drop Processor
+Drops the document without raising any errors. This is useful to prevent the document from
+getting indexed based on some condition.
+
+[source,js]
+--------------------------------------------------
+{
+  "drop": {
+    "if" : "ctx.network_name == 'Guest'"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 [[dot-expand-processor]]
 === Dot Expander Processor
 

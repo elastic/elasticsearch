@@ -42,8 +42,8 @@ public final class ExpressionRoleMapping {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ExpressionRoleMapping, String> PARSER = new ConstructingObjectParser<>("role-mapping", true,
-            (args, name) -> new ExpressionRoleMapping(name, (RoleMapperExpression) args[0], (List<String>) args[1], (Map<String, Object>) args[2],
-                    (boolean) args[3]));
+            (args, name) -> new ExpressionRoleMapping(name, (RoleMapperExpression) args[0], (List<String>) args[1],
+                    (Map<String, Object>) args[2], (boolean) args[3]));
 
     static {
         PARSER.declareField(constructorArg(), (parser, context) -> RoleMapperExpressionParser.fromXContent(parser), Fields.RULES,

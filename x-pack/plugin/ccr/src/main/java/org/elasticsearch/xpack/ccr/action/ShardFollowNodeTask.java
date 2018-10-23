@@ -401,8 +401,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof ElasticsearchSecurityException || // If user does not have sufficient privileges
             actual instanceof ClusterBlockException || // If leader index is closed or no elected master
             actual instanceof IndexClosedException || // If follow index is closed
-
-            actual instanceof NodeDisconnectedException || actual instanceof NodeNotConnectedException ||
+            actual instanceof NodeDisconnectedException ||
+            actual instanceof NodeNotConnectedException ||
             (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
     }
 

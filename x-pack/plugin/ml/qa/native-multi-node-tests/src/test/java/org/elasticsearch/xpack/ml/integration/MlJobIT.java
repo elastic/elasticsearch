@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.After;
 
 import java.io.IOException;
@@ -680,6 +679,6 @@ public class MlJobIT extends ESRestTestCase {
     @After
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        XPackRestTestHelper.waitForPendingTasks(adminClient());
+        ESRestTestCase.waitForPendingTasks(adminClient());
     }
 }

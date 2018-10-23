@@ -22,14 +22,6 @@ import static org.hamcrest.Matchers.hasToString;
 
 public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
 
-    public void testResumeFollow() {
-        if ("follow".equals(targetCluster)) {
-            final Request request = new Request("POST", "/follower/_ccr/resume_follow");
-            request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"leader\"}");
-            assertNonCompliantLicense(request);
-        }
-    }
-
     public void testFollow() {
         if ("follow".equals(targetCluster)) {
             final Request request = new Request("PUT", "/follower/_ccr/follow");
@@ -41,8 +33,8 @@ public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
     public void testAutoFollow() throws Exception {
         assumeFalse("windows is the worst", Constants.WINDOWS);
         if ("follow".equals(targetCluster)) {
-            final Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
-            request.setJsonEntity("{\"leader_index_patterns\":[\"*\"]}");
+            final Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+            request.setJsonEntity("{\"leader_index_patterns\":[\"*\"], \"leader_cluster\": \"leader_cluster\"}");
             client().performRequest(request);
 
             // parse the logs and ensure that the auto-coordinator skipped coordination on the leader cluster
@@ -55,7 +47,7 @@ public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
                 while (it.hasNext()) {
                     final String line = it.next();
                     if (line.matches(".*\\[WARN\\s*\\]\\[o\\.e\\.x\\.c\\.a\\.AutoFollowCoordinator\\s*\\] \\[node-0\\] " +
-                            "failure occurred while fetching cluster state in leader cluster \\[leader_cluster\\]")) {
+                            "failure occurred while fetching cluster state for auto follow pattern \\[test_pattern\\]")) {
                         warn = true;
                         break;
                     }

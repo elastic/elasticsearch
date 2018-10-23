@@ -127,7 +127,7 @@ public class SqlSession {
                 listener.onFailure(new MappingException("Cannot inspect indices in cluster/catalog [{}]", cluster));
             }
 
-            indexResolver.resolveWithSameMapping(table.index(), null,
+            indexResolver.resolveAsMergedMapping(table.index(), null,
                     wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {

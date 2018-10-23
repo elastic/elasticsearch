@@ -50,7 +50,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             assertBusy(() -> verifyDocuments(followIndexName, numDocs, "filtered_field:true"));
             // unfollow and then follow and then index a few docs in leader index:
             pauseFollow(followIndexName);
-            resumeFollow(leaderIndexName, followIndexName);
+            resumeFollow(followIndexName);
             try (RestClient leaderClient = buildLeaderClient()) {
                 int id = numDocs;
                 index(leaderClient, leaderIndexName, Integer.toString(id), "field", id, "filtered_field", "true");
@@ -63,14 +63,14 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             pauseFollow(followIndexName);
             assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_close")));
             assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_ccr/unfollow")));
-            Exception e = expectThrows(ResponseException.class, () -> resumeFollow(leaderIndexName, followIndexName));
+            Exception e = expectThrows(ResponseException.class, () -> resumeFollow(followIndexName));
             assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));
         }
     }
 
     public void testFollowNonExistingLeaderIndex() throws Exception {
         assumeFalse("Test should only run when both clusters are running", "leader".equals(targetCluster));
-        ResponseException e = expectThrows(ResponseException.class, () -> resumeFollow("non-existing-index", "non-existing-index"));
+        ResponseException e = expectThrows(ResponseException.class, () -> resumeFollow("non-existing-index"));
         assertThat(e.getMessage(), containsString("no such index"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
@@ -82,8 +82,8 @@ public class FollowIndexIT extends ESCCRRestTestCase {
     public void testAutoFollowPatterns() throws Exception {
         assumeFalse("Test should only run when both clusters are running", "leader".equals(targetCluster));
 
-        Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+        Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"leader_cluster\": \"leader_cluster\"}");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {

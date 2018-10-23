@@ -19,6 +19,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.util.ReferenceCounted;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -53,15 +54,19 @@ public class Netty4PipeliningDisabledIT extends ESNetty4IntegTestCase {
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
-        TransportAddress transportAddress = (TransportAddress) randomFrom(boundAddresses);
+        TransportAddress transportAddress = randomFrom(boundAddresses);
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
             Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests);
-            assertThat(responses, hasSize(requests.length));
+            try {
+                assertThat(responses, hasSize(requests.length));
 
-            List<String> opaqueIds = new ArrayList<>(Netty4HttpClient.returnOpaqueIds(responses));
+                List<String> opaqueIds = new ArrayList<>(Netty4HttpClient.returnOpaqueIds(responses));
 
-            assertResponsesOutOfOrder(opaqueIds);
+                assertResponsesOutOfOrder(opaqueIds);
+            } finally {
+                responses.forEach(ReferenceCounted::release);
+            }
         }
     }
 

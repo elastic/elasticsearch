@@ -714,6 +714,16 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitCastTemplate(SqlBaseParser.CastTemplateContext ctx);
   /**
+   * Enter a parse tree produced by {@link SqlBaseParser#convertTemplate}.
+   * @param ctx the parse tree
+   */
+  void enterConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#convertTemplate}.
+   * @param ctx the parse tree
+   */
+  void exitConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx);
+  /**
    * Enter a parse tree produced by {@link SqlBaseParser#extractExpression}.
    * @param ctx the parse tree
    */

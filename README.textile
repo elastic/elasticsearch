@@ -48,21 +48,21 @@ h3. Indexing
 Let's try and index some twitter like information. First, let's index some tweets (the @twitter@ index will be created automatically):
 
 <pre>
-curl -XPUT 'http://localhost:9200/twitter/doc/1?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/twitter/_doc/1?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T13:12:00",
     "message": "Trying out Elasticsearch, so far so good?"
 }'
 
-curl -XPUT 'http://localhost:9200/twitter/doc/2?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/twitter/_doc/2?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T14:12:12",
     "message": "Another tweet, will it be indexed?"
 }'
 
-curl -XPUT 'http://localhost:9200/twitter/doc/3?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/twitter/_doc/3?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "elastic",
     "post_date": "2010-01-15T01:46:38",
@@ -73,9 +73,9 @@ curl -XPUT 'http://localhost:9200/twitter/doc/3?pretty' -H 'Content-Type: applic
 Now, let's see if the information was added by GETting it:
 
 <pre>
-curl -XGET 'http://localhost:9200/twitter/doc/1?pretty=true'
-curl -XGET 'http://localhost:9200/twitter/doc/2?pretty=true'
-curl -XGET 'http://localhost:9200/twitter/doc/3?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/_doc/1?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/_doc/2?pretty=true'
+curl -XGET 'http://localhost:9200/twitter/_doc/3?pretty=true'
 </pre>
 
 h3. Searching
@@ -133,14 +133,14 @@ Elasticsearch supports multiple indices. In the previous example we used an inde
 Another way to define our simple twitter system is to have a different index per user (note, though that each index has an overhead). Here is the indexing curl's in this case:
 
 <pre>
-curl -XPUT 'http://localhost:9200/kimchy/doc/1?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/kimchy/_doc/1?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T13:12:00",
     "message": "Trying out Elasticsearch, so far so good?"
 }'
 
-curl -XPUT 'http://localhost:9200/kimchy/doc/2?pretty' -H 'Content-Type: application/json' -d '
+curl -XPUT 'http://localhost:9200/kimchy/_doc/2?pretty' -H 'Content-Type: application/json' -d '
 {
     "user": "kimchy",
     "post_date": "2009-11-15T14:12:12",

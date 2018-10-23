@@ -28,8 +28,8 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -390,14 +390,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             return true;
         } else if (NetworkExceptionHelper.isCloseConnectionException(e)) {
             return true;
-        } else {
-            final TransportException transportError = (TransportException) ExceptionsHelper.unwrap(e.getCause(), TransportException.class);
-            if (transportError != null) {
-                if (transportError instanceof NodeNotConnectedException ||
-                    (transportError.getMessage() != null && transportError.getMessage().contains("TransportService is closed"))) {
-                    return true;
-                }
-            }
         }
 
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
@@ -408,7 +400,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof AlreadyClosedException ||
             actual instanceof ElasticsearchSecurityException || // If user does not have sufficient privileges
             actual instanceof ClusterBlockException || // If leader index is closed or no elected master
-            actual instanceof IndexClosedException; // If follow index is closed
+            actual instanceof IndexClosedException || // If follow index is closed
+
+            actual instanceof NodeDisconnectedException || actual instanceof NodeNotConnectedException ||
+            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
     }
 
     // These methods are protected for testing purposes:

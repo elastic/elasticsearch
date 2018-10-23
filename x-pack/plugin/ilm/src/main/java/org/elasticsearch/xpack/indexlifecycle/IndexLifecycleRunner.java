@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -396,7 +397,14 @@ public class IndexLifecycleRunner {
             newPhaseDefinition = Strings.toString(phaseExecutionInfo, false, false);
             updatedState.setPhaseDefinition(newPhaseDefinition);
             updatedState.setPhaseTime(nowAsMillis);
+        } else if (currentStep.getPhase().equals(InitializePolicyContextStep.INITIALIZATION_PHASE)) {
+            // The "new" phase is the initialization phase, usually the phase
+            // time would be set on phase transition, but since there is no
+            // transition into the "new" phase, we set it any time in the "new"
+            // phase
+            updatedState.setPhaseTime(nowAsMillis);
         }
+
         if (currentStep.getAction().equals(nextStep.getAction()) == false) {
             updatedState.setActionTime(nowAsMillis);
         }

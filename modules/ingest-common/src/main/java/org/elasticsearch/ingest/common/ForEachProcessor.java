@@ -63,24 +63,29 @@ public final class ForEachProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         List<?> values = ingestDocument.getFieldValue(field, List.class, ignoreMissing);
         if (values == null) {
             if (ignoreMissing) {
-                return;
+                return ingestDocument;
             }
             throw new IllegalArgumentException("field [" + field + "] is null, cannot loop over its elements.");
         }
         List<Object> newValues = new ArrayList<>(values.size());
+        IngestDocument document = ingestDocument;
         for (Object value : values) {
             Object previousValue = ingestDocument.getIngestMetadata().put("_value", value);
             try {
-                processor.execute(ingestDocument);
+                document = processor.execute(document);
+                if (document == null) {
+                    return null;
+                }
             } finally {
                 newValues.add(ingestDocument.getIngestMetadata().put("_value", previousValue));
             }
         }
-        ingestDocument.setFieldValue(field, newValues);
+        document.setFieldValue(field, newValues);
+        return document;
     }
 
     @Override

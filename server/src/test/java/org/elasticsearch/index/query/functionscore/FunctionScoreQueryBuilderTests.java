@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -272,6 +272,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(matchAllQuery());
         expectThrows(IllegalArgumentException.class, () -> builder.scoreMode(null));
         expectThrows(IllegalArgumentException.class, () -> builder.boostMode(null));
+        expectThrows(IllegalArgumentException.class,
+                () -> new FunctionScoreQueryBuilder.FilterFunctionBuilder(new WeightBuilder().setWeight(-1 * randomFloat())));
     }
 
     public void testParseFunctionsArray() throws IOException {
@@ -721,27 +723,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "    }\n" +
                 "}";
         expectParsingException(json, equalTo("[bool] malformed query, expected [END_OBJECT] but found [FIELD_NAME]"));
-    }
-
-    public void testMalformedQueryMultipleQueryElements() throws IOException {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-        String json = "{\n" +
-                "    \"function_score\":{\n" +
-                "        \"query\":{\n" +
-                "            \"bool\":{\n" +
-                "                \"must\":{\"match\":{\"field\":\"value\"}}" +
-                "             }\n" +
-                "            },\n" +
-                "        \"query\":{\n" +
-                "            \"bool\":{\n" +
-                "                \"must\":{\"match\":{\"field\":\"value\"}}" +
-                "             }\n" +
-                "            }\n" +
-                "        }\n" +
-                "    }\n" +
-                "}";
-        expectParsingException(json, "[query] is already defined.");
     }
 
     private void expectParsingException(String json, Matcher<String> messageMatcher) {

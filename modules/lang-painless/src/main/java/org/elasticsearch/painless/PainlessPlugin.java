@@ -105,8 +105,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public List<ScriptContext> getContexts() {
+    @Override
+    public List<ScriptContext<?>> getContexts() {
         return Collections.singletonList(PainlessExecuteAction.PainlessTestScript.CONTEXT);
     }
 

@@ -179,7 +179,6 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     public void testCommonTermsQuery4() throws IOException {
         Query parsedQuery = parseQuery(commonTermsQuery("field", "text")).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
-        ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {

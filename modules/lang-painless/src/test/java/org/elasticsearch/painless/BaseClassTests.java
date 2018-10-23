@@ -68,28 +68,29 @@ public class BaseClassTests extends ScriptTestCase {
         }
     }
 
-    public void testGets() {
+    public void testGets() throws Exception {
         Compiler compiler = new Compiler(Gets.class, null, null, painlessLookup);
         Map<String, Object> map = new HashMap<>();
         map.put("s", 1);
 
-        assertEquals(1, ((Gets)scriptEngine.compile(compiler, null, "testInt", emptyMap(), "s", -1, null)).execute());
-        assertEquals(Collections.emptyMap(), ((Gets)scriptEngine.compile(compiler, null, "testMap", emptyMap(), "s", -1, null)).execute());
-        assertEquals(Collections.singletonMap("1", "1"),
-            ((Gets)scriptEngine.compile(compiler, null, "testMap", emptyMap(), "s", -1, Collections.singletonMap("1", "1"))).execute());
-        assertEquals("s", ((Gets)scriptEngine.compile(compiler, null, "testString", emptyMap(), "s", -1, null)).execute());
-        assertEquals(map,
-            ((Gets)scriptEngine.compile(compiler, null, "testMap.put(testString, testInt); testMap", emptyMap(), "s", -1, null)).execute());
+        assertEquals(1, ((Gets)scriptEngine.compile(compiler, null, "testInt", emptyMap()).newInstance("s", -1, null)).execute());
+        assertEquals(Collections.emptyMap(),
+                ((Gets)scriptEngine.compile(compiler, null, "testMap", emptyMap()).newInstance("s", -1, null)).execute());
+        assertEquals(Collections.singletonMap("1", "1"), ((Gets)scriptEngine.compile(
+                compiler, null, "testMap", emptyMap()).newInstance("s", -1, Collections.singletonMap("1", "1"))).execute());
+        assertEquals("s", ((Gets)scriptEngine.compile(compiler, null, "testString", emptyMap()).newInstance("s", -1, null)).execute());
+        assertEquals(map, ((Gets)scriptEngine.compile(
+                compiler, null, "testMap.put(testString, testInt); testMap", emptyMap()).newInstance("s", -1, null)).execute());
     }
 
     public abstract static class NoArgs {
         public static final String[] PARAMETERS = new String[] {};
         public abstract Object execute();
     }
-    public void testNoArgs() {
+    public void testNoArgs() throws Exception {
         Compiler compiler = new Compiler(NoArgs.class, null, null, painlessLookup);
-        assertEquals(1, ((NoArgs)scriptEngine.compile(compiler, null, "1", emptyMap())).execute());
-        assertEquals("foo", ((NoArgs)scriptEngine.compile(compiler, null, "'foo'", emptyMap())).execute());
+        assertEquals(1, ((NoArgs)scriptEngine.compile(compiler, null, "1", emptyMap()).newInstance()).execute());
+        assertEquals("foo", ((NoArgs)scriptEngine.compile(compiler, null, "'foo'", emptyMap()).newInstance()).execute());
 
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
                 scriptEngine.compile(compiler, null, "doc", emptyMap()));
@@ -110,12 +111,12 @@ public class BaseClassTests extends ScriptTestCase {
         public static final String[] PARAMETERS = new String[] {"arg"};
         public abstract Object execute(Object arg);
     }
-    public void testOneArg() {
+    public void testOneArg() throws Exception {
         Compiler compiler = new Compiler(OneArg.class, null, null, painlessLookup);
         Object rando = randomInt();
-        assertEquals(rando, ((OneArg)scriptEngine.compile(compiler, null, "arg", emptyMap())).execute(rando));
+        assertEquals(rando, ((OneArg)scriptEngine.compile(compiler, null, "arg", emptyMap()).newInstance()).execute(rando));
         rando = randomAlphaOfLength(5);
-        assertEquals(rando, ((OneArg)scriptEngine.compile(compiler, null, "arg", emptyMap())).execute(rando));
+        assertEquals(rando, ((OneArg)scriptEngine.compile(compiler, null, "arg", emptyMap()).newInstance()).execute(rando));
 
         Compiler noargs = new Compiler(NoArgs.class, null, null, painlessLookup);
         Exception e = expectScriptThrows(IllegalArgumentException.class, () ->
@@ -131,34 +132,38 @@ public class BaseClassTests extends ScriptTestCase {
         public static final String[] PARAMETERS = new String[] {"arg"};
         public abstract Object execute(String[] arg);
     }
-    public void testArrayArg() {
+    public void testArrayArg() throws Exception {
         Compiler compiler = new Compiler(ArrayArg.class, null, null, painlessLookup);
         String rando = randomAlphaOfLength(5);
-        assertEquals(rando, ((ArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap())).execute(new String[] {rando, "foo"}));
+        assertEquals(rando,
+                ((ArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap()).newInstance()).execute(new String[] {rando, "foo"}));
     }
 
     public abstract static class PrimitiveArrayArg {
         public static final String[] PARAMETERS = new String[] {"arg"};
         public abstract Object execute(int[] arg);
     }
-    public void testPrimitiveArrayArg() {
+    public void testPrimitiveArrayArg() throws Exception {
         Compiler compiler = new Compiler(PrimitiveArrayArg.class, null, null, painlessLookup);
         int rando = randomInt();
-        assertEquals(rando, ((PrimitiveArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap())).execute(new int[] {rando, 10}));
+        assertEquals(rando, ((PrimitiveArrayArg)scriptEngine.compile(
+                compiler, null, "arg[0]", emptyMap()).newInstance()).execute(new int[] {rando, 10}));
     }
 
     public abstract static class DefArrayArg {
         public static final String[] PARAMETERS = new String[] {"arg"};
         public abstract Object execute(Object[] arg);
     }
-    public void testDefArrayArg() {
+    public void testDefArrayArg()throws Exception {
         Compiler compiler = new Compiler(DefArrayArg.class, null, null, painlessLookup);
         Object rando = randomInt();
-        assertEquals(rando, ((DefArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap())).execute(new Object[] {rando, 10}));
+        assertEquals(rando,
+                ((DefArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap()).newInstance()).execute(new Object[] {rando, 10}));
         rando = randomAlphaOfLength(5);
-        assertEquals(rando, ((DefArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap())).execute(new Object[] {rando, 10}));
-        assertEquals(5,
-            ((DefArrayArg)scriptEngine.compile(compiler, null, "arg[0].length()", emptyMap())).execute(new Object[] {rando, 10}));
+        assertEquals(rando,
+                ((DefArrayArg)scriptEngine.compile(compiler, null, "arg[0]", emptyMap()).newInstance()).execute(new Object[] {rando, 10}));
+        assertEquals(5, ((DefArrayArg)scriptEngine.compile(
+                compiler, null, "arg[0].length()", emptyMap()).newInstance()).execute(new Object[] {rando, 10}));
     }
 
     public abstract static class ManyArgs {
@@ -169,24 +174,24 @@ public class BaseClassTests extends ScriptTestCase {
         public abstract boolean needsC();
         public abstract boolean needsD();
     }
-    public void testManyArgs() {
+    public void testManyArgs() throws Exception {
         Compiler compiler = new Compiler(ManyArgs.class, null, null, painlessLookup);
         int rando = randomInt();
-        assertEquals(rando, ((ManyArgs)scriptEngine.compile(compiler, null, "a", emptyMap())).execute(rando, 0, 0, 0));
-        assertEquals(10, ((ManyArgs)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap())).execute(1, 2, 3, 4));
+        assertEquals(rando, ((ManyArgs)scriptEngine.compile(compiler, null, "a", emptyMap()).newInstance()).execute(rando, 0, 0, 0));
+        assertEquals(10, ((ManyArgs)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap()).newInstance()).execute(1, 2, 3, 4));
 
         // While we're here we can verify that painless correctly finds used variables
-        ManyArgs script = (ManyArgs)scriptEngine.compile(compiler, null, "a", emptyMap());
+        ManyArgs script = (ManyArgs)scriptEngine.compile(compiler, null, "a", emptyMap()).newInstance();
         assertTrue(script.needsA());
         assertFalse(script.needsB());
         assertFalse(script.needsC());
         assertFalse(script.needsD());
-        script = (ManyArgs)scriptEngine.compile(compiler, null, "a + b + c", emptyMap());
+        script = (ManyArgs)scriptEngine.compile(compiler, null, "a + b + c", emptyMap()).newInstance();
         assertTrue(script.needsA());
         assertTrue(script.needsB());
         assertTrue(script.needsC());
         assertFalse(script.needsD());
-        script = (ManyArgs)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap());
+        script = (ManyArgs)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap()).newInstance();
         assertTrue(script.needsA());
         assertTrue(script.needsB());
         assertTrue(script.needsC());
@@ -197,10 +202,11 @@ public class BaseClassTests extends ScriptTestCase {
         public static final String[] PARAMETERS = new String[] {"arg"};
         public abstract Object execute(String... arg);
     }
-    public void testVararg() {
+    public void testVararg() throws Exception {
         Compiler compiler = new Compiler(VarargTest.class, null, null, painlessLookup);
-        assertEquals("foo bar baz", ((VarargTest)scriptEngine.compile(compiler, null, "String.join(' ', Arrays.asList(arg))", emptyMap()))
-                    .execute("foo", "bar", "baz"));
+        assertEquals("foo bar baz",
+                ((VarargTest)scriptEngine.compile(compiler, null, "String.join(' ', Arrays.asList(arg))", emptyMap()).newInstance())
+                        .execute("foo", "bar", "baz"));
     }
 
     public abstract static class DefaultMethods {
@@ -213,26 +219,29 @@ public class BaseClassTests extends ScriptTestCase {
             return execute(a, b, c, 1);
         }
     }
-    public void testDefaultMethods() {
+    public void testDefaultMethods() throws Exception {
         Compiler compiler = new Compiler(DefaultMethods.class, null, null, painlessLookup);
         int rando = randomInt();
-        assertEquals(rando, ((DefaultMethods)scriptEngine.compile(compiler, null, "a", emptyMap())).execute(rando, 0, 0, 0));
-        assertEquals(rando, ((DefaultMethods)scriptEngine.compile(compiler, null, "a", emptyMap())).executeWithASingleOne(rando, 0, 0));
-        assertEquals(10, ((DefaultMethods)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap())).execute(1, 2, 3, 4));
-        assertEquals(4, ((DefaultMethods)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap())).executeWithOne());
-        assertEquals(7, ((DefaultMethods)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap())).executeWithASingleOne(1, 2, 3));
+        assertEquals(rando, ((DefaultMethods)scriptEngine.compile(compiler, null, "a", emptyMap()).newInstance()).execute(rando, 0, 0, 0));
+        assertEquals(rando,
+                ((DefaultMethods)scriptEngine.compile(compiler, null, "a", emptyMap()).newInstance()).executeWithASingleOne(rando, 0, 0));
+        assertEquals(10,
+                ((DefaultMethods)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap()).newInstance()).execute(1, 2, 3, 4));
+        assertEquals(4, ((DefaultMethods)scriptEngine.compile(compiler, null, "a + b + c + d", emptyMap()).newInstance()).executeWithOne());
+        assertEquals(7, ((DefaultMethods)scriptEngine.compile(
+                compiler, null, "a + b + c + d", emptyMap()).newInstance()).executeWithASingleOne(1, 2, 3));
     }
 
     public abstract static class ReturnsVoid {
         public static final String[] PARAMETERS = new String[] {"map"};
         public abstract void execute(Map<String, Object> map);
     }
-    public void testReturnsVoid() {
+    public void testReturnsVoid() throws Exception {
         Compiler compiler = new Compiler(ReturnsVoid.class, null, null, painlessLookup);
         Map<String, Object> map = new HashMap<>();
-        ((ReturnsVoid)scriptEngine.compile(compiler, null, "map.a = 'foo'", emptyMap())).execute(map);
+        ((ReturnsVoid)scriptEngine.compile(compiler, null, "map.a = 'foo'", emptyMap()).newInstance()).execute(map);
         assertEquals(singletonMap("a", "foo"), map);
-        ((ReturnsVoid)scriptEngine.compile(compiler, null, "map.remove('a')", emptyMap())).execute(map);
+        ((ReturnsVoid)scriptEngine.compile(compiler, null, "map.remove('a')", emptyMap()).newInstance()).execute(map);
         assertEquals(emptyMap(), map);
 
         String debug = Debugger.toString(ReturnsVoid.class, "int i = 0", new CompilerSettings());
@@ -246,19 +255,23 @@ public class BaseClassTests extends ScriptTestCase {
         public static final String[] PARAMETERS = new String[] {};
         public abstract boolean execute();
     }
-    public void testReturnsPrimitiveBoolean() {
+    public void testReturnsPrimitiveBoolean() throws Exception {
         Compiler compiler = new Compiler(ReturnsPrimitiveBoolean.class, null, null, painlessLookup);
 
-        assertEquals(true, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "true", emptyMap())).execute());
-        assertEquals(false, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "false", emptyMap())).execute());
-        assertEquals(true, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "Boolean.TRUE", emptyMap())).execute());
-        assertEquals(false, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "Boolean.FALSE", emptyMap())).execute());
-
-        assertEquals(true, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "def i = true; i", emptyMap())).execute());
+        assertEquals(true, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "true", emptyMap()).newInstance()).execute());
+        assertEquals(false, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "false", emptyMap()).newInstance()).execute());
         assertEquals(true,
-                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "def i = Boolean.TRUE; i", emptyMap())).execute());
+                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "Boolean.TRUE", emptyMap()).newInstance()).execute());
+        assertEquals(false,
+                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "Boolean.FALSE", emptyMap()).newInstance()).execute());
 
-        assertEquals(true, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "true || false", emptyMap())).execute());
+        assertEquals(true,
+                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "def i = true; i", emptyMap()).newInstance()).execute());
+        assertEquals(true, ((ReturnsPrimitiveBoolean)scriptEngine.compile(
+                compiler, null, "def i = Boolean.TRUE; i", emptyMap()).newInstance()).execute());
+
+        assertEquals(true,
+                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "true || false", emptyMap()).newInstance()).execute());
 
         String debug = Debugger.toString(ReturnsPrimitiveBoolean.class, "false", new CompilerSettings());
         assertThat(debug, containsString("ICONST_0"));
@@ -266,41 +279,44 @@ public class BaseClassTests extends ScriptTestCase {
         assertThat(debug, containsString("IRETURN"));
 
         Exception e = expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "1L", emptyMap())).execute());
+                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "1L", emptyMap()).newInstance()).execute());
         assertEquals("Cannot cast from [long] to [boolean].", e.getMessage());
         e = expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "1.1f", emptyMap())).execute());
+                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "1.1f", emptyMap()).newInstance()).execute());
         assertEquals("Cannot cast from [float] to [boolean].", e.getMessage());
         e = expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "1.1d", emptyMap())).execute());
+                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "1.1d", emptyMap()).newInstance()).execute());
         assertEquals("Cannot cast from [double] to [boolean].", e.getMessage());
         expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "def i = 1L; i", emptyMap())).execute());
+                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "def i = 1L; i", emptyMap()).newInstance()).execute());
         expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "def i = 1.1f; i", emptyMap())).execute());
+                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "def i = 1.1f; i", emptyMap()).newInstance()).execute());
         expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "def i = 1.1d; i", emptyMap())).execute());
+                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "def i = 1.1d; i", emptyMap()).newInstance()).execute());
 
-        assertEquals(false, ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "int i = 0", emptyMap())).execute());
+        assertEquals(false,
+                ((ReturnsPrimitiveBoolean)scriptEngine.compile(compiler, null, "int i = 0", emptyMap()).newInstance()).execute());
     }
 
     public abstract static class ReturnsPrimitiveInt {
         public static final String[] PARAMETERS = new String[] {};
         public abstract int execute();
     }
-    public void testReturnsPrimitiveInt() {
+    public void testReturnsPrimitiveInt() throws Exception {
         Compiler compiler = new Compiler(ReturnsPrimitiveInt.class, null, null, painlessLookup);
 
-        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "1", emptyMap())).execute());
-        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "(int) 1L", emptyMap())).execute());
-        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "(int) 1.1d", emptyMap())).execute());
-        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "(int) 1.1f", emptyMap())).execute());
-        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "Integer.valueOf(1)", emptyMap())).execute());
+        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "1", emptyMap()).newInstance()).execute());
+        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "(int) 1L", emptyMap()).newInstance()).execute());
+        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "(int) 1.1d", emptyMap()).newInstance()).execute());
+        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "(int) 1.1f", emptyMap()).newInstance()).execute());
+        assertEquals(1,
+                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "Integer.valueOf(1)", emptyMap()).newInstance()).execute());
 
-        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "def i = 1; i", emptyMap())).execute());
-        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "def i = Integer.valueOf(1); i", emptyMap())).execute());
+        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "def i = 1; i", emptyMap()).newInstance()).execute());
+        assertEquals(1, ((ReturnsPrimitiveInt)scriptEngine.compile(
+                compiler, null, "def i = Integer.valueOf(1); i", emptyMap()).newInstance()).execute());
 
-        assertEquals(2, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "1 + 1", emptyMap())).execute());
+        assertEquals(2, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "1 + 1", emptyMap()).newInstance()).execute());
 
         String debug = Debugger.toString(ReturnsPrimitiveInt.class, "1", new CompilerSettings());
         assertThat(debug, containsString("ICONST_1"));
@@ -308,88 +324,99 @@ public class BaseClassTests extends ScriptTestCase {
         assertThat(debug, containsString("IRETURN"));
 
         Exception e = expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "1L", emptyMap())).execute());
+                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "1L", emptyMap()).newInstance()).execute());
         assertEquals("Cannot cast from [long] to [int].", e.getMessage());
         e = expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "1.1f", emptyMap())).execute());
+                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "1.1f", emptyMap()).newInstance()).execute());
         assertEquals("Cannot cast from [float] to [int].", e.getMessage());
         e = expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "1.1d", emptyMap())).execute());
+                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "1.1d", emptyMap()).newInstance()).execute());
         assertEquals("Cannot cast from [double] to [int].", e.getMessage());
         expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "def i = 1L; i", emptyMap())).execute());
+                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "def i = 1L; i", emptyMap()).newInstance()).execute());
         expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "def i = 1.1f; i", emptyMap())).execute());
+                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "def i = 1.1f; i", emptyMap()).newInstance()).execute());
         expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "def i = 1.1d; i", emptyMap())).execute());
+                ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "def i = 1.1d; i", emptyMap()).newInstance()).execute());
 
-        assertEquals(0, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "int i = 0", emptyMap())).execute());
+        assertEquals(0, ((ReturnsPrimitiveInt)scriptEngine.compile(compiler, null, "int i = 0", emptyMap()).newInstance()).execute());
     }
 
     public abstract static class ReturnsPrimitiveFloat {
         public static final String[] PARAMETERS = new String[] {};
         public abstract float execute();
     }
-    public void testReturnsPrimitiveFloat() {
+    public void testReturnsPrimitiveFloat() throws Exception {
         Compiler compiler = new Compiler(ReturnsPrimitiveFloat.class, null, null, painlessLookup);
 
-        assertEquals(1.1f, ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "1.1f", emptyMap())).execute(), 0);
-        assertEquals(1.1f, ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "(float) 1.1d", emptyMap())).execute(), 0);
-        assertEquals(1.1f, ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "def d = 1.1f; d", emptyMap())).execute(), 0);
+        assertEquals(1.1f, ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "1.1f", emptyMap()).newInstance()).execute(), 0);
         assertEquals(1.1f,
-                ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "def d = Float.valueOf(1.1f); d", emptyMap())).execute(), 0);
+                ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "(float) 1.1d", emptyMap()).newInstance()).execute(), 0);
+        assertEquals(1.1f,
+                ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "def d = 1.1f; d", emptyMap()).newInstance()).execute(), 0);
+        assertEquals(1.1f, ((ReturnsPrimitiveFloat)scriptEngine.compile(
+                compiler, null, "def d = Float.valueOf(1.1f); d", emptyMap()).newInstance()).execute(), 0);
 
-        assertEquals(1.1f + 6.7f, ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "1.1f + 6.7f", emptyMap())).execute(), 0);
+        assertEquals(1.1f + 6.7f,
+                ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "1.1f + 6.7f", emptyMap()).newInstance()).execute(), 0);
 
         Exception e = expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "1.1d", emptyMap())).execute());
+                ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "1.1d", emptyMap()).newInstance()).execute());
         assertEquals("Cannot cast from [double] to [float].", e.getMessage());
         e = expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "def d = 1.1d; d", emptyMap())).execute());
-        e = expectScriptThrows(ClassCastException.class, () ->
-                ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "def d = Double.valueOf(1.1); d", emptyMap())).execute());
+                ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "def d = 1.1d; d", emptyMap()).newInstance()).execute());
+        e = expectScriptThrows(ClassCastException.class, () -> ((ReturnsPrimitiveFloat)scriptEngine.compile(
+                compiler, null, "def d = Double.valueOf(1.1); d", emptyMap()).newInstance()).execute());
 
         String debug = Debugger.toString(ReturnsPrimitiveFloat.class, "1f", new CompilerSettings());
         assertThat(debug, containsString("FCONST_1"));
         // The important thing here is that we have the bytecode for returning a float instead of an object
         assertThat(debug, containsString("FRETURN"));
 
-        assertEquals(0.0f, ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "int i = 0", emptyMap())).execute(), 0);
+        assertEquals(0.0f,
+                ((ReturnsPrimitiveFloat)scriptEngine.compile(compiler, null, "int i = 0", emptyMap()).newInstance()).execute(), 0);
     }
 
     public abstract static class ReturnsPrimitiveDouble {
         public static final String[] PARAMETERS = new String[] {};
         public abstract double execute();
     }
-    public void testReturnsPrimitiveDouble() {
+    public void testReturnsPrimitiveDouble() throws Exception {
         Compiler compiler = new Compiler(ReturnsPrimitiveDouble.class, null, null, painlessLookup);
 
-        assertEquals(1.0, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1", emptyMap())).execute(), 0);
-        assertEquals(1.0, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1L", emptyMap())).execute(), 0);
-        assertEquals(1.1, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1.1d", emptyMap())).execute(), 0);
-        assertEquals((double) 1.1f, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1.1f", emptyMap())).execute(), 0);
-        assertEquals(1.1, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "Double.valueOf(1.1)", emptyMap())).execute(), 0);
+        assertEquals(1.0, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1", emptyMap()).newInstance()).execute(), 0);
+        assertEquals(1.0, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1L", emptyMap()).newInstance()).execute(), 0);
+        assertEquals(1.1, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1.1d", emptyMap()).newInstance()).execute(), 0);
         assertEquals((double) 1.1f,
-               ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "Float.valueOf(1.1f)", emptyMap())).execute(), 0);
+                ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1.1f", emptyMap()).newInstance()).execute(), 0);
+        assertEquals(1.1, ((ReturnsPrimitiveDouble)scriptEngine.compile(
+                compiler, null, "Double.valueOf(1.1)", emptyMap()).newInstance()).execute(), 0);
+        assertEquals((double) 1.1f, ((ReturnsPrimitiveDouble)scriptEngine.compile(
+                compiler, null, "Float.valueOf(1.1f)", emptyMap()).newInstance()).execute(), 0);
 
-        assertEquals(1.0, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "def d = 1; d", emptyMap())).execute(), 0);
-        assertEquals(1.0, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "def d = 1L; d", emptyMap())).execute(), 0);
-        assertEquals(1.1, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "def d = 1.1d; d", emptyMap())).execute(), 0);
-        assertEquals((double) 1.1f,
-                ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "def d = 1.1f; d", emptyMap())).execute(), 0);
+        assertEquals(1.0,
+                ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "def d = 1; d", emptyMap()).newInstance()).execute(), 0);
+        assertEquals(1.0,
+                ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "def d = 1L; d", emptyMap()).newInstance()).execute(), 0);
         assertEquals(1.1,
-                ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "def d = Double.valueOf(1.1); d", emptyMap())).execute(), 0);
+                ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "def d = 1.1d; d", emptyMap()).newInstance()).execute(), 0);
         assertEquals((double) 1.1f,
-                ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "def d = Float.valueOf(1.1f); d", emptyMap())).execute(), 0);
+                ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "def d = 1.1f; d", emptyMap()).newInstance()).execute(), 0);
+        assertEquals(1.1, ((ReturnsPrimitiveDouble)scriptEngine.compile(
+                compiler, null, "def d = Double.valueOf(1.1); d", emptyMap()).newInstance()).execute(), 0);
+        assertEquals((double) 1.1f, ((ReturnsPrimitiveDouble)scriptEngine.compile(
+                compiler, null, "def d = Float.valueOf(1.1f); d", emptyMap()).newInstance()).execute(), 0);
 
-        assertEquals(1.1 + 6.7, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1.1 + 6.7", emptyMap())).execute(), 0);
+        assertEquals(1.1 + 6.7,
+                ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "1.1 + 6.7", emptyMap()).newInstance()).execute(), 0);
 
         String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings());
         assertThat(debug, containsString("DCONST_1"));
         // The important thing here is that we have the bytecode for returning a double instead of an object
         assertThat(debug, containsString("DRETURN"));
 
-        assertEquals(0.0, ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "int i = 0", emptyMap())).execute(), 0);
+        assertEquals(0.0,
+                ((ReturnsPrimitiveDouble)scriptEngine.compile(compiler, null, "int i = 0", emptyMap()).newInstance()).execute(), 0);
     }
 
     public abstract static class NoArgumentsConstant {

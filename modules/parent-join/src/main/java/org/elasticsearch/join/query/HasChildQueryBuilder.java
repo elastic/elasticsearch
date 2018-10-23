@@ -183,7 +183,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     /**
      * Returns the minimum number of children that are required to match for the parent to be considered a match.
-     * The default is {@value #DEFAULT_MAX_CHILDREN}
+     * The default is {@value #DEFAULT_MIN_CHILDREN}
      */
     public int minChildren() {
         return minChildren;
@@ -191,7 +191,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
     /**
      * Returns the maximum number of children that are required to match for the parent to be considered a match.
-     * The default is {@value #DEFAULT_MIN_CHILDREN}
+     * The default is {@value #DEFAULT_MAX_CHILDREN}
      */
     public int maxChildren() { return maxChildren; }
 

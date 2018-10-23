@@ -41,7 +41,7 @@ public class CcrTests extends ESTestCase {
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .build();
-            final Ccr ccr = new Ccr(Settings.EMPTY, new CcrLicenseChecker(() -> true));
+            final Ccr ccr = new Ccr(Settings.EMPTY, new CcrLicenseChecker(() -> true, () -> false));
             final Optional<EngineFactory> engineFactory = ccr.getEngineFactory(new IndexSettings(indexMetaData, Settings.EMPTY));
             if (value != null && value) {
                 assertTrue(engineFactory.isPresent());

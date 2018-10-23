@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
 

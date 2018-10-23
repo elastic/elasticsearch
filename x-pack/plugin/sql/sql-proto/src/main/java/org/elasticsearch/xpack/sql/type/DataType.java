@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import java.sql.JDBCType;
+import java.sql.SQLType;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Locale;
@@ -43,7 +44,7 @@ public enum DataType {
     DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        24,                24);
     // @formatter:on
 
-    private static final Map<JDBCType, DataType> jdbcToEs;
+    private static final Map<SQLType, DataType> jdbcToEs;
 
     static {
         jdbcToEs = Arrays.stream(DataType.values())
@@ -59,7 +60,7 @@ public enum DataType {
     /**
      * Compatible JDBC type
      */
-    public final JDBCType jdbcType;
+    public final SQLType jdbcType;
 
     /**
      * Size of the type in bytes
@@ -102,7 +103,7 @@ public enum DataType {
 
     private final Class<?> javaClass;
 
-    DataType(JDBCType jdbcType, Class<?> javaClass, int size, int defaultPrecision, int displaySize, boolean isInteger, boolean isRational,
+    DataType(SQLType jdbcType, Class<?> javaClass, int size, int defaultPrecision, int displaySize, boolean isInteger, boolean isRational,
              boolean defaultDocValues) {
         this.esType = name().toLowerCase(Locale.ROOT);
         this.javaClass = javaClass;
@@ -115,7 +116,7 @@ public enum DataType {
         this.defaultDocValues = defaultDocValues;
     }
 
-    DataType(JDBCType jdbcType, Class<?> javaClass, int size, int defaultPrecision, int displaySize) {
+    DataType(SQLType jdbcType, Class<?> javaClass, int size, int defaultPrecision, int displaySize) {
         this(jdbcType, javaClass, size, defaultPrecision, displaySize, false, false, true);
     }
 
@@ -147,14 +148,14 @@ public enum DataType {
         return this != OBJECT && this != NESTED;
     }
 
-    public static DataType fromJdbcType(JDBCType jdbcType) {
+    public static DataType fromJdbcType(SQLType jdbcType) {
         if (jdbcToEs.containsKey(jdbcType) == false) {
             throw new IllegalArgumentException("Unsupported JDBC type [" + jdbcType + "]");
         }
         return jdbcToEs.get(jdbcType);
     }
     
-    public static Class<?> fromJdbcTypeToJava(JDBCType jdbcType) {
+    public static Class<?> fromJdbcTypeToJava(SQLType jdbcType) {
         if (jdbcToEs.containsKey(jdbcType) == false) {
             throw new IllegalArgumentException("Unsupported JDBC type [" + jdbcType + "]");
         }

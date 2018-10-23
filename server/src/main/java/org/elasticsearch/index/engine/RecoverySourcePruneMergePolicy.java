@@ -40,6 +40,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
@@ -72,7 +73,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         builder.add(retainSourceQuerySupplier.get(), BooleanClause.Occur.FILTER);
         IndexSearcher s = new IndexSearcher(reader);
         s.setQueryCache(null);
-        Weight weight = s.createWeight(s.rewrite(builder.build()), false, 1.0f);
+        Weight weight = s.createWeight(s.rewrite(builder.build()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         Scorer scorer = weight.scorer(reader.getContext());
         if (scorer != null) {
             return new SourcePruningFilterCodecReader(recoverySourceField, reader, BitSet.of(scorer.iterator(), reader.maxDoc()));

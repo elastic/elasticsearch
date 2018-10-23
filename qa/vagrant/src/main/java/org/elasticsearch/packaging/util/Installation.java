@@ -100,8 +100,8 @@ public class Installation {
         public final Path elasticsearch = platformExecutable("elasticsearch");
         public final Path elasticsearchPlugin = platformExecutable("elasticsearch-plugin");
         public final Path elasticsearchKeystore = platformExecutable("elasticsearch-keystore");
-        public final Path elasticsearchTranslog = platformExecutable("elasticsearch-translog");
         public final Path elasticsearchCertutil = platformExecutable("elasticsearch-certutil");
+        public final Path elasticsearchShard = platformExecutable("elasticsearch-shard");
 
         private Path platformExecutable(String name) {
             final String platformExecutableName = Platforms.WINDOWS

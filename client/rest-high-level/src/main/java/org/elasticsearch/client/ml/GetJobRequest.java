@@ -33,11 +33,11 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Request object to get {@link Job} objects with the matching `jobId`s or
- * `groupName`s.
+ * Request object to get {@link Job} objects with the matching {@code jobId}s or
+ * {@code groupName}s.
  *
- * `_all` explicitly gets all the jobs in the cluster
- * An empty request (no `jobId`s) implicitly gets all the jobs in the cluster
+ * {@code _all} explicitly gets all the jobs in the cluster
+ * An empty request (no {@code jobId}s) implicitly gets all the jobs in the cluster
  */
 public class GetJobRequest extends ActionRequest implements ToXContentObject {
 
@@ -91,13 +91,13 @@ public class GetJobRequest extends ActionRequest implements ToXContentObject {
     /**
      * Whether to ignore if a wildcard expression matches no jobs.
      *
-     * @param allowNoJobs If this is {@code false}, then an error is returned when a wildcard (or `_all`) does not match any jobs
+     * @param allowNoJobs If this is {@code false}, then an error is returned when a wildcard (or {@code _all}) does not match any jobs
      */
     public void setAllowNoJobs(boolean allowNoJobs) {
         this.allowNoJobs = allowNoJobs;
     }
 
-    public Boolean isAllowNoJobs() {
+    public Boolean getAllowNoJobs() {
         return allowNoJobs;
     }
 

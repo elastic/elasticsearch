@@ -28,7 +28,7 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
     public void testDetermineJobIds() {
 
         MlMetadata mlMetadata = mock(MlMetadata.class);
-        when(mlMetadata.isJobDeleted(eq("id4"))).thenReturn(true);
+        when(mlMetadata.isJobDeleting(eq("id4"))).thenReturn(true);
 
         List<String> result = determineNonDeletedJobIdsWithoutLiveStats(mlMetadata,
                 Collections.singletonList("id1"), Collections.emptyList());

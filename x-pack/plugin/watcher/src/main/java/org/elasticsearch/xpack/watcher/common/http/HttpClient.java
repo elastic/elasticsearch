@@ -224,9 +224,9 @@ public class HttpClient extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Creates a HTTP proxy from the system wide settings
+     * Creates an HTTP proxy from the system wide settings
      *
-     * @return A http proxy instance, if no settings are configured this will be a HttpProxy.NO_PROXY instance
+     * @return An HTTP proxy instance, if no settings are configured this will be an HttpProxy.NO_PROXY instance
      */
     private HttpProxy getProxyFromSettings() {
         String proxyHost = HttpSettings.PROXY_HOST.get(settings);

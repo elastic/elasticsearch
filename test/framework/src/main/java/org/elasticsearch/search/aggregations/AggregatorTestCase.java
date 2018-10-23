@@ -30,6 +30,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -239,7 +240,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     protected SearchContext createSearchContext(IndexSearcher indexSearcher, IndexSettings indexSettings) {
-        Engine.Searcher searcher = new Engine.Searcher("aggregator_test", indexSearcher);
+        Engine.Searcher searcher = new Engine.Searcher("aggregator_test", indexSearcher, () -> indexSearcher.getIndexReader().close());
         QueryCache queryCache = new DisabledQueryCache(indexSettings);
         QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
             @Override
@@ -247,7 +248,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
 
             @Override
-            public boolean shouldCache(Query query) throws IOException {
+            public boolean shouldCache(Query query) {
                 // never cache a query
                 return false;
             }
@@ -367,7 +368,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         List<InternalAggregation> aggs = new ArrayList<> ();
         Query rewritten = searcher.rewrite(query);
-        Weight weight = searcher.createWeight(rewritten, true, 1f);
+        Weight weight = searcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(maxBucket);
         C root = createAggregator(query, builder, searcher, bucketConsumer, fieldTypes);
 

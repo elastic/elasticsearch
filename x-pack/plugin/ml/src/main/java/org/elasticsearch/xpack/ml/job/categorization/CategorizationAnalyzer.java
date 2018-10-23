@@ -20,7 +20,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.CustomAnalyzerProvider;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -217,6 +216,8 @@ public class CategorizationAnalyzer implements Closeable {
                                                                       Tuple<String, TokenizerFactory> tokenizerFactory,
                                                                       List<CharFilterFactory> charFilterFactoryList) throws IOException {
         List<CategorizationAnalyzerConfig.NameOrDefinition> tokenFilters = config.getTokenFilters();
+        TransportAnalyzeAction.DeferredTokenFilterRegistry deferredRegistry
+            = new TransportAnalyzeAction.DeferredTokenFilterRegistry(analysisRegistry, null);
         final List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
         for (CategorizationAnalyzerConfig.NameOrDefinition tokenFilter : tokenFilters) {
             TokenFilterFactory tokenFilterFactory;
@@ -241,8 +242,8 @@ public class CategorizationAnalyzer implements Closeable {
                 // Need to set anonymous "name" of token_filter
                 tokenFilterFactory = tokenFilterFactoryFactory.get(buildDummyIndexSettings(settings), environment, "_anonymous_tokenfilter",
                     settings);
-                tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory.v1(),
-                    tokenizerFactory.v2(), tokenFilterFactoryList, charFilterFactoryList, environment);
+                tokenFilterFactory = tokenFilterFactory.getChainAwareTokenFilterFactory(tokenizerFactory.v2(),
+                    charFilterFactoryList, tokenFilterFactoryList, deferredRegistry);
             }
             if (tokenFilterFactory == null) {
                 throw new IllegalArgumentException("Failed to find or create token filter [" + tokenFilter + "]");

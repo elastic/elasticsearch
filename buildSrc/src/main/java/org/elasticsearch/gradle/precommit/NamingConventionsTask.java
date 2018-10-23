@@ -1,24 +1,20 @@
 package org.elasticsearch.gradle.precommit;
 
-import groovy.lang.Closure;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.test.NamingConventionsCheck;
 import org.gradle.api.GradleException;
-import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.Objects;
 
 /**
  * Runs NamingConventionsCheck on a classpath/directory combo to verify that
@@ -26,102 +22,83 @@ import java.util.Objects;
  * gradle. Read the Javadoc for NamingConventionsCheck to learn more.
  */
 @SuppressWarnings("unchecked")
-public class NamingConventionsTask extends LoggedExec {
+public class NamingConventionsTask extends PrecommitTask {
+
     public NamingConventionsTask() {
         setDescription("Tests that test classes aren't misnamed or misplaced");
-        final Project project = getProject();
+        dependsOn(getJavaSourceSets().getByName(checkForTestsInMain ? "main" : "test").getClassesTaskName());
+    }
 
-        SourceSetContainer sourceSets = getJavaSourceSets();
-        final FileCollection classpath;
-        try {
-            URL location = NamingConventionsCheck.class.getProtectionDomain().getCodeSource().getLocation();
-            if (location.getProtocol().equals("file") == false) {
-                throw new GradleException("Unexpected location for NamingConventionCheck class: "+ location);
-            }
-            classpath = project.files(
-                    // This works because the class only depends on one class from junit that will be available from the
-                    // tests compile classpath. It's the most straight forward way of telling Java where to find the main
-                    // class.
-                    location.toURI().getPath(),
-                    // the tests to be loaded
-                    checkForTestsInMain ? sourceSets.getByName("main").getRuntimeClasspath() : project.files(),
-                    sourceSets.getByName("test").getCompileClasspath(),
-                    sourceSets.getByName("test").getOutput()
+    @TaskAction
+    public void runNamingConventions() {
+        LoggedExec.javaexec(getProject(), spec -> {
+            spec.classpath(
+                getNamingConventionsCheckClassFiles(),
+                getSourceSetClassPath()
             );
+            spec.executable(getJavaHome() + "/bin/java");
+            spec.jvmArgs("-Djna.nosys=true");
+            spec.setMain(NamingConventionsCheck.class.getName());
+            spec.args("--test-class", getTestClass());
+            if (isSkipIntegTestInDisguise()) {
+                spec.args("--skip-integ-tests-in-disguise");
+            } else {
+                spec.args("--integ-test-class", getIntegTestClass());
+            }
+            if (isCheckForTestsInMain()) {
+                spec.args("--main");
+                spec.args("--");
+            } else {
+                spec.args("--");
+            }
+            spec.args(getExistingClassesDirs().getAsPath());
+        });
+    }
+
+    @Input
+    public Object getJavaHome() {
+        return javaHome;
+    }
+
+    public void setJavaHome(Object javaHome) {
+        this.javaHome = javaHome;
+    }
+
+    @Classpath
+    public FileCollection getSourceSetClassPath() {
+        SourceSetContainer sourceSets = getJavaSourceSets();
+        return getProject().files(
+            sourceSets.getByName("test").getCompileClasspath(),
+            sourceSets.getByName("test").getOutput(),
+            checkForTestsInMain ? sourceSets.getByName("main").getRuntimeClasspath() : getProject().files()
+        );
+    }
+
+    @InputFiles
+    public File getNamingConventionsCheckClassFiles() {
+        // This works because the class only depends on one class from junit that will be available from the
+        // tests compile classpath. It's the most straight forward way of telling Java where to find the main
+        // class.
+        URL location = NamingConventionsCheck.class.getProtectionDomain().getCodeSource().getLocation();
+        if (location.getProtocol().equals("file") == false) {
+            throw new GradleException("Unexpected location for NamingConventionCheck class: "+ location);
+        }
+        try {
+            return new File(location.toURI().getPath());
         } catch (URISyntaxException e) {
             throw new AssertionError(e);
         }
-        dependsOn(project.getTasks().matching(it -> "testCompileClasspath".equals(it.getName())));
-        getInputs().files(classpath);
-
-        setExecutable(new File(
-            Objects.requireNonNull(
-                project.getExtensions().getByType(ExtraPropertiesExtension.class).get("runtimeJavaHome")
-            ).toString(),
-            "bin/java")
-        );
-
-        if (checkForTestsInMain == false) {
-            /* This task is created by default for all subprojects with this
-             * setting and there is no point in running it if the files don't
-             * exist. */
-            onlyIf((unused) -> getExistingClassesDirs().isEmpty() == false);
-        }
-
-        /*
-         * We build the arguments in a funny afterEvaluate/doFirst closure so that we can wait for the classpath to be
-         * ready for us. Strangely neither one on their own are good enough.
-         */
-        project.afterEvaluate(new Closure<Void>(this, this) {
-            public void doCall(Project it) {
-                doFirst(unused -> {
-                    args("-Djna.nosys=true");
-                    args("-cp", classpath.getAsPath(), "org.elasticsearch.test.NamingConventionsCheck");
-                    args("--test-class", getTestClass());
-                    if (skipIntegTestInDisguise) {
-                        args("--skip-integ-tests-in-disguise");
-                    } else {
-                        args("--integ-test-class", getIntegTestClass());
-                    }
-                    if (getCheckForTestsInMain()) {
-                        args("--main");
-                        args("--");
-                    } else {
-                        args("--");
-                    }
-                    args(getExistingClassesDirs().getAsPath());
-                });
-            }
-        });
-        doLast((Task it) -> {
-            try {
-                try (FileWriter fw = new FileWriter(getSuccessMarker())) {
-                    fw.write("");
-                }
-            } catch (IOException e) {
-                throw new GradleException("io exception", e);
-            }
-        });
     }
 
-    private SourceSetContainer getJavaSourceSets() {
-        return getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
-    }
-
+    @InputFiles
+    @SkipWhenEmpty
     public FileCollection getExistingClassesDirs() {
         FileCollection classesDirs = getJavaSourceSets().getByName(checkForTestsInMain ? "main" : "test")
             .getOutput().getClassesDirs();
         return classesDirs.filter(it -> it.exists());
     }
 
-    public File getSuccessMarker() {
-        return successMarker;
-    }
-
-    public void setSuccessMarker(File successMarker) {
-        this.successMarker = successMarker;
-    }
-
+    @Input
     public boolean isSkipIntegTestInDisguise() {
         return skipIntegTestInDisguise;
     }
@@ -130,6 +107,7 @@ public class NamingConventionsTask extends LoggedExec {
         this.skipIntegTestInDisguise = skipIntegTestInDisguise;
     }
 
+    @Input
     public String getTestClass() {
         return testClass;
     }
@@ -138,6 +116,7 @@ public class NamingConventionsTask extends LoggedExec {
         this.testClass = testClass;
     }
 
+    @Input
     public String getIntegTestClass() {
         return integTestClass;
     }
@@ -146,10 +125,7 @@ public class NamingConventionsTask extends LoggedExec {
         this.integTestClass = integTestClass;
     }
 
-    public boolean getCheckForTestsInMain() {
-        return checkForTestsInMain;
-    }
-
+    @Input
     public boolean isCheckForTestsInMain() {
         return checkForTestsInMain;
     }
@@ -158,33 +134,34 @@ public class NamingConventionsTask extends LoggedExec {
         this.checkForTestsInMain = checkForTestsInMain;
     }
 
+    private SourceSetContainer getJavaSourceSets() {
+        return getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
+    }
+
     /**
-     * We use a simple "marker" file that we touch when the task succeeds
-     * as the task output. This is compared against the modified time of the
-     * inputs (ie the jars/class files).
+     * The java home to run the check with
      */
-    @OutputFile
-    private File successMarker = new File(getProject().getBuildDir(), "markers/" + this.getName());
+    private Object javaHome; // Make it an Object to allow for Groovy GString
+
     /**
      * Should we skip the integ tests in disguise tests? Defaults to true because only core names its
      * integ tests correctly.
      */
-    @Input
     private boolean skipIntegTestInDisguise = false;
+
     /**
      * Superclass for all tests.
      */
-    @Input
     private String testClass = "org.apache.lucene.util.LuceneTestCase";
+
     /**
      * Superclass for all integration tests.
      */
-    @Input
     private String integTestClass = "org.elasticsearch.test.ESIntegTestCase";
+
     /**
      * Should the test also check the main classpath for test classes instead of
      * doing the usual checks to the test classpath.
      */
-    @Input
     private boolean checkForTestsInMain = false;
 }

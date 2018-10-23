@@ -1,0 +1,39 @@
+[role="xpack"]
+[testenv="basic"]
+[[sql-functions-type-conversion]]
+=== Type Conversion Functions
+
+Functions for converting an expression of one data type to another.
+
+[[sql-functions-type-conversion-cast]]
+==== `CAST`
+
+.Synopsis
+[source, sql]
+----
+CAST ( expression<1> AS data_type<2> )
+----
+
+<1> Expression to cast
+<2> Target data type to cast to
+
+.Description
+
+Casts the result of the given expression to the target type.
+If the cast is not possible (for example because of target type is too narrow or because
+the value itself cannot be converted), the query fails.
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[conversionStringToIntCast]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[conversionIntToStringCast]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs.csv-spec[conversionStringToDateCast]
+----

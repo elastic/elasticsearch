@@ -51,7 +51,7 @@ public final class TasksClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ListTasksResponse list(ListTasksRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::listTasks, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, TasksRequestConverters::listTasks, options,
                 ListTasksResponse::fromXContent, emptySet());
     }
 
@@ -64,7 +64,7 @@ public final class TasksClient {
      * @param listener the listener to be notified upon request completion
      */
     public void listAsync(ListTasksRequest request, RequestOptions options, ActionListener<ListTasksResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::listTasks, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, TasksRequestConverters::listTasks, options,
                 ListTasksResponse::fromXContent, listener, emptySet());
     }
 
@@ -82,7 +82,7 @@ public final class TasksClient {
     public CancelTasksResponse cancel(CancelTasksRequest cancelTasksRequest, RequestOptions options ) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             cancelTasksRequest,
-            RequestConverters::cancelTasks,
+            TasksRequestConverters::cancelTasks,
             options,
             CancelTasksResponse::fromXContent,
             emptySet()
@@ -101,7 +101,7 @@ public final class TasksClient {
     public void cancelAsync(CancelTasksRequest cancelTasksRequest, RequestOptions options, ActionListener<CancelTasksResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(
             cancelTasksRequest,
-            RequestConverters::cancelTasks,
+            TasksRequestConverters::cancelTasks,
             options,
             CancelTasksResponse::fromXContent,
             listener,

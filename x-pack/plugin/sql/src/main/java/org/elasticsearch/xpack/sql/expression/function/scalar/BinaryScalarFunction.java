@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 public abstract class BinaryScalarFunction extends ScalarFunction {
 
@@ -53,5 +55,11 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
         return asScriptFrom(leftScript, rightScript);
     }
 
-    protected abstract ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript);
+    protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
+        return Scripts.binaryMethod(scriptMethodName(), leftScript, rightScript, dataType());
+    }
+    
+    protected String scriptMethodName() {
+        return getClass().getSimpleName().toLowerCase(Locale.ROOT);
+    }
 }

@@ -25,11 +25,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.AggPathInput;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinitions;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.UnaryProcessorDefinition;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.runtime.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.FilterExec;
@@ -54,6 +53,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
+import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
@@ -112,7 +112,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 QueryContainer queryC = exec.queryContainer();
 
                 Map<Attribute, Attribute> aliases = new LinkedHashMap<>(queryC.aliases());
-                Map<Attribute, ProcessorDefinition> processors = new LinkedHashMap<>(queryC.scalarFunctions());
+                Map<Attribute, Pipe> processors = new LinkedHashMap<>(queryC.scalarFunctions());
 
                 for (NamedExpression pj : project.projections()) {
                     if (pj instanceof Alias) {
@@ -124,10 +124,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             aliases.put(aliasAttr, attr);
                             // add placeholder for each scalar function
                             if (e instanceof ScalarFunction) {
-                                processors.put(attr, ProcessorDefinitions.toProcessorDefinition(e));
+                                processors.put(attr, Expressions.pipe(e));
                             }
                         } else {
-                            processors.put(aliasAttr, ProcessorDefinitions.toProcessorDefinition(e));
+                            processors.put(aliasAttr, Expressions.pipe(e));
                         }
                     }
                     else {
@@ -137,7 +137,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                         if (pj instanceof ScalarFunction) {
                             ScalarFunction f = (ScalarFunction) pj;
-                            processors.put(f.toAttribute(), f.asProcessorDefinition());
+                            processors.put(f.toAttribute(), Expressions.pipe(f));
                         }
                     }
                 }
@@ -249,7 +249,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // )
                         if (child instanceof ScalarFunction) {
                             ScalarFunction f = (ScalarFunction) child;
-                            ProcessorDefinition proc = f.asProcessorDefinition();
+                            Pipe proc = f.asPipe();
 
                             final AtomicReference<QueryContainer> qC = new AtomicReference<>(queryC);
 
@@ -288,7 +288,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                          * as it already got access to the extraction action
                                          */
                                         if (exp instanceof DateTimeHistogramFunction) {
-                                            action = ((UnaryProcessorDefinition) p).action();
+                                            action = ((UnaryPipe) p).action();
                                             tz = ((DateTimeFunction) exp).timeZone();
                                         }
                                         return new AggPathInput(exp.location(), exp, new GroupByRef(matchingGroup.id(), null, tz), action);
@@ -424,6 +424,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
                 for (Order order : plan.order()) {
                     Direction direction = Direction.from(order.direction());
+                    Missing missing = Missing.from(order.nullsPosition());
 
                     // check whether sorting is on an group (and thus nested agg) or field
                     Attribute attr = ((NamedExpression) order.child()).toAttribute();
@@ -452,19 +453,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (sfa.orderBy() instanceof NamedExpression) {
                                     Attribute at = ((NamedExpression) sfa.orderBy()).toAttribute();
                                     at = qContainer.aliases().getOrDefault(at, at);
-                                    qContainer = qContainer.sort(new AttributeSort(at, direction));
+                                    qContainer = qContainer.sort(new AttributeSort(at, direction, missing));
                                 } else if (!sfa.orderBy().foldable()) {
                                     // ignore constant
                                     throw new PlanningException("does not know how to order by expression {}", sfa.orderBy());
                                 }
                             } else {
                                 // nope, use scripted sorting
-                                qContainer = qContainer.sort(new ScriptSort(sfa.script(), direction));
+                                qContainer = qContainer.sort(new ScriptSort(sfa.script(), direction, missing));
                             }
                         } else if (attr instanceof ScoreAttribute) {
-                            qContainer = qContainer.sort(new ScoreSort(direction));
+                            qContainer = qContainer.sort(new ScoreSort(direction, missing));
                         } else {
-                            qContainer = qContainer.sort(new AttributeSort(attr, direction));
+                            qContainer = qContainer.sort(new AttributeSort(attr, direction, missing));
                         }
                     }
                 }

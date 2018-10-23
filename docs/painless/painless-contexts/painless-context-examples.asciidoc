@@ -46,7 +46,7 @@ the request URL.
 PUT /seats
 {
   "mappings": {
-    "seat": {
+    "_doc": {
       "properties": {
         "theatre":  { "type": "keyword" },
         "play":     { "type": "text"    },

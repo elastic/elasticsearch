@@ -54,7 +54,7 @@ class JdbcParameterMetaData implements ParameterMetaData, JdbcWrapper {
 
     @Override
     public String getParameterTypeName(int param) throws SQLException {
-        return paramInfo(param).type.name();
+        return paramInfo(param).type.getName();
     }
 
     @Override

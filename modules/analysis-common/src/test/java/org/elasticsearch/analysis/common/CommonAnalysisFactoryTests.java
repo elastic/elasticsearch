@@ -24,8 +24,6 @@ import org.apache.lucene.analysis.en.PorterStemFilterFactory;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
-import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.List;
@@ -107,6 +105,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("stemmeroverride", StemmerOverrideTokenFilterFactory.class);
         filters.put("kstem", KStemTokenFilterFactory.class);
         filters.put("synonym", SynonymTokenFilterFactory.class);
+        filters.put("synonymgraph", SynonymGraphTokenFilterFactory.class);
         filters.put("dictionarycompoundword", DictionaryCompoundWordTokenFilterFactory.class);
         filters.put("hyphenationcompoundword", HyphenationCompoundWordTokenFilterFactory.class);
         filters.put("reversestring", ReverseTokenFilterFactory.class);

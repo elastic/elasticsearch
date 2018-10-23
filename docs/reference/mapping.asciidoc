@@ -77,7 +77,8 @@ can be created manually or dynamically, in order to prevent bad documents from
 causing a mapping explosion:
 
 `index.mapping.total_fields.limit`::
-    The maximum number of fields in an index. The default value is `1000`.
+    The maximum number of fields in an index. Field and object mappings, as well as
+    field aliases count towards this limit. The default value is `1000`.
 
 `index.mapping.depth.limit`::
     The maximum depth for a field, which is measured as the number of inner
@@ -139,7 +140,7 @@ A mapping could be specified when creating an index, as follows:
 PUT my_index <1>
 {
   "mappings": {
-    "doc": { <2>
+    "_doc": { <2>
       "properties": { <3>
         "title":    { "type": "text"  }, <4>
         "name":     { "type": "text"  }, <4>

@@ -129,18 +129,18 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                 .put("cluster.acc.test.pw", "asdf")).get());
-        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         iae = expectThrows(IllegalArgumentException.class, () ->
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .put("cluster.acc.test.pw", "asdf")).get());
-        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         iae = expectThrows(IllegalArgumentException.class, () ->
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .put("cluster.acc.test.pw", "asdf")).setPersistentSettings(Settings.builder()
             .put("cluster.acc.test.user", "asdf")).get());
-        assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
         if (randomBoolean()) {
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
@@ -149,7 +149,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             iae = expectThrows(IllegalArgumentException.class, () ->
                 client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                     .putNull("cluster.acc.test.user")).get());
-            assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .putNull("cluster.acc.test.pw")
                 .putNull("cluster.acc.test.user")).get();
@@ -161,7 +161,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             iae = expectThrows(IllegalArgumentException.class, () ->
                 client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                     .putNull("cluster.acc.test.user")).get());
-            assertEquals("Missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [cluster.acc.test.user] for setting [cluster.acc.test.pw]", iae.getMessage());
 
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
                 .putNull("cluster.acc.test.pw")
@@ -173,7 +173,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     public void testUpdateDependentIndexSettings() {
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
             prepareCreate("test",  Settings.builder().put("index.acc.test.pw", "asdf")).get());
-        assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+        assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
         createIndex("test");
         for (int i = 0; i < 2; i++) {
@@ -192,7 +192,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                             .put("index.acc.test.pw", "asdf"))
                     .execute()
                     .actionGet());
-            assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
             // user has no dependency
             client()
@@ -227,7 +227,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                             .putNull("index.acc.test.user"))
                     .execute()
                     .actionGet());
-            assertEquals("Missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
+            assertEquals("missing required setting [index.acc.test.user] for setting [index.acc.test.pw]", iae.getMessage());
 
             // now we are consistent
             client()
@@ -473,6 +473,156 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 disableIndexBlock("test", blockSetting);
             }
         }
+    }
+
+    public void testSettingsVersion() {
+        createIndex("test");
+        ensureGreen("test");
+
+        {
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.refresh_interval", "500ms"))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
+        }
+
+        {
+            final boolean block = randomBoolean();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block == false))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
+
+            // if the read-only block is present, remove it
+            if (block == false) {
+                assertAcked(client()
+                        .admin()
+                        .indices()
+                        .prepareUpdateSettings("test")
+                        .setSettings(Settings.builder().put("index.blocks.read_only", false))
+                        .get());
+            }
+        }
+    }
+
+    public void testSettingsVersionUnchanged() {
+        createIndex("test");
+        ensureGreen("test");
+
+        {
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            final String refreshInterval =
+                    client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.refresh_interval");
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.refresh_interval", refreshInterval))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(settingsVersion));
+        }
+
+        {
+            final boolean block = randomBoolean();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            // now put the same block again
+            final long settingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertAcked(client()
+                    .admin()
+                    .indices()
+                    .prepareUpdateSettings("test")
+                    .setSettings(Settings.builder().put("index.blocks.read_only", block))
+                    .get());
+            final long newSettingsVersion =
+                    client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+            assertThat(newSettingsVersion, equalTo(settingsVersion));
+
+            // if the read-only block is present, remove it
+            if (block) {
+                assertAcked(client()
+                        .admin()
+                        .indices()
+                        .prepareUpdateSettings("test")
+                        .setSettings(Settings.builder().put("index.blocks.read_only", false))
+                        .get());
+            }
+        }
+    }
+
+    /**
+     * The setting {@link IndexMetaData#SETTING_NUMBER_OF_REPLICAS} is special due to handling in
+     * {@link IndexMetaData.Builder#numberOfReplicas(int)}. Therefore we have a dedicated test that this setting is handled properly with
+     * respect to settings version when applying a settings change that does not change the number of replicas.
+     */
+    public void testNumberOfReplicasSettingsVersionUnchanged() {
+        createIndex("test");
+
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        final int numberOfReplicas = Integer.valueOf(
+                client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas"));
+        assertAcked(client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas))
+                .get());
+        final long newSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(newSettingsVersion, equalTo(settingsVersion));
+    }
+
+    /**
+     * The setting {@link IndexMetaData#SETTING_NUMBER_OF_REPLICAS} is special due to handling in
+     * {@link IndexMetaData.Builder#numberOfReplicas(int)}. Therefore we have a dedicated test that this setting is handled properly with
+     * respect to settings version when changing the number of replicas.
+     */
+    public void testNumberOfReplicasSettingsVersion() {
+        createIndex("test");
+
+        final long settingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        final int numberOfReplicas =
+                Integer.valueOf(
+                        client().admin().indices().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas"));
+        assertAcked(client()
+                .admin()
+                .indices()
+                .prepareUpdateSettings("test")
+                .setSettings(Settings.builder().put("index.number_of_replicas", 1 + numberOfReplicas))
+                .get());
+        final long newSettingsVersion =
+                client().admin().cluster().prepareState().get().getState().metaData().index("test").getSettingsVersion();
+        assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
     }
 
 }

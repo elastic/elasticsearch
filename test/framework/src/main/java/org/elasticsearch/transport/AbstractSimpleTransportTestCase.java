@@ -173,7 +173,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return service;
     }
 
-    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
+    protected MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
         return buildService(name, version, clusterSettings, Settings.EMPTY, true, true);
     }
 
@@ -186,11 +186,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertNoPendingHandshakes(serviceB.getOriginalTransport());
         } finally {
             IOUtils.close(serviceA, serviceB, () -> {
-                try {
-                    terminate(threadPool);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+                terminate(threadPool);
             });
         }
     }
@@ -2686,7 +2682,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "need local ephemeral port")
-    private InetSocketAddress getLocalEphemeral() throws UnknownHostException {
+    protected InetSocketAddress getLocalEphemeral() throws UnknownHostException {
         return new InetSocketAddress(InetAddress.getLocalHost(), 0);
     }
 }

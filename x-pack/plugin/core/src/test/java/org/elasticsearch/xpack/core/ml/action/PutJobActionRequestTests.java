@@ -46,7 +46,7 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
 
     public void testParseRequest_InvalidCreateSetting() throws IOException {
         Job.Builder jobConfiguration = buildJobBuilder(jobId, null);
-        jobConfiguration.setLastDataTime(new Date());
+        jobConfiguration.setFinishedTime(new Date());
         BytesReference bytes = XContentHelper.toXContent(jobConfiguration, XContentType.JSON, false);
         XContentParser parser = createParser(XContentType.JSON.xContent(), bytes);
         expectThrows(IllegalArgumentException.class, () -> Request.parseRequest(jobId, parser));

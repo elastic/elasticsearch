@@ -213,11 +213,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             transport.endConnectMode();
             transportService.stop();
             transportClientNodesService.close();
-            try {
-                terminate(threadPool);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            terminate(threadPool);
         }
     }
 

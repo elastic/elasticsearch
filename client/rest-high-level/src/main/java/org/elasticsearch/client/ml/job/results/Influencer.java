@@ -19,16 +19,14 @@
 package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.util.TimeUtil;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
-import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Objects;
 
@@ -61,15 +59,9 @@ public class Influencer implements ToXContentObject {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_VALUE);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(DateFormatters.toZonedDateTime(DateTimeFormatter.ISO_INSTANT.parse(p.text())).toInstant().toEpochMilli());
-            }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
-                    + Result.TIMESTAMP.getPreferredName() + "]");
-        }, Result.TIMESTAMP, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+                (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+                Result.TIMESTAMP, ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareString((influencer, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareDouble(Influencer::setProbability, PROBABILITY);

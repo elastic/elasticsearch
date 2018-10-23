@@ -1,0 +1,52 @@
+--
+:api: get-categories
+:request: GetCategoriesRequest
+:response: GetCategoriesResponse
+--
+[id="{upid}-{api}"]
+=== Get Categories API
+
+The Get Categories API retrieves one or more category results.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Get Categories Request
+
+A +{request}+ object gets created with an existing non-null `jobId`.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`
+
+==== Optional Arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-category-id]
+--------------------------------------------------
+<1> The id of the category to get. Otherwise it will return all categories.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-page]
+--------------------------------------------------
+<1> The page parameters `from` and `size`. `from` specifies the number of categories to skip.
+`size` specifies the maximum number of categories to get. Defaults to `0` and `100` respectively.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Categories Response
+
+The returned +{response}+ contains the requested categories:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The count of categories that were matched
+<2> The categories retrieved

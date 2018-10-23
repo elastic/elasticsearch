@@ -112,7 +112,8 @@ public class ClusterStatsCollector extends Collector {
         // Adds a cluster stats document
         return Collections.singleton(
                 new ClusterStatsMonitoringDoc(clusterUuid, timestamp(), interval, node, clusterName, version,  clusterStats.getStatus(),
-                                              license, apmIndicesExist, xpackUsage, clusterStats, clusterState, clusterNeedsTLSEnabled));
+                                              license, apmIndicesExist, xpackUsage, clusterStats, clusterState,
+                                              clusterNeedsTLSEnabled));
     }
 
     boolean doAPMIndicesExist(final ClusterState clusterState) {

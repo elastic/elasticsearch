@@ -42,17 +42,12 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
     private final Map<String, String> innerMap;
 
     DiffableStringMap(final Map<String, String> map) {
-        this.innerMap = map;
+        this.innerMap = Collections.unmodifiableMap(map);
     }
 
     @SuppressWarnings("unchecked")
     DiffableStringMap(final StreamInput in) throws IOException {
-        this.innerMap = (Map<String, String>) (Map) in.readMap();
-    }
-
-    @Override
-    public String put(String key, String value) {
-        return innerMap.put(key, value);
+        this((Map<String, String>) (Map) in.readMap());
     }
 
     @Override
@@ -73,32 +68,6 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
 
     public static Diff<DiffableStringMap> readDiffFrom(StreamInput in) throws IOException {
         return new DiffableStringMapDiff(in);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (obj instanceof DiffableStringMap) {
-            DiffableStringMap other = (DiffableStringMap) obj;
-            return innerMap.equals(other.innerMap);
-        } else if (obj instanceof Map) {
-            Map other = (Map) obj;
-            return innerMap.equals(other);
-        } else {
-            return false;
-        }
-    }
-
-    @Override
-    public int hashCode() {
-        return innerMap.hashCode();
-    }
-
-    @Override
-    public String toString() {
-        return "DiffableStringMap[" + innerMap.toString() + "]";
     }
 
     /**

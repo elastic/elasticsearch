@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,14 +56,6 @@ public class MockTransportClient extends TransportClient {
             } else {
                 plugins = new ArrayList<>(plugins);
                 plugins.add(MockTcpTransportPlugin.class);
-                return plugins;
-            }
-        } else if (NioTransportPlugin.NIO_TRANSPORT_NAME.equals(transportType)) {
-            if (plugins.contains(NioTransportPlugin.class)) {
-                return plugins;
-            } else {
-                plugins = new ArrayList<>(plugins);
-                plugins.add(NioTransportPlugin.class);
                 return plugins;
             }
         }

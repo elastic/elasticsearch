@@ -476,10 +476,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
 
-    private void waitForPendingCcrTasks() {
-        //waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(""));
-    }
-
     /**
      * Logs a message if there are still running tasks. The reasoning is that any tasks still running are state the is trying to bleed into
      * other tests.

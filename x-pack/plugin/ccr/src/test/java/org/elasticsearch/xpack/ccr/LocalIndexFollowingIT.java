@@ -52,8 +52,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             assertThat(client().prepareSearch("follower").get().getHits().totalHits, equalTo(firstBatchNumDocs + secondBatchNumDocs));
         });
 
-        PauseFollowAction.Request pauseRequest = new PauseFollowAction.Request();
-        pauseRequest.setFollowIndex("follower");
+        PauseFollowAction.Request pauseRequest = new PauseFollowAction.Request("follower");
         client().execute(PauseFollowAction.INSTANCE, pauseRequest);
 
         final long thirdBatchNumDocs = randomIntBetween(2, 64);

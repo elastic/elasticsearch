@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -521,6 +522,13 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         builder.setGroups(Arrays.asList("foo-group", "$$$"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertThat(e.getMessage(), containsString("Invalid group id '$$$'"));
+    }
+
+    public void testInvalidGroup_matchesJobId() {
+        Job.Builder builder = buildJobBuilder("foo");
+        builder.setGroups(Collections.singletonList("foo"));
+        ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class, builder::build);
+        assertEquals(e.getMessage(), "job and group names must be unique but job [foo] and group [foo] have the same name");
     }
 
     public void testEstimateMemoryFootprint_GivenEstablished() {

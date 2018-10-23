@@ -443,6 +443,40 @@ public class JobConfigProvider extends AbstractComponent {
     }
 
     /**
+     * For the list of job Ids find all that match existing jobs Ids.
+     * The repsonse is all the job Ids in {@code ids} that match an existing
+     * job Id.
+     * @param ids Job Ids to find 
+     * @param listener The matched Ids listener
+     */
+    public void jobIdMatches(List<String> ids, ActionListener<List<String>> listener) {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE));
+        boolQueryBuilder.filter(new TermsQueryBuilder(Job.ID.getPreferredName(), ids));
+
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(boolQueryBuilder);
+        sourceBuilder.fetchSource(false);
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+
+        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(sourceBuilder).request();
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            SearchHit[] hits = response.getHits().getHits();
+                            List<String> matchedIds = new ArrayList<>();
+                            for (SearchHit hit : hits) {
+                                matchedIds.add(hit.field(Job.ID.getPreferredName()).getValue());
+                            }
+                            listener.onResponse(matchedIds);
+                        },
+                        listener::onFailure)
+                , client::search);
+    }
+
+    /**
      * Sets the job's {@code deleting} field to true
      * @param jobId     The job to mark as deleting
      * @param listener  Responds with true if successful else an error
@@ -611,7 +645,7 @@ public class JobConfigProvider extends AbstractComponent {
      * @param groupIds Group Ids to expand
      * @param listener Expanded job Ids listener
      */
-    public void expandGroupIds(List<String> groupIds,  ActionListener<SortedSet<String>> listener) {
+    public void expandGroupIds(List<String> groupIds, ActionListener<SortedSet<String>> listener) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
                 .query(new TermsQueryBuilder(Job.GROUPS.getPreferredName(), groupIds));
         sourceBuilder.sort(Job.ID.getPreferredName(), SortOrder.DESC);

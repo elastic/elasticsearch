@@ -31,7 +31,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader");
 
-        final PutFollowAction.Request followRequest = new PutFollowAction.Request(getFollowRequest());
+        final PutFollowAction.Request followRequest = getPutFollowRequest();
         client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
@@ -61,7 +61,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
         }
 
-        client().execute(ResumeFollowAction.INSTANCE, getFollowRequest()).get();
+        client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest()).get();
         assertBusy(() -> {
             assertThat(client().prepareSearch("follower").get().getHits().totalHits,
                 equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));

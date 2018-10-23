@@ -93,15 +93,19 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         }
 
         @Override
-        public void expectDescribe(Map<String, String> columns, String user) throws Exception {
+        public void expectDescribe(Map<String, List<String>> columns, String user) throws Exception {
             String mode = randomMode();
             Map<String, Object> expected = new HashMap<>(3);
             expected.put("columns", Arrays.asList(
                     columnInfo(mode, "column", "keyword", JDBCType.VARCHAR, 0),
-                    columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 0)));
+                    columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 0),
+                    columnInfo(mode, "mapping", "keyword", JDBCType.VARCHAR, 0)));
             List<List<String>> rows = new ArrayList<>(columns.size());
-            for (Map.Entry<String, String> column : columns.entrySet()) {
-                rows.add(Arrays.asList(column.getKey(), column.getValue()));
+            for (Map.Entry<String, List<String>> column : columns.entrySet()) {
+                List<String> cols = new ArrayList<>();
+                cols.add(column.getKey());
+                cols.addAll(column.getValue());
+                rows.add(cols);
             }
             expected.put("rows", rows);
 
@@ -232,7 +236,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
 
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
             .expect(true, SQL_ACTION_NAME, "full_access", empty())
             // one scroll access denied per shard
             .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")

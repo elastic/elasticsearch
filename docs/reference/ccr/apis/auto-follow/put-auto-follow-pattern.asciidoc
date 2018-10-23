@@ -10,15 +10,16 @@ Creates an auto-follow pattern.
 
 ==== Description
 
-This API creates a new collection of auto-follow patterns against the specified
-remote cluster. Newly created indices on the remote cluster matching any of the specified
-patterns will be automatically configured as follower indices.
+This API creates a new named collection of auto-follow patterns against the
+remote cluster specified in the request body. Newly created indices on the
+remote cluster matching any of the specified patterns will be automatically
+configured as follower indices.
 
 ==== Request
 
 [source,js]
 --------------------------------------------------
-PUT /_ccr/auto_follow/<leader_cluster>
+PUT /_ccr/auto_follow/<auto_follow_pattern_name>
 {
   "leader_cluster" : "<leader_cluster>",
   "leader_index_patterns" :
@@ -30,16 +31,30 @@ PUT /_ccr/auto_follow/<leader_cluster>
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:leader_cluster]
+// TEST[s/<auto_follow_pattern_name>/auto_follow_pattern_name/]
 // TEST[s/<leader_cluster>/leader_cluster/]
 // TEST[s/<leader_index_patterns>/leader_index*/]
 // TEST[s/<follow_index_pattern>/{{leader_index}}-follower/]
 
-Here, `<leader_cluster>` is the <<modules-remote-clusters,remote cluster>>
-containing the leader indices to match against, `<leader_index_pattern>` is a
-simple index pattern to match against indices in the remote cluster, and
-`<follow_index_pattern>` is the pattern to use to name the resulting follower
-indices. The `<follow_index_pattern>` can use the template `{{leader_index}}` to
-refer to the name of the leader index being followed.
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+DELETE /_ccr/auto_follow/auto_follow_pattern_name
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+//////////////////////////
+
+Here, `<auto_follow_pattern_name>` is a user-chosen name for the collection of
+auto-follow patterns being created, `<leader_cluster>` is the
+<<modules-remote-clusters,remote cluster>> containing the leader indices to
+match against, `<leader_index_pattern>` is a simple index pattern to match
+against indices in the remote cluster, and `<follow_index_pattern>` is the
+pattern to use to name the resulting follower indices. The
+`<follow_index_pattern>` can use the template `{{leader_index}}` to refer to the
+name of the leader index being followed.
 
 ==== Request Body
 `leader_cluster`::
@@ -63,7 +78,7 @@ The following is an example of using the create auto-follow pattern API.
 
 [source,js]
 --------------------------------------------------
-PUT /_ccr/auto_follow/leader_cluster
+PUT /_ccr/auto_follow/my_auto_follow_pattern
 {
   "leader_cluster" : "leader_cluster",
   "leader_index_patterns" :
@@ -90,7 +105,7 @@ The API returns the following result:
 
 [source,js]
 --------------------------------------------------
-DELETE /_ccr/auto_follow/leader_cluster
+DELETE /_ccr/auto_follow/my_auto_follow_pattern
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

@@ -11,7 +11,7 @@ Get auto-follow patterns.
 ==== Description
 
 This API gets configured auto-follow patterns. This API will return the
-configured auto-follow patterns on a per-cluster basis.
+specified auto-follow pattern collection.
 
 ==== Request
 
@@ -19,7 +19,7 @@ configured auto-follow patterns on a per-cluster basis.
 
 [source,js]
 --------------------------------------------------
-PUT /_ccr/auto_follow/leader_cluster
+PUT /_ccr/auto_follow/my_auto_follow_pattern
 {
   "leader_cluster" : "leader_cluster",
   "leader_index_patterns" :
@@ -35,7 +35,7 @@ PUT /_ccr/auto_follow/leader_cluster
 
 [source,js]
 --------------------------------------------------
-DELETE /_ccr/auto_follow/leader_cluster
+DELETE /_ccr/auto_follow/my_auto_follow_pattern
 --------------------------------------------------
 // CONSOLE
 // TEST
@@ -53,14 +53,13 @@ Here, all auto-follow patterns will be returned.
 
 [source,js]
 --------------------------------------------------
-GET /_ccr/auto_follow/<leader_cluster>
+GET /_ccr/auto_follow/<auto_follow_pattern_name>
 --------------------------------------------------
 // CONSOLE
-// TEST[s/<leader_cluster>/leader_cluster/]
+// TEST[s/<auto_follow_pattern_name>/my_auto_follow_pattern/]
 
-Here, all auto-follow patterns configured for the
-<<modules-remote-clusters,remote cluster>> specified by `<leader_cluster>`
-will be returned.
+Here, the named auto-follow pattern collection specified by
+`<auto_follow_pattern_name>` will be returned.
 
 ==== Example
 
@@ -68,7 +67,7 @@ The following is an example of using the get auto-follow pattern API.
 
 [source,js]
 --------------------------------------------------
-GET /_ccr/auto_follow/leader_cluster
+GET /_ccr/auto_follow/my_auto_follow_pattern
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:leader_cluster]
@@ -78,8 +77,9 @@ The API returns the following result:
 [source,js]
 --------------------------------------------------
 {
-  "leader_cluster" :
+  "my_auto_follow_pattern" :
   {
+    "leader_cluster" : "leader_cluster",
     "leader_index_patterns" :
     [
       "leader_index*"

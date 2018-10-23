@@ -207,7 +207,8 @@ The API returns the following results:
           "number_of_concurrent_writes" : 2,
           "number_of_queued_writes" : 64,
           "mapping_version" : 4,
-          "total_fetch_time_millis" : 17415,
+          "total_fetch_time_millis" : 32768,
+          "total_fetch_leader_time_millis" : 16384,
           "number_of_successful_fetches" : 32,
           "number_of_failed_fetches" : 0,
           "operations_received" : 896,
@@ -233,7 +234,8 @@ The API returns the following results:
 // TESTRESPONSE[s/"number_of_concurrent_writes" : 2/"number_of_concurrent_writes" : $body.indices.0.shards.0.number_of_concurrent_writes/]
 // TESTRESPONSE[s/"number_of_queued_writes" : 64/"number_of_queued_writes" : $body.indices.0.shards.0.number_of_queued_writes/]
 // TESTRESPONSE[s/"mapping_version" : 4/"mapping_version" : $body.indices.0.shards.0.mapping_version/]
-// TESTRESPONSE[s/"total_fetch_time_millis" : 17415/"total_fetch_time_millis" : $body.indices.0.shards.0.total_fetch_time_millis/]
+// TESTRESPONSE[s/"total_fetch_time_millis" : 32768/"total_fetch_time_millis" : $body.indices.0.shards.0.total_fetch_time_millis/]
+// TESTRESPONSE[s/"total_fetch_leader_time_millis" : 16384/"total_fetch_leader_time_millis" : $body.indices.0.shards.0.total_fetch_leader_time_millis/]
 // TESTRESPONSE[s/"number_of_successful_fetches" : 32/"number_of_successful_fetches" : $body.indices.0.shards.0.number_of_successful_fetches/]
 // TESTRESPONSE[s/"number_of_failed_fetches" : 0/"number_of_failed_fetches" : $body.indices.0.shards.0.number_of_failed_fetches/]
 // TESTRESPONSE[s/"operations_received" : 896/"operations_received" : $body.indices.0.shards.0.operations_received/]

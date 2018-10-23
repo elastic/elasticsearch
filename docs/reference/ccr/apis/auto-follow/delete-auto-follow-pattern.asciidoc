@@ -18,7 +18,7 @@ This API deletes configured auto-follow patterns.
 
 [source,js]
 --------------------------------------------------
-PUT /_ccr/auto_follow/leader_cluster
+PUT /_ccr/auto_follow/my_auto_follow_pattern
 {
   "leader_cluster" : "leader_cluster",
   "leader_index_patterns" :
@@ -36,10 +36,10 @@ PUT /_ccr/auto_follow/leader_cluster
 
 [source,js]
 --------------------------------------------------
-DELETE /_ccr/auto_follow/<leader_cluster>
+DELETE /_ccr/auto_follow/<auto_follow_pattern_name>
 --------------------------------------------------
 // CONSOLE
-// TEST[s/<leader_cluster>/leader_cluster/]
+// TEST[s/<auto_follow_pattern_name>/my_auto_follow_pattern/]
 
 Here, the auto-follow patterns associated with the
 <<modules-remote-clusters,remote cluster>> specified by `<leader_cluster>`
@@ -51,7 +51,7 @@ The following is an example of using the delete auto-follow pattern API.
 
 [source,js]
 --------------------------------------------------
-DELETE /_ccr/auto_follow/leader_cluster
+DELETE /_ccr/auto_follow/my_auto_follow_pattern
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:leader_cluster]

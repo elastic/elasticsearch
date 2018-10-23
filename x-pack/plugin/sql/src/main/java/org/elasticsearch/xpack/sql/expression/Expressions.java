@@ -67,6 +67,15 @@ public final class Expressions {
         return true;
     }
 
+    public static boolean foldable(List<? extends Expression> exps) {
+        for (Expression exp : exps) {
+            if (!exp.foldable()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static AttributeSet references(List<? extends Expression> exps) {
         if (exps.isEmpty()) {
             return AttributeSet.EMPTY;

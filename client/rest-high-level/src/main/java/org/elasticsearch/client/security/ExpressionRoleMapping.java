@@ -41,14 +41,14 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public final class ExpressionRoleMapping {
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ExpressionRoleMapping.Builder, Void> PARSER = new ConstructingObjectParser<>("role-mapping", true,
-            args -> new ExpressionRoleMapping.Builder((List<String>) args[0], (RoleMapperExpression) args[1], (Map<String, Object>) args[2],
+    static final ConstructingObjectParser<ExpressionRoleMapping, String> PARSER = new ConstructingObjectParser<>("role-mapping", true,
+            (args, name) -> new ExpressionRoleMapping(name, (RoleMapperExpression) args[0], (List<String>) args[1], (Map<String, Object>) args[2],
                     (boolean) args[3]));
 
     static {
-        PARSER.declareStringArray(constructorArg(), Fields.ROLES);
         PARSER.declareField(constructorArg(), (parser, context) -> RoleMapperExpressionParser.fromXContent(parser), Fields.RULES,
                 ObjectParser.ValueType.OBJECT);
+        PARSER.declareStringArray(constructorArg(), Fields.ROLES);
         PARSER.declareField(constructorArg(), XContentParser::map, Fields.METADATA, ObjectParser.ValueType.OBJECT);
         PARSER.declareBoolean(constructorArg(), Fields.ENABLED);
     }
@@ -142,41 +142,6 @@ public final class ExpressionRoleMapping {
         } else if (!roles.equals(other.roles))
             return false;
         return true;
-    }
-
-    /**
-     * Used to facilitate the use of {@link ObjectParser} (via {@link #PARSER}).
-     */
-    static class Builder {
-        private RoleMapperExpression rules;
-        private List<String> roles;
-        private Map<String, Object> metadata = Collections.emptyMap();
-        private Boolean enabled;
-
-        Builder(List<String> roles, RoleMapperExpression expression, Map<String, Object> metadata, boolean enabled) {
-            this.rules = expression;
-            this.roles = Collections.unmodifiableList(roles);
-            this.metadata = Collections.unmodifiableMap(metadata);
-            this.enabled = enabled;
-        }
-
-        ExpressionRoleMapping build(String name) {
-            if (roles == null) {
-                throw missingField(name, Fields.ROLES);
-            }
-            if (rules == null) {
-                throw missingField(name, Fields.RULES);
-            }
-            if (enabled == null) {
-                throw missingField(name, Fields.ENABLED);
-            }
-            return new ExpressionRoleMapping(name, rules, roles, metadata, enabled);
-        }
-
-        private IllegalStateException missingField(String id, ParseField field) {
-            return new IllegalStateException("failed to parse role-mapping [" + id + "]. missing field [" + field + "]");
-        }
-
     }
 
     public interface Fields {

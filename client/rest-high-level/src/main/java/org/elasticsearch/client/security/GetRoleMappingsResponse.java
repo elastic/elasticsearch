@@ -62,9 +62,7 @@ public final class GetRoleMappingsResponse {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-            String name = parser.currentName();
-            ExpressionRoleMapping.Builder builder = ExpressionRoleMapping.PARSER.parse(parser, null);
-            roleMappings.add(builder.build(name));
+            roleMappings.add(ExpressionRoleMapping.PARSER.parse(parser, parser.currentName()));
         }
 
         return new GetRoleMappingsResponse(roleMappings);

@@ -98,6 +98,12 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
                     + "[skip] so runners that do not support the [node_selector] section can skip the test at line ["
                     + doSection.getLocation().lineNumber + "]");
             }
+            if (false == doSection.getApiCallSection().getHeaders().isEmpty()
+                    && false == skipSection.getFeatures().contains("headers")) {
+                throw new IllegalArgumentException("Attempted to add a [do] with a [headers] section without a corresponding "
+                    + "[skip] so runners that do not support the [headers] section can skip the test at line ["
+                    + doSection.getLocation().lineNumber + "]");
+            }
         }
         this.executableSections.add(executableSection);
     }

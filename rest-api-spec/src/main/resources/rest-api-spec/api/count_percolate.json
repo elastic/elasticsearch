@@ -65,7 +65,7 @@
       }
     },
     "body": {
-      "description": "The count percolator request definition using the percolate DSL",
+      "description": "This has been deprecated since 5.0, use regular count endpoint. The count percolator request definition using the percolate DSL",
       "required": false
     }
   }

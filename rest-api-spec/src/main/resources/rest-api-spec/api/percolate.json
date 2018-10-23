@@ -78,7 +78,7 @@
       }
     },
     "body": {
-      "description" : "The percolator request definition using the percolate DSL",
+      "description" : "This has been deprecated since 5.0, use regular search endpoint. The percolator request definition using the percolate DSL",
       "required" : false
     }
   }

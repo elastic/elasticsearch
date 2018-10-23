@@ -33,7 +33,7 @@
       }
     },
     "body": {
-      "description": "The percolate request definitions (header & body pair), separated by newlines",
+      "description": "This has been deprecated since 5.0, use regular msearch endpoint. The percolate request definitions (header & body pair), separated by newlines",
       "required": true,
       "serialize" : "bulk"
     }

@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -17,9 +18,10 @@ import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
-import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps.RollupFieldCaps;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,137 +73,147 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
                               Map<String, RollableIndexCaps> rollupJobsWithCaps,
                               ActionListener<DataExtractorFactory> listener) {
 
-        Set<RollupJobConfig> rollupJobConfigs = rollupJobsWithCaps.values()
-            .stream()
-            .flatMap(rollableIndexCaps -> rollableIndexCaps.getJobCaps().stream())
-            .map(RollupJobCaps::getRollupJobConfig)
-            .collect(Collectors.toSet());
-
-        // This should never happen as we are working with RollupJobCaps internally
-        if (rollupJobConfigs.contains(null)) {
-            List<RollupJobCaps> rollupJobCaps = rollupJobsWithCaps.values()
-                .stream()
-                .flatMap(rollableIndexCaps -> rollableIndexCaps.getJobCaps().stream())
-                .collect(Collectors.toList());
-            rollupJobCaps.forEach(rollupJobCap -> {
-                if (rollupJobCap.getRollupJobConfig() == null) {
-                    listener.onFailure(new IllegalArgumentException(
-                        "missing rollup job config found for rollup index " +
-                            "["+ rollupJobCap.getRollupIndex() +"] for rollup job ["+ rollupJobCap.getJobID() +"]"));
-                }
-            });
+        final AggregationBuilder datafeedHistogramAggregation = getHistogramAggregation(
+            datafeed.getAggregations().getAggregatorFactories());
+        if ((datafeedHistogramAggregation instanceof DateHistogramAggregationBuilder) == false) {
+            listener.onFailure(
+                new IllegalArgumentException("Rollup requires that the datafeed configuration use a [date_histogram] aggregation," +
+                    " not a [histogram] aggregation over the time field."));
+            return;
         }
 
-        AggregationValidator aggregationValidator = new AggregationValidator(datafeed, rollupJobConfigs);
-        List<String> validationErrors = aggregationValidator.validate();
-        if (validationErrors.isEmpty()) {
-            listener.onResponse(new RollupDataExtractorFactory(client, datafeed, job));
-        } else {
-            listener.onFailure(new IllegalArgumentException(Strings.collectionToDelimitedString(validationErrors, " ")));
+        final String timeField = ((ValuesSourceAggregationBuilder) datafeedHistogramAggregation).field();
+
+        Set<ParsedRollupCaps> rollupCapsSet = rollupJobsWithCaps.values()
+            .stream()
+            .flatMap(rollableIndexCaps -> rollableIndexCaps.getJobCaps().stream())
+            .map(rollupJobCaps -> ParsedRollupCaps.fromJobFieldCaps(rollupJobCaps.getFieldCaps(), timeField))
+            .collect(Collectors.toSet());
+
+        final long datafeedInterval = getHistogramIntervalMillis(datafeedHistogramAggregation);
+
+        List<ParsedRollupCaps> validIntervalCaps = rollupCapsSet.stream()
+            .filter(rollupCaps -> validInterval(datafeedInterval, rollupCaps))
+            .collect(Collectors.toList());
+
+        if (validIntervalCaps.isEmpty()) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Rollup capabilities do not have a [date_histogram] aggregation with an interval " +
+                        "that is a multiple of the datafeed's interval.")
+            );
+            return;
+        }
+        final List<AggregationBuilder> flattenedAggs = new ArrayList<>();
+        flattenAggregations(datafeed.getAggregations().getAggregatorFactories(), datafeedHistogramAggregation, flattenedAggs);
+
+        if (validIntervalCaps.stream().noneMatch(rollupJobConfig -> hasAggregations(rollupJobConfig, flattenedAggs))) {
+            listener.onFailure(
+                new IllegalArgumentException("Rollup capabilities do not support all the datafeed aggregations at the desired interval.")
+            );
+            return;
+        }
+
+        listener.onResponse(new RollupDataExtractorFactory(client, datafeed, job));
+    }
+
+    private static boolean validInterval(long datafeedInterval, ParsedRollupCaps rollupJobGroupConfig) {
+        if (rollupJobGroupConfig.hasDatehistogram() == false) {
+            return false;
+        }
+        if (DateTimeZone.UTC.toString().equalsIgnoreCase(rollupJobGroupConfig.getTimezone()) == false) {
+            return false;
+        }
+        try {
+            long jobInterval = validateAndGetCalendarInterval(rollupJobGroupConfig.getInterval());
+            return datafeedInterval % jobInterval == 0;
+        } catch (ElasticsearchStatusException exception) {
+            return false;
         }
     }
 
-    /**
-     * Helper class for validating Aggregations between the {@link DatafeedConfig} and {@link RollupJobConfig} objects
-     */
-    private static class AggregationValidator {
+    private static void flattenAggregations(final Collection<AggregationBuilder> datafeedAggregations,
+                                            final AggregationBuilder datafeedHistogramAggregation,
+                                            final List<AggregationBuilder> flattenedAggregations) {
+        for (AggregationBuilder aggregationBuilder : datafeedAggregations) {
+            if (aggregationBuilder.equals(datafeedHistogramAggregation) == false) {
+                flattenedAggregations.add(aggregationBuilder);
+            }
+            flattenAggregations(aggregationBuilder.getSubAggregations(), datafeedHistogramAggregation, flattenedAggregations);
+        }
+    }
 
-        private final AggregationBuilder datafeedHistogramAggregation;
-        private final Collection<AggregationBuilder> datafeedAggregations;
-        private final Set<RollupJobConfig> rollupJobConfigs;
-        private final Set<String> supportedTerms;
+    private static boolean hasAggregations(ParsedRollupCaps rollupCaps, List<AggregationBuilder> datafeedAggregations) {
+        for (AggregationBuilder aggregationBuilder : datafeedAggregations) {
+            String type = aggregationBuilder.getType();
+            String field = ((ValuesSourceAggregationBuilder) aggregationBuilder).field();
+            if (aggregationBuilder instanceof TermsAggregationBuilder) {
+                if (rollupCaps.supportedTerms.contains(field) == false) {
+                    return false;
+                }
+            } else {
+                if (rollupCaps.supportedMetrics.contains(field + "_" + type) == false) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private static class ParsedRollupCaps {
         private final Set<String> supportedMetrics;
+        private final Set<String> supportedTerms;
+        private final Map<String, Object> datehistogramAgg;
+        private static List<String> aggsToIgnore = Arrays.asList(HistogramAggregationBuilder.NAME, DateHistogramAggregationBuilder.NAME);
 
-        AggregationValidator(DatafeedConfig datafeed, Set<RollupJobConfig> rollupJobConfigs) {
-            // Has to be a date_histogram for aggregation
-            datafeedHistogramAggregation = getHistogramAggregation(datafeed.getAggregations().getAggregatorFactories());
-            datafeedAggregations = datafeed.getAggregations().getAggregatorFactories();
-            this.rollupJobConfigs = rollupJobConfigs;
-            Set<String> metricSet = null;
-            Set<String> termSets = null;
-            for (RollupJobConfig rollupJobConfig : rollupJobConfigs) {
-                Set<String> jobConfigsMetrics = new HashSet<>();
-                Set<String> jobConfigTerms = new HashSet<>();
-                rollupJobConfig.getMetricsConfig().forEach(metricConfig -> {
-                    String field = metricConfig.getField();
-                    metricConfig.getMetrics().forEach(metric -> jobConfigsMetrics.add(field + "_" + metric));
-                });
-                if (rollupJobConfig.getGroupConfig().getTerms() != null) {
-                    jobConfigTerms.addAll(Arrays.asList(rollupJobConfig.getGroupConfig().getTerms().getFields()));
-                }
 
-                // Gets the intersection as the desired aggs need to be supported by all referenced rollup indexes
-                if (metricSet == null) {
-                    metricSet = jobConfigsMetrics;
-                } else {
-                    metricSet.retainAll(jobConfigsMetrics);
-                }
-                if (termSets == null) {
-                    termSets = jobConfigTerms;
-                } else {
-                    termSets.retainAll(jobConfigTerms);
-                }
-            }
-            supportedTerms = termSets;
-            supportedMetrics = metricSet;
-        }
-
-        List<String> validate() {
-            List<String> validationErrors = new ArrayList<>();
-            validateDatafeedHistogramAgg(validationErrors);
-            validateIntervals(validationErrors);
-            validateAggregations(validationErrors);
-            return validationErrors;
-        }
-
-        private void validateDatafeedHistogramAgg(List<String> validationErrors) {
-            if ((datafeedHistogramAggregation instanceof DateHistogramAggregationBuilder) == false) {
-                validationErrors.add("Rollup requires that the datafeed configuration use a [date_histogram] aggregation," +
-                    " not a [histogram] aggregation over the time field.");
-            }
-        }
-
-        private void validateIntervals(List<String> validationErrors) {
-            long datafeedInterval = getHistogramIntervalMillis(datafeedHistogramAggregation);
-            for (RollupJobConfig rollupJobConfig : rollupJobConfigs) {
-                long interval = validateAndGetCalendarInterval(rollupJobConfig.getGroupConfig()
-                    .getDateHistogram()
-                    .getInterval()
-                    .toString());
-                if (datafeedInterval % interval > 0) {
-                    validationErrors.add(
-                        "Rollup Job [" + rollupJobConfig.getId() + "] has an interval that is not a multiple of the dataframe interval.");
-                }
-            }
-        }
-
-        private void validateAggregations(List<String> validationErrors) {
-            List<String> aggregationErrors = new ArrayList<>();
-            verifyAggregationsHelper(datafeedAggregations, aggregationErrors);
-            if (aggregationErrors.isEmpty() == false) {
-                validationErrors.add("Rollup indexes do not support the following aggregations: " +
-                    Strings.collectionToCommaDelimitedString(aggregationErrors) + ".");
-            }
-        }
-
-        private void verifyAggregationsHelper(final Collection<AggregationBuilder> datafeedAggregations,
-                                              final List<String> aggregationErrors) {
-            for (AggregationBuilder aggregationBuilder : datafeedAggregations) {
-                if (aggregationBuilder.equals(datafeedHistogramAggregation) == false) {
-                    String type = aggregationBuilder.getType();
-                    String field = ((ValuesSourceAggregationBuilder) aggregationBuilder).field();
-                    if (aggregationBuilder instanceof TermsAggregationBuilder) {
-                        if (supportedTerms.contains(field) == false) {
-                            aggregationErrors.add("[terms] for field [" + field + "]");
-                        }
-                    } else {
-                        if (supportedMetrics.contains(field + "_" + type) == false) {
-                            aggregationErrors.add("[" + type + "] for field [" + field + "]");
-                        }
+        private static ParsedRollupCaps fromJobFieldCaps(Map<String, RollupFieldCaps> rollupFieldCaps, String timeField) {
+            Map<String, Object> datehistogram = null;
+            RollupFieldCaps timeFieldCaps = rollupFieldCaps.get(timeField);
+            if ((timeFieldCaps == null) == false) {
+                for(Map<String, Object> agg : timeFieldCaps.getAggs()) {
+                    if (agg.get("agg").equals(DateHistogramAggregationBuilder.NAME)) {
+                        datehistogram = agg;
                     }
                 }
-                verifyAggregationsHelper(aggregationBuilder.getSubAggregations(), aggregationErrors);
             }
+            Set<String> supportedMetrics = new HashSet<>();
+            Set<String> supportedTerms = new HashSet<>();
+            rollupFieldCaps.forEach((field, fieldCaps) -> {
+                fieldCaps.getAggs().forEach(agg -> {
+                    String type = (String)agg.get("agg");
+                    if (type.equals(TermsAggregationBuilder.NAME)) {
+                        supportedTerms.add(field);
+                    } else if (aggsToIgnore.contains(type) == false) {
+                        supportedMetrics.add(field + "_" + type);
+                    }
+                });
+            });
+            return new ParsedRollupCaps(supportedMetrics, supportedTerms, datehistogram);
+        }
+
+        private ParsedRollupCaps(Set<String> supportedMetrics, Set<String> supportedTerms, Map<String, Object> datehistogramAgg) {
+            this.supportedMetrics = supportedMetrics;
+            this.supportedTerms = supportedTerms;
+            this.datehistogramAgg = datehistogramAgg;
+        }
+
+        private String getInterval() {
+            if (datehistogramAgg == null) {
+                return null;
+            }
+            return (String)datehistogramAgg.get(DateHistogramGroupConfig.INTERVAL);
+        }
+
+        private String getTimezone() {
+            if (datehistogramAgg == null) {
+                return null;
+            }
+            return (String)datehistogramAgg.get(DateHistogramGroupConfig.TIME_ZONE);
+        }
+
+        private boolean hasDatehistogram() {
+            return datehistogramAgg != null;
         }
     }
 }

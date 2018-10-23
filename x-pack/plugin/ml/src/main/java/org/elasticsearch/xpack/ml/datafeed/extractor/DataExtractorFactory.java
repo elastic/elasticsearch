@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationData
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 public interface DataExtractorFactory {
     DataExtractor newExtractor(long start, long end);
@@ -26,11 +25,10 @@ public interface DataExtractorFactory {
     /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
      */
-    static void create(Client client, DatafeedConfig datafeed, Job job, Auditor auditor, ActionListener<DataExtractorFactory> listener) {
+    static void create(Client client, DatafeedConfig datafeed, Job job, ActionListener<DataExtractorFactory> listener) {
         ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
             factory -> {
                 if (datafeed.getChunkingConfig().isEnabled()) {
-                    auditor.info(job.getId(), "Creating chunked data extractor for datafeed [" + datafeed.getId() + "]");
                     listener.onResponse(new ChunkedDataExtractorFactory(client, datafeed, job, factory));
                 } else {
                     listener.onResponse(factory);
@@ -43,15 +41,12 @@ public interface DataExtractorFactory {
             response -> {
                 if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
                     if (datafeed.hasAggregations()) {
-                        auditor.info(job.getId(), "Creating aggregated data extractor for datafeed [" + datafeed.getId() + "]");
                         factoryHandler.onResponse(new AggregationDataExtractorFactory(client, datafeed, job));
                     } else {
-                        auditor.info(job.getId(), "Creating scrolling data extractor for datafeed [" + datafeed.getId() + "]");
                         ScrollDataExtractorFactory.create(client, datafeed, job, factoryHandler);
                     }
                 } else {
                     if (datafeed.hasAggregations()) { // Rollup indexes require aggregations
-                        auditor.info(job.getId(), "Creating rollup data extractor for datafeed [" + datafeed.getId() + "]");
                         RollupDataExtractorFactory.create(client, datafeed, job, response.getJobs(), factoryHandler);
                     } else {
                         throw new IllegalArgumentException("Aggregations are required when using Rollup indices");
@@ -70,8 +65,7 @@ public interface DataExtractorFactory {
 
         GetRollupIndexCapsAction.Request request = new GetRollupIndexCapsAction.Request(datafeed.getIndices().toArray(new String[0]));
 
-        ClientHelper.<GetRollupIndexCapsAction.Request, GetRollupIndexCapsAction.Response, GetRollupIndexCapsAction.RequestBuilder>
-            executeAsyncWithOrigin(
+        ClientHelper.executeAsyncWithOrigin(
                 client,
                 ClientHelper.ML_ORIGIN,
                 GetRollupIndexCapsAction.INSTANCE,

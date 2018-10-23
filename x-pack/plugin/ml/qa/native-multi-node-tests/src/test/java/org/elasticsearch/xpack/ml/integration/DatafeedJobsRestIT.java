@@ -628,7 +628,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 new Request("GET", AuditorField.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
-                "action [indices:data/read/search] is unauthorized for user [ml_admin_plus_data]\""));
+                "action [indices:admin/xpack/rollup/search] is unauthorized for user [ml_admin_plus_data]\""));
     }
 
     public void testLookbackWithPipelineBucketAgg() throws Exception {
@@ -729,7 +729,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             + "\"aggregations\":{"
             + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
             + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
-        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs*", "response").setAggregations(aggregations).build();
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup", "response").setAggregations(aggregations).build();
         openJob(client(), jobId);
 
         startDatafeedAndWaitUntilStopped(datafeedId);

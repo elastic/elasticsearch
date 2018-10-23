@@ -37,9 +37,7 @@ class RollupDataExtractor extends AbstractAggregationDataExtractor<RollupSearchA
         context.aggs.getAggregatorFactories().forEach(searchSourceBuilder::aggregation);
         context.aggs.getPipelineAggregatorFactories().forEach(searchSourceBuilder::aggregation);
 
-        SearchRequest searchRequest = new SearchRequest().indices(context.indices)
-            .types(context.types)
-            .source(searchSourceBuilder);
+        SearchRequest searchRequest = new SearchRequest().indices(context.indices).source(searchSourceBuilder);
 
         return new RollupSearchAction.RequestBuilder(client, searchRequest);
     }

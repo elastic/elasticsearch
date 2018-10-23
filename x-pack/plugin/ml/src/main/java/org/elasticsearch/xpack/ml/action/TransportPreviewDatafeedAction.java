@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -75,7 +74,6 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         DataExtractorFactory.create(client,
             previewDatafeed.build(),
             job,
-            new Auditor(client, clusterService.nodeName()),
             ActionListener.wrap(
                 dataExtractorFactory -> {
                     DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);

@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationData
 import org.elasticsearch.xpack.ml.datafeed.extractor.chunked.ChunkedDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -60,12 +59,10 @@ public class DataExtractorFactoryTests extends ESTestCase {
     private GetRollupIndexCapsAction.Response getRollupIndexResponse;
 
     private Client client;
-    private Auditor auditor;
 
     @Before
     public void setUpTests() {
         client = mock(Client.class);
-        auditor = mock(Auditor.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -103,7 +100,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
                 e -> fail()
         );
 
-        DataExtractorFactory.create(client, datafeedConfig, jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig, jobBuilder.build(new Date()), listener);
     }
 
     public void testCreateDataExtractorFactoryGivenScrollWithAutoChunk() {
@@ -119,7 +116,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
                 e -> fail()
         );
 
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), listener);
     }
 
     public void testCreateDataExtractorFactoryGivenScrollWithOffChunk() {
@@ -135,7 +132,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
                 e -> fail()
         );
 
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), listener);
     }
 
     public void testCreateDataExtractorFactoryGivenDefaultAggregation() {
@@ -153,7 +150,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
                 e -> fail()
         );
 
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), listener);
     }
 
     public void testCreateDataExtractorFactoryGivenAggregationWithOffChunk() {
@@ -172,7 +169,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
                 e -> fail()
         );
 
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), listener);
     }
 
     public void testCreateDataExtractorFactoryGivenDefaultAggregationWithAutoChunk() {
@@ -191,7 +188,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
                 e -> fail()
         );
 
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), listener);
     }
 
     public void testCreateDataExtractorFactoryGivenRollupAndValidAggregation() {
@@ -211,7 +208,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(RollupDataExtractorFactory.class)),
             e -> fail()
         );
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), listener);
     }
 
     public void testCreateDataExtractorFactoryGivenRollupAndValidAggregationAndAutoChunk() {
@@ -231,7 +228,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             dataExtractorFactory -> assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class)),
             e -> fail()
         );
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), listener);
     }
 
     public void testCreateDataExtractorFactoryGivenRollupButNoAggregations() {
@@ -251,7 +248,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
             }
         );
 
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), listener);
     }
 
     public void testCreateDataExtractorFactoryGivenRollupWithBadInterval() {
@@ -271,11 +268,12 @@ public class DataExtractorFactoryTests extends ESTestCase {
             dataExtractorFactory -> fail(),
             e -> {
                 assertThat(e.getMessage(),
-                    containsString("Rollup Job [rollupJob1] has an interval that is not a multiple of the dataframe interval"));
+                    containsString("Rollup capabilities do not have a [date_histogram] aggregation with an interval " +
+                        "that is a multiple of the datafeed's interval."));
                 assertThat(e, instanceOf(IllegalArgumentException.class));
             }
         );
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), listener);
     }
 
     public void testCreateDataExtractorFactoryGivenRollupMissingTerms() {
@@ -295,11 +293,11 @@ public class DataExtractorFactoryTests extends ESTestCase {
             dataExtractorFactory -> fail(),
             e -> {
                 assertThat(e.getMessage(),
-                    containsString("[terms] for field [termField]"));
+                    containsString("Rollup capabilities do not support all the datafeed aggregations at the desired interval."));
                 assertThat(e, instanceOf(IllegalArgumentException.class));
             }
         );
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), listener);
     }
 
     public void testCreateDataExtractorFactoryGivenRollupMissingMetric() {
@@ -318,11 +316,12 @@ public class DataExtractorFactoryTests extends ESTestCase {
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> fail(),
             e -> {
-                assertThat(e.getMessage(), containsString("[max] for field [otherField]"));
+                assertThat(e.getMessage(),
+                    containsString("Rollup capabilities do not support all the datafeed aggregations at the desired interval."));
                 assertThat(e, instanceOf(IllegalArgumentException.class));
             }
         );
-        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), auditor, listener);
+        DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), listener);
     }
 
     private void givenAggregatableRollup(String field, String type, int minuteInterval, String... groupByTerms) {

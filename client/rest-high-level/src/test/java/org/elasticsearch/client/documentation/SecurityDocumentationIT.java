@@ -366,7 +366,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-
             // end::get-certificates-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -393,6 +392,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::change-password-execute
             ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", newPassword, RefreshPolicy.NONE);
             EmptyResponse response = client.security().changePassword(request, RequestOptions.DEFAULT);
+
             //end::change-password-execute
             assertNotNull(response);
         }
@@ -404,18 +404,22 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 public void onResponse(EmptyResponse emptyResponse) {
                     // <1>
                 }
+
                 @Override
                 public void onFailure(Exception e) {
                     // <2>
                 }
             };
             //end::change-password-execute-listener
+
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
+
             //tag::change-password-execute-async
             client.security().changePasswordAsync(request, RequestOptions.DEFAULT, listener); // <1>
             //end::change-password-execute-async
+
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }

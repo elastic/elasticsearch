@@ -714,19 +714,20 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         assertBusy(() -> {
             Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
-            assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"job_state\":\"started\""));
+            String body = EntityUtils.toString(getRollup.getEntity());
+            assertThat(body, containsString("\"job_state\":\"started\""));
+            assertThat(body, containsString("\"rollups_indexed\":4"));
         }, 60, TimeUnit.SECONDS);
-        assertBusy(() -> {
-            Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
-            assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"rollups_indexed\":4"));
-        }, 60, TimeUnit.SECONDS);
+
         client().performRequest(new Request("POST", "/_xpack/rollup/job/" + rollupJobId + "/_stop"));
         assertBusy(() -> {
             Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
             assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"job_state\":\"stopped\""));
         }, 60, TimeUnit.SECONDS);
+
         final Request refreshRollupIndex = new Request("POST", "airline-data-aggs-rollup/_refresh");
         client().performRequest(refreshRollupIndex);
+
         String datafeedId = "datafeed-" + jobId;
         String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
             + "\"aggregations\":{"

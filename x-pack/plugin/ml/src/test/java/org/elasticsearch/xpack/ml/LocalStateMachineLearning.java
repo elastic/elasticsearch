@@ -65,9 +65,14 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             protected XPackLicenseState getLicenseState() { return thisVar.getLicenseState(); }
         });
         plugins.add(new MockedRollupPlugin());
-
     }
 
+    /**
+     * This is only required as we now have to have the GetRollupIndexCapsAction as a valid action in our node.
+     * The MachineLearningLicenseTests attempt to create a datafeed referencing this LocalStateMachineLearning object.
+     * Consequently, we need to be able to take this rollup action (response does not matter)
+     * as the datafeed extractor now depends on it.
+     */
     public static class MockedRollupPlugin extends Plugin implements ActionPlugin {
 
         @Override

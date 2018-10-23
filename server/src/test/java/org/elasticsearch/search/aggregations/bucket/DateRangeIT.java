@@ -987,9 +987,9 @@ public class DateRangeIT extends ESIntegTestCase {
         String indexName = "dateformat_numeric_test_idx";
         assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=epoch_second"));
         indexRandom(true,
-                client().prepareIndex(indexName, "type", "1").setSource(jsonBuilder().startObject().field("date", 1000).endObject()),
+                client().prepareIndex(indexName, "type", "1").setSource(jsonBuilder().startObject().field("date", 1002).endObject()),
                 client().prepareIndex(indexName, "type", "2").setSource(jsonBuilder().startObject().field("date", 2000).endObject()),
-                client().prepareIndex(indexName, "type", "3").setSource(jsonBuilder().startObject().field("date", 3000).endObject()));
+                client().prepareIndex(indexName, "type", "3").setSource(jsonBuilder().startObject().field("date", 3008).endObject()));
 
         // using no format should work when to/from is compatible with format in
         // mapping
@@ -1016,22 +1016,20 @@ public class DateRangeIT extends ESIntegTestCase {
         assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
-        // TODO FIXME DO WE REALLY NEED SCIENTIFIC NOTATION FOR DATES? PLEASE TELL ME NOOOOOOO
         // also e-notation and floats provided as string also be truncated (see: #14641)
-//        searchResponse = client().prepareSearch(indexName).setSize(0)
-//                .addAggregation(dateRange("date_range").field("date").addRange("1.0e3", "3.0e3").addRange("3.0e3", "4.0e3")).get();
-//        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
-//        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-//        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-//        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
+        searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(dateRange("date_range").field("date").addRange("1.0e3", "3.0e3").addRange("3.0e3", "4.0e3")).get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
+        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
 
-        // TODO FIXME DO WE REALLY NEED SECONDS WITH COMMAS FOR DATES?
-//        searchResponse = client().prepareSearch(indexName).setSize(0)
-//                .addAggregation(dateRange("date_range").field("date").addRange("1000.123", "3000.8").addRange("3000.8", "4000.3")).get();
-//        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
-//        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
-//        assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
-//        assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
+        searchResponse = client().prepareSearch(indexName).setSize(0)
+                .addAggregation(dateRange("date_range").field("date").addRange("1000.123", "3000.8").addRange("3000.8", "4000.3")).get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
+        assertBucket(buckets.get(0), 2L, "1000.123-3000.8", 1000123L, 3000800L);
+        assertBucket(buckets.get(1), 1L, "3000.8-4000.3", 3000800L, 4000300L);
 
         // using different format should work when to/from is compatible with
         // format in aggregation

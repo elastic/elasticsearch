@@ -19,13 +19,13 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
@@ -82,10 +82,10 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testInvalidEpochMilliParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
-        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("invalid"));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> formatter.parse("invalid"));
         assertThat(e.getMessage(), is("invalid number [invalid]"));
 
-        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("123.1234567"));
+        e = expectThrows(ElasticsearchParseException.class, () -> formatter.parse("123.1234567"));
         assertThat(e.getMessage(), containsString("too much granularity after dot [123.1234567]"));
     }
 
@@ -111,13 +111,13 @@ public class DateFormattersTests extends ESTestCase {
         assertThat(Instant.from(formatter.parse("-1234.567")).toEpochMilli(), is(-1234567L));
         assertThat(Instant.from(formatter.parse("-1234")).getNano(), is(0));
 
-        DateTimeParseException e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.1234567890"));
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> formatter.parse("1234.1234567890"));
         assertThat(e.getMessage(), is("too much granularity after dot [1234.1234567890]"));
-        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.123456789013221"));
+        e = expectThrows(ElasticsearchParseException.class, () -> formatter.parse("1234.123456789013221"));
         assertThat(e.getMessage(), is("too much granularity after dot [1234.123456789013221]"));
-        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("abc"));
+        e = expectThrows(ElasticsearchParseException.class, () -> formatter.parse("abc"));
         assertThat(e.getMessage(), is("invalid number [abc]"));
-        e = expectThrows(DateTimeParseException.class, () -> formatter.parse("1234.abc"));
+        e = expectThrows(ElasticsearchParseException.class, () -> formatter.parse("1234.abc"));
         assertThat(e.getMessage(), is("invalid number [1234.abc]"));
     }
 

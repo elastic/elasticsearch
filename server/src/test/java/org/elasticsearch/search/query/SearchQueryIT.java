@@ -1511,21 +1511,21 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    // TODO FIXME do we really need floating point numbers as date? not yet implemented
-//    public void testDateProvidedAsNumber() throws ExecutionException, InterruptedException {
-//        createIndex("test");
-//        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource("field", "type=date,format=epoch_millis").get());
-//        indexRandom(true, client().prepareIndex("test", "type", "1").setSource("field", -1000000000001L),
-//                client().prepareIndex("test", "type", "2").setSource("field", -1000000000000L),
-//                client().prepareIndex("test", "type", "3").setSource("field", -999999999999L),
-//                client().prepareIndex("test", "type", "4").setSource("field", -1000000000001.0123456789),
-//                client().prepareIndex("test", "type", "5").setSource("field", -1000000000000.0123456789),
-//                client().prepareIndex("test", "type", "6").setSource("field", -999999999999.0123456789));
-//
-//
-//        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 4);
-//        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-999999999999L)).get(), 6);
-//    }
+    public void testDateProvidedAsNumber() throws InterruptedException {
+        createIndex("test");
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource("field", "type=date,format=epoch_millis").get());
+        indexRandom(true,
+                client().prepareIndex("test", "type", "1").setSource("field", -1000000000000L),
+                client().prepareIndex("test", "type", "2").setSource("field", -1000000000001L),
+                client().prepareIndex("test", "type", "3").setSource("field", -999999999999L),
+                client().prepareIndex("test", "type", "4").setSource("field", -1000000000002L),
+                client().prepareIndex("test", "type", "5").setSource("field", -1000000000003L),
+                client().prepareIndex("test", "type", "6").setSource("field", -999999999999L));
+
+
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 4);
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-999999999999L)).get(), 6);
+    }
 
     public void testRangeQueryWithTimeZone() throws Exception {
         assertAcked(prepareCreate("test")

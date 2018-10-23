@@ -281,11 +281,10 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertTrue(called.get());
     }
 
-    // TODO do we really need this?
-//    public void testSupportsScientificNotation() {
-//        long result = parser.parse("1.0e3", () -> 42).toEpochMilli();
-//        assertThat(result, is(1000L));
-//    }
+    public void testSupportsScientificNotation() {
+        long result = parser.parse("1.0e3", () -> 42).toEpochMilli();
+        assertThat(result, is(1000L));
+    }
 
     private void assertDateMathEquals(String toTest, String expected) {
         assertDateMathEquals(toTest, expected, 0, false, null);

@@ -19,11 +19,12 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.ElasticsearchParseException;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalField;
 import java.util.Locale;
@@ -52,7 +53,7 @@ public class EpochSecondsDateFormatter implements DateFormatter {
                     return Instant.ofEpochSecond(Double.valueOf(input).longValue()).atZone(ZoneOffset.UTC);
                 }
                 if (inputs[1].length() > 9) {
-                    throw new DateTimeParseException("too much granularity after dot [" + input + "]", input, 0);
+                    throw new ElasticsearchParseException("too much granularity after dot [{}]", input);
                 }
                 Long nanos = new BigDecimal(inputs[1]).movePointRight(9 - inputs[1].length()).longValueExact();
                 if (seconds < 0) {
@@ -63,7 +64,7 @@ public class EpochSecondsDateFormatter implements DateFormatter {
                 return Instant.ofEpochSecond(Long.valueOf(input)).atZone(ZoneOffset.UTC);
             }
         } catch (NumberFormatException e) {
-            throw new DateTimeParseException("invalid number [" + input + "]", input, 0, e);
+            throw new ElasticsearchParseException("invalid number [{}]", input);
         }
     }
 

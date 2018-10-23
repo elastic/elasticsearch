@@ -2117,14 +2117,14 @@ Executes another pipeline.
 [options="header"]
 |======
 | Name             | Required  | Default  | Description
-| `pipeline`       | yes       | -        | The name of the pipeline to execute
+| `name`           | yes       | -        | The name of the pipeline to execute
 |======
 
 [source,js]
 --------------------------------------------------
 {
   "pipeline": {
-    "pipeline": "inner-pipeline"
+    "name": "inner-pipeline"
   }
 }
 --------------------------------------------------
@@ -2136,7 +2136,7 @@ Define an inner pipeline:
 
 [source,js]
 --------------------------------------------------
-PUT _ingest/pipeline/inner-pipeline
+PUT _ingest/pipeline/pipelineA
 {
   "description" : "inner pipeline",
   "processors" : [
@@ -2155,13 +2155,13 @@ Define another pipeline that uses the previously defined inner pipeline:
 
 [source,js]
 --------------------------------------------------
-PUT _ingest/pipeline/outer-pipeline
+PUT _ingest/pipeline/pipelineB
 {
   "description" : "outer pipeline",
   "processors" : [
     {
       "pipeline" : {
-        "pipeline": "inner-pipeline"
+        "name": "pipelineA"
       }
     },
     {
@@ -2181,7 +2181,7 @@ from the outer pipeline:
 
 [source,js]
 --------------------------------------------------
-PUT /myindex/_doc/1?pipeline=outer-pipeline
+PUT /myindex/_doc/1?pipeline=pipelineB
 {
   "field": "value"
 }
@@ -2209,6 +2209,18 @@ Response from the index request:
 }
 --------------------------------------------------
 // TESTRESPONSE
+
+Indexed document:
+
+[source,js]
+--------------------------------------------------
+{
+  "field": "value",
+  "inner_pipeline_set": "inner",
+  "outer_pipeline_set": "outer"
+}
+--------------------------------------------------
+// NOTCONSOLE
 
 [[remove-processor]]
 === Remove Processor

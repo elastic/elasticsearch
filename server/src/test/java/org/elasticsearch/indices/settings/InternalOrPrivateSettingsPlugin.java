@@ -168,6 +168,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                                     .put(currentState.metaData().index(request.index).getSettings())
                                     .put(request.key, request.value);
                     imdBuilder.settings(settingsBuilder);
+                    imdBuilder.settingsVersion(1 + imdBuilder.settingsVersion());
                     builder.put(imdBuilder.build(), true);
                     return ClusterState.builder(currentState).metaData(builder).build();
                 }

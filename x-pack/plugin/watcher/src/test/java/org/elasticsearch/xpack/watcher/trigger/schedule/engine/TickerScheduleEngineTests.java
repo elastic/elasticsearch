@@ -255,7 +255,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     private Watch createWatch(String name, Schedule schedule) {
-        return new Watch(name, new ScheduleTrigger(schedule), new ExecutableNoneInput(logger),
+        return new Watch(name, new ScheduleTrigger(schedule), new ExecutableNoneInput(),
                 InternalAlwaysCondition.INSTANCE, null, null,
                 Collections.emptyList(), null, null, Versions.MATCH_ANY);
     }

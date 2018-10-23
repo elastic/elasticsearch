@@ -19,10 +19,15 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchResponse;
 import org.elasticsearch.client.watcher.ActionStatus;
 import org.elasticsearch.client.watcher.ActionStatus.AckStatus;
+import org.elasticsearch.client.watcher.ActivateWatchRequest;
+import org.elasticsearch.client.watcher.ActivateWatchResponse;
+import org.elasticsearch.client.watcher.StartWatchServiceRequest;
+import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -33,8 +38,21 @@ import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 public class WatcherIT extends ESRestHighLevelClientTestCase {
+
+    public void testStartWatchService() throws Exception {
+        AcknowledgedResponse response =
+                highLevelClient().watcher().startWatchService(new StartWatchServiceRequest(), RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
+    }
+
+    public void testStopWatchService() throws Exception {
+        AcknowledgedResponse response =
+                highLevelClient().watcher().stopWatchService(new StopWatchServiceRequest(), RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
+    }
 
     public void testPutWatch() throws Exception {
         String watchId = randomAlphaOfLength(10);
@@ -106,6 +124,28 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
             () -> highLevelClient().watcher().ackWatch(
                 new AckWatchRequest("nonexistent"), RequestOptions.DEFAULT));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
+    }
+
+    public void testActivateWatchThatExists() throws Exception {
+        String watchId = randomAlphaOfLength(10);
+        createWatch(watchId);
+        ActivateWatchResponse activateWatchResponse1 = highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId),
+            RequestOptions.DEFAULT);
+        assertThat(activateWatchResponse1.getStatus().state().isActive(), is(true));
+
+        ActivateWatchResponse activateWatchResponse2 = highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId),
+            RequestOptions.DEFAULT);
+        assertThat(activateWatchResponse2.getStatus().state().isActive(), is(true));
+        assertThat(activateWatchResponse1.getStatus().state().getTimestamp(),
+            lessThan(activateWatchResponse2.getStatus().state().getTimestamp()));
+    }
+
+    public void testActivateWatchThatDoesNotExist() throws Exception {
+        String watchId = randomAlphaOfLength(10);
+        // exception when activating a not existing watcher
+        ElasticsearchStatusException exception =  expectThrows(ElasticsearchStatusException.class, () ->
+            highLevelClient().watcher().activateWatch(new ActivateWatchRequest(watchId), RequestOptions.DEFAULT));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 }

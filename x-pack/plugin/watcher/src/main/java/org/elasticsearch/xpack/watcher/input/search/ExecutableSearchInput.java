@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.input.search;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -39,13 +40,15 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
+    private static final Logger logger = LogManager.getLogger(ExecutableSearchInput.class);
+
     private final Client client;
     private final WatcherSearchTemplateService searchTemplateService;
     private final TimeValue timeout;
 
-    public ExecutableSearchInput(SearchInput input, Logger logger, Client client, WatcherSearchTemplateService searchTemplateService,
+    public ExecutableSearchInput(SearchInput input, Client client, WatcherSearchTemplateService searchTemplateService,
                                  TimeValue defaultTimeout) {
-        super(input, logger);
+        super(input);
         this.client = client;
         this.searchTemplateService = searchTemplateService;
         this.timeout = input.getTimeout() != null ? input.getTimeout() : defaultTimeout;

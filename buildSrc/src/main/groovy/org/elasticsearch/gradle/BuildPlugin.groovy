@@ -119,7 +119,7 @@ class BuildPlugin implements Plugin<Project> {
             File gradleJavaHome = Jvm.current().javaHome
 
             final Map<Integer, String> javaVersions = [:]
-            for (int version = 7; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
+            for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
                 if(System.getenv(getJavaHomeEnvVarName(version.toString())) != null) {
                     javaVersions.put(version, findJavaHome(version.toString()));
                 }

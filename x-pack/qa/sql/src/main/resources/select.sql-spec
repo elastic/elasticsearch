@@ -51,7 +51,7 @@ SELECT CAST(1 AS INT) AS constant FROM "test_emp" LIMIT 5;
 castWithLiteralAndColumnWithFrom
 SELECT CAST((CAST(languages AS BIT) OR CAST(1 AS BIT)) AS INT) AS bool FROM test_emp LIMIT 5;
 castWithColumnAndLiteralCombinedAndSelectColumnWithFrom
-SELECT CAST((CAST(languages AS BIT) OR CAST(1 AS BIT)) AS INT) AS bool, languages FROM test_emp ORDER BY languages LIMIT 5;
+SELECT CAST((CAST(languages AS BIT) OR CAST(1 AS BIT)) AS INT) AS bool, languages FROM test_emp ORDER BY languages ASC NULLS FIRST LIMIT 5;
 
 //
 // SELECT with CAST

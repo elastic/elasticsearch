@@ -20,7 +20,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.xpack.CCRSingleNodeTestCase;
+import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -36,7 +36,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CcrLicenseIT extends CCRSingleNodeTestCase {
+public class CcrLicenseIT extends CcrSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

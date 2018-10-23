@@ -11,7 +11,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.*;
 BulkRequestBuilder bulkRequest = client.prepareBulk();
 
 // either use client#prepare, or use Requests# to directly build index/delete requests
-bulkRequest.add(client.prepareIndex("twitter", "tweet", "1")
+bulkRequest.add(client.prepareIndex("twitter", "_doc", "1")
         .setSource(jsonBuilder()
                     .startObject()
                         .field("user", "kimchy")
@@ -21,7 +21,7 @@ bulkRequest.add(client.prepareIndex("twitter", "tweet", "1")
                   )
         );
 
-bulkRequest.add(client.prepareIndex("twitter", "tweet", "2")
+bulkRequest.add(client.prepareIndex("twitter", "_doc", "2")
         .setSource(jsonBuilder()
                     .startObject()
                         .field("user", "kimchy")
@@ -109,8 +109,8 @@ Then you can simply add your requests to the `BulkProcessor`:
 
 [source,java]
 --------------------------------------------------
-bulkProcessor.add(new IndexRequest("twitter", "tweet", "1").source(/* your doc here */));
-bulkProcessor.add(new DeleteRequest("twitter", "tweet", "2"));
+bulkProcessor.add(new IndexRequest("twitter", "_doc", "1").source(/* your doc here */));
+bulkProcessor.add(new DeleteRequest("twitter", "_doc", "2"));
 --------------------------------------------------
 
 [[java-docs-bulk-processor-close]]

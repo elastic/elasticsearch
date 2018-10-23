@@ -176,11 +176,10 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
             @Override
             void createAndFollow(Map<String, String> headers,
-                                 ResumeFollowAction.Request followRequest,
+                                 PutFollowAction.Request request,
                                  Runnable successHandler,
                                  Consumer<Exception> failureHandler) {
                 Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
-                PutFollowAction.Request request = new PutFollowAction.Request(followRequest);
                 followerClient.execute(
                     PutFollowAction.INSTANCE,
                     request,
@@ -278,7 +277,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         }
 
         private void checkAutoFollowPattern(String autoFollowPattenName,
-                                            String clusterAlias,
+                                            String leaderCluster,
                                             AutoFollowPattern autoFollowPattern,
                                             List<Index> leaderIndicesToFollow,
                                             Map<String, String> headers,
@@ -302,7 +301,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                         resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
                     }
                 } else {
-                    followLeaderIndex(autoFollowPattenName, clusterAlias, indexToFollow, autoFollowPattern, headers, error -> {
+                    followLeaderIndex(autoFollowPattenName, leaderCluster, indexToFollow, autoFollowPattern, headers, error -> {
                         results.set(slot, new Tuple<>(indexToFollow, error));
                         if (leaderIndicesCountDown.countDown()) {
                             resultHandler.accept(new AutoFollowResult(autoFollowPattenName, results.asList()));
@@ -314,7 +313,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         }
 
         private void followLeaderIndex(String autoFollowPattenName,
-                                       String clusterAlias,
+                                       String leaderCluster,
                                        Index indexToFollow,
                                        AutoFollowPattern pattern,
                                        Map<String,String> headers,
@@ -322,17 +321,20 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
-            ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-            request.setLeaderCluster(clusterAlias);
+            ResumeFollowAction.Request followRequest = new ResumeFollowAction.Request();
+            followRequest.setFollowerIndex(followIndexName);
+            followRequest.setMaxBatchOperationCount(pattern.getMaxBatchOperationCount());
+            followRequest.setMaxConcurrentReadBatches(pattern.getMaxConcurrentReadBatches());
+            followRequest.setMaxBatchSize(pattern.getMaxBatchSize());
+            followRequest.setMaxConcurrentWriteBatches(pattern.getMaxConcurrentWriteBatches());
+            followRequest.setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
+            followRequest.setMaxRetryDelay(pattern.getMaxRetryDelay());
+            followRequest.setPollTimeout(pattern.getPollTimeout());
+
+            PutFollowAction.Request request = new PutFollowAction.Request();
+            request.setLeaderCluster(leaderCluster);
             request.setLeaderIndex(indexToFollow.getName());
-            request.setFollowerIndex(followIndexName);
-            request.setMaxBatchOperationCount(pattern.getMaxBatchOperationCount());
-            request.setMaxConcurrentReadBatches(pattern.getMaxConcurrentReadBatches());
-            request.setMaxBatchSize(pattern.getMaxBatchSize());
-            request.setMaxConcurrentWriteBatches(pattern.getMaxConcurrentWriteBatches());
-            request.setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
-            request.setMaxRetryDelay(pattern.getMaxRetryDelay());
-            request.setPollTimeout(pattern.getPollTimeout());
+            request.setFollowRequest(followRequest);
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {
@@ -418,7 +420,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
         abstract void createAndFollow(
             Map<String, String> headers,
-            ResumeFollowAction.Request followRequest,
+            PutFollowAction.Request followRequest,
             Runnable successHandler,
             Consumer<Exception> failureHandler
         );

@@ -103,7 +103,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -117,7 +116,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
             DummyState read = format.read(NamedXContentRegistry.EMPTY, list[0]);
             assertThat(read, equalTo(state));
         }
-        final int version2 = between(version, Integer.MAX_VALUE);
         DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         format.write(state2, dirs);
 
@@ -145,7 +143,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -169,7 +166,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -268,6 +264,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             assertThat(deserialized, notNullValue());
             assertThat(deserialized.getVersion(), equalTo(original.getVersion()));
             assertThat(deserialized.getMappingVersion(), equalTo(original.getMappingVersion()));
+            assertThat(deserialized.getSettingsVersion(), equalTo(original.getSettingsVersion()));
             assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
             assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
         }
@@ -353,7 +350,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         writeAndReadStateSuccessfully(format, path);
     }
 
-    public void testFailCopyTmpFileToExtraLocation() throws IOException, WriteStateException {
+    public void testFailCopyTmpFileToExtraLocation() throws IOException {
         Path paths[] = new Path[randomIntBetween(2, 5)];
         for (int i = 0; i < paths.length; i++) {
             paths[i] = createTempDir();
@@ -376,7 +373,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
         writeAndReadStateSuccessfully(format, paths);
     }
 
-
     public void testFailRandomlyAndReadAnyState() throws IOException {
         Path paths[] = new Path[randomIntBetween(1, 5)];
         for (int i = 0; i < paths.length; i++) {
@@ -394,13 +390,10 @@ public class MetaDataStateFormatTests extends ESTestCase {
                     randomDouble(), randomBoolean());
             try {
                 format.write(newState, paths);
-                //if write is successful, the only possible state we can read is the one that was just written
                 possibleStates.clear();
                 possibleStates.add(newState);
             } catch (WriteStateException e) {
-                //if dirty flag is not set, read might return only old state
                 if (e.isDirty()) {
-                    //if dirty flag is set, read might return old state or new state
                     possibleStates.add(newState);
                 }
             }

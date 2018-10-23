@@ -116,16 +116,14 @@ public abstract class MetaDataStateFormat<T> {
                     out.writeInt(FORMAT.index());
                     try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
                         @Override
-                        public void close() throws IOException {
+                        public void close() {
                             // this is important since some of the XContentBuilders write bytes on close.
                             // in order to write the footer we need to prevent closing the actual index input.
                         }
                     })) {
 
                         builder.startObject();
-                        {
-                            toXContent(builder, state);
-                        }
+                        toXContent(builder, state);
                         builder.endObject();
                     }
                     CodecUtil.writeFooter(out);
@@ -140,7 +138,8 @@ public abstract class MetaDataStateFormat<T> {
             }
             return stateDir;
         } catch (Exception e) {
-            throw new WriteStateException(false, "failed to write state to the first location tmp file", e);
+            throw new WriteStateException(false, "failed to write state to the first location tmp file " +
+                    stateLocation.resolve(tmpFileName), e);
         }
     }
 
@@ -160,17 +159,18 @@ public abstract class MetaDataStateFormat<T> {
             }
             return extraStateDir;
         } catch (Exception e) {
-            throw new WriteStateException(false, "failed to copy tmp state file to extra location", e);
+            throw new WriteStateException(false, "failed to copy tmp state file to extra location " + extraStateLocation, e);
         }
     }
 
-    public void performRenames(String tmpFileName, String fileName, final List<Tuple<Path, Directory>> stateDirectories) throws
+    private static void performRenames(String tmpFileName, String fileName, final List<Tuple<Path, Directory>> stateDirectories) throws
             WriteStateException {
         Directory firstStateDirectory = stateDirectories.get(0).v2();
         try {
             firstStateDirectory.rename(tmpFileName, fileName);
         } catch (IOException e) {
-            throw new WriteStateException(false, "failed to rename tmp file to final name in the first state location", e);
+            throw new WriteStateException(false, "failed to rename tmp file to final name in the first state location " +
+                    stateDirectories.get(0).v1().resolve(tmpFileName), e);
         }
 
         for (int i = 1; i < stateDirectories.size(); i++) {
@@ -178,18 +178,18 @@ public abstract class MetaDataStateFormat<T> {
             try {
                 extraStateDirectory.rename(tmpFileName, fileName);
             } catch (IOException e) {
-                throw new WriteStateException(true, "failed to rename tmp file to final name in extra state location",
-                        e);
+                throw new WriteStateException(true, "failed to rename tmp file to final name in extra state location " +
+                        stateDirectories.get(i).v1().resolve(tmpFileName), e);
             }
         }
     }
 
-    public void performStateDirectoriesFsync(List<Tuple<Path, Directory>> stateDirectories) throws WriteStateException {
+    private static void performStateDirectoriesFsync(List<Tuple<Path, Directory>> stateDirectories) throws WriteStateException {
         for (int i = 0; i < stateDirectories.size(); i++) {
             try {
                 stateDirectories.get(i).v2().syncMetaData();
             } catch (IOException e) {
-                throw new WriteStateException(true, "meta data directory fsync has failed", e);
+                throw new WriteStateException(true, "meta data directory fsync has failed " + stateDirectories.get(i).v1(), e);
             }
         }
     }
@@ -201,14 +201,11 @@ public abstract class MetaDataStateFormat<T> {
      * doesn't exist. The state is serialized to a temporary file in that directory and is then atomically moved to
      * it's target filename of the pattern {@code {prefix}{version}.st}.
      * If this method returns without exception there is a guarantee that state is persisted to the disk and loadLatestState will return
-     * it. <br>
-     * This method may throw an {@link WriteStateException} if some exception during writing state occurs. <br>
-     * If {@link WriteStateException#isDirty()} returns false, there is a guarantee that loadLatestState will return old state. <br>
-     * If {@link WriteStateException#isDirty()} returns true, loadLatestState could return new state or previous state.
+     * it.
      *
      * @param state     the state object to write
      * @param locations the locations where the state should be written to.
-     * @throws WriteStateException if some exception during writing state occurs.
+     * @throws WriteStateException if some exception during writing state occurs. See also {@link WriteStateException#isDirty()}.
      */
 
     public final void write(final T state, final Path... locations) throws WriteStateException {

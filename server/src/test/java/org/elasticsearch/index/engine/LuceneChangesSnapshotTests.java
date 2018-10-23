@@ -150,7 +150,13 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
         }
     }
 
-    public void testDedupByPrimaryTerm() throws Exception {
+    /**
+     * If an operation above the local checkpoint is delivered multiple times, an engine will add multiple copies of that operation into
+     * Lucene (only the first copy is non-stale; the remaining are stale and soft-deleted). Moreover, a nested document is indexed into
+     * Lucene as multiple documents (only the root document has both seq_no and term, non-root docs only have seq_no). This test verifies
+     * that {@link LuceneChangesSnapshot} returns exactly one operation per seq_no, and skip non-root nested documents or stale copies.
+     */
+    public void testSkipStaleOrNonRootOfNestedDocuments() throws Exception {
         Map<Long, Long> seqNoToTerm = new HashMap<>();
         final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFactory = nestedParsedDocFactory();
         int numOps = between(1, 100);

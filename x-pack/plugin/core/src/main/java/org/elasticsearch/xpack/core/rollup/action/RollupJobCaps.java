@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,6 +48,9 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
     private final String indexPattern;
     private final Map<String, RollupFieldCaps> fieldCapLookup;
 
+    // TODO now that these rollup caps are being used more widely (e.g. search), perhaps we should
+    // store the RollupJob and translate into FieldCaps on demand for json output.  Would make working with
+    // it internally a lot easier
     public RollupJobCaps(RollupJobConfig job) {
         jobID = job.getId();
         rollupIndex = job.getRollupIndex();

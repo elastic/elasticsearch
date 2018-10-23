@@ -17,6 +17,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
 import org.junit.Before;
@@ -714,7 +715,15 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertBusy(() -> {
             Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
             assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"job_state\":\"started\""));
-            assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"documents_processed\":8"));
+        }, 60, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
+            assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"rollups_indexed\":4"));
+        }, 60, TimeUnit.SECONDS);
+        client().performRequest(new Request("POST", "/_xpack/rollup/job/" + rollupJobId + "/_stop"));
+        assertBusy(() -> {
+            Response getRollup = client().performRequest(new Request("GET", "/_xpack/rollup/job/" + rollupJobId));
+            assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"job_state\":\"stopped\""));
         }, 60, TimeUnit.SECONDS);
         final Request refreshRollupIndex = new Request("POST", "airline-data-aggs-rollup/_refresh");
         client().performRequest(refreshRollupIndex);
@@ -954,7 +963,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     @After
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        ESRestTestCase.waitForPendingTasks(adminClient());
+        // Don't check rollup jobs because we clear them in the superclass.
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(RollupJob.NAME));
     }
 
     private static class DatafeedBuilder {

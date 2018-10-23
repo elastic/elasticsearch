@@ -79,6 +79,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -496,7 +497,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         private synchronized void computeReplicationTargets() {
-            this.replicationTargets = new ReplicationTargets(primary, replicas);
+            this.replicationTargets = new ReplicationTargets(primary, new ArrayList<>(replicas));
         }
 
         private synchronized ReplicationTargets getReplicationTargets() {

@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
@@ -97,33 +98,34 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final String clusterAlias = request.getLeaderCluster();
-        // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(clusterAlias);
 
-        final String leaderIndex = request.getLeaderIndex();
-        followRemoteIndex(request, clusterAlias, leaderIndex, listener);
-    }
-
-    private void followRemoteIndex(
-            final ResumeFollowAction.Request request,
-            final String clusterAlias,
-            final String leaderIndex,
-            final ActionListener<AcknowledgedResponse> listener) {
         final ClusterState state = clusterService.state();
         final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
+        if (followerIndexMetadata == null) {
+            listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
+            return;
+        }
+
+        final Map<String, String> ccrMetadata = followerIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        if (ccrMetadata == null) {
+            throw new IllegalArgumentException("follow index ["+ request.getFollowerIndex() + "] does not have ccr metadata");
+        }
+        final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_CLUSTER_NAME_KEY);
+        // Validates whether the leader cluster has been configured properly:
+        client.getRemoteClusterClient(leaderCluster);
+        final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
-                client,
-                clusterAlias,
-                leaderIndex,
-                listener::onFailure,
-                (leaderHistoryUUID, leaderIndexMetadata) -> {
-                    try {
-                        start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
-                    } catch (final IOException e) {
-                        listener.onFailure(e);
-                    }
-                });
+            client,
+            leaderCluster,
+            leaderIndex,
+            listener::onFailure,
+            (leaderHistoryUUID, leaderIndexMetadata) -> {
+                try {
+                    start(request, leaderCluster, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
+                } catch (final IOException e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     /**
@@ -207,13 +209,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             final IndexMetaData followIndex,
             final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
-        String leaderIndexName = request.getLeaderCluster() + ":" + request.getLeaderIndex();
-        if (leaderIndex == null) {
-            throw new IllegalArgumentException("leader index [" + leaderIndexName + "] does not exist");
-        }
-        if (followIndex == null) {
-            throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] does not exist");
-        }
         Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         if (ccrIndexMetadata == null) {
             throw new IllegalArgumentException("follow index ["+ followIndex.getIndex().getName() + "] does not have ccr metadata");
@@ -238,7 +233,8 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         }
 
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
-            throw new IllegalArgumentException("leader index [" + leaderIndexName + "] does not have soft deletes enabled");
+            throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
+                "] does not have soft deletes enabled");
         }
         if (followIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() + "] does not have soft deletes enabled");

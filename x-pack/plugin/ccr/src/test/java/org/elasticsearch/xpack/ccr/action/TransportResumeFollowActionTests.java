@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.validate;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,20 +34,8 @@ public class TransportResumeFollowActionTests extends ESTestCase {
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "uuid");
         customMetaData.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
 
-        ResumeFollowAction.Request request = IndexFollowingIT.resumeFollow("index1", "index2");
+        ResumeFollowAction.Request request = IndexFollowingIT.resumeFollow("index2");
         String[] UUIDs = new String[]{"uuid"};
-        {
-            // should fail, because leader index does not exist
-            Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, null, null, null, null));
-            assertThat(e.getMessage(), equalTo("leader index [leader_cluster:index1] does not exist"));
-        }
-        {
-            // should fail, because follow index does not exist
-            IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, emptyMap());
-            Exception e = expectThrows(IllegalArgumentException.class,
-                () -> validate(request, leaderIMD, null, null, null));
-            assertThat(e.getMessage(), equalTo("follow index [index2] does not exist"));
-        }
         {
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, null);
@@ -83,7 +70,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             IndexMetaData leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
             IndexMetaData followIMD = createIMD("index2", 5, Settings.EMPTY, customMetaData);
             Exception e = expectThrows(IllegalArgumentException.class, () -> validate(request, leaderIMD, followIMD, UUIDs, null));
-            assertThat(e.getMessage(), equalTo("leader index [leader_cluster:index1] does not have soft deletes enabled"));
+            assertThat(e.getMessage(), equalTo("leader index [index1] does not have soft deletes enabled"));
         }
         {
             // should fail because the follower index does not have soft deletes enabled

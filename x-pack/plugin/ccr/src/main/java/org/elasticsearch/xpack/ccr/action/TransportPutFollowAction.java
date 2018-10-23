@@ -95,11 +95,11 @@ public final class TransportPutFollowAction
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        String leaderCluster = request.getFollowRequest().getLeaderCluster();
+        String leaderCluster = request.getLeaderCluster();
         // Validates whether the leader cluster has been configured properly:
         client.getRemoteClusterClient(leaderCluster);
 
-        String leaderIndex = request.getFollowRequest().getLeaderIndex();
+        String leaderIndex = request.getLeaderIndex();
         createFollowerIndexAndFollowRemoteIndex(request, leaderCluster, leaderIndex, listener);
     }
 
@@ -122,8 +122,7 @@ public final class TransportPutFollowAction
             final PutFollowAction.Request request,
             final ActionListener<PutFollowAction.Response> listener) {
         if (leaderIndexMetaData == null) {
-            listener.onFailure(new IllegalArgumentException("leader index [" + request.getFollowRequest().getLeaderIndex() +
-                    "] does not exist"));
+            listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
 
@@ -160,6 +159,8 @@ public final class TransportPutFollowAction
                 Map<String, String> metadata = new HashMap<>();
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
+                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetaData.getIndex().getName());
+                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_CLUSTER_NAME_KEY, request.getLeaderCluster());
                 imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 
                 // Copy all settings, but overwrite a few settings.

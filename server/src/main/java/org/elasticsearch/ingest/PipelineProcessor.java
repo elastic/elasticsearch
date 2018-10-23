@@ -69,7 +69,7 @@ public class PipelineProcessor extends AbstractProcessor {
         public PipelineProcessor create(Map<String, Processor.Factory> registry, String processorTag,
             Map<String, Object> config) throws Exception {
             String pipeline =
-                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "pipeline");
+                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "name");
             return new PipelineProcessor(processorTag, pipeline, ingestService);
         }
     }

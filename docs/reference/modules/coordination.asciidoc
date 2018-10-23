@@ -32,7 +32,13 @@ currently in the cluster, but there are some situations in which they may be
 different. As long as more than half of the nodes in the configuration are
 still healthy then the cluster can still make progress. The configuration is
 managed automatically by Elasticsearch and stored in the cluster state so you
-can inspect its current contents by (TODO API call?).
+can inspect its current contents as follows:
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/state?filter_path=TODO
+--------------------------------------------------
+// CONSOLE
 
 The way that the configuration is managed is controlled by the following
 setting. (TODO maybe not a setting?)
@@ -183,6 +189,15 @@ POST /_nodes/node_name/unretire
 The node (or nodes) to reinstate are specified using <<cluster-nodes,node
 filters>> in place of `node_name` here. After being brought back out of
 retirement they may not immediately be added to the configuration.
+
+The current set of retired nodes is stored in the cluster state and can be
+inspected as follows:
+
+[source,js]
+--------------------------------------------------
+GET /_cluster/state?filter_path=TODO
+--------------------------------------------------
+// CONSOLE
 
 [float]
 === Cluster bootstrapping
@@ -360,7 +375,7 @@ succeed. Elections only usually fail when two nodes both happen to start their
 elections at about the same time, so elections are scheduled randomly on each
 node to avoid this happening. Nodes will retry elections until a master is
 elected, backing off on failure, so that eventually an election will succeed
-with arbitrarily high probability. The following settings control the
+(with arbitrarily high probability). The following settings control the
 scheduling of elections.
 
 `cluster.election.initial_timeout`::

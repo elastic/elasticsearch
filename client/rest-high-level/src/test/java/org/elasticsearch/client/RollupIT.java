@@ -45,6 +45,7 @@ import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
 import org.elasticsearch.client.rollup.job.config.GroupConfig;
 import org.elasticsearch.client.rollup.job.config.MetricConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
@@ -57,6 +58,7 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.junit.Before;
 
+import java.time.temporal.TemporalAccessor;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -218,9 +220,9 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                     }
                 } else {
                     Number value = (Number) source.get(metric.getField() + ".max.value");
-                    assertEquals(
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2018-01-01T00:59:50").getMillis(),
-                        value.longValue());
+                    TemporalAccessor accessor = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2018-01-01T00:59:50");
+                    long millis = DateFormatters.toZonedDateTime(accessor).toInstant().toEpochMilli();
+                    assertEquals(millis, value.longValue());
                 }
             }
         });

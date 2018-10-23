@@ -296,7 +296,7 @@ public class IndexResolver {
                 }
                 if (fieldCap.isSearchable() && fieldCap.nonSearchableIndices() != null) {
                     errorMessage.append("[" + indexPattern + "] points to indices with incompatible mappings: ");
-                    errorMessage.append("field [" + name + "] is searchable expect in ");
+                    errorMessage.append("field [" + name + "] is searchable except in ");
                     errorMessage.append(Arrays.toString(fieldCap.nonSearchableIndices()));
                 }
                 if (errorMessage.length() > 0) {
@@ -337,7 +337,6 @@ public class IndexResolver {
         EsField field = null;
         Map<String, EsField> props = hasChildren ? new TreeMap<>() : emptyMap();
 
-        // not currently present, means it's a parent field - currently just return it as an OBJECT
         DataType esType = DataType.fromEsType(caps.getType());
         switch (esType) {
             case TEXT:
@@ -345,6 +344,7 @@ public class IndexResolver {
                 break;
             case KEYWORD:
                 int length = DataType.KEYWORD.defaultPrecision;
+                // to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
                 boolean normalized = false;
                 field = new KeywordEsField(fieldName, props, caps.isAggregatable(), length, normalized);
                 break;

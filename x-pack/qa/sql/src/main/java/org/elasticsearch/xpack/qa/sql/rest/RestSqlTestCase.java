@@ -219,8 +219,9 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         client().performRequest(request);
         String mode = randomFrom("jdbc", "plain");
         expectBadRequest(() -> runSql(mode, "SELECT * FROM test"),
+                // see https://github.com/elastic/elasticsearch/issues/34719
             //containsString("1:15: [test] doesn't have any types so it is incompatible with sql"));
-            containsString("1:15: Unknown index [test]"));    
+            containsString("1:15: Unknown index [test]"));
     }
 
     @Override

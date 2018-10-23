@@ -772,6 +772,18 @@ class SqlBaseBaseListener implements SqlBaseListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterExtractExpression(SqlBaseParser.ExtractExpressionContext ctx) { }
   /**
    * {@inheritDoc}

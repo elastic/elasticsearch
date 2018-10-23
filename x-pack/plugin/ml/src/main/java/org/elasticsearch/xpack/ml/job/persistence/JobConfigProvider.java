@@ -634,32 +634,29 @@ public class JobConfigProvider extends AbstractComponent {
     /**
      * Check if a group exists, that is there exists a job that is a member of
      * the group. If there are one or more jobs that define the group then
-     * the listener responds with true else an error.
+     * the listener responds with true else false.
      *
      * @param groupId The group Id
-     * @param listener Returns true or failure
+     * @param listener Returns true, false or a failure
      */
     public void groupExists(String groupId, ActionListener<Boolean> listener) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE));
-        boolQueryBuilder.filter(new TermsQueryBuilder(Job.GROUPS.getPreferredName(), groupId));
+        boolQueryBuilder.filter(new TermQueryBuilder(Job.GROUPS.getPreferredName(), groupId));
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
                 .query(boolQueryBuilder);
         sourceBuilder.fetchSource(false);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setSize(0)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder).request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         response -> {
-                            if (response.getHits().totalHits > 0) {
-                                listener.onResponse(Boolean.TRUE);
-                            } else {
-                                listener.onFailure(ExceptionsHelper.missingJobException(groupId));
-                            }
+                            listener.onResponse(response.getHits().totalHits > 0);
                         },
                         listener::onFailure)
                 , client::search);

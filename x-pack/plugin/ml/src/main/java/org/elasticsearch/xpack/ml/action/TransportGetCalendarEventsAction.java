@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
@@ -74,9 +75,13 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                                 jobNotFound -> {
                                     // is the request Id a group?
                                     jobConfigProvider.groupExists(request.getJobId(), ActionListener.wrap(
-                                            ok -> {
-                                                jobResultsProvider.scheduledEventsForJob(
-                                                        null, Collections.singletonList(request.getJobId()), query, eventsListener);
+                                            groupExists -> {
+                                                if (groupExists) {
+                                                    jobResultsProvider.scheduledEventsForJob(
+                                                            null, Collections.singletonList(request.getJobId()), query, eventsListener);
+                                                } else {
+                                                    listener.onFailure(ExceptionsHelper.missingJobException(request.getJobId()));
+                                                }
                                             },
                                             listener::onFailure
                                     ));

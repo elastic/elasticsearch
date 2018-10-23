@@ -28,6 +28,7 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
     }
     
     public static final String NAME = "q";
+    private static final DateTimeFormatter QUARTER_FORMAT = DateTimeFormatter.ofPattern("q", Locale.ROOT);
 
     @Override
     public String getWriteableName() {
@@ -40,8 +41,12 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
     }
     
     public static Integer quarter(long millis, String tzId) {
-        ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
-        return Integer.valueOf(time.format(DateTimeFormatter.ofPattern(Quarter.QUARTER_FORMAT, Locale.ROOT)));
+        return quarter(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId)), tzId);
+    }
+
+    public static Integer quarter(ZonedDateTime zdt, String tzId) {
+        ZonedDateTime time = zdt.withZoneSameInstant(ZoneId.of(tzId));
+        return Integer.valueOf(time.format(QUARTER_FORMAT));
     }
 
     @Override

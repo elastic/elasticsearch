@@ -63,7 +63,7 @@ public class ChainIT extends ESRestTestCase {
             verifyDocuments(leaderIndexName, numDocs);
         } else if ("middle".equals(targetCluster)) {
             logger.info("Running against middle cluster");
-            followIndex("leader_cluster:" + leaderIndexName, middleIndexName);
+            followIndex("leader_cluster", leaderIndexName, middleIndexName);
             assertBusy(() -> verifyDocuments(middleIndexName, numDocs));
             try (RestClient leaderClient = buildLeaderClient()) {
                 int id = numDocs;
@@ -75,7 +75,7 @@ public class ChainIT extends ESRestTestCase {
         } else if ("follow".equals(targetCluster)) {
             logger.info("Running against follow cluster");
             final String followIndexName = "follow";
-            followIndex("middle_cluster:" + middleIndexName, followIndexName);
+            followIndex("middle_cluster", middleIndexName, followIndexName);
             assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3));
 
             try (RestClient leaderClient = buildLeaderClient()) {
@@ -110,9 +110,10 @@ public class ChainIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("POST", "/" + index + "/_refresh")));
     }
 
-    private static void followIndex(String leaderIndex, String followIndex) throws IOException {
+    private static void followIndex(String leaderCluster, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
-        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
+        request.setJsonEntity(
+                "{\"leader_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 

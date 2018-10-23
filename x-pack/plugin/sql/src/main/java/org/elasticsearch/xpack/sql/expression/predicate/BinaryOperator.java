@@ -13,19 +13,19 @@ import org.elasticsearch.xpack.sql.type.DataType;
  * Operator is a specialized binary predicate where both sides have the compatible types
  * (it's up to the analyzer to do any conversion if needed).
  */
-public abstract class BinaryOperator extends BinaryPredicate {
+public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U, R>> extends BinaryPredicate<T, U, R, F> {
 
     public interface Negateable {
-        BinaryOperator negate();
+        BinaryOperator<?, ?, ?, ?> negate();
     }
 
-    protected BinaryOperator(Location location, Expression left, Expression right, String symbol) {
-        super(location, left, right, symbol);
+    protected BinaryOperator(Location location, Expression left, Expression right, F function) {
+        super(location, left, right, function);
     }
 
     protected abstract TypeResolution resolveInputType(DataType inputType);
 
-    public abstract BinaryOperator swapLeftAndRight();
+    public abstract BinaryOperator<T, U, R, F> swapLeftAndRight();
 
     @Override
     protected TypeResolution resolveType() {

@@ -62,7 +62,7 @@ public class PipelineProcessorTests extends ESTestCase {
         when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
-        config.put("pipeline", pipelineId);
+        config.put("name", pipelineId);
         factory.create(Collections.emptyMap(), null, config).execute(testIngestDocument);
         assertEquals(testIngestDocument, invoked.get());
     }
@@ -72,7 +72,7 @@ public class PipelineProcessorTests extends ESTestCase {
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Map<String, Object> config = new HashMap<>();
-        config.put("pipeline", "missingPipelineId");
+        config.put("name", "missingPipelineId");
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
             () -> factory.create(Collections.emptyMap(), null, config).execute(testIngestDocument)
@@ -88,21 +88,21 @@ public class PipelineProcessorTests extends ESTestCase {
         IngestService ingestService = mock(IngestService.class);
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Map<String, Object> outerConfig = new HashMap<>();
-        outerConfig.put("pipeline", innerPipelineId);
+        outerConfig.put("name", innerPipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Pipeline outer = new Pipeline(
             outerPipelineId, null, null,
             new CompoundProcessor(factory.create(Collections.emptyMap(), null, outerConfig))
         );
         Map<String, Object> innerConfig = new HashMap<>();
-        innerConfig.put("pipeline", outerPipelineId);
+        innerConfig.put("name", outerPipelineId);
         Pipeline inner = new Pipeline(
             innerPipelineId, null, null,
             new CompoundProcessor(factory.create(Collections.emptyMap(), null, innerConfig))
         );
         when(ingestService.getPipeline(outerPipelineId)).thenReturn(outer);
         when(ingestService.getPipeline(innerPipelineId)).thenReturn(inner);
-        outerConfig.put("pipeline", innerPipelineId);
+        outerConfig.put("name", innerPipelineId);
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
             () -> factory.create(Collections.emptyMap(), null, outerConfig).execute(testIngestDocument)
@@ -117,7 +117,7 @@ public class PipelineProcessorTests extends ESTestCase {
         IngestService ingestService = mock(IngestService.class);
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Map<String, Object> outerConfig = new HashMap<>();
-        outerConfig.put("pipeline", innerPipelineId);
+        outerConfig.put("name", innerPipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
         Pipeline inner = new Pipeline(
             innerPipelineId, null, null, new CompoundProcessor()
@@ -136,11 +136,11 @@ public class PipelineProcessorTests extends ESTestCase {
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         Map<String, Object> pipeline1ProcessorConfig = new HashMap<>();
-        pipeline1ProcessorConfig.put("pipeline", pipeline2Id);
+        pipeline1ProcessorConfig.put("name", pipeline2Id);
         PipelineProcessor pipeline1Processor = factory.create(Collections.emptyMap(), null, pipeline1ProcessorConfig);
 
         Map<String, Object> pipeline2ProcessorConfig = new HashMap<>();
-        pipeline2ProcessorConfig.put("pipeline", pipeline3Id);
+        pipeline2ProcessorConfig.put("name", pipeline3Id);
         PipelineProcessor pipeline2Processor = factory.create(Collections.emptyMap(), null, pipeline2ProcessorConfig);
 
         Clock clock = mock(Clock.class);

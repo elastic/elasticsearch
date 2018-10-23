@@ -7,14 +7,17 @@ managing changes to the cluster state.
 [float]
 === Quorum-based decision making
 
-Electing a master node and changing the cluster state both work robustly by
-using multiple nodes, only considering each action to have succeeded on receipt
-of responses from a majority of the master-eligible nodes in the cluster. The
-advantage of requiring a majority of nodes to respond is that it allows for
-nearly half of the master-eligible nodes to fail without preventing the cluster
-from making progress, but also does not allow the cluster to "split brain",
-i.e. to be partitioned into two pieces each of which may make decisions that
-are inconsistent with those of the other piece.
+Electing a master node and changing the cluster state are the two fundamental
+tasks that master-eligible nodes must work together to perform. It is important
+that these activities work robustly even if some nodes have failed, and
+Elasticsearch achieves this robustness by involving multiple nodes and only
+considering each action to have succeeded on receipt of responses from a
+majority of the master-eligible nodes in the cluster. The advantage of
+requiring a majority of nodes to respond is that it allows for nearly half of
+the master-eligible nodes to fail without preventing the cluster from making
+progress, but also does not allow the cluster to "split brain", i.e. to be
+partitioned into two pieces each of which may make decisions that are
+inconsistent with those of the other piece.
 
 Elasticsearch allows you to add and remove master-eligible nodes to a running
 cluster. In many cases you can do this simply by starting or stopping the nodes
@@ -23,16 +26,16 @@ Elasticsearch maintains an optimal level of fault tolerance by updating the
 cluster's _configuration_, which is the set of master-eligible nodes whose
 responses are counted when making decisions such as electing a new master or
 committing a new cluster state. A decision is only made once more than half of
-the nodes _in the configuration_ have responded. Usually the cluster
+the nodes in the configuration have responded. Usually the cluster
 configuration is the same as the set of all the master-eligible nodes that are
-currently in the cluster, but in some situations they may be different. As long
-as more than half of the nodes in the configuration are still healthy then the
-cluster can still make progress. The configuration is managed automatically by
-Elasticsearch and stored in the cluster state so you can inspect its current
-contents by (TODO API call?).
+currently in the cluster, but there are some situations in which they may be
+different. As long as more than half of the nodes in the configuration are
+still healthy then the cluster can still make progress. The configuration is
+managed automatically by Elasticsearch and stored in the cluster state so you
+can inspect its current contents by (TODO API call?).
 
 The way that the configuration is managed is controlled by the following
-settings. (TODO maybe not settings?)
+setting. (TODO maybe not a setting?)
 
 `cluster.master_nodes_failure_tolerance`::
 
@@ -93,6 +96,12 @@ neither side could make any progress in this situation.
 [float]
 ==== Adding master-eligible nodes
 
+It is recommended to have a small, fixed, number of master-eligible nodes in a
+cluster, and to scale the cluster up and down by adding and removing
+non-master-eligible nodes only. However there are situations in which it may be
+necessary to add some master-eligible nodes to a cluster, such as when
+migrating a cluster onto a new set of nodes without downtime.
+
 If you wish to add some master-eligible nodes to your cluster, simply configure
 the new nodes to find the existing cluster and start them up. Once the new
 nodes have joined the cluster, you may be able to increase the
@@ -101,6 +110,12 @@ info/warn messages about this?)
 
 [float]
 ==== Removing master-eligible nodes
+
+It is recommended to have a small, fixed, number of master-eligible nodes in a
+cluster, and to scale the cluster up and down by adding and removing
+non-master-eligible nodes only. However there are situations in which it may be
+necessary to remove some master-eligible nodes to a cluster, such as when
+migrating a cluster onto a new set of nodes without downtime.
 
 If you wish to remove some of the master-eligible nodes in your cluster, you
 must first reduce the `cluster.master_nodes_failure_tolerance` setting to match
@@ -175,7 +190,7 @@ retirement they may not immediately be added to the configuration.
 A major risk when starting up a brand-new cluster is that you accidentally form
 two separate clusters instead of one. This could lead to data loss: you might
 start using both clusters before noticing that anything had gone wrong, and it
-might then be impossible to merge them together later.
+will then be impossible to merge them together later.
 
 To illustrate how this could happen, imagine starting up a three-node cluster
 in which each node knows that it is going to be part of a three-node cluster. A
@@ -206,7 +221,7 @@ $ bin/elasticsearch-bootstrap-cluster --failure-tolerance 1 \
 --------------------------------------------------
 
 The arguments to this tool are the target failure tolerance of the cluster and
-the addresses of (some of) its master-eligible nodes.
+the addresses of (some, preferably all, of) its master-eligible nodes.
 
 If it is not possible to use this tool, you can also bootstrap the cluster via
 the API as described here. There are two steps to the bootstrapping process.
@@ -232,9 +247,9 @@ and looks like the following.
 {
   "master_nodes_failure_tolerance": 1,
   "master_nodes":[
-    {"id":"USpTGYaBSIKbgSUJR2Z9lg"},
-    {"id":"gSUJR2Z9lgUSpTGYaBSIKb"},
-    {"id":"2Z9lgUSpTgSUYaBSIKbJRG"}
+    {"id":"USpTGYaBSIKbgSUJR2Z9lg","name":"master-a"},
+    {"id":"gSUJR2Z9lgUSpTGYaBSIKb","name":"master-b"},
+    {"id":"2Z9lgUSpTgSUYaBSIKbJRG","name":"master-c"}
   ]
 }
 --------------------------------------------------
@@ -253,20 +268,22 @@ POST /_cluster/bootstrap
 {
   "master_nodes_failure_tolerance": 1,
   "master_nodes":[
-    {"id":"USpTGYaBSIKbgSUJR2Z9lg"},
-    {"id":"gSUJR2Z9lgUSpTGYaBSIKb"},
-    {"id":"2Z9lgUSpTgSUYaBSIKbJRG"}
+    {"id":"USpTGYaBSIKbgSUJR2Z9lg","name":"master-a"},
+    {"id":"gSUJR2Z9lgUSpTGYaBSIKb","name":"master-b"},
+    {"id":"2Z9lgUSpTgSUYaBSIKbJRG","name":"master-c"}
   ]
 }
 --------------------------------------------------
 // CONSOLE
 
-It is safe to repeatedly call `POST /_cluster/bootstrap`, and to call it on
-different nodes concurrently, but **it is vitally important** to use the same
-bootstrap document in each call.
+This only needs to occur once, on a single master-eligible node in the cluster,
+but for robustness it is afe to repeatedly call `POST /_cluster/bootstrap`, and
+to call it on different nodes concurrently. However **it is vitally important**
+to use the same bootstrap document in each call.
 
-It is also possible to select the initial set of nodes in terms of their names
-rather than their IDs as follows.
+It is also possible to construct a bootstrap document manually and to specify
+the initial set of nodes in terms of their names alone, rather than needing to
+know their IDs too:
 
 [source,js]
 --------------------------------------------------
@@ -285,9 +302,10 @@ POST /_cluster/bootstrap
 
 This can be useful if the node names are known (and known to be unique) in
 advance, and means that the first `GET /_cluster/bootstrap` call is not
-necessary. As above, it is safe to repeatedly call `POST /_cluster/bootstrap`,
-and to call it on different nodes concurrently, but **it is vitally important**
-to use the same bootstrap document in each call.
+necessary. As above, only a single such call is required but it is safe to
+repeatedly call `POST /_cluster/bootstrap`, and to call it on different nodes
+concurrently, but **it is vitally important** to use the same bootstrap
+document in each call.
 
 [float]
 === Manually-triggered elections
@@ -301,10 +319,13 @@ POST /_nodes/node_name/start_election
 --------------------------------------------------
 // CONSOLE
 
-Elections are not guaranteed to succeed, and a new leader may be elected at any
-time so even if this election does succeed then there may be another election,
-so there is no guarantee that the chosen node will be the elected master for
-any length of time.
+This request is handled on a best-effort basis only. Handling it involves
+cooperation from the currently-elected master and the selected node, and it
+will be rejected if it would destabilise the cluster. Also, elections are not
+guaranteed to succeed, and a new leader may be elected at any time so even if
+this election does succeed then there may be another election soon afterwards.
+Therefore there is no guarantee that the chosen node will be the elected master
+for any length of time.
 
 [float]
 === Unsafe disaster recovery
@@ -325,7 +346,9 @@ This works by reducing `cluster.master_nodes_failure_tolerance` to 0 and then
 forcibly overriding the current configuration with one in which the handling
 node is the only voting master, so that it forms a quorum on its own. Because
 there is a risk of data loss when performing this command it requires the
-`accept_data_loss` parameter to be set to `true` in the URL.
+`accept_data_loss` parameter to be set to `true` in the URL. Afterwards, once
+the cluster has successfully formed, `cluster.master_nodes_failure_tolerance`
+should be increased to a suitable value.
 
 [float]
 === Election scheduling

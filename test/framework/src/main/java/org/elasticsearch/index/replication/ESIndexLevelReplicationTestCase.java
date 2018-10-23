@@ -95,7 +95,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.empty;
@@ -297,6 +296,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 .filter(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())).findFirst().isPresent() == false :
                 "replica with aId [" + replica.routingEntry().allocationId() + "] already exists";
             replicas.add(replica);
+            if (replicationTargets != null) {
+                replicationTargets.addReplica(replica);
+            }
             updateAllocationIDsOnPrimary();
         }
 
@@ -312,6 +314,9 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                     newShard(shardRouting, shardPath, indexMetaData, null, null, getEngineFactory(shardRouting),
                             () -> {}, EMPTY_EVENT_LISTENER);
             replicas.add(newReplica);
+            if (replicationTargets != null) {
+                replicationTargets.addReplica(newReplica);
+            }
             updateAllocationIDsOnPrimary();
             return newReplica;
         }
@@ -498,7 +503,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         private synchronized void computeReplicationTargets() {
-            this.replicationTargets = new ReplicationTargets(this);
+            this.replicationTargets = new ReplicationTargets(this.primary, new ArrayList<>(this.replicas));
         }
 
         private synchronized ReplicationTargets getReplicationTargets() {
@@ -507,19 +512,30 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     static final class ReplicationTargets {
-        final ReplicationGroup group;
         final IndexShard primary;
-        final List<IndexShard> previousReplicas;
+        final List<IndexShard> replicas;
 
-        ReplicationTargets(ReplicationGroup group) {
-            this.group = group;
-            this.primary = group.primary;
-            this.previousReplicas = new ArrayList<>(group.replicas);
+        ReplicationTargets(IndexShard primary, List<IndexShard> replicas) {
+            this.primary = primary;
+            this.replicas = replicas;
         }
 
-        IndexShard findReplica(ShardRouting shardRouting) {
-            return Stream.concat(group.getReplicas().stream(), previousReplicas.stream())
-                .filter(s -> shardRouting.isSameAllocation(s.routingEntry())).findFirst().get();
+        /**
+         * This does not modify the replication targets, but only adds a replica to the list.
+         * If the targets is updated to include the given replica, a replication action would
+         * be able to find this replica to execute write requests on it.
+         */
+        synchronized void addReplica(IndexShard replica) {
+            replicas.add(replica);
+        }
+
+        synchronized IndexShard findReplicaShard(ShardRouting replicaRouting) {
+            for (IndexShard replica : replicas) {
+                if (replica.routingEntry().isSameAllocation(replicaRouting)) {
+                    return replica;
+                }
+            }
+            throw new AssertionError("replica [" + replicaRouting + "] is not found; replicas[" + replicas + "] primary[" + primary + "]");
         }
     }
 
@@ -623,7 +639,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 final long globalCheckpoint,
                 final long maxSeqNoOfUpdatesOrDeletes,
                 final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-                IndexShard replica = replicationTargets.findReplica(replicaRouting);
+                IndexShard replica = replicationTargets.findReplicaShard(replicaRouting);
                 replica.acquireReplicaOperationPermit(
                         getPrimaryShard().getPendingPrimaryTerm(),
                         globalCheckpoint,

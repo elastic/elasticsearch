@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.ccr;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.nio.file.Files;
 import java.util.Iterator;
@@ -22,17 +20,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class CcrMultiClusterLicenseIT extends ESRestTestCase {
-
-    private final boolean runningAgainstLeaderCluster = Booleans.parseBoolean(System.getProperty("tests.is_leader_cluster"));
-
-    @Override
-    protected boolean preserveClusterUponCompletion() {
-        return true;
-    }
+public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
 
     public void testFollow() {
-        if (runningAgainstLeaderCluster == false) {
+        if ("follow".equals(targetCluster)) {
             final Request request = new Request("PUT", "/follower/_ccr/follow");
             request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"leader\"}");
             assertNonCompliantLicense(request);
@@ -41,7 +32,7 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
 
     public void testAutoFollow() throws Exception {
         assumeFalse("windows is the worst", Constants.WINDOWS);
-        if (runningAgainstLeaderCluster == false) {
+        if ("follow".equals(targetCluster)) {
             final Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
             request.setJsonEntity("{\"leader_index_patterns\":[\"*\"], \"leader_cluster\": \"leader_cluster\"}");
             client().performRequest(request);

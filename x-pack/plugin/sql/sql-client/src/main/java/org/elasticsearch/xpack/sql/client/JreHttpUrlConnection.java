@@ -176,6 +176,11 @@ public class JreHttpUrlConnection implements Closeable {
         }
         SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
         if (type == null) {
+            if (con.getResponseCode() == HttpURLConnection.HTTP_BAD_REQUEST) {
+                return new ResponseOrException<>(new SQLException("It doesn't look like the X-Pack is available on this Elasticsearch node"
+                        + con.getURL(),
+                        SQL_STATE_BAD_SERVER));
+            }
             return new ResponseOrException<>(new SQLException("Server sent bad type ["
                     + failure.type() + "]. Original type was [" + failure.reason() + "]. ["
                     + failure.remoteTrace() + "]", SQL_STATE_BAD_SERVER));

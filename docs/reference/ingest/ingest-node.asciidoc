@@ -1251,7 +1251,7 @@ getting indexed based on some condition.
 --------------------------------------------------
 {
   "drop": {
-    "if" : "ctx.tags.contains('production') != true"
+    "if" : "ctx.network_name == 'Guest'"
   }
 }
 --------------------------------------------------

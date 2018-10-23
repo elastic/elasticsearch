@@ -76,13 +76,7 @@ public class TransportPutAutoFollowPatternAction extends
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final Client leaderClient;
-        if (request.getLeaderCluster().equals("_local_")) {
-            leaderClient = client;
-        } else {
-            leaderClient = client.getRemoteClusterClient(request.getLeaderCluster());
-        }
-
+        final Client leaderClient = client.getRemoteClusterClient(request.getLeaderCluster());
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);

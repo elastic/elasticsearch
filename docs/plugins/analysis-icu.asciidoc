@@ -339,7 +339,7 @@ Below is an example of how to set up a field for sorting German names in
 PUT my_index
 {
   "mappings": {
-    "user": {
+    "_doc": {
       "properties": {
         "name": {   <1>
           "type": "text",

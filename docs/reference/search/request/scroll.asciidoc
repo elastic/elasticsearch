@@ -109,7 +109,8 @@ request) tells Elasticsearch how long it should keep the search context alive.
 Its value (e.g. `1m`, see <<time-units>>) does not need to be long enough to
 process all data -- it just needs to be long enough to process the previous
 batch of results. Each `scroll` request (with the `scroll` parameter) sets a
-new  expiry time.
+new  expiry time. If the `scroll` parameter is not passed, then the next
+scroll request will close the search context.
 
 Normally, the background merge process optimizes the
 index by merging together smaller segments to create new bigger segments, at

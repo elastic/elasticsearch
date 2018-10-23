@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.SearchScript;
 
 import java.util.Collections;
 import java.util.List;
@@ -21,6 +21,6 @@ public class MachineLearningPainlessExtension implements PainlessExtension {
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
-        return Collections.singletonMap(SearchScript.CONTEXT, Collections.singletonList(WHITELIST));
+        return Collections.singletonMap(FieldScript.CONTEXT, Collections.singletonList(WHITELIST));
     }
 }

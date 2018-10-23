@@ -105,61 +105,49 @@ public abstract class MetaDataStateFormat<T> {
         IOUtils.closeWhileHandlingException(stateDir);
     }
 
-    private Directory writeStateToFirstLocation(final T state, Path stateLocation, String tmpFileName)
+    private void writeStateToFirstLocation(final T state, Path stateLocation, Directory stateDir, String tmpFileName)
             throws WriteStateException {
         try {
-            Directory stateDir = newDirectory(stateLocation);
-            try {
-                deleteFileIfExists(stateLocation, stateDir, tmpFileName);
-                try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
-                    CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
-                    out.writeInt(FORMAT.index());
-                    try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
-                        @Override
-                        public void close() {
-                            // this is important since some of the XContentBuilders write bytes on close.
-                            // in order to write the footer we need to prevent closing the actual index input.
-                        }
-                    })) {
-
-                        builder.startObject();
-                        toXContent(builder, state);
-                        builder.endObject();
+            deleteFileIfExists(stateLocation, stateDir, tmpFileName);
+            try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
+                CodecUtil.writeHeader(out, STATE_FILE_CODEC, STATE_FILE_VERSION);
+                out.writeInt(FORMAT.index());
+                try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
+                    @Override
+                    public void close() {
+                        // this is important since some of the XContentBuilders write bytes on close.
+                        // in order to write the footer we need to prevent closing the actual index input.
                     }
-                    CodecUtil.writeFooter(out);
-                }
+                })) {
 
-                stateDir.sync(Collections.singleton(tmpFileName));
-            } catch (Exception e) {
-                // perform clean up only in case of exception, we need to keep directory open and temporary file on disk
-                // if everything is ok for the next algorithm steps
-                performDirectoryCleanup(stateLocation, stateDir, tmpFileName);
-                throw e;
+                    builder.startObject();
+                    toXContent(builder, state);
+                    builder.endObject();
+                }
+                CodecUtil.writeFooter(out);
             }
-            return stateDir;
+
+            stateDir.sync(Collections.singleton(tmpFileName));
         } catch (Exception e) {
             throw new WriteStateException(false, "failed to write state to the first location tmp file " +
                     stateLocation.resolve(tmpFileName), e);
         }
     }
 
-    private Directory copyStateToExtraLocation(Directory srcStateDir, Path extraStateLocation, String tmpFileName)
+    private static void copyStateToExtraLocations(List<Tuple<Path, Directory>> stateDirs, String tmpFileName)
             throws WriteStateException {
-        try {
-            Directory extraStateDir = newDirectory(extraStateLocation);
+        Directory srcStateDir = stateDirs.get(0).v2();
+        for (int i = 1; i < stateDirs.size(); i++) {
+            Tuple<Path, Directory> extraStatePathAndDir = stateDirs.get(i);
+            Path extraStateLocation = extraStatePathAndDir.v1();
+            Directory extraStateDir = extraStatePathAndDir.v2();
             try {
                 deleteFileIfExists(extraStateLocation, extraStateDir, tmpFileName);
                 extraStateDir.copyFrom(srcStateDir, tmpFileName, tmpFileName, IOContext.DEFAULT);
                 extraStateDir.sync(Collections.singleton(tmpFileName));
             } catch (Exception e) {
-                // perform clean up only in case of exception, we need to keep directory open and temporary file on disk
-                // if everything is ok for the next algorithm steps
-                performDirectoryCleanup(extraStateLocation, extraStateDir, tmpFileName);
-                throw e;
+                throw new WriteStateException(false, "failed to copy tmp state file to extra location " + extraStateLocation, e);
             }
-            return extraStateDir;
-        } catch (Exception e) {
-            throw new WriteStateException(false, "failed to copy tmp state file to extra location " + extraStateLocation, e);
         }
     }
 
@@ -194,7 +182,6 @@ public abstract class MetaDataStateFormat<T> {
         }
     }
 
-
     /**
      * Writes the given state to the given directories. The state is written to a
      * state directory ({@value #STATE_DIR_NAME}) underneath each of the given file locations and is created if it
@@ -226,24 +213,24 @@ public abstract class MetaDataStateFormat<T> {
 
         final String fileName = prefix + maxStateId + STATE_FILE_EXTENSION;
         final String tmpFileName = fileName + ".tmp";
-        final Path firstStateLocation = locations[0].resolve(STATE_DIR_NAME);
         List<Tuple<Path, Directory>> directories = new ArrayList<>();
 
         try {
-            Directory firstStateDir = writeStateToFirstLocation(state, firstStateLocation, tmpFileName);
-            directories.add(new Tuple<>(firstStateLocation, firstStateDir));
-            for (int i = 1; i < locations.length; i++) {
-                final Path extraStateLocation = locations[i].resolve(STATE_DIR_NAME);
-                Directory extraStateDir = copyStateToExtraLocation(firstStateDir, extraStateLocation, tmpFileName);
-                directories.add(new Tuple<>(extraStateLocation, extraStateDir));
+            for (Path location : locations) {
+                Path stateLocation = location.resolve(STATE_DIR_NAME);
+                try {
+                    directories.add(new Tuple<>(location, newDirectory(stateLocation)));
+                } catch (IOException e) {
+                    throw new WriteStateException(false, "failed to open state directory " + stateLocation, e);
+                }
             }
+
+            writeStateToFirstLocation(state, directories.get(0).v1(), directories.get(0).v2(), tmpFileName);
+            copyStateToExtraLocations(directories, tmpFileName);
             performRenames(tmpFileName, fileName, directories);
             performStateDirectoriesFsync(directories);
         } finally {
-            //writeStateToFirstLocation and copyStateToExtraLocation perform clean up for themselves if they fail
-            //we need to perform clean up for all data paths that were successfully opened and temporary file was created
-            for (int i = 0; i < directories.size(); i++) {
-                Tuple<Path, Directory> pathAndDirectory = directories.get(i);
+            for (Tuple<Path, Directory> pathAndDirectory : directories) {
                 performDirectoryCleanup(pathAndDirectory.v1(), pathAndDirectory.v2(), tmpFileName);
             }
         }

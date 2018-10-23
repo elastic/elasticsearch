@@ -46,7 +46,7 @@ public final class IndexNotFoundException extends ResourceNotFoundException {
     }
 
     public IndexNotFoundException(Index index, Throwable cause) {
-        super("no such index " + index.toString(), cause);
+        super("no such index [" + index.getName() + "]", cause);
         setIndex(index);
     }
 

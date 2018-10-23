@@ -665,7 +665,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                    Collections.singletonList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true, null)) {
+                    Collections.singletonList(() -> seedNode), service, service.getConnectionManager(), Integer.MAX_VALUE,
+                    n -> true, null)) {
 
                     SearchRequest request = new SearchRequest("test-index");
                     ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest("test-index")
@@ -1357,7 +1358,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                Collections.singletonList(() -> connectedNode), service, service.getConnectionManager(), Integer.MAX_VALUE, n -> true, null)) {
+                    Collections.singletonList(() -> connectedNode), service, service.getConnectionManager(),
+                    Integer.MAX_VALUE, n -> true, null)) {
                     connection.addConnectedNode(connectedNode);
                     for (int i = 0; i < 10; i++) {
                         //always a direct connection as the remote node is already connected

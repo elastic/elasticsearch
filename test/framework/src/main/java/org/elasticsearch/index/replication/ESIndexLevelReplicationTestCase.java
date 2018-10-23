@@ -95,6 +95,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.empty;
@@ -497,7 +498,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         private synchronized void computeReplicationTargets() {
-            this.replicationTargets = new ReplicationTargets(primary, new ArrayList<>(replicas));
+            this.replicationTargets = new ReplicationTargets(this);
         }
 
         private synchronized ReplicationTargets getReplicationTargets() {
@@ -506,12 +507,19 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     static final class ReplicationTargets {
+        final ReplicationGroup group;
         final IndexShard primary;
-        final List<IndexShard> replicas;
+        final List<IndexShard> previousReplicas;
 
-        ReplicationTargets(IndexShard primary, List<IndexShard> replicas) {
-            this.primary = primary;
-            this.replicas = Collections.unmodifiableList(replicas);
+        ReplicationTargets(ReplicationGroup group) {
+            this.group = group;
+            this.primary = group.primary;
+            this.previousReplicas = new ArrayList<>(group.replicas);
+        }
+
+        IndexShard findReplica(ShardRouting shardRouting) {
+            return Stream.concat(group.getReplicas().stream(), previousReplicas.stream())
+                .filter(s -> shardRouting.isSameAllocation(s.routingEntry())).findFirst().get();
         }
     }
 
@@ -615,8 +623,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 final long globalCheckpoint,
                 final long maxSeqNoOfUpdatesOrDeletes,
                 final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-                IndexShard replica = replicationTargets.replicas.stream()
-                        .filter(s -> replicaRouting.isSameAllocation(s.routingEntry())).findFirst().get();
+                IndexShard replica = replicationTargets.findReplica(replicaRouting);
                 replica.acquireReplicaOperationPermit(
                         getPrimaryShard().getPendingPrimaryTerm(),
                         globalCheckpoint,

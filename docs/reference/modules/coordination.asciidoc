@@ -353,7 +353,7 @@ This can be performed with the following command on a surviving node:
 
 [source,js]
 --------------------------------------------------
-POST /_nodes/_local/force_become_leader
+POST /_cluster/force_local_node_takeover
 --------------------------------------------------
 // CONSOLE
 

@@ -202,24 +202,24 @@ GET /_cluster/state?filter_path=TODO
 [float]
 === Cluster bootstrapping
 
-A major risk when starting up a brand-new cluster is that you accidentally form
-two separate clusters instead of one. This could lead to data loss: you might
-start using both clusters before noticing that anything had gone wrong, and it
-will then be impossible to merge them together later.
+There is a risk when starting up a brand-new cluster is that you accidentally
+form two separate clusters instead of one. This could lead to data loss: you
+might start using both clusters before noticing that anything had gone wrong,
+and it will then be impossible to merge them together later.
 
-To illustrate how this could happen, imagine starting up a three-node cluster
-in which each node knows that it is going to be part of a three-node cluster. A
-majority of three nodes is two, so normally the first two nodes to discover
-each other will form a cluster and the third node will join them a short time
-later. However, imagine that four nodes were accidentally started instead of
-three: in this case there are enough nodes to form two separate clusters. Of
-course if each node is started manually then it's unlikely that too many nodes
-are started, but it's certainly possible to get into this situation if using a
-more automated orchestrator, particularly if a network partition happens at the
-wrong time.
+NOTE: To illustrate how this could happen, imagine starting up a three-node
+cluster in which each node knows that it is going to be part of a three-node
+cluster. A majority of three nodes is two, so normally the first two nodes to
+discover each other will form a cluster and the third node will join them a
+short time later. However, imagine that four nodes were accidentally started
+instead of three: in this case there are enough nodes to form two separate
+clusters. Of course if each node is started manually then it's unlikely that
+too many nodes are started, but it's certainly possible to get into this
+situation if using a more automated orchestrator, particularly if a network
+partition happens at the wrong time.
 
 We avoid this by requiring a separate _cluster bootstrap_ process to take place
-on every brand-new cluster. This is only required the first time the whole
+on every brand-new cluster. This is only required the very first time the whole
 cluster starts up: new nodes joining an established cluster can safely obtain
 all the information they need from the elected master, and nodes that have
 previously been part of a cluster will have stored to disk all the information

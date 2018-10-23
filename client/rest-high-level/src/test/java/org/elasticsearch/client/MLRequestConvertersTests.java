@@ -266,7 +266,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.deleteDatafeed(deleteDatafeedRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/datafeeds/" + datafeedId, request.getEndpoint());
-        assertEquals(Boolean.toString(false), request.getParameters().get("force"));
+        assertFalse(request.getParameters().containsKey("force"));
 
         deleteDatafeedRequest.setForce(true);
         request = MLRequestConverters.deleteDatafeed(deleteDatafeedRequest);

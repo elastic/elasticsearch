@@ -387,7 +387,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             wipeRollupJobs();
             waitForPendingRollupTasks();
         }
-
     }
 
     /**

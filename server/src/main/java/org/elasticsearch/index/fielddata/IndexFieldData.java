@@ -28,6 +28,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.NestedSortBuilder;
 
 import java.io.IOException;
 
@@ -128,10 +130,12 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
 
             private final BitSetProducer rootFilter;
             private final Query innerQuery;
+            private final NestedSortBuilder nestedSort;
 
-            public Nested(BitSetProducer rootFilter, Query innerQuery) {
+            public Nested(BitSetProducer rootFilter, Query innerQuery, NestedSortBuilder nestedSort) {
                 this.rootFilter = rootFilter;
                 this.innerQuery = innerQuery;
+                this.nestedSort = nestedSort;
             }
 
             public Query getInnerQuery() {
@@ -141,6 +145,8 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             public BitSetProducer getRootFilter() {
                 return rootFilter;
             }
+
+            public NestedSortBuilder getNestedSort() { return nestedSort; }
 
             /**
              * Get a {@link BitDocIdSet} that matches the root documents.
@@ -155,7 +161,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             public DocIdSetIterator innerDocs(LeafReaderContext ctx) throws IOException {
                 final IndexReaderContext topLevelCtx = ReaderUtil.getTopLevelContext(ctx);
                 IndexSearcher indexSearcher = new IndexSearcher(topLevelCtx);
-                Weight weight = indexSearcher.createNormalizedWeight(innerQuery, false);
+                Weight weight = indexSearcher.createWeight(indexSearcher.rewrite(innerQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
                 Scorer s = weight.scorer(ctx);
                 return s == null ? null : s.iterator();
             }

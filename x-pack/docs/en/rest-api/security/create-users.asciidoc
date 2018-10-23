@@ -90,9 +90,7 @@ created or updated.
 [source,js]
 --------------------------------------------------
 {
-  "user": {
-    "created" : true <1>
-  }
+  "created": true <1>
 }
 --------------------------------------------------
 // TESTRESPONSE

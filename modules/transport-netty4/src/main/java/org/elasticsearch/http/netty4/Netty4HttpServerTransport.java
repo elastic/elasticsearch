@@ -48,6 +48,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -68,6 +69,7 @@ import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
@@ -241,11 +243,15 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         } else if (origin.equals(ANY_ORIGIN)) {
             builder = Netty4CorsConfigBuilder.forAnyOrigin();
         } else {
-            Pattern p = RestUtils.checkCorsSettingForRegex(origin);
-            if (p == null) {
-                builder = Netty4CorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
-            } else {
-                builder = Netty4CorsConfigBuilder.forPattern(p);
+            try {
+                Pattern p = RestUtils.checkCorsSettingForRegex(origin);
+                if (p == null) {
+                    builder = Netty4CorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
+                } else {
+                    builder = Netty4CorsConfigBuilder.forPattern(p);
+                }
+            } catch (PatternSyntaxException e) {
+                throw new SettingsException("Bad regex in [" + SETTING_CORS_ALLOW_ORIGIN.getKey() + "]: [" + origin + "]", e);
             }
         }
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {

@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.CompoundDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestController;
@@ -125,7 +125,7 @@ public class RestTasksAction extends AbstractCatAction {
         return table;
     }
 
-    private static final CompoundDateTimeFormatter FORMATTER = DateFormatters.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
+    private static final DateFormatter FORMATTER = DateFormatters.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
 
     private void buildRow(Table table, boolean fullId, boolean detailed, DiscoveryNodes discoveryNodes, TaskInfo taskInfo) {
         table.startRow();

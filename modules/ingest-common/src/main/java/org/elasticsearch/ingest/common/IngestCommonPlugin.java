@@ -31,6 +31,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.ThreadWatchdog;
+import org.elasticsearch.ingest.DropProcessor;
+import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -84,6 +86,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(BytesProcessor.TYPE, new BytesProcessor.Factory());
         processors.put(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService));
         processors.put(DissectProcessor.TYPE, new DissectProcessor.Factory());
+        processors.put(DropProcessor.TYPE, new DropProcessor.Factory());
         return Collections.unmodifiableMap(processors);
     }
 

@@ -19,16 +19,14 @@
 package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.ml.job.config.Job;
+import org.elasticsearch.client.ml.job.util.TimeUtil;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
-import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -50,6 +48,7 @@ public class AnomalyRecord implements ToXContentObject {
      * Result fields (all detector types)
      */
     public static final ParseField PROBABILITY = new ParseField("probability");
+    public static final ParseField MULTI_BUCKET_IMPACT = new ParseField("multi_bucket_impact");
     public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
     public static final ParseField BY_FIELD_NAME = new ParseField("by_field_name");
     public static final ParseField BY_FIELD_VALUE = new ParseField("by_field_value");
@@ -90,18 +89,13 @@ public class AnomalyRecord implements ToXContentObject {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(DateFormatters.toZonedDateTime(DateTimeFormatter.ISO_INSTANT.parse(p.text())).toInstant().toEpochMilli());
-            }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
-                    + Result.TIMESTAMP.getPreferredName() + "]");
-        }, Result.TIMESTAMP, ValueType.VALUE);
+        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+                (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+                Result.TIMESTAMP, ValueType.VALUE);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareString((anomalyRecord, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareDouble(AnomalyRecord::setProbability, PROBABILITY);
+        PARSER.declareDouble(AnomalyRecord::setMultiBucketImpact, MULTI_BUCKET_IMPACT);
         PARSER.declareDouble(AnomalyRecord::setRecordScore, RECORD_SCORE);
         PARSER.declareDouble(AnomalyRecord::setInitialRecordScore, INITIAL_RECORD_SCORE);
         PARSER.declareInt(AnomalyRecord::setDetectorIndex, DETECTOR_INDEX);
@@ -125,6 +119,7 @@ public class AnomalyRecord implements ToXContentObject {
     private final String jobId;
     private int detectorIndex;
     private double probability;
+    private Double multiBucketImpact;
     private String byFieldName;
     private String byFieldValue;
     private String correlatedByFieldValue;
@@ -163,6 +158,9 @@ public class AnomalyRecord implements ToXContentObject {
         builder.field(Job.ID.getPreferredName(), jobId);
         builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(PROBABILITY.getPreferredName(), probability);
+        if (multiBucketImpact != null) {
+            builder.field(MULTI_BUCKET_IMPACT.getPreferredName(), multiBucketImpact);
+        }
         builder.field(RECORD_SCORE.getPreferredName(), recordScore);
         builder.field(INITIAL_RECORD_SCORE.getPreferredName(), initialRecordScore);
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
@@ -260,6 +258,14 @@ public class AnomalyRecord implements ToXContentObject {
 
     void setProbability(double value) {
         probability = value;
+    }
+
+    public double getMultiBucketImpact() {
+        return multiBucketImpact;
+    }
+
+    void setMultiBucketImpact(double value) {
+        multiBucketImpact = value;
     }
 
     public String getByFieldName() {
@@ -384,7 +390,7 @@ public class AnomalyRecord implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, detectorIndex, bucketSpan, probability, recordScore,
+        return Objects.hash(jobId, detectorIndex, bucketSpan, probability, multiBucketImpact, recordScore,
                 initialRecordScore, typical, actual,function, functionDescription, fieldName,
                 byFieldName, byFieldValue, correlatedByFieldValue, partitionFieldName,
                 partitionFieldValue, overFieldName, overFieldValue, timestamp, isInterim,
@@ -407,6 +413,7 @@ public class AnomalyRecord implements ToXContentObject {
             && this.detectorIndex == that.detectorIndex
             && this.bucketSpan == that.bucketSpan
             && this.probability == that.probability
+            && Objects.equals(this.multiBucketImpact, that.multiBucketImpact)
             && this.recordScore == that.recordScore
             && this.initialRecordScore == that.initialRecordScore
             && Objects.deepEquals(this.typical, that.typical)

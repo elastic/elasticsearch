@@ -19,11 +19,6 @@
 
 package org.elasticsearch.action.update;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.LongSupplier;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
@@ -52,16 +47,16 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.search.lookup.SourceLookup;
 
-import static org.elasticsearch.common.Booleans.parseBoolean;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.LongSupplier;
 
 /**
  * Helper for translating an update request to an index, delete request or update response.
  */
 public class UpdateHelper extends AbstractComponent {
-
-    /** Whether scripts should add the ctx variable to the params map. */
-    private static final boolean CTX_IN_PARAMS =
-        parseBoolean(System.getProperty("es.scripting.update.ctx_in_params"), true);
 
     private final ScriptService scriptService;
 
@@ -286,17 +281,8 @@ public class UpdateHelper extends AbstractComponent {
         try {
             if (scriptService != null) {
                 UpdateScript.Factory factory = scriptService.compile(script, UpdateScript.CONTEXT);
-                final Map<String, Object> params;
-                if (CTX_IN_PARAMS) {
-                    params = new HashMap<>(script.getParams());
-                    params.put(ContextFields.CTX, ctx);
-                    deprecationLogger.deprecated("Using `ctx` via `params.ctx` is deprecated. " +
-                        "Use -Des.scripting.update.ctx_in_params=false to enforce non-deprecated usage.");
-                } else {
-                    params = script.getParams();
-                }
-                UpdateScript executableScript = factory.newInstance(params);
-                executableScript.execute(ctx);
+                UpdateScript executableScript = factory.newInstance(script.getParams(), ctx);
+                executableScript.execute();
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to execute script", e);

@@ -28,7 +28,6 @@ public final class Result {
     /**
      * Serialisation fields
      */
-    public static final ParseField TYPE = new ParseField("result");
     public static final ParseField RESULT_TYPE = new ParseField("result_type");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField IS_INTERIM = new ParseField("is_interim");

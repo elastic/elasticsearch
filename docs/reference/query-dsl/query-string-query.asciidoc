@@ -255,12 +255,6 @@ following additional parameters are allowed:
 |`type` |How the fields should be combined to build the text query.
 See <<multi-match-types, types>> for a complete example.
 Defaults to `best_fields`
-|=======================================================================
-
-
-[cols="<,<",options="header",]
-|=======================================================================
-|Parameter |Description
 
 |`tie_breaker` |The disjunction max tie breaker for multi fields.
 Defaults to `0`

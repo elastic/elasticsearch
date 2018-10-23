@@ -85,6 +85,7 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     public final void test() throws Throwable {
         try {
+            assumeFalse("Test marked as Ignored", testName.endsWith("-Ignore"));
             doTest();
         } catch (AssertionError ae) {
             throw reworkException(ae);

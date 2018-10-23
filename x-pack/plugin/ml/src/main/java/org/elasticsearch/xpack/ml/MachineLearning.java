@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
+import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
@@ -119,6 +120,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteForecastAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
+import org.elasticsearch.xpack.ml.action.TransportFindFileStructureAction;
 import org.elasticsearch.xpack.ml.action.TransportFlushJobAction;
 import org.elasticsearch.xpack.ml.action.TransportForecastJobAction;
 import org.elasticsearch.xpack.ml.action.TransportGetBucketsAction;
@@ -166,7 +168,6 @@ import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectBuilder;
@@ -180,6 +181,7 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
+import org.elasticsearch.xpack.ml.rest.RestFindFileStructureAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.rest.calendar.RestDeleteCalendarEventAction;
@@ -259,6 +261,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
             Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 90, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Integer> MAX_LAZY_ML_NODES =
+        Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
 
     private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -286,11 +290,11 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         ML_ENABLED,
                         CONCURRENT_JOB_ALLOCATIONS,
                         MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
+                        MAX_LAZY_ML_NODES,
                         MAX_MACHINE_MEMORY_PERCENT,
                         AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
                         AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING,
-                        DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING,
-                        DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
+                        AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
                         AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE,
                         AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE,
                         AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP));
@@ -376,7 +380,12 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     // This will only only happen when path.home is not set, which is disallowed in production
                     throw new ElasticsearchException("Failed to create native process controller for Machine Learning");
                 }
-                autodetectProcessFactory = new NativeAutodetectProcessFactory(environment, settings, nativeController, client);
+                autodetectProcessFactory = new NativeAutodetectProcessFactory(
+                    environment,
+                    settings,
+                    nativeController,
+                    client,
+                    clusterService);
                 normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, settings, nativeController);
             } catch (IOException e) {
                 // This also should not happen in production, as the MachineLearningFeatureSet should have
@@ -500,7 +509,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             new RestDeleteCalendarJobAction(settings, restController),
             new RestPutCalendarJobAction(settings, restController),
             new RestGetCalendarEventsAction(settings, restController),
-            new RestPostCalendarEventAction(settings, restController)
+            new RestPostCalendarEventAction(settings, restController),
+            new RestFindFileStructureAction(settings, restController)
         );
     }
 
@@ -557,7 +567,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(UpdateCalendarJobAction.INSTANCE, TransportUpdateCalendarJobAction.class),
                 new ActionHandler<>(GetCalendarEventsAction.INSTANCE, TransportGetCalendarEventsAction.class),
                 new ActionHandler<>(PostCalendarEventsAction.INSTANCE, TransportPostCalendarEventsAction.class),
-                new ActionHandler<>(PersistJobAction.INSTANCE, TransportPersistJobAction.class)
+                new ActionHandler<>(PersistJobAction.INSTANCE, TransportPersistJobAction.class),
+                new ActionHandler<>(FindFileStructureAction.INSTANCE, TransportFindFileStructureAction.class)
         );
     }
     @Override

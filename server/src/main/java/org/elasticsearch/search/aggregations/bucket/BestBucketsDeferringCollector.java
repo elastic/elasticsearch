@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.packed.PackedInts;
@@ -81,11 +82,11 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     }
 
     @Override
-    public boolean needsScores() {
+    public ScoreMode scoreMode() {
         if (collector == null) {
             throw new IllegalStateException();
         }
-        return collector.needsScores();
+        return collector.scoreMode();
     }
 
     /** Set the deferred collectors. */
@@ -153,11 +154,11 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         }
         this.selectedBuckets = hash;
 
-        boolean needsScores = needsScores();
+        boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {
             Query query = isGlobal ? new MatchAllDocsQuery() : searchContext.query();
-            weight = searchContext.searcher().createNormalizedWeight(query, true);
+            weight = searchContext.searcher().createWeight(searchContext.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
         }
         for (Entry entry : entries) {
             final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);

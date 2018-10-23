@@ -22,8 +22,8 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.metrics.percentiles.ParsedPercentiles;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentiles;
+import org.elasticsearch.search.aggregations.metrics.ParsedPercentiles;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
 
 import java.io.IOException;
 import java.util.Map.Entry;

@@ -53,7 +53,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptySet;
@@ -113,6 +112,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
             // manual collection or upon cluster forming.
             .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
             .put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(), "1s")
@@ -121,8 +121,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(TestPlugin.class,
-            MockTransportService.TestPlugin.class);
+        return Arrays.asList(TestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
     public void testClusterInfoServiceCollectsInformation() throws Exception {
@@ -172,7 +171,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
     }
 
-    public void testClusterInfoServiceInformationClearOnError() throws InterruptedException, ExecutionException {
+    public void testClusterInfoServiceInformationClearOnError() {
         internalCluster().startNodes(2,
             // manually control publishing
             Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build());

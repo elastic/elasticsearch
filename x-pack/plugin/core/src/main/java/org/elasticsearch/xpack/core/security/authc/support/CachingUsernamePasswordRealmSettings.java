@@ -21,12 +21,15 @@ public final class CachingUsernamePasswordRealmSettings {
     public static final Setting<Integer> CACHE_MAX_USERS_SETTING = Setting.intSetting("cache.max_users", DEFAULT_MAX_USERS,
             Setting.Property.NodeScope);
 
+    public static final Setting<Boolean> AUTHC_ENABLED_SETTING = Setting.boolSetting("authentication.enabled", true,
+        Setting.Property.NodeScope);
+
     private CachingUsernamePasswordRealmSettings() {}
 
     /**
      * Returns the {@link Setting setting configuration} that is common for all caching realms
      */
-    public static Set<Setting<?>> getCachingSettings() {
-        return new HashSet<>(Arrays.asList(CACHE_HASH_ALGO_SETTING, CACHE_TTL_SETTING, CACHE_MAX_USERS_SETTING));
+    public static Set<Setting<?>> getSettings() {
+        return new HashSet<>(Arrays.asList(CACHE_HASH_ALGO_SETTING, CACHE_TTL_SETTING, CACHE_MAX_USERS_SETTING, AUTHC_ENABLED_SETTING));
     }
 }

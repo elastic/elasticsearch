@@ -29,6 +29,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MergePolicySettingsTests extends ESTestCase {
@@ -100,6 +101,14 @@ public class MergePolicySettingsTests extends ESTestCase {
         indexSettings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER + 1).build()));
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getSegmentsPerTier(), MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER + 1, 0);
 
+        assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getDeletesPctAllowed(), MergePolicyConfig.DEFAULT_DELETES_PCT_ALLOWED, 0);
+        indexSettings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING.getKey(), 22).build()));
+        assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getDeletesPctAllowed(), 22, 0);
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () ->
+            indexSettings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING.getKey(), 53).build())));
+        final Throwable cause = exc.getCause();
+        assertThat(cause.getMessage(), containsString("must be <= 50.0"));
         indexSettings.updateIndexMetaData(newIndexMeta("index", EMPTY_SETTINGS)); // see if defaults are restored
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getForceMergeDeletesPctAllowed(), MergePolicyConfig.DEFAULT_EXPUNGE_DELETES_ALLOWED, 0.0d);
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getFloorSegmentMB(), new ByteSizeValue(MergePolicyConfig.DEFAULT_FLOOR_SEGMENT.getMb(), ByteSizeUnit.MB).getMbFrac(), 0.00);
@@ -107,6 +116,7 @@ public class MergePolicySettingsTests extends ESTestCase {
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergeAtOnceExplicit(), MergePolicyConfig.DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT);
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getMaxMergedSegmentMB(), new ByteSizeValue(MergePolicyConfig.DEFAULT_MAX_MERGED_SEGMENT.getBytes() + 1).getMbFrac(), 0.0001);
         assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getSegmentsPerTier(), MergePolicyConfig.DEFAULT_SEGMENTS_PER_TIER, 0);
+        assertEquals(((EsTieredMergePolicy) indexSettings.getMergePolicy()).getDeletesPctAllowed(), MergePolicyConfig.DEFAULT_DELETES_PCT_ALLOWED, 0);
     }
 
     public Settings build(String value) {

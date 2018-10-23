@@ -251,8 +251,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
 
     @Override
-    public List<ScriptContext> getContexts() {
-        List<ScriptContext> contexts = new ArrayList<>();
+    public List<ScriptContext<?>> getContexts() {
+        List<ScriptContext<?>> contexts = new ArrayList<>();
         contexts.addAll(super.getContexts());
         filterPlugins(ScriptPlugin.class).stream().forEach(p -> contexts.addAll(p.getContexts()));
         return contexts;

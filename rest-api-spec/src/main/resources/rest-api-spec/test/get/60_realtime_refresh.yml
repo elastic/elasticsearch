@@ -1,8 +1,13 @@
 ---
 "Realtime Refresh":
 
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
  - do:
       indices.create:
+        include_type_name: false
         index:    test_1
         body:
           settings:
@@ -16,23 +21,23 @@
 
  - do:
       index:
+          include_type_name: false
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
 
  - do:
       catch:        missing
       get:
+          include_type_name: false
           index:    test_1
-          type:     test
           id:       1
           realtime: false
 
  - do:
       get:
+          include_type_name: false
           index:    test_1
-          type:     test
           id:       1
           realtime: true
 
@@ -40,8 +45,8 @@
 
  - do:
       get:
+          include_type_name: false
           index:    test_1
-          type:     test
           id:       1
           realtime: false
           refresh:  true

@@ -14,10 +14,8 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
-import java.util.TimeZone;
 
 import static java.lang.String.format;
 import static java.sql.Types.BIGINT;
@@ -28,6 +26,7 @@ import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
 import static java.sql.Types.TINYINT;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -35,8 +34,6 @@ import static org.junit.Assert.fail;
  * Utility class for doing JUnit-style asserts over JDBC.
  */
 public class JdbcAssert {
-    private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-
     public static void assertResultSets(ResultSet expected, ResultSet actual) throws SQLException {
         assertResultSets(expected, actual, null);
     }
@@ -133,7 +130,7 @@ public class JdbcAssert {
             doAssertResultSetData(ex, ac, logger, lenient);
         }
     }
-    
+
     private static void doAssertResultSetData(ResultSet expected, ResultSet actual, Logger logger, boolean lenient) throws SQLException {
         ResultSetMetaData metaData = expected.getMetaData();
         int columns = metaData.getColumnCount();
@@ -172,16 +169,21 @@ public class JdbcAssert {
                     } catch (ClassNotFoundException cnfe) {
                         throw new SQLException(cnfe);
                     }
-                    
+
                     Object expectedObject = expected.getObject(column);
                     Object actualObject = lenient ? actual.getObject(column, expectedColumnClass) : actual.getObject(column);
 
-                    String msg = format(Locale.ROOT, "Different result for column [" + metaData.getColumnName(column) + "], "
-                            + "entry [" + (count + 1) + "]");
+                    String msg = format(Locale.ROOT, "Different result for column [%s], entry [%d]",
+                        metaData.getColumnName(column), count + 1);
 
                     // handle nulls first
                     if (expectedObject == null || actualObject == null) {
-                        assertEquals(msg, expectedObject, actualObject);
+                        // hack for JDBC CSV nulls
+                        if (expectedObject != null && "null".equals(expectedObject.toString().toLowerCase(Locale.ROOT))) {
+                            assertNull(msg, actualObject);
+                        } else {
+                            assertEquals(msg, expectedObject, actualObject);
+                        }
                     }
                     // then timestamp
                     else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {

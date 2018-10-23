@@ -30,12 +30,10 @@ import java.util.Objects;
 public final class RestrictedTrustConfig extends TrustConfig {
 
     private static final String RESTRICTIONS_KEY_SUBJECT_NAME = "trust.subject_name";
-    private final Settings settings;
     private final String groupConfigPath;
     private final TrustConfig delegate;
 
-    RestrictedTrustConfig(Settings settings, String groupConfigPath, TrustConfig delegate) {
-        this.settings = settings;
+    RestrictedTrustConfig(String groupConfigPath, TrustConfig delegate) {
         this.groupConfigPath = Objects.requireNonNull(groupConfigPath);
         this.delegate = Objects.requireNonNull(delegate);
     }
@@ -45,7 +43,7 @@ public final class RestrictedTrustConfig extends TrustConfig {
         try {
             final X509ExtendedTrustManager delegateTrustManager = delegate.createTrustManager(environment);
             final CertificateTrustRestrictions trustGroupConfig = readTrustGroup(resolveGroupConfigPath(environment));
-            return new RestrictedTrustManager(settings, delegateTrustManager, trustGroupConfig);
+            return new RestrictedTrustManager(delegateTrustManager, trustGroupConfig);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to initialize TrustManager for {}", e, toString());
         }

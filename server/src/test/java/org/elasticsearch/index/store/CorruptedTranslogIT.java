@@ -125,7 +125,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             }
         }
         Path translogDir = RandomPicks.randomFrom(random(), translogDirs);
-        TestTranslog.corruptRandomTranslogFile(logger, random(), translogDir, TestTranslog.minTranslogGenUsedInRecovery(translogDir));
+        TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogDir));
     }
 
     /** Disables translog flushing for the specified index */

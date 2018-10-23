@@ -1,9 +1,0 @@
-ccruser:
-  cluster:
-    - manage_ccr
-  indices:
-    - names: [ 'allowed-index' ]
-      privileges:
-        - monitor
-        - read
-        - write

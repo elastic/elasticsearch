@@ -22,6 +22,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -74,7 +75,8 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
             // See https://issues.apache.org/jira/browse/LUCENE-8055
             // for now we just use version 6.0 version to find nested parent
             final Version version = Version.V_6_0_0; //context.mapperService().getIndexSettings().getIndexVersionCreated();
-            Weight weight = percolatorIndexSearcher.createNormalizedWeight(Queries.newNonNestedFilter(version), false);
+            Weight weight = percolatorIndexSearcher.createWeight(percolatorIndexSearcher.rewrite(Queries.newNonNestedFilter(version)),
+                    ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer s = weight.scorer(percolatorIndexSearcher.getIndexReader().leaves().get(0));
             int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
             BitSet rootDocs = BitSet.of(s.iterator(), memoryIndexMaxDoc);
@@ -96,7 +98,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                 }
 
                 TopDocs topDocs = percolatorIndexSearcher.search(query, memoryIndexMaxDoc, new Sort(SortField.FIELD_DOC));
-                if (topDocs.totalHits == 0) {
+                if (topDocs.totalHits.value == 0) {
                     // This hit didn't match with a percolate query,
                     // likely to happen when percolating multiple documents
                     continue;

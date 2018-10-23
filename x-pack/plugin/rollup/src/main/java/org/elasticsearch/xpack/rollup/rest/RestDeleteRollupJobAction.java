@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -31,7 +32,16 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
         String id = restRequest.param(ID.getPreferredName());
         DeleteRollupJobAction.Request request = new DeleteRollupJobAction.Request(id);
 
-        return channel -> client.execute(DeleteRollupJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(DeleteRollupJobAction.INSTANCE, request,
+            new RestToXContentListener<DeleteRollupJobAction.Response>(channel) {
+            @Override
+            protected RestStatus getStatus(DeleteRollupJobAction.Response response) {
+                if (response.getNodeFailures().size() > 0 || response.getTaskFailures().size() > 0) {
+                    return RestStatus.INTERNAL_SERVER_ERROR;
+                }
+                return RestStatus.OK;
+            }
+        });
     }
 
     @Override

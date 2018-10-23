@@ -110,15 +110,17 @@ public class RestClient implements Closeable {
     private final FailureListener failureListener;
     private final NodeSelector nodeSelector;
     private volatile NodeTuple<List<Node>> nodeTuple;
+    private final boolean strictDeprecationMode;
 
-    RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
-               List<Node> nodes, String pathPrefix, FailureListener failureListener, NodeSelector nodeSelector) {
+    RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
+            FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
         this.nodeSelector = nodeSelector;
+        this.strictDeprecationMode = strictDeprecationMode;
         setNodes(nodes);
     }
 
@@ -296,7 +298,11 @@ public class RestClient implements Closeable {
                     Response response = new Response(request.getRequestLine(), node.getHost(), httpResponse);
                     if (isSuccessfulResponse(statusCode) || ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
                         onResponse(node);
-                        listener.onSuccess(response);
+                        if (strictDeprecationMode && response.hasWarnings()) {
+                            listener.onDefinitiveFailure(new ResponseException(response));
+                        } else {
+                            listener.onSuccess(response);
+                        }
                     } else {
                         ResponseException responseException = new ResponseException(response);
                         if (isRetryStatus(statusCode)) {

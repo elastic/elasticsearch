@@ -249,65 +249,80 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     }
 
     /**
-     * Finds the specific index aliases that point to the specified concrete indices or match partially with the indices via wildcards.
+     * Finds the specific index aliases that point to the requested concrete indices directly
+     * or that match with the indices via wildcards.
      *
-     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
-     * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
-     * present for that index
+     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned.
+     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
+     * aliases then the result will <b>not</b> include the index's key.
      */
-    public ImmutableOpenMap<String, List<AliasMetaData>> findAllAliases(String[] concreteIndices) {
-        return findAliases(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, concreteIndices);
+    public ImmutableOpenMap<String, List<AliasMetaData>> findAllAliases(final String[] concreteIndices) {
+        return findAliases(Strings.EMPTY_ARRAY, concreteIndices);
     }
 
     /**
-     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
-     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards, and
+     * that point to the specified concrete indices (directly or matching indices via wildcards).
      *
      * @param aliasesRequest The request to find aliases for
-     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
-     * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
-     * present for that index
+     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned.
+     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
+     * aliases then the result will <b>not</b> include the index's key.
      */
-    public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final AliasesRequest aliasesRequest, String[] concreteIndices) {
-        return findAliases(aliasesRequest.getOriginalAliases(), aliasesRequest.aliases(), concreteIndices);
+    public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final AliasesRequest aliasesRequest, final String[] concreteIndices) {
+        return findAliases(aliasesRequest.aliases(), concreteIndices);
     }
 
     /**
-     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
-     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards, and
+     * that point to the specified concrete indices (directly or matching indices via wildcards).
      *
-     * @param aliases The aliases to look for
-     * @param originalAliases The original aliases that the user originally requested
-     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
-     * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
-     * present for that index
+     * @param aliases The aliases to look for. Might contain include or exclude wildcards.
+     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned
+     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
+     * aliases then the result will <b>not</b> include the index's key.
      */
-    private ImmutableOpenMap<String, List<AliasMetaData>> findAliases(String[] originalAliases, String[] aliases,
-                                                                      String[] concreteIndices) {
+    private ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final String[] aliases, final String[] concreteIndices) {
         assert aliases != null;
-        assert originalAliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();
         }
-
-        //if aliases were provided but they got replaced with empty aliases, return empty map
-        if (originalAliases.length > 0 && aliases.length == 0) {
-            return ImmutableOpenMap.of();
+        String[] patterns = new String[aliases.length];
+        boolean[] include = new boolean[aliases.length];
+        for (int i = 0; i < aliases.length; i++) {
+            String alias = aliases[i];
+            if (alias.charAt(0) == '-') {
+                patterns[i] = alias.substring(1);
+                include[i] = false;
+            } else {
+                patterns[i] = alias;
+                include[i] = true;
+            }
         }
-
-        boolean matchAllAliases = matchAllAliases(aliases);
+        boolean matchAllAliases = patterns.length == 0;
         ImmutableOpenMap.Builder<String, List<AliasMetaData>> mapBuilder = ImmutableOpenMap.builder();
         for (String index : concreteIndices) {
             IndexMetaData indexMetaData = indices.get(index);
             List<AliasMetaData> filteredValues = new ArrayList<>();
             for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData value = cursor.value;
-                if (matchAllAliases || Regex.simpleMatch(aliases, value.alias())) {
+                boolean matched = matchAllAliases;
+                String alias = value.alias();
+                for (int i = 0; i < patterns.length; i++) {
+                    if (include[i]) {
+                        if (matched == false) {
+                            String pattern = patterns[i];
+                            matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
+                        }
+                    } else if (matched) {
+                        matched = Regex.simpleMatch(patterns[i], alias) == false;
+                    }
+                }
+                if (matched) {
                     filteredValues.add(value);
                 }
             }
-
             if (filteredValues.isEmpty() == false) {
                 // Make the list order deterministic
                 CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetaData::alias));
@@ -315,15 +330,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             }
         }
         return mapBuilder.build();
-    }
-
-    private static boolean matchAllAliases(final String[] aliases) {
-        for (String alias : aliases) {
-            if (alias.equals(ALL)) {
-                return true;
-            }
-        }
-        return aliases.length == 0;
     }
 
     /**
@@ -1019,10 +1025,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             return this;
         }
 
-        public Builder updateNumberOfReplicas(int numberOfReplicas, String... indices) {
-            if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(String.class);
-            }
+        /**
+         * Update the number of replicas for the specified indices.
+         *
+         * @param numberOfReplicas the number of replicas
+         * @param indices          the indices to update the number of replicas for
+         * @return the builder
+         */
+        public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
             for (String index : indices) {
                 IndexMetaData indexMetaData = this.indices.get(index);
                 if (indexMetaData == null) {

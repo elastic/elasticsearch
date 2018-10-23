@@ -35,12 +35,12 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Collections;
 
 public final class Grok {
 
@@ -184,6 +184,7 @@ public final class Grok {
             String namedPatternRef = groupMatch(NAME_GROUP, region, grokPattern);
             String subName = groupMatch(SUBNAME_GROUP, region, grokPattern);
             // TODO(tal): Support definitions
+            @SuppressWarnings("unused")
             String definition = groupMatch(DEFINITION_GROUP, region, grokPattern);
             String patternName = groupMatch(PATTERN_GROUP, region, grokPattern);
 

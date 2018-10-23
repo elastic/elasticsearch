@@ -20,7 +20,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -66,7 +66,7 @@ public class ScriptedMetricAggContexts {
 
     public abstract static class MapScript extends ParamsAndStateBase {
         private final LeafSearchLookup leafLookup;
-        private Scorer scorer;
+        private Scorable scorer;
 
         public MapScript(Map<String, Object> params, Map<String, Object> state, SearchLookup lookup, LeafReaderContext leafContext) {
             super(params, state);
@@ -86,7 +86,7 @@ public class ScriptedMetricAggContexts {
             }
         }
 
-        public void setScorer(Scorer scorer) {
+        public void setScorer(Scorable scorer) {
             this.scorer = scorer;
         }
 

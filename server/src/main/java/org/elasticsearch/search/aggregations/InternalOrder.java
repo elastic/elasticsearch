@@ -502,10 +502,18 @@ public class InternalOrder extends BucketOrder {
                     // convert the new order IDs to the old histogram order IDs.
                     byte id;
                     switch (order.id()) {
-                        case COUNT_DESC_ID: id = 4; break;
-                        case COUNT_ASC_ID: id = 3; break;
-                        case KEY_DESC_ID: id = 2; break;
-                        case KEY_ASC_ID: id = 1; break;
+                        case COUNT_DESC_ID:
+                            id = 4;
+                            break;
+                        case COUNT_ASC_ID:
+                            id = 3;
+                            break;
+                        case KEY_DESC_ID:
+                            id = 2;
+                            break;
+                        case KEY_ASC_ID:
+                            id = 1;
+                            break;
                         default: throw new RuntimeException("unknown order id [" + order.id() + "]");
                     }
                     out.writeByte(id);

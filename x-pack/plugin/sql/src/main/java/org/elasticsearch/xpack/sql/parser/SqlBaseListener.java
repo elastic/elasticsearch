@@ -490,6 +490,16 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitLogicalBinary(SqlBaseParser.LogicalBinaryContext ctx);
   /**
+   * Enter a parse tree produced by {@link SqlBaseParser#matchQueryOptions}.
+   * @param ctx the parse tree
+   */
+  void enterMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#matchQueryOptions}.
+   * @param ctx the parse tree
+   */
+  void exitMatchQueryOptions(SqlBaseParser.MatchQueryOptionsContext ctx);
+  /**
    * Enter a parse tree produced by {@link SqlBaseParser#predicated}.
    * @param ctx the parse tree
    */
@@ -660,18 +670,6 @@ interface SqlBaseListener extends ParseTreeListener {
    */
   void exitSubqueryExpression(SqlBaseParser.SubqueryExpressionContext ctx);
   /**
-   * Enter a parse tree produced by the {@code columnReference}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void enterColumnReference(SqlBaseParser.ColumnReferenceContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code columnReference}
-   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
-   * @param ctx the parse tree
-   */
-  void exitColumnReference(SqlBaseParser.ColumnReferenceContext ctx);
-  /**
    * Enter a parse tree produced by the {@code dereference}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
@@ -715,6 +713,16 @@ interface SqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitCastTemplate(SqlBaseParser.CastTemplateContext ctx);
+  /**
+   * Enter a parse tree produced by {@link SqlBaseParser#convertTemplate}.
+   * @param ctx the parse tree
+   */
+  void enterConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx);
+  /**
+   * Exit a parse tree produced by {@link SqlBaseParser#convertTemplate}.
+   * @param ctx the parse tree
+   */
+  void exitConvertTemplate(SqlBaseParser.ConvertTemplateContext ctx);
   /**
    * Enter a parse tree produced by {@link SqlBaseParser#extractExpression}.
    * @param ctx the parse tree

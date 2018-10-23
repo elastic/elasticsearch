@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.FieldType;
@@ -55,6 +56,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -82,10 +84,6 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     @Before
     public void setup() {
         Settings settings = Settings.builder()
-            .put("index.analysis.filter.mySynonyms.type", "synonym")
-            .putList("index.analysis.filter.mySynonyms.synonyms", Collections.singletonList("car, auto"))
-            .put("index.analysis.analyzer.synonym.tokenizer", "standard")
-            .put("index.analysis.analyzer.synonym.filter", "mySynonyms")
             // Stop filter remains in server as it is part of lucene-core
             .put("index.analysis.analyzer.my_stop_analyzer.tokenizer", "standard")
             .put("index.analysis.analyzer.my_stop_analyzer.filter", "stop")
@@ -621,11 +619,6 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexPrefixIndexTypes() throws IOException {
-        QueryShardContext queryShardContext = indexService.newQueryShardContext(
-            randomInt(20), null, () -> {
-                throw new UnsupportedOperationException();
-            }, null);
-
         {
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
@@ -739,7 +732,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
             .endObject()
             .startObject("synfield")
             .field("type", "text")
-            .field("analyzer", "synonym")
+            .field("analyzer", "standard")  // will be replaced with MockSynonymAnalyzer
             .field("index_phrases", true)
             .endObject()
             .endObject()
@@ -766,11 +759,13 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(q5,
             is(new PhraseQuery.Builder().add(new Term("field", "sparkle")).add(new Term("field", "stopword"), 2).build()));
 
-        Query q6 = new MatchPhraseQueryBuilder("synfield", "motor car").toQuery(queryShardContext);
+        MatchQuery matchQuery = new MatchQuery(queryShardContext);
+        matchQuery.setAnalyzer(new MockSynonymAnalyzer());
+        Query q6 = matchQuery.parse(MatchQuery.Type.PHRASE, "synfield", "motor dogs");
         assertThat(q6, is(new MultiPhraseQuery.Builder()
             .add(new Term[]{
-                new Term("synfield._index_phrase", "motor car"),
-                new Term("synfield._index_phrase", "motor auto")})
+                new Term("synfield._index_phrase", "motor dogs"),
+                new Term("synfield._index_phrase", "motor dog")})
             .build()));
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference

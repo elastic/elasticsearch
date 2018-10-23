@@ -161,7 +161,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "source": "-doc['num1'].value"
+                                    "source": "3 - doc['num1'].value"
                                 }
                             }
                         }]

@@ -26,14 +26,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.function.Function;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 
 public class InternalSettingsPreparer {
 
@@ -41,23 +42,14 @@ public class InternalSettingsPreparer {
     private static final String TEXT_PROMPT_VALUE = "${prompt.text}";
 
     /**
-     * Prepares the settings by gathering all elasticsearch system properties and setting defaults.
+     * Prepares settings for the transport client by gathering all
+     * elasticsearch system properties and setting defaults.
      */
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, Collections.emptyMap());
-        finalizeSettings(output);
+        finalizeSettings(output, () -> null);
         return output.build();
-    }
-
-    /**
-     * Prepares the settings by gathering all elasticsearch system properties, optionally loading the configuration settings.
-     *
-     * @param input The custom settings to use. These are not overwritten by settings in the configuration file.
-     * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
-     */
-    public static Environment prepareEnvironment(Settings input) {
-        return prepareEnvironment(input, Collections.emptyMap(), null);
     }
 
     /**
@@ -66,9 +58,11 @@ public class InternalSettingsPreparer {
      * @param input      the custom settings to use; these are not overwritten by settings in the configuration file
      * @param properties map of properties key/value pairs (usually from the command-line)
      * @param configPath path to config directory; (use null to indicate the default)
-     * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
+     * @param defaultNodeName supplier for the default node.name if the setting isn't defined
+     * @return the {@link Environment}
      */
-    public static Environment prepareEnvironment(Settings input, Map<String, String> properties, Path configPath) {
+    public static Environment prepareEnvironment(Settings input, Map<String, String> properties,
+            Path configPath, Supplier<String> defaultNodeName) {
         // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, properties);
@@ -95,7 +89,7 @@ public class InternalSettingsPreparer {
         // re-initialize settings now that the config file has been loaded
         initializeSettings(output, input, properties);
         checkSettingsForTerminalDeprecation(output);
-        finalizeSettings(output);
+        finalizeSettings(output, defaultNodeName);
 
         environment = new Environment(output.build(), configPath);
 
@@ -140,7 +134,7 @@ public class InternalSettingsPreparer {
     /**
      * Finish preparing settings by replacing forced settings and any defaults that need to be added.
      */
-    private static void finalizeSettings(Settings.Builder output) {
+    private static void finalizeSettings(Settings.Builder output, Supplier<String> defaultNodeName) {
         // allow to force set properties based on configuration of the settings provided
         List<String> forcedSettings = new ArrayList<>();
         for (String setting : output.keys()) {
@@ -154,9 +148,12 @@ public class InternalSettingsPreparer {
         }
         output.replacePropertyPlaceholders();
 
-        // put the cluster name
+        // put the cluster and node name if they aren't set
         if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {
             output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY).value());
+        }
+        if (output.get(Node.NODE_NAME_SETTING.getKey()) == null) {
+            output.put(Node.NODE_NAME_SETTING.getKey(), defaultNodeName.get());
         }
     }
 }

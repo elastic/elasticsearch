@@ -40,7 +40,7 @@ public class ExecutableSlackAction extends ExecutableAction<SlackAction> {
             throw new IllegalStateException("account [" + action.account + "] was not found. perhaps it was deleted");
         }
 
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
         SlackMessage message = action.message.render(ctx.id().watchId(), actionId, templateEngine, model, account.getMessageDefaults());
 
         if (ctx.simulateAction(actionId)) {

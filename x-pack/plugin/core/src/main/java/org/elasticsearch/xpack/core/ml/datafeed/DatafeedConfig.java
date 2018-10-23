@@ -22,7 +22,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -549,7 +550,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
             }
-            List<AggregationBuilder> aggregatorFactories = aggregations.getAggregatorFactories();
+            Collection<AggregationBuilder> aggregatorFactories = aggregations.getAggregatorFactories();
             if (aggregatorFactories.isEmpty()) {
                 throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
             }
@@ -560,7 +561,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             checkHistogramIntervalIsPositive(histogramAggregation);
         }
 
-        private static void checkNoMoreHistogramAggregations(List<AggregationBuilder> aggregations) {
+        private static void checkNoMoreHistogramAggregations(Collection<AggregationBuilder> aggregations) {
             for (AggregationBuilder agg : aggregations) {
                 if (ExtractorUtils.isHistogram(agg)) {
                     throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_MAX_ONE_DATE_HISTOGRAM);

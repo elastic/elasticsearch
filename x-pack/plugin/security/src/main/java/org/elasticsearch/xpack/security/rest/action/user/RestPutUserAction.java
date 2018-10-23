@@ -58,10 +58,8 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
         return channel -> requestBuilder.execute(new RestBuilderListener<PutUserResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutUserResponse putUserResponse, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK,
-                        builder.startObject()
-                                .field("user", putUserResponse)
-                                .endObject());
+                putUserResponse.toXContent(builder, request);
+                return new BytesRestResponse(RestStatus.OK, builder);
             }
         });
     }

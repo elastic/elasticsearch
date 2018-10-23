@@ -41,6 +41,7 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
         for (int i = 0; i < numEntries; i++) {
             List<String> leaderPatterns = Arrays.asList(generateRandomStringArray(4, 4, false));
             AutoFollowMetadata.AutoFollowPattern autoFollowPattern = new AutoFollowMetadata.AutoFollowPattern(
+                randomAlphaOfLength(4),
                 leaderPatterns,
                 randomAlphaOfLength(4),
                 randomIntBetween(0, Integer.MAX_VALUE),

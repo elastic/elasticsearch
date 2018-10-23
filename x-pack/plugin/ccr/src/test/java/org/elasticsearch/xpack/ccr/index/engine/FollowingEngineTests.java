@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -46,8 +47,10 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -67,6 +70,7 @@ public class FollowingEngineTests extends ESTestCase {
     private Index index;
     private ShardId shardId;
     private AtomicLong primaryTerm = new AtomicLong();
+    private AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
 
     public void setUp() throws Exception {
         super.setUp();
@@ -123,6 +127,7 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
+                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -148,6 +153,7 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
+                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -182,6 +188,7 @@ public class FollowingEngineTests extends ESTestCase {
                         .put("index.number_of_replicas", 0)
                         .put("index.version.created", Version.CURRENT)
                         .put("index.xpack.ccr.following_index", true)
+                        .put("index.soft_deletes.enabled", true)
                         .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -212,6 +219,7 @@ public class FollowingEngineTests extends ESTestCase {
                 .put("index.number_of_replicas", 0)
                 .put("index.version.created", Version.CURRENT)
                 .put("index.xpack.ccr.following_index", true)
+                .put("index.soft_deletes.enabled", true)
                 .build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
@@ -260,7 +268,7 @@ public class FollowingEngineTests extends ESTestCase {
                 Collections.emptyList(),
                 null,
                 new NoneCircuitBreakerService(),
-                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                globalCheckpoint::longValue,
                 () -> primaryTerm.get(),
                 EngineTestCase.tombstoneDocSupplier()
         );
@@ -302,7 +310,7 @@ public class FollowingEngineTests extends ESTestCase {
 
     private Engine.Result applyOperation(Engine engine, Engine.Operation op,
                                          long primaryTerm, Engine.Operation.Origin origin) throws IOException {
-        final VersionType versionType = origin == Engine.Operation.Origin.PRIMARY ? op.versionType() : null;
+        final VersionType versionType = origin == Engine.Operation.Origin.PRIMARY ? VersionType.EXTERNAL : null;
         final Engine.Result result;
         if (op instanceof Engine.Index) {
             Engine.Index index = (Engine.Index) op;
@@ -555,40 +563,61 @@ public class FollowingEngineTests extends ESTestCase {
 
     public void testProcessOnceOnPrimary() throws Exception {
         final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)
-            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true).build();
+            .put("index.version.created", Version.CURRENT).put("index.xpack.ccr.following_index", true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexMetaData indexMetaData = IndexMetaData.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+        final CheckedFunction<String, ParsedDocument, IOException> nestedDocFactory = EngineTestCase.nestedParsedDocFactory();
         int numOps = between(10, 100);
         List<Engine.Operation> operations = new ArrayList<>(numOps);
         for (int i = 0; i < numOps; i++) {
-            ParsedDocument doc = EngineTestCase.createParsedDoc(Integer.toString(between(1, 100)), null);
+            String docId = Integer.toString(between(1, 100));
+            ParsedDocument doc = randomBoolean() ? EngineTestCase.createParsedDoc(docId, null) : nestedDocFactory.apply(docId);
             if (randomBoolean()) {
                 operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, i, primaryTerm.get(), 1L,
                     VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis(), -1, true));
-            } else {
+            } else if (randomBoolean()) {
                 operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), i, primaryTerm.get(), 1L,
                     VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, threadPool.relativeTimeInMillis()));
+            } else {
+                operations.add(new Engine.NoOp(i, primaryTerm.get(), Engine.Operation.Origin.PRIMARY,
+                    threadPool.relativeTimeInMillis(), "test-" + i));
             }
         }
         Randomness.shuffle(operations);
+        final long oldTerm = randomLongBetween(1, Integer.MAX_VALUE);
+        primaryTerm.set(oldTerm);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
             final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, store, logger, xContentRegistry());
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(operations.size() - 1L);
-                final long oldTerm = randomLongBetween(1, Integer.MAX_VALUE);
+                final Map<Long,Long> operationWithTerms = new HashMap<>();
                 for (Engine.Operation op : operations) {
-                    Engine.Result result = applyOperation(followingEngine, op, oldTerm, randomFrom(Engine.Operation.Origin.values()));
+                    long term = randomLongBetween(1, oldTerm);
+                    Engine.Result result = applyOperation(followingEngine, op, term, randomFrom(Engine.Operation.Origin.values()));
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+                    operationWithTerms.put(op.seqNo(), term);
+                    if (rarely()) {
+                        followingEngine.refresh("test");
+                    }
                 }
                 // Primary should reject duplicates
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), followingEngine.getLocalCheckpoint()));
                 final long newTerm = randomLongBetween(oldTerm + 1, Long.MAX_VALUE);
                 for (Engine.Operation op : operations) {
                     Engine.Result result = applyOperation(followingEngine, op, newTerm, Engine.Operation.Origin.PRIMARY);
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
                     assertThat(result.getFailure(), instanceOf(AlreadyProcessedFollowingEngineException.class));
+                    AlreadyProcessedFollowingEngineException failure = (AlreadyProcessedFollowingEngineException) result.getFailure();
+                    if (op.seqNo() <= globalCheckpoint.get()) {
+                        assertThat("should not look-up term for operations at most the global checkpoint",
+                            failure.getExistingPrimaryTerm().isPresent(), equalTo(false));
+                    } else {
+                        assertThat(failure.getExistingPrimaryTerm().getAsLong(), equalTo(operationWithTerms.get(op.seqNo())));
+                    }
                 }
                 for (DocIdSeqNoAndTerm docId : getDocIds(followingEngine, true)) {
-                    assertThat(docId.getPrimaryTerm(), equalTo(oldTerm));
+                    assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
                 }
                 // Replica should accept duplicates
                 primaryTerm.set(newTerm);
@@ -600,7 +629,7 @@ public class FollowingEngineTests extends ESTestCase {
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 }
                 for (DocIdSeqNoAndTerm docId : getDocIds(followingEngine, true)) {
-                    assertThat(docId.getPrimaryTerm(), equalTo(oldTerm));
+                    assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
                 }
             }
         }

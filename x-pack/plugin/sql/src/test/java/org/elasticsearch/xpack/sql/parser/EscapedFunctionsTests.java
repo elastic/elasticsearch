@@ -69,7 +69,7 @@ public class EscapedFunctionsTests extends ESTestCase {
     private LikePattern likeEscape(String like, String character) {
         Expression exp = parser.createExpression(format(Locale.ROOT, "exp LIKE '%s' {escape '%s'}", like, character));
         assertThat(exp, instanceOf(Like.class));
-        return ((Like) exp).right();
+        return ((Like) exp).pattern();
     }
 
     private Function function(String name) {

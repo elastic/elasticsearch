@@ -175,6 +175,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
     public static class AutoFollowPattern implements Writeable, ToXContentObject {
 
+        public static final ParseField LEADER_CLUSTER_FIELD = new ParseField("leader_cluster");
         public static final ParseField LEADER_PATTERNS_FIELD = new ParseField("leader_index_patterns");
         public static final ParseField FOLLOW_PATTERN_FIELD = new ParseField("follow_index_pattern");
         public static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
@@ -188,10 +189,12 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<AutoFollowPattern, Void> PARSER =
             new ConstructingObjectParser<>("auto_follow_pattern",
-                args -> new AutoFollowPattern((List<String>) args[0], (String) args[1], (Integer) args[2], (Integer) args[3],
-                    (ByteSizeValue) args[4], (Integer) args[5], (Integer) args[6], (TimeValue) args[7], (TimeValue) args[8]));
+                args -> new AutoFollowPattern((String) args[0], (List<String>) args[1], (String) args[2], (Integer) args[3],
+                    (Integer) args[4], (ByteSizeValue) args[5], (Integer) args[6], (Integer) args[7], (TimeValue) args[8],
+                    (TimeValue) args[9]));
 
         static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_CLUSTER_FIELD);
             PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), LEADER_PATTERNS_FIELD);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FOLLOW_PATTERN_FIELD);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_BATCH_OPERATION_COUNT);
@@ -211,6 +214,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                 POLL_TIMEOUT, ObjectParser.ValueType.STRING);
         }
 
+        private final String leaderCluster;
         private final List<String> leaderIndexPatterns;
         private final String followIndexPattern;
         private final Integer maxBatchOperationCount;
@@ -221,7 +225,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         private final TimeValue maxRetryDelay;
         private final TimeValue pollTimeout;
 
-        public AutoFollowPattern(List<String> leaderIndexPatterns,
+        public AutoFollowPattern(String leaderCluster,
+                                 List<String> leaderIndexPatterns,
                                  String followIndexPattern,
                                  Integer maxBatchOperationCount,
                                  Integer maxConcurrentReadBatches,
@@ -230,6 +235,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                                  Integer maxWriteBufferSize,
                                  TimeValue maxRetryDelay,
                                  TimeValue pollTimeout) {
+            this.leaderCluster = leaderCluster;
             this.leaderIndexPatterns = leaderIndexPatterns;
             this.followIndexPattern = followIndexPattern;
             this.maxBatchOperationCount = maxBatchOperationCount;
@@ -242,6 +248,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         }
 
         public AutoFollowPattern(StreamInput in) throws IOException {
+            leaderCluster = in.readString();
             leaderIndexPatterns = in.readList(StreamInput::readString);
             followIndexPattern = in.readOptionalString();
             maxBatchOperationCount = in.readOptionalVInt();
@@ -259,6 +266,10 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
         public static boolean match(List<String> leaderIndexPatterns, String indexName) {
             return Regex.simpleMatch(leaderIndexPatterns, indexName);
+        }
+
+        public String getLeaderCluster() {
+            return leaderCluster;
         }
 
         public List<String> getLeaderIndexPatterns() {
@@ -299,6 +310,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(leaderCluster);
             out.writeStringList(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
             out.writeOptionalVInt(maxBatchOperationCount);
@@ -312,6 +324,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(LEADER_CLUSTER_FIELD.getPreferredName(), leaderCluster);
             builder.array(LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns.toArray(new String[0]));
             if (followIndexPattern != null) {
                 builder.field(FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexPattern);
@@ -350,7 +363,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AutoFollowPattern that = (AutoFollowPattern) o;
-            return Objects.equals(leaderIndexPatterns, that.leaderIndexPatterns) &&
+            return Objects.equals(leaderCluster, that.leaderCluster) &&
+                    Objects.equals(leaderIndexPatterns, that.leaderIndexPatterns) &&
                     Objects.equals(followIndexPattern, that.followIndexPattern) &&
                     Objects.equals(maxBatchOperationCount, that.maxBatchOperationCount) &&
                     Objects.equals(maxConcurrentReadBatches, that.maxConcurrentReadBatches) &&
@@ -364,6 +378,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         @Override
         public int hashCode() {
             return Objects.hash(
+                    leaderCluster,
                     leaderIndexPatterns,
                     followIndexPattern,
                     maxBatchOperationCount,

@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -21,7 +23,11 @@ import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionStat
  */
 public class CopyExecutionStateStep extends ClusterStateActionStep {
     public static final String NAME = "copy_execution_state";
+
+    private static final Logger logger = LogManager.getLogger(CopyExecutionStateStep.class);
+    
     private String shrunkIndexPrefix;
+
 
     public CopyExecutionStateStep(StepKey key, StepKey nextStepKey, String shrunkIndexPrefix) {
         super(key, nextStepKey);
@@ -35,6 +41,11 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
         IndexMetaData indexMetaData = clusterState.metaData().index(index);
+        if (indexMetaData == null) {
+            // Index must have been since deleted, ignore it
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            return clusterState;
+        }
         // get source index
         String indexName = indexMetaData.getIndex().getName();
         // get target shrink index

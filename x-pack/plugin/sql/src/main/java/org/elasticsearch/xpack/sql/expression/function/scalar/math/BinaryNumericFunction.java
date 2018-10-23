@@ -10,15 +10,10 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.Locale;
 import java.util.Objects;
-
-import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
@@ -51,7 +46,7 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
     protected TypeResolution resolveInputType(DataType inputType) {
         return inputType.isNumeric() ?
                 TypeResolution.TYPE_RESOLVED :
-                new TypeResolution("'%s' requires a numeric type, received %s", mathFunction(), inputType.esType);
+                new TypeResolution("'%s' requires a numeric type, received %s", scriptMethodName(), inputType.esType);
     }
 
     @Override
@@ -62,18 +57,6 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
     @Override
     protected Pipe makePipe() {
         return new BinaryMathPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()), operation);
-    }
-
-    @Override
-    protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        return new ScriptTemplate(format(Locale.ROOT, "Math.%s(%s,%s)", mathFunction(), leftScript.template(), rightScript.template()),
-                paramsBuilder()
-                    .script(leftScript.params()).script(rightScript.params())
-                    .build(), dataType());
-    }
-
-    protected String mathFunction() {
-        return getClass().getSimpleName().toLowerCase(Locale.ROOT);
     }
 
     @Override

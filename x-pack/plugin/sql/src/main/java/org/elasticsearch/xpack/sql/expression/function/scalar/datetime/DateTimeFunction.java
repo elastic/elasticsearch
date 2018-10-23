@@ -15,13 +15,11 @@ import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.joda.time.DateTime;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
-import java.util.Objects;
 import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -33,17 +31,17 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
     }
 
     @Override
-    public Object fold() {
-        DateTime folded = (DateTime) field().fold();
-        if (folded == null) {
-            return null;
-        }
-
-        return dateTimeChrono(folded.getMillis(), timeZone().getID(), chronoField().name());
+    protected Object doFold(long millis, String tzId) {
+        return dateTimeChrono(millis, tzId, chronoField().name());
     }
 
     public static Integer dateTimeChrono(long millis, String tzId, String chronoName) {
         ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
+        return Integer.valueOf(time.get(ChronoField.valueOf(chronoName)));
+    }
+
+    public static Integer dateTimeChrono(ZonedDateTime millis, String tzId, String chronoName) {
+        ZonedDateTime time = millis.withZoneSameInstant(ZoneId.of(tzId));
         return Integer.valueOf(time.get(ChronoField.valueOf(chronoName)));
     }
 
@@ -52,7 +50,7 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
         ParamsBuilder params = paramsBuilder();
 
         String template = null;
-        template = formatTemplate("{sql}.dateTimeChrono(doc[{}].value.millis, {}, {})");
+        template = formatTemplate("{sql}.dateTimeChrono(doc[{}].value, {}, {})");
         params.variable(field.name())
               .variable(timeZone().getID())
               .variable(chronoField().name());
@@ -79,19 +77,4 @@ public abstract class DateTimeFunction extends BaseDateTimeFunction {
 
     // used for applying ranges
     public abstract String dateTimeFormat();
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        DateTimeFunction other = (DateTimeFunction) obj;
-        return Objects.equals(other.field(), field())
-            && Objects.equals(other.timeZone(), timeZone());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field(), timeZone());
-    }
 }

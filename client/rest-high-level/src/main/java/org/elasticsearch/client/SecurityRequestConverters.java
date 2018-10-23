@@ -19,8 +19,11 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.security.DeleteRoleMappingRequest;
+import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -91,6 +94,28 @@ final class SecurityRequestConverters {
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(setUserEnabledRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request deleteRoleMapping(DeleteRoleMappingRequest deleteRoleMappingRequest) {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/role_mapping")
+            .addPathPart(deleteRoleMappingRequest.getName())
+            .build();
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        final RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(deleteRoleMappingRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request deleteRole(DeleteRoleRequest deleteRoleRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/role")
+            .addPathPart(deleteRoleRequest.getName())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
         return request;
     }
 }

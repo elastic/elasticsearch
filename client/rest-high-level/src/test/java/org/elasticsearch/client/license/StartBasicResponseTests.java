@@ -21,7 +21,7 @@ package org.elasticsearch.client.license;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.xpack.common.ProtocolUtils;
+import org.elasticsearch.client.common.ProtocolUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

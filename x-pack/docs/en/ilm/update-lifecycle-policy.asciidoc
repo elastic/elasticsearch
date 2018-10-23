@@ -14,18 +14,6 @@ A. Effects of a policy update on an index that is not being managed by
    the modified policy
  - Nothing occurs on the index since it is unmanaged. If an index is assigned to
     the policy, it will be assigned the latest version of that policy
-B. Effects of updating a specific phase's definition with an index currently executing the policy.
- - Indices preserve the phase definition from the latest policy version that existed
-     at the time that it entered that phase. So if an index is in the `hot` phase, and the
-     `hot` phase's definition is updated in the meantime, then the index will not experience
-     any changes until it completes the previous version's hot phase and continues to the next
-     defined phase (as defined by the latest version).
-C. Effects of switching which policy is managing an index
- - This behaves much like a policy update, but instead of just switching to a different
-     version, it switches to a different policy (the latest version of that policy).
-
-
-=== A. Update Policy With No Indices
 
 Let's start with creating a policy `my_policy`.
 
@@ -108,11 +96,11 @@ with its version bumped to 2.
     "modified_date": 82392349, <2>
     "policy": {
       "phases": {
-        "warm": {
-          "minimum_age": "10d",
+        "hot": {
+          "minimum_age": "0ms",
           "actions": {
-            "forcemerge": {
-              "max_num_segments": 1
+            "rollover": {
+              "max_size": "25gb"
             }
           }
         },
@@ -135,12 +123,244 @@ with its version bumped to 2.
 Afterwords, any indices set to `my_policy` will execute against version 2 of
 the policy.
 
-=== B. Update policy with existing index in the warm phase
+B. Effects of updating a specific phase's definition with an index currently executing the policy.
+ - Indices preserve the phase definition from the latest policy version that existed
+   at the time that it entered that phase. Changes to the currently-executing phase within policy updates will
+   not be reflected during execution. This means that updates to the `hot` phase, for example, will not affect
+   indices that are currently executing the corresponding `hot` phase.
 
-// TODO
+Let's say we have an index `my_index` managed by the below `my_executing_policy` definition.
 
+[source,js]
+------------------------
+PUT _ilm/my_executing_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_docs": 1
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "10d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+------------------------
+// CONSOLE
 
-=== C. Swapping policies on an index
+////
+[source,js]
+------------------------
+PUT my_index
+{
+  "settings": {
+    "index.lifecycle.name": "my_executing_policy"
+  }
+}
+------------------------
+// CONSOLE
+// TEST[continued]
+////
+
+The <<ilm-explain,Explain API>> is useful to introspect managed indices to see which phase definition they are currently executing.
+Using this API, we can find out that `my_index` is currently attempting to be rolled over.
+
+[source,js]
+--------------------------------------------------
+GET my_index/_ilm/explain
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[source,js]
+--------------------------------------------------
+{
+  "indices": {
+    "my_index": {
+      "index": "my_index",
+      "managed": true,
+      "policy": "my_executing_policy",
+      "skip": false,
+      "lifecycle_date": 1538475653281,
+      "phase": "hot",
+      "phase_time": 1538475653317,
+      "action": "rollover",
+      "action_time": 1538475653317,
+      "step": "attempt_rollover",
+      "step_time": 1538475653317,
+      "phase_execution": {
+        "policy": "my_executing_policy",
+        "modified_date_in_millis": 1538475653317,
+        "version": 1,
+        "phase_definition": {
+          "minimum_age": "0ms",
+          "actions": {
+            "rollover": {
+              "max_docs": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE[s/"lifecycle_date": 1538475653281/"lifecycle_date": $body.indices.my_index.lifecycle_date/]
+// TESTRESPONSE[s/"phase_time": 1538475653317/"phase_time": $body.indices.my_index.phase_time/]
+// TESTRESPONSE[s/"action_time": 1538475653317/"action_time": $body.indices.my_index.action_time/]
+// TESTRESPONSE[s/"step_time": 1538475653317/"step_time": $body.indices.my_index.step_time/]
+// TESTRESPONSE[s/"modified_date_in_millis": 1538475653317/"modified_date_in_millis": $body.indices.my_index.phase_execution.modified_date_in_millis/]
+
+Updating `my_executing_policy` to have no rollover action and, instead, go directly into a newly introduced `warm` phase.
+
+[source,js]
+------------------------
+PUT _ilm/my_executing_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "minimum_age": "1d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "10d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+------------------------
+// CONSOLE
+// TEST[continued]
+
+Now, version 2 of this policy has no `hot` phase, but if we run the Explain API again, we will see that nothing has changed.
+
+////
+[source,js]
+--------------------------------------------------
+GET my_index/_ilm/explain
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+////
+
+[source,js]
+--------------------------------------------------
+{
+  "indices": {
+    "my_index": {
+      "index": "my_index",
+      "managed": true,
+      "policy": "my_executing_policy",
+      "skip": false,
+      "lifecycle_date": 1538475653281,
+      "phase": "hot",
+      "phase_time": 1538475653317,
+      "action": "rollover",
+      "action_time": 1538475653317,
+      "step": "attempt_rollover",
+      "step_time": 1538475653317,
+      "phase_execution": {
+        "policy": "my_executing_policy",
+        "modified_date_in_millis": 1538475653317,
+        "version": 1,
+        "phase_definition": {
+          "minimum_age": "0ms",
+          "actions": {
+            "rollover": {
+              "max_docs": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE[s/"lifecycle_date": 1538475653281/"lifecycle_date": $body.indices.my_index.lifecycle_date/]
+// TESTRESPONSE[s/"phase_time": 1538475653317/"phase_time": $body.indices.my_index.phase_time/]
+// TESTRESPONSE[s/"action_time": 1538475653317/"action_time": $body.indices.my_index.action_time/]
+// TESTRESPONSE[s/"step_time": 1538475653317/"step_time": $body.indices.my_index.step_time/]
+// TESTRESPONSE[s/"modified_date_in_millis": 1538475653317/"modified_date_in_millis": $body.indices.my_index.phase_execution.modified_date_in_millis/]
+
+After indexing one document into `my_index` so that rollover succeeds and moves onto the next phase, we will notice something new.
+
+////
+[source,js]
+--------------------------------------------------
+PUT my_index/_doc/1
+{
+  "foo": "bar"
+}
+
+GET my_index/_ilm/explain
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+////
+
+[source,js]
+--------------------------------------------------
+{
+  "indices": {
+    "my_index": {
+      "index": "my_index",
+      "managed": true,
+      "policy": "my_executing_policy",
+      "skip": false,
+      "lifecycle_date": 1538475653281,
+      "phase": "warm",
+      "phase_time": 1538475653317,
+      "action": "forcemerge",
+      "action_time": 1538475653317,
+      "step": "forcemerge",
+      "step_time": 1538475653317,
+      "phase_execution": {
+        "policy": "my_executing_policy",
+        "modified_date_in_millis": 1538475653317,
+        "version": 2,
+        "phase_definition": {
+          "minimum_age": "1d",
+          "actions": {
+            "forcemerge": {
+              "max_num_segments": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE[s/"lifecycle_date": 1538475653281/"lifecycle_date": $body.indices.my_index.lifecycle_date/]
+// TESTRESPONSE[s/"phase_time": 1538475653317/"phase_time": $body.indices.my_index.phase_time/]
+// TESTRESPONSE[s/"action_time": 1538475653317/"action_time": $body.indices.my_index.action_time/]
+// TESTRESPONSE[s/"step_time": 1538475653317/"step_time": $body.indices.my_index.step_time/]
+// TESTRESPONSE[s/"modified_date_in_millis": 1538475653317/"modified_date_in_millis": $body.indices.my_index.phase_execution.modified_date_in_millis/]
+
+`my_index` will move to the next phase in the latest policy definition, which is the updated `warm` phase.
+
+C. Effects of switching which policy is managing an index
+ - This behaves much like a policy update, but instead of just switching to a different
+     version, it switches to a different policy (the latest version of that policy).
 
 After setting a policy for an index, we can switch out `my_policy` with
 `my_other_policy` by just updating the index's `index.lifecycle.name`
@@ -171,16 +391,42 @@ PUT _ilm/my_policy
     }
   }
 }
+
+PUT _ilm/my_other_policy
+{
+  "policy": {
+    "phases": {
+      "delete": {
+        "minimum_age": "1d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT my_index
 ------------------------
 // CONSOLE
 
 ////
+
 [source,js]
 --------------------------------------------------
-POST my_index/_settings
-{
-  "index.lifecycle.name": "my_other_policy"
-}
+PUT my_index/_ilm/my_other_policy
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+////
+[source,js]
+--------------------------------------------------
+{
+  "has_failures": false,
+  "failed_indexes": []
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE
+////

@@ -37,7 +37,10 @@ import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 
-public class IndexLifecycleRequestConverters {
+public final class IndexLifecycleRequestConverters {
+
+    private IndexLifecycleRequestConverters() {}
+
     static Request getLifecyclePolicy(GetLifecyclePolicyRequest getLifecyclePolicyRequest) {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_ilm")
                 .addCommaSeparatedPathParts(getLifecyclePolicyRequest.getPolicyNames()).build();

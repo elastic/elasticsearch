@@ -67,7 +67,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public abstract class CCRIntegTestCase extends ESTestCase {
+public abstract class CcrIntegTestCase extends ESTestCase {
 
     private static ClusterGroup clusterGroup;
 

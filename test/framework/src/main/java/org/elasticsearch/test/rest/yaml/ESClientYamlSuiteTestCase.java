@@ -347,8 +347,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         if (!testCandidate.getSetupSection().isEmpty()) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
-            for (DoSection doSection : testCandidate.getSetupSection().getDoSections()) {
-                executeSection(doSection);
+            for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
+                executeSection(executableSection);
             }
             logger.debug("end setup test [{}]", testCandidate.getTestPath());
         }

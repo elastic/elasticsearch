@@ -181,7 +181,9 @@ public class JreHttpUrlConnection implements Closeable {
                         + " are available on this Elasticsearch node using the access path '"
                         + con.getURL().getHost()
                         + (con.getURL().getPort() > 0 ? ":" + con.getURL().getPort() : "")
-                        + "'",
+                        + "'."
+                        + " Please verify that X-Pack is installed and SQL enabled; alternatively, check if any proxy is interferring"
+                        + " with the SQL request to Elasticsearch",
                         SQL_STATE_BAD_SERVER));
             }
             return new ResponseOrException<>(new SQLException("Server sent bad type ["

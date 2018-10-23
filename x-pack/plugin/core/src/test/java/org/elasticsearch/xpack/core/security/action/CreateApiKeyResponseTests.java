@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -19,7 +20,7 @@ public class CreateApiKeyResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final String name = randomAlphaOfLengthBetween(1, 256);
-        final String key = UUIDs.randomBase64UUID();
+        final SecureString key = new SecureString(UUIDs.randomBase64UUID().toCharArray());
         final Instant expiration = randomBoolean() ? Instant.now().plus(7L, ChronoUnit.DAYS) : null;
 
         final CreateApiKeyResponse response = new CreateApiKeyResponse(name, key, expiration);

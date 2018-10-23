@@ -7,12 +7,15 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.SecureString;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 
 /**
  * Response for the successful creation of an api key
@@ -20,12 +23,12 @@ import java.time.Instant;
 public final class CreateApiKeyResponse extends ActionResponse {
 
     private String name;
-    private String key;
+    private SecureString key;
     private Instant expiration;
 
     CreateApiKeyResponse() {}
 
-    public CreateApiKeyResponse(String name, String key, Instant expiration) {
+    public CreateApiKeyResponse(String name, SecureString key, Instant expiration) {
         this.name = name;
         this.key = key;
         this.expiration = expiration;
@@ -34,7 +37,15 @@ public final class CreateApiKeyResponse extends ActionResponse {
     public CreateApiKeyResponse(StreamInput in) throws IOException {
         // TODO(jaymode) call super(in) once this is added in #34655
         this.name = in.readString();
-        this.key = in.readString();
+        byte[] bytes = null;
+        try {
+            bytes = in.readByteArray();
+            this.key = new SecureString(CharArrays.utf8BytesToChars(bytes));
+        } finally {
+            if (bytes != null) {
+                Arrays.fill(bytes, (byte) 0);
+            }
+        }
         this.expiration = in.readOptionalInstant();
     }
 
@@ -42,7 +53,7 @@ public final class CreateApiKeyResponse extends ActionResponse {
         return name;
     }
 
-    public String getKey() {
+    public SecureString getKey() {
         return key;
     }
 
@@ -55,7 +66,15 @@ public final class CreateApiKeyResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
-        out.writeString(key);
+        byte[] bytes = null;
+        try {
+            bytes = CharArrays.toUtf8Bytes(key.getChars());
+            out.writeByteArray(bytes);
+        } finally {
+            if (bytes != null) {
+                Arrays.fill(bytes, (byte) 0);
+            }
+        }
         out.writeOptionalInstant(expiration);
     }
 
@@ -65,7 +84,15 @@ public final class CreateApiKeyResponse extends ActionResponse {
         //throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         super.readFrom(in);
         this.name = in.readString();
-        this.key = in.readString();
+        byte[] bytes = null;
+        try {
+            bytes = in.readByteArray();
+            this.key = new SecureString(CharArrays.utf8BytesToChars(bytes));
+        } finally {
+            if (bytes != null) {
+                Arrays.fill(bytes, (byte) 0);
+            }
+        }
         this.expiration = in.readOptionalInstant();
     }
 }

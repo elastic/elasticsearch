@@ -16,6 +16,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -65,7 +66,7 @@ public class ApiKeyService {
         } else {
             final Instant created = clock.instant();
             final Instant expiration = getApiKeyExpiration(created, request);
-            final String apiKey = UUIDs.randomBase64UUID();
+            final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
             final Version version = clusterService.state().nodes().getMinNodeVersion();
             if (version.before(Version.V_7_0_0_alpha1)) { // TODO(jaymode) change to V6_5_0 on backport!
                 LOGGER.warn("nodes prior to the minimum supported version for api keys {} exist in the cluster; these nodes will not be " +
@@ -105,7 +106,7 @@ public class ApiKeyService {
         }
     }
 
-    private static String getApiKeyDocumentId(String key) {
+    private static String getApiKeyDocumentId(SecureString key) {
         return "api_key_" + key;
     }
 

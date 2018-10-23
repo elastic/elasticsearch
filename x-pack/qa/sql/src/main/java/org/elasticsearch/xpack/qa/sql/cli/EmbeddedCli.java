@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.qa.sql.cli;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xpack.sql.cli.Cli;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.cli.JLineTerminal;
@@ -49,7 +49,7 @@ import static org.junit.Assert.fail;
  * and doesn't run super frequently.
  */
 public class EmbeddedCli implements Closeable {
-    private static final Logger logger = Loggers.getLogger(EmbeddedCli.class);
+    private static final Logger logger = LogManager.getLogger(EmbeddedCli.class);
 
     private final Thread exec;
     private final Cli cli;
@@ -151,7 +151,9 @@ public class EmbeddedCli implements Closeable {
             }
 
             // Throw out the logo
-            while (false == readLine().contains("SQL"));
+            while (false == readLine().contains("SQL")) {
+                ;
+            }
             assertConnectionTest();
         } catch (IOException e) {
             try {

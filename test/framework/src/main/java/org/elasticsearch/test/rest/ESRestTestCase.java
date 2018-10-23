@@ -52,7 +52,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.mockito.internal.stubbing.answers.Returns;
 
 import javax.net.ssl.SSLContext;
 

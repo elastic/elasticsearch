@@ -49,7 +49,7 @@ final class ResponseHandler {
                     if (error == null) {
                         error = (Exception) response;
                     } else {
-                        error.addSuppressed((Throwable) response);
+                        error.addSuppressed((Exception) response);
                     }
                 }
             }

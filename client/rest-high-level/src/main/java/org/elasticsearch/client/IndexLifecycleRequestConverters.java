@@ -37,7 +37,7 @@ import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 
-public final class IndexLifecycleRequestConverters {
+final class IndexLifecycleRequestConverters {
 
     private IndexLifecycleRequestConverters() {}
 

@@ -32,6 +32,7 @@ public final class CreateApiKeyResponse extends ActionResponse {
     }
 
     public CreateApiKeyResponse(StreamInput in) throws IOException {
+        // TODO(jaymode) call super(in) once this is added in #34655
         this.name = in.readString();
         this.key = in.readString();
         this.expiration = in.readOptionalInstant();
@@ -62,6 +63,7 @@ public final class CreateApiKeyResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         // TODO(jaymode) remove this once transport supports reading writeables
         //throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        super.readFrom(in);
         this.name = in.readString();
         this.key = in.readString();
         this.expiration = in.readOptionalInstant();

@@ -683,6 +683,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             () -> followerClient().execute(ResumeFollowAction.INSTANCE, followRequest.getFollowRequest()).actionGet());
         assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
         PutAutoFollowPatternAction.Request putAutoFollowRequest = new PutAutoFollowPatternAction.Request();
+        putAutoFollowRequest.setName("name");
         putAutoFollowRequest.setLeaderCluster("another_cluster");
         putAutoFollowRequest.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         e = expectThrows(IllegalArgumentException.class,

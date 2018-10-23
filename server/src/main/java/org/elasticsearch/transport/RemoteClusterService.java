@@ -71,6 +71,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         assert Version.CURRENT.major < 8;
     }
 
+    //the default here (5s) differs from the default in TcpTransport.PING_SCHEDULE (which is -1, hence disabled)
+    public static final Setting<TimeValue> REMOTE_PING_SCHEDULE =
+        Setting.timeSetting("cluster.remote.ping_schedule", TimeValue.timeValueSeconds(5), Setting.Property.NodeScope);
+
     public static final Setting<Integer> SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER =
             Setting.intSetting("search.remote.connections_per_cluster", 3, 1, Setting.Property.NodeScope, Setting.Property.Deprecated);
 
@@ -211,9 +215,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 }
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
-                    remote = new RemoteClusterConnection(settings, entry.getKey(), seedList, transportService,
-                            new ConnectionManager(settings, transportService.transport, transportService.threadPool), numRemoteConnections,
-                            getNodePredicate(settings), proxyAddress);
+                    ConnectionManager connectionManager = new ConnectionManager(settings, transportService.transport,
+                        transportService.threadPool, REMOTE_PING_SCHEDULE.get(settings));
+                    remote = new RemoteClusterConnection(settings, entry.getKey(), seedList, transportService, connectionManager,
+                        numRemoteConnections, getNodePredicate(settings), proxyAddress);
                     remoteClusters.put(entry.getKey(), remote);
                 }
 
@@ -340,31 +345,27 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @throws IllegalArgumentException if the remote cluster is unknown
      */
     public Transport.Connection getConnection(DiscoveryNode node, String cluster) {
-        RemoteClusterConnection connection = remoteClusters.get(cluster);
-        if (connection == null) {
-            throw new IllegalArgumentException("no such remote cluster: " + cluster);
-        }
-        return connection.getConnection(node);
+        return getRemoteClusterConnection(cluster).getConnection(node);
     }
 
     /**
      * Ensures that the given cluster alias is connected. If the cluster is connected this operation
      * will invoke the listener immediately.
      */
-    public void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
-        RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterAlias);
-        if (remoteClusterConnection == null) {
-            throw new IllegalArgumentException("no such remote cluster: " + clusterAlias);
-        }
-        remoteClusterConnection.ensureConnected(listener);
+    void ensureConnected(String clusterAlias, ActionListener<Void> listener) {
+        getRemoteClusterConnection(clusterAlias).ensureConnected(listener);
     }
 
     public Transport.Connection getConnection(String cluster) {
+        return getRemoteClusterConnection(cluster).getConnection();
+    }
+
+    RemoteClusterConnection getRemoteClusterConnection(String cluster) {
         RemoteClusterConnection connection = remoteClusters.get(cluster);
         if (connection == null) {
             throw new IllegalArgumentException("no such remote cluster: " + cluster);
         }
-        return connection.getConnection();
+        return connection;
     }
 
     @Override
@@ -385,7 +386,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             remote.updateSkipUnavailable(skipUnavailable);
         }
     }
-
 
     @Override
     protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {

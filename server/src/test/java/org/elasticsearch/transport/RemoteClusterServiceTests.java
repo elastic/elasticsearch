@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -97,6 +98,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_NODE_ATTRIBUTE));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_PING_SCHEDULE));
     }
 
     public void testRemoteClusterSeedSetting() {
@@ -332,6 +334,57 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
                         () -> service.updateRemoteCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Collections.emptyList(), null));
                     assertEquals("remote clusters must not have the empty string as its key", iae.getMessage());
+                }
+            }
+        }
+    }
+
+    public void testDefaultPingSchedule() throws IOException {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+
+            try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
+                null)) {
+                transportService.start();
+                transportService.acceptIncomingRequests();
+                try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
+                    assertFalse(service.isCrossClusterSearchEnabled());
+                    service.initializeRemoteClusters();
+                    assertFalse(service.isCrossClusterSearchEnabled());
+                    service.updateRemoteCluster("cluster_1", Collections.singletonList(seedNode.getAddress().toString()), null);
+                    assertTrue(service.isCrossClusterSearchEnabled());
+                    assertTrue(service.isRemoteClusterRegistered("cluster_1"));
+                    RemoteClusterConnection remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
+                    assertEquals(TimeValue.timeValueSeconds(5), remoteClusterConnection.getConnectionManager().getPingSchedule());
+                }
+            }
+        }
+    }
+
+    public void testCustomPingSchedule() throws IOException {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+
+            try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
+                null)) {
+                transportService.start();
+                transportService.acceptIncomingRequests();
+                Settings.Builder builder = Settings.builder();
+                TimeValue pingSchedule = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(1, 10));
+                builder.put("cluster.remote.ping_schedule", pingSchedule);
+                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
+                    assertFalse(service.isCrossClusterSearchEnabled());
+                    service.initializeRemoteClusters();
+                    assertFalse(service.isCrossClusterSearchEnabled());
+                    service.updateRemoteCluster("cluster_1", Collections.singletonList(seedNode.getAddress().toString()), null);
+                    assertTrue(service.isCrossClusterSearchEnabled());
+                    assertTrue(service.isRemoteClusterRegistered("cluster_1"));
+                    RemoteClusterConnection remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
+                    assertEquals(pingSchedule, remoteClusterConnection.getConnectionManager().getPingSchedule());
                 }
             }
         }

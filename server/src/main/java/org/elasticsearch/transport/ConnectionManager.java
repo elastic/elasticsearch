@@ -67,12 +67,15 @@ public class ConnectionManager implements Closeable {
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
     public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool) {
+        this(settings, transport, threadPool, TcpTransport.PING_SCHEDULE.get(settings));
+    }
+
+    public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool, TimeValue pingSchedule) {
         this.transport = transport;
         this.threadPool = threadPool;
-        this.pingSchedule = TcpTransport.PING_SCHEDULE.get(settings);
+        this.pingSchedule = pingSchedule;
         this.defaultProfile = buildDefaultConnectionProfile(settings);
         this.lifecycle.moveToStarted();
-
         if (pingSchedule.millis() > 0) {
             threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, new ScheduledPing());
         }
@@ -285,6 +288,10 @@ public class ConnectionManager implements Closeable {
                 logger.warn("failed to send ping transport message", e);
             }
         }
+    }
+
+    public TimeValue getPingSchedule() {
+        return pingSchedule;
     }
 
     private static final class DelegatingNodeConnectionListener implements TransportConnectionListener {

@@ -173,7 +173,7 @@ public class RollupIT extends ESRestTestCase {
             "    \"date_histo\": {\n" +
             "      \"date_histogram\": {\n" +
             "        \"field\": \"timestamp\",\n" +
-            "        \"interval\": \"1h\",\n" +
+            "        \"interval\": \"60m\",\n" +
             "        \"format\": \"date_time\"\n" +
             "      },\n" +
             "      \"aggs\": {\n" +

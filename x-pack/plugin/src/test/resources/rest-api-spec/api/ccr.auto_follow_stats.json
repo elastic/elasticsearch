@@ -1,0 +1,12 @@
+{
+  "ccr.auto_follow_stats": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_ccr/auto_follow/stats",
+      "paths": [ "/_ccr/auto_follow/stats" ],
+      "parts": {},
+      "body": null
+    }
+  }
+}

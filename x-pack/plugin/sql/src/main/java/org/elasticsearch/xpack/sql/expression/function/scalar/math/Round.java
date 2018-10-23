@@ -6,41 +6,36 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
+import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 /**
- * <a href="https://en.wikipedia.org/wiki/Rounding#Round_half_up">Round</a>
- * function.
- *
- * Note that this uses {@link Math#round(double)} which uses "half up" rounding
- * for `ROUND(-1.5)` rounds to `-1`.
+ * Function that takes two parameters: one is the field/value itself, the other is a non-floating point numeric
+ * which indicates how the rounding should behave. If positive, it will round the number till that parameter
+ * count digits after the decimal point. If negative, it will round the number till that paramter count
+ * digits before the decimal point, starting at the decimal point.
  */
-public class Round extends MathFunction {
-    public Round(Location location, Expression field) {
-        super(location, field);
+public class Round extends BinaryNumericFunction {
+    
+    public Round(Location location, Expression left, Expression right) {
+        super(location, left, right == null ? Literal.of(left.location(), 0) : right, BinaryMathOperation.ROUND);
     }
 
     @Override
     protected NodeInfo<Round> info() {
-        return NodeInfo.create(this, Round::new, field());
+        return NodeInfo.create(this, Round::new, left(), right());
     }
 
     @Override
-    protected Round replaceChild(Expression newChild) {
-        return new Round(location(), newChild);
+    protected Round replaceChildren(Expression newLeft, Expression newRight) {
+        return new Round(location(), newLeft, newRight);
     }
-
-    @Override
-    protected MathOperation operation() {
-        return MathOperation.ROUND;
-    }
-
+    
     @Override
     public DataType dataType() {
-        return DataTypeConversion.asInteger(field().dataType());
+        return left().dataType();
     }
 }

@@ -29,10 +29,9 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -56,7 +55,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -272,11 +270,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             documents = document != null ? Collections.singletonList(document) : Collections.emptyList();
         }
         if (documents.isEmpty() == false) {
-            if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                documentXContentType = in.readEnum(XContentType.class);
-            } else {
-                documentXContentType = XContentHelper.xContentType(documents.iterator().next());
-            }
+            documentXContentType = in.readEnum(XContentType.class);
         } else {
             documentXContentType = null;
         }
@@ -329,7 +323,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             BytesReference doc = documents.isEmpty() ? null : documents.iterator().next();
             out.writeOptionalBytesReference(doc);
         }
-        if (documents.isEmpty() == false && out.getVersion().onOrAfter(Version.V_5_3_0)) {
+        if (documents.isEmpty() == false) {
             out.writeEnum(documentXContentType);
         }
     }
@@ -609,13 +603,19 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             }
         };
         final IndexSearcher docSearcher;
+        final boolean excludeNestedDocuments;
         if (docs.size() > 1 || docs.get(0).docs().size() > 1) {
             assert docs.size() != 1 || docMapper.hasNestedObjects();
             docSearcher = createMultiDocumentSearcher(analyzer, docs);
+            excludeNestedDocuments = docMapper.hasNestedObjects() && docs.stream()
+                    .map(ParsedDocument::docs)
+                    .mapToInt(List::size)
+                    .anyMatch(size -> size > 1);
         } else {
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(docs.get(0).rootDoc(), analyzer, true, false);
             docSearcher = memoryIndex.createSearcher();
             docSearcher.setQueryCache(null);
+            excludeNestedDocuments = false;
         }
 
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
@@ -625,7 +625,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             percolateShardContext,
             pft.mapUnmappedFieldsAsText);
 
-        return pft.percolateQuery(name, queryStore, documents, docSearcher, context.indexVersionCreated());
+        return pft.percolateQuery(name, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
     }
 
     public String getField() {
@@ -657,17 +657,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
             DirectoryReader directoryReader = DirectoryReader.open(indexWriter);
             assert directoryReader.leaves().size() == 1 : "Expected single leaf, but got [" + directoryReader.leaves().size() + "]";
-            final IndexSearcher slowSearcher = new IndexSearcher(directoryReader) {
-
-                @Override
-                public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
-                    BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                    bq.add(query, BooleanClause.Occur.MUST);
-                    bq.add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT);
-                    return super.createNormalizedWeight(bq.build(), needsScores);
-                }
-
-            };
+            final IndexSearcher slowSearcher = new IndexSearcher(directoryReader);
             slowSearcher.setQueryCache(null);
             return slowSearcher;
         } catch (IOException e) {
@@ -742,7 +732,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
                     final IndexSearcher searcher = new IndexSearcher(topLevelContext);
                     searcher.setQueryCache(null);
-                    final Weight weight = searcher.createNormalizedWeight(query, false);
+                    final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f);
                     final Scorer s = weight.scorer(context);
 
                     if (s != null) {

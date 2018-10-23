@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -56,6 +57,11 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockRepository.Plugin.class);
+    }
+
+    @After
+    public void assertConsistentHistoryInLuceneIndex() throws Exception {
+        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
     public static long getFailureCount(String repository) {

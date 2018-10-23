@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ssl;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -25,7 +24,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
@@ -166,7 +165,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         writeRestrictions("*.trusted");
         try {
             tryConnect(trustedCert);
-        } catch (SSLHandshakeException | SocketException ex) {
+        } catch (SSLException | SocketException ex) {
             logger.warn(new ParameterizedMessage("unexpected handshake failure with certificate [{}] [{}]",
                     trustedCert.certificate.getSubjectDN(), trustedCert.certificate.getSubjectAlternativeNames()), ex);
             fail("handshake should have been successful, but failed with " + ex);
@@ -174,25 +173,21 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     public void testCertificateWithUntrustedNameFails() throws Exception {
-        // see https://github.com/elastic/elasticsearch/issues/29989
-        assumeTrue("test fails on JDK 11 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         writeRestrictions("*.trusted");
         try {
             tryConnect(untrustedCert);
             fail("handshake should have failed, but was successful");
-        } catch (SSLHandshakeException | SocketException ex) {
+        } catch (SSLException | SocketException ex) {
             // expected
         }
     }
 
     public void testRestrictionsAreReloaded() throws Exception {
-        // see https://github.com/elastic/elasticsearch/issues/29989
-        assumeTrue("test fails on JDK 11 currently", JavaVersion.current().compareTo(JavaVersion.parse("11")) < 0);
         writeRestrictions("*");
         assertBusy(() -> {
             try {
                 tryConnect(untrustedCert);
-            } catch (SSLHandshakeException | SocketException ex) {
+            } catch (SSLException | SocketException ex) {
                 fail("handshake should have been successful, but failed with " + ex);
             }
         }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);
@@ -202,7 +197,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             try {
                 tryConnect(untrustedCert);
                 fail("handshake should have failed, but was successful");
-            } catch (SSLHandshakeException | SocketException ex) {
+            } catch (SSLException | SocketException ex) {
                 // expected
             }
         }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);

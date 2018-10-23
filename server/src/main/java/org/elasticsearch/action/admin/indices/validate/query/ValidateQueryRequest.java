@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -156,9 +155,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         }
         explain = in.readBoolean();
         rewrite = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
-            allShards = in.readBoolean();
-        }
+        allShards = in.readBoolean();
     }
 
     @Override
@@ -171,9 +168,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         }
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
-            out.writeBoolean(allShards);
-        }
+        out.writeBoolean(allShards);
     }
 
     @Override

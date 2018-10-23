@@ -17,10 +17,16 @@ public final class RunAsPermission {
 
     public static final RunAsPermission NONE = new RunAsPermission(Privilege.NONE);
 
+    private final Privilege privilege;
     private final Predicate<String> predicate;
 
     RunAsPermission(Privilege privilege) {
+        this.privilege = privilege;
         this.predicate = privilege.predicate();
+    }
+
+    public Privilege getPrivilege() {
+        return privilege;
     }
 
     /**

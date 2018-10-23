@@ -79,7 +79,7 @@ public class IndexUpgradeService extends AbstractComponent {
             }
         }
         // Catch all check for all indices that didn't match the specific checks
-        if (indexMetaData.getCreationVersion().before(Version.V_5_0_0)) {
+        if (indexMetaData.getCreationVersion().before(Version.V_6_0_0)) {
             return UpgradeActionRequired.REINDEX;
         } else {
             return null;

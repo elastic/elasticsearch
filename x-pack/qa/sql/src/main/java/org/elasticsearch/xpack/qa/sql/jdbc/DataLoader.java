@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
@@ -33,7 +33,7 @@ public class DataLoader {
     public static void main(String[] args) throws Exception {
         try (RestClient client = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
             loadEmpDatasetIntoEs(client);
-            Loggers.getLogger(DataLoader.class).info("Data loaded");
+            LogManager.getLogger(DataLoader.class).info("Data loaded");
         }
     }
 
@@ -42,14 +42,14 @@ public class DataLoader {
     }
 
     protected static void loadEmpDatasetIntoEs(RestClient client) throws Exception {
-        loadEmpDatasetIntoEs(client, "test_emp");
-        loadEmpDatasetIntoEs(client, "test_emp_copy");
+        loadEmpDatasetIntoEs(client, "test_emp", "employees");
+        loadEmpDatasetIntoEs(client, "test_emp_copy", "employees");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
     }
 
     public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {
-        loadEmpDatasetIntoEs(client, "emp");
+        loadEmpDatasetIntoEs(client, "emp", "employees");
         loadLibDatasetIntoEs(client, "library");
         makeAlias(client, "employees", "emp");
     }
@@ -62,7 +62,7 @@ public class DataLoader {
        .endObject();
     }
 
-    protected static void loadEmpDatasetIntoEs(RestClient client, String index) throws Exception {
+    protected static void loadEmpDatasetIntoEs(RestClient client, String index, String fileName) throws Exception {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
@@ -129,15 +129,22 @@ public class DataLoader {
         request = new Request("POST", "/" + index + "/emp/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
-        csvToLines("employees", (titles, fields) -> {
+        csvToLines(fileName, (titles, fields) -> {
             bulk.append("{\"index\":{}}\n");
             bulk.append('{');
             String emp_no = fields.get(1);
+
+            boolean hadLastItem = false;
+
             for (int f = 0; f < fields.size(); f++) {
-                if (f != 0) {
-                    bulk.append(',');
+                // an empty value in the csv file is treated as 'null', thus skipping it in the bulk request
+                if (fields.get(f).trim().length() > 0) {
+                    if (hadLastItem) {
+                        bulk.append(",");
+                    }
+                    hadLastItem = true;
+                    bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
                 }
-                bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
             }
             // append department
             List<List<String>> list = dep_emp.get(emp_no);

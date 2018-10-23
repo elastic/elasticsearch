@@ -213,7 +213,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
     /**
      * Test the hijacking a scroll fails. This test is only implemented for
      * REST because it is the only API where it is simple to hijack a scroll.
-     * It should excercise the same code as the other APIs but if we were truly
+     * It should exercise the same code as the other APIs but if we were truly
      * paranoid we'd hack together something to test the others as well.
      */
     public void testHijackScrollFails() throws Exception {
@@ -248,14 +248,14 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             final Matcher<String> runByRealmMatcher = realm.equals("default_file") ? Matchers.nullValue(String.class)
                     : Matchers.is("default_file");
             logCheckers.add(
-                    m -> eventType.equals(m.get("event_type"))
+                    m -> eventType.equals(m.get("event.action"))
                         && action.equals(m.get("action"))
-                        && principal.equals(m.get("principal"))
-                        && realm.equals(m.get("realm"))
-                        && runByPrincipalMatcher.matches(m.get("run_by_principal"))
-                        && runByRealmMatcher.matches(m.get("run_by_realm"))
+                        && principal.equals(m.get("user.name"))
+                        && realm.equals(m.get("user.realm"))
+                        && runByPrincipalMatcher.matches(m.get("user.run_by.name"))
+                        && runByRealmMatcher.matches(m.get("user.run_by.realm"))
                         && indicesMatcher.matches(m.get("indices"))
-                        && request.equals(m.get("request")));
+                        && request.equals(m.get("request.name")));
             return this;
         }
 

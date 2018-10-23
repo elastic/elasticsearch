@@ -155,9 +155,6 @@ subprojects {
       // some tests rely on the translog not being flushed
       setting 'indices.memory.shard_inactive_time', '20m'
 
-      // debug logging for testRecovery see https://github.com/elastic/x-pack-elasticsearch/issues/2691
-      setting 'logger.level', 'DEBUG'
-
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.transport.ssl.enabled', 'true'
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
@@ -185,6 +182,7 @@ subprojects {
       systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
       systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
       exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+      exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
       exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
     }
 
@@ -200,9 +198,6 @@ subprojects {
       cleanShared = false // We want to keep snapshots made by the old cluster!
       setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
-
-      // debug logging for testRecovery see https://github.com/elastic/x-pack-elasticsearch/issues/2691
-      setting 'logger.level', 'DEBUG'
 
       // some tests rely on the translog not being flushed
       setting 'indices.memory.shard_inactive_time', '20m'
@@ -224,6 +219,7 @@ subprojects {
       systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
       systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
       exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+      exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
       exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
     }
 

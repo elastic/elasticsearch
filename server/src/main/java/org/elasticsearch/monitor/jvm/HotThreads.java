@@ -21,7 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.time.CompoundDateTimeFormatter;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -43,7 +43,7 @@ public class HotThreads {
 
     private static final Object mutex = new Object();
 
-    private static final CompoundDateTimeFormatter DATE_TIME_FORMATTER = DateFormatters.forPattern("dateOptionalTime");
+    private static final DateFormatter DATE_TIME_FORMATTER = DateFormatters.forPattern("dateOptionalTime");
 
     private int busiestThreads = 3;
     private TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);

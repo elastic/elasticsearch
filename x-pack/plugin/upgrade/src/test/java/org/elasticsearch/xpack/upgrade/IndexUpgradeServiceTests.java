@@ -166,7 +166,7 @@ public class IndexUpgradeServiceTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_CREATION_DATE, 1)
                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_5_0_0_beta1)
+                .put(IndexMetaData.SETTING_VERSION_UPGRADED, Version.V_6_0_0)
                 .put(indexSettings)
                 .build();
         IndexMetaData.Builder builder = IndexMetaData.builder(name).settings(build);

@@ -29,7 +29,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
@@ -47,10 +46,10 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.IndexerState;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
@@ -117,6 +116,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1ms",
                             "the_histo.date_histogram._count", 2,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                            "the_histo.min.value", 3.0,
+                            "the_histo.max.value", 3.0,
                             "_rollup.id", job.getId()
                     )
             ));
@@ -130,6 +131,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1ms",
                             "the_histo.date_histogram._count", 1,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                            "the_histo.min.value", 7.0,
+                            "the_histo.max.value", 7.0,
                             "_rollup.id", job.getId()
                     )
             ));
@@ -180,6 +183,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.max.value", 20.0,
                             "counter.sum.value", 50.0,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                            "the_histo.min.value", (double) asLong("2015-03-31T03:00:00"),
+                            "the_histo.max.value", (double) asLong("2015-03-31T03:40:00"),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -198,6 +203,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.max.value", 55.0,
                             "counter.sum.value", 141.0,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                            "the_histo.min.value", (double) asLong("2015-03-31T04:00:00"),
+                            "the_histo.max.value", (double) asLong("2015-03-31T04:40:00"),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -216,6 +223,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.max.value", 80.0,
                             "counter.sum.value", 275.0,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                            "the_histo.min.value", (double) asLong("2015-03-31T05:00:00"),
+                            "the_histo.max.value", (double) asLong("2015-03-31T05:40:00"),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -234,6 +243,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.max.value", 100.0,
                             "counter.sum.value", 270.0,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                            "the_histo.min.value", (double) asLong("2015-03-31T06:00:00"),
+                            "the_histo.max.value", (double) asLong("2015-03-31T06:40:00"),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -252,6 +263,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "counter.max.value", 200.0,
                             "counter.sum.value", 440.0,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                            "the_histo.min.value", (double) asLong("2015-03-31T07:00:00"),
+                            "the_histo.max.value", (double) asLong("2015-03-31T07:40:00"),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -293,6 +306,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1m",
                             "the_histo.date_histogram._count", 2,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                            "the_histo.min.value", (double) (now - TimeValue.timeValueHours(5).getMillis()),
+                            "the_histo.max.value", (double) (now - TimeValue.timeValueHours(5).getMillis()),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -306,6 +321,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1m",
                             "the_histo.date_histogram._count", 2,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                            "the_histo.min.value", (double) (now - TimeValue.timeValueMinutes(75).getMillis()),
+                            "the_histo.max.value", (double) (now - TimeValue.timeValueMinutes(75).getMillis()),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -319,6 +336,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1m",
                             "the_histo.date_histogram._count", 1,
                             "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                            "the_histo.min.value", (double) (now - TimeValue.timeValueMinutes(61).getMillis()),
+                            "the_histo.max.value", (double) (now - TimeValue.timeValueMinutes(61).getMillis()),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -358,6 +377,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                                     "the_histo.date_histogram.interval", "1d",
                                     "the_histo.date_histogram._count", 2,
                                     "the_histo.date_histogram.time_zone", timeZone.toString(),
+                                    "the_histo.min.value", (double) (now - TimeValue.timeValueHours(10).getMillis()),
+                                    "the_histo.max.value", (double) (now - TimeValue.timeValueHours(8).getMillis()),
                                     "_rollup.id", job.getId()
                             )
                     ));
@@ -377,6 +398,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1d",
                             "the_histo.date_histogram._count", 2,
                             "the_histo.date_histogram.time_zone", timeZone.toString(),
+                            "the_histo.min.value", (double) (now - TimeValue.timeValueHours(10).getMillis()),
+                            "the_histo.max.value", (double) (now - TimeValue.timeValueHours(8).getMillis()),
                             "_rollup.id", job.getId()
                     )
             ));
@@ -390,6 +413,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                             "the_histo.date_histogram.interval", "1d",
                             "the_histo.date_histogram._count", 5,
                             "the_histo.date_histogram.time_zone", timeZone.toString(),
+                            "the_histo.min.value", (double) (now - TimeValue.timeValueHours(6).getMillis()),
+                            "the_histo.max.value", (double) now,
                             "_rollup.id", job.getId()
                     )
             ));
@@ -601,13 +626,14 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             RangeQueryBuilder range = (RangeQueryBuilder) request.source().query();
             final DateTimeZone timeZone = range.timeZone() != null ? DateTimeZone.forID(range.timeZone()) : null;
             Query query = timestampField.rangeQuery(range.from(), range.to(), range.includeLower(), range.includeUpper(),
-                    null, timeZone, new DateMathParser(Joda.forPattern(range.format())), queryShardContext);
+                    null, timeZone, Joda.forPattern(range.format()).toDateMathParser(), queryShardContext);
 
             // extract composite agg
             assertThat(request.source().aggregations().getAggregatorFactories().size(), equalTo(1));
-            assertThat(request.source().aggregations().getAggregatorFactories().get(0), instanceOf(CompositeAggregationBuilder.class));
+            assertThat(request.source().aggregations().getAggregatorFactories().iterator().next(),
+                    instanceOf(CompositeAggregationBuilder.class));
             CompositeAggregationBuilder aggBuilder =
-                    (CompositeAggregationBuilder) request.source().aggregations().getAggregatorFactories().get(0);
+                    (CompositeAggregationBuilder) request.source().aggregations().getAggregatorFactories().iterator().next();
 
             CompositeAggregation result = null;
             try {

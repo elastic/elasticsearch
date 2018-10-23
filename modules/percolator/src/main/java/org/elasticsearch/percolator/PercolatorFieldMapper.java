@@ -50,6 +50,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -244,7 +245,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         Query percolateQuery(String name, PercolateQuery.QueryStore queryStore, List<BytesReference> documents,
-                             IndexSearcher searcher, Version indexVersion) throws IOException {
+                             IndexSearcher searcher, boolean excludeNestedDocuments, Version indexVersion) throws IOException {
             IndexReader indexReader = searcher.getIndexReader();
             Tuple<BooleanQuery, Boolean> t = createCandidateQuery(indexReader, indexVersion);
             Query candidateQuery = t.v1();
@@ -261,7 +262,11 @@ public class PercolatorFieldMapper extends FieldMapper {
             } else {
                 verifiedMatchesQuery = new MatchNoDocsQuery("multiple or nested docs or CoveringQuery could not be used");
             }
-            return new PercolateQuery(name, queryStore, documents, candidateQuery, searcher, verifiedMatchesQuery);
+            Query filter = null;
+            if (excludeNestedDocuments) {
+                filter = Queries.newNonNestedFilter(indexVersion);
+            }
+            return new PercolateQuery(name, queryStore, documents, candidateQuery, searcher, filter, verifiedMatchesQuery);
         }
 
         Tuple<BooleanQuery, Boolean> createCandidateQuery(IndexReader indexReader, Version indexVersion) throws IOException {
@@ -383,7 +388,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         QueryShardContext queryShardContext = this.queryShardContext.get();
         if (context.doc().getField(queryBuilderField.name()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
@@ -406,7 +411,6 @@ public class PercolatorFieldMapper extends FieldMapper {
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
         Query query = toQuery(queryShardContext, isMapUnmappedFieldAsText(), queryBuilder);
         processQuery(query, context);
-        return null;
     }
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,

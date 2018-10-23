@@ -81,6 +81,8 @@ public class RestControllerTests extends ESTestCase {
         circuitBreakerService = new HierarchyCircuitBreakerService(
             Settings.builder()
                 .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), BREAKER_LIMIT)
+                // We want to have reproducible results in this test, hence we disable real memory usage accounting
+                .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         usageService = new UsageService(settings);
@@ -210,7 +212,6 @@ public class RestControllerTests extends ESTestCase {
         };
         final RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), wrapper, null,
             circuitBreakerService, usageService);
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null, Optional.of(handler));
         assertTrue(wrapperCalled.get());
         assertFalse(handlerCalled.get());

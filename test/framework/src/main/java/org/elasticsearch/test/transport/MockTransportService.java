@@ -95,6 +95,12 @@ public final class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
                                                         @Nullable ClusterSettings clusterSettings) {
+        MockTcpTransport mockTcpTransport = newMockTransport(settings, version, threadPool);
+        return createNewService(settings, mockTcpTransport, version, threadPool, clusterSettings,
+            Collections.emptySet());
+    }
+
+    public static MockTcpTransport newMockTransport(Settings settings, Version version, ThreadPool threadPool) {
         // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
         // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
@@ -102,9 +108,8 @@ public final class MockTransportService extends TransportService {
         int basePort = 10300 + (JVM_ORDINAL * 100); // use a non-default port otherwise some cluster in this JVM might reuse a port
         settings = Settings.builder().put(TcpTransport.PORT.getKey(), basePort + "-" + (basePort + 100)).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        final Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+        return new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version);
-        return createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());
     }
 
     public static MockTransportService createNewService(Settings settings, Transport transport, Version version, ThreadPool threadPool,

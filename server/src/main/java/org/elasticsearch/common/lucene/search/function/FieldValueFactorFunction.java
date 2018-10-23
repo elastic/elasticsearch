@@ -90,7 +90,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 String modifierStr = modifier != null ? modifier.toString() : "";
                 String defaultStr = missing != null ? "?:" + missing : "";
-                double score = score(docId, subQueryScore.getValue());
+                double score = score(docId, subQueryScore.getValue().floatValue());
                 return Explanation.match(
                         (float) score,
                         String.format(Locale.ROOT,

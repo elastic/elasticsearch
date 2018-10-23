@@ -43,13 +43,3 @@ thirdPartyAudit.excludes = [
   'org.osgi.framework.wiring.BundleWire',
   'org.osgi.framework.wiring.BundleWiring'
 ]
-
-if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
-  // Used by Log4J 2.11.1
-  thirdPartyAudit.excludes += [
-    'java.io.ObjectInputFilter',
-    'java.io.ObjectInputFilter$Config',
-    'java.io.ObjectInputFilter$FilterInfo',
-    'java.io.ObjectInputFilter$Status'
-  ]
-}

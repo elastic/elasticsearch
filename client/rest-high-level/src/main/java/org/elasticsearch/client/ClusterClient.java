@@ -56,7 +56,7 @@ public final class ClusterClient {
      */
     public ClusterUpdateSettingsResponse putSettings(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, RequestOptions options)
             throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
+        return restHighLevelClient.performRequestAndParseEntity(clusterUpdateSettingsRequest, ClusterRequestConverters::clusterPutSettings,
                 options, ClusterUpdateSettingsResponse::fromXContent, emptySet());
     }
 
@@ -70,7 +70,7 @@ public final class ClusterClient {
      */
     public void putSettingsAsync(ClusterUpdateSettingsRequest clusterUpdateSettingsRequest, RequestOptions options,
                                  ActionListener<ClusterUpdateSettingsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, RequestConverters::clusterPutSettings,
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterUpdateSettingsRequest, ClusterRequestConverters::clusterPutSettings,
                 options, ClusterUpdateSettingsResponse::fromXContent, listener, emptySet());
     }
 
@@ -85,7 +85,7 @@ public final class ClusterClient {
      */
     public ClusterGetSettingsResponse getSettings(ClusterGetSettingsRequest clusterGetSettingsRequest, RequestOptions options)
         throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(clusterGetSettingsRequest, RequestConverters::clusterGetSettings,
+        return restHighLevelClient.performRequestAndParseEntity(clusterGetSettingsRequest, ClusterRequestConverters::clusterGetSettings,
             options, ClusterGetSettingsResponse::fromXContent, emptySet());
     }
 
@@ -99,7 +99,7 @@ public final class ClusterClient {
      */
     public void getSettingsAsync(ClusterGetSettingsRequest clusterGetSettingsRequest, RequestOptions options,
                                  ActionListener<ClusterGetSettingsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(clusterGetSettingsRequest, RequestConverters::clusterGetSettings,
+        restHighLevelClient.performRequestAsyncAndParseEntity(clusterGetSettingsRequest, ClusterRequestConverters::clusterGetSettings,
             options, ClusterGetSettingsResponse::fromXContent, listener, emptySet());
     }
 
@@ -115,7 +115,7 @@ public final class ClusterClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ClusterHealthResponse health(ClusterHealthRequest healthRequest, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(healthRequest, RequestConverters::clusterHealth, options,
+        return restHighLevelClient.performRequestAndParseEntity(healthRequest, ClusterRequestConverters::clusterHealth, options,
                 ClusterHealthResponse::fromXContent, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()));
     }
 
@@ -129,7 +129,7 @@ public final class ClusterClient {
      * @param listener the listener to be notified upon request completion
      */
     public void healthAsync(ClusterHealthRequest healthRequest, RequestOptions options, ActionListener<ClusterHealthResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(healthRequest, RequestConverters::clusterHealth, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity(healthRequest, ClusterRequestConverters::clusterHealth, options,
                 ClusterHealthResponse::fromXContent, listener, singleton(RestStatus.REQUEST_TIMEOUT.getStatus()));
     }
 }

@@ -10,7 +10,8 @@ NOTE: You cannot use PKI certificates to authenticate users in {kib}.
 
 To use PKI in {es}, you configure a PKI realm, enable client authentication on
 the desired network layers (transport or http), and map the Distinguished Names
-(DNs) from the user certificates to {security} roles in the role mapping file.
+(DNs) from the user certificates to {security} roles in the 
+<<security-api-role-mapping,role-mapping API>> or role-mapping file.
 
 You can also use a combination of PKI and username/password authentication. For
 example, you can enable SSL/TLS on the transport layer and define a PKI realm to
@@ -173,4 +174,9 @@ key. You can also use the authenticate API to validate your role mapping.
 
 For more information, see 
 {xpack-ref}/mapping-roles.html[Mapping Users and Groups to Roles].
+
+NOTE: The PKI realm supports
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
+alternative to role mapping.
+
 --

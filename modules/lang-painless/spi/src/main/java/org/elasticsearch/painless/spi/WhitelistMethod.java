@@ -67,7 +67,8 @@ public class WhitelistMethod {
      * is augmented as described in the class documentation.
      */
     public WhitelistMethod(String origin, String augmentedCanonicalClassName, String methodName,
-                           String returnCanonicalTypeName, List<String> canonicalTypeNameParameters) {
+            String returnCanonicalTypeName, List<String> canonicalTypeNameParameters) {
+
         this.origin = Objects.requireNonNull(origin);
         this.augmentedCanonicalClassName = augmentedCanonicalClassName;
         this.methodName = methodName;

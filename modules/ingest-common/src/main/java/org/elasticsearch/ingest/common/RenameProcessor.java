@@ -59,11 +59,11 @@ public final class RenameProcessor extends AbstractProcessor {
     }
 
     @Override
-    public void execute(IngestDocument document) {
+    public IngestDocument execute(IngestDocument document) {
         String path = document.renderTemplate(field);
         if (document.hasField(path, true) == false) {
             if (ignoreMissing) {
-                return;
+                return document;
             } else {
                 throw new IllegalArgumentException("field [" + path + "] doesn't exist");
             }
@@ -86,6 +86,7 @@ public final class RenameProcessor extends AbstractProcessor {
             document.setFieldValue(path, value);
             throw e;
         }
+        return document;
     }
 
     @Override

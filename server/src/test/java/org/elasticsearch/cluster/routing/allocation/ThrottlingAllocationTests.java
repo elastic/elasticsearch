@@ -399,7 +399,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             final boolean primary = randomBoolean();
             final ShardRouting unassigned = ShardRouting.newUnassigned(new ShardId(index, shard), primary,
                 primary ?
-                    RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE :
+                    RecoverySource.EmptyStoreRecoverySource.INSTANCE :
                     RecoverySource.PeerRecoverySource.INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test")
             );

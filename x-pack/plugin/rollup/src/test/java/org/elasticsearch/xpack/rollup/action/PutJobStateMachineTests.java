@@ -180,8 +180,9 @@ public class PutJobStateMachineTests extends ESTestCase {
         ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
             fail("Listener success should not have been triggered.");
         }, e -> {
-            assertThat(e.getMessage(), equalTo("Expected to find _meta key in mapping of rollup index ["
-                + job.getConfig().getRollupIndex() + "] but not found."));
+            assertThat(e.getMessage(), equalTo("Rollup data cannot be added to existing indices that contain " +
+                "non-rollup data (expected to find _meta key in mapping of rollup index ["
+                + job.getConfig().getRollupIndex() + "] but not found)."));
         });
 
         Logger logger = mock(Logger.class);
@@ -191,6 +192,44 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
             MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME, Collections.emptyMap());
+            ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
+            builder.put(RollupField.TYPE_NAME, meta);
+
+            ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetaData>> builder2 = ImmutableOpenMap.builder(1);
+            builder2.put(job.getConfig().getRollupIndex(), builder.build());
+
+            when(response.getMappings()).thenReturn(builder2.build());
+            requestCaptor.getValue().onResponse(response);
+            return null;
+        }).when(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), requestCaptor.capture());
+
+        TransportPutRollupJobAction.updateMapping(job, testListener, mock(PersistentTasksService.class), client, logger);
+        verify(client).execute(eq(GetMappingsAction.INSTANCE), any(GetMappingsRequest.class), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMetadataButNotRollup() {
+        RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
+
+        ActionListener<AcknowledgedResponse> testListener = ActionListener.wrap(response -> {
+            fail("Listener success should not have been triggered.");
+        }, e -> {
+            assertThat(e.getMessage(), equalTo("Rollup data cannot be added to existing indices that contain " +
+                "non-rollup data (expected to find rollup meta key [_rollup] in mapping of rollup index ["
+                + job.getConfig().getRollupIndex() + "] but not found)."));
+        });
+
+        Logger logger = mock(Logger.class);
+        Client client = mock(Client.class);
+
+        ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        doAnswer(invocation -> {
+            GetMappingsResponse response = mock(GetMappingsResponse.class);
+            Map<String, Object> m = new HashMap<>(2);
+            m.put("random",
+                Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
+            MappingMetaData meta = new MappingMetaData(RollupField.TYPE_NAME,
+                Collections.singletonMap("_meta", m));
             ImmutableOpenMap.Builder<String, MappingMetaData> builder = ImmutableOpenMap.builder(1);
             builder.put(RollupField.TYPE_NAME, meta);
 

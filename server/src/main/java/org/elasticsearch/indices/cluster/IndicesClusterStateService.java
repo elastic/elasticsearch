@@ -456,7 +456,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             AllocatedIndex<? extends Shard> indexService = null;
             try {
                 indexService = indicesService.createIndex(indexMetaData, buildInIndexListener);
-                if (indexService.updateMapping(indexMetaData) && sendRefreshMapping) {
+                if (indexService.updateMapping(null, indexMetaData) && sendRefreshMapping) {
                     nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
                         new NodeMappingRefreshAction.NodeMappingRefreshRequest(indexMetaData.getIndex().getName(),
                             indexMetaData.getIndexUUID(), state.nodes().getLocalNodeId())
@@ -488,9 +488,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetaData newIndexMetaData = state.metaData().index(index);
             assert newIndexMetaData != null : "index " + index + " should have been removed by deleteIndices";
             if (ClusterChangedEvent.indexMetaDataChanged(currentIndexMetaData, newIndexMetaData)) {
-                indexService.updateMetaData(newIndexMetaData);
+                indexService.updateMetaData(currentIndexMetaData, newIndexMetaData);
                 try {
-                    if (indexService.updateMapping(newIndexMetaData) && sendRefreshMapping) {
+                    if (indexService.updateMapping(currentIndexMetaData, newIndexMetaData) && sendRefreshMapping) {
                         nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
                             new NodeMappingRefreshAction.NodeMappingRefreshRequest(newIndexMetaData.getIndex().getName(),
                                 newIndexMetaData.getIndexUUID(), state.nodes().getLocalNodeId())
@@ -771,14 +771,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         IndexSettings getIndexSettings();
 
         /**
-         * Updates the meta data of this index. Changes become visible through {@link #getIndexSettings()}
+         * Updates the metadata of this index. Changes become visible through {@link #getIndexSettings()}.
+         *
+         * @param currentIndexMetaData the current index metadata
+         * @param newIndexMetaData the new index metadata
          */
-        void updateMetaData(IndexMetaData indexMetaData);
+        void updateMetaData(IndexMetaData currentIndexMetaData, IndexMetaData newIndexMetaData);
 
         /**
          * Checks if index requires refresh from master.
          */
-        boolean updateMapping(IndexMetaData indexMetaData) throws IOException;
+        boolean updateMapping(IndexMetaData currentIndexMetaData, IndexMetaData newIndexMetaData) throws IOException;
 
         /**
          * Returns shard with given id.

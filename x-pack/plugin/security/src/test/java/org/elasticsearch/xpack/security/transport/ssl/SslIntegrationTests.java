@@ -32,10 +32,6 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.TrustManagerFactory;
-
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -48,10 +44,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.TrustManagerFactory;
+
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class SslIntegrationTests extends SecurityIntegTestCase {
 
@@ -150,10 +149,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         SSLConnectionSocketFactory sf = new SSLConnectionSocketFactory(sslContext, new String[]{ "SSLv3" }, null,
                 NoopHostnameVerifier.INSTANCE);
         try (CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(sf).build()) {
-            CloseableHttpResponse result = SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl())));
-            fail("Expected a connection error due to SSLv3 not being supported by default");
-        } catch (Exception e) {
-            assertThat(e, is(instanceOf(SSLHandshakeException.class)));
+            expectThrows(SSLHandshakeException.class, () -> SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl()))));
         }
     }
 

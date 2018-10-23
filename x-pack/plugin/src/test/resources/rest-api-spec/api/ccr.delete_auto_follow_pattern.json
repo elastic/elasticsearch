@@ -1,0 +1,17 @@
+{
+  "ccr.delete_auto_follow_pattern": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/_ccr/auto_follow/{leader_cluster}",
+      "paths": [ "/_ccr/auto_follow/{leader_cluster}" ],
+      "parts": {
+        "leader_cluster": {
+          "type": "string",
+          "required": true,
+          "description": "The name of the leader cluster alias."
+        }
+      }
+    }
+  }
+}

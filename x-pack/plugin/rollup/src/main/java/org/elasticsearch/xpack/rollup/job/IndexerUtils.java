@@ -17,7 +17,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.RollupJobStats;
+import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.util.ArrayList;
@@ -46,7 +46,7 @@ class IndexerUtils {
      * @param isUpgradedDocID  `true` if this job is using the new ID scheme
      * @return             A list of rolled documents derived from the response
      */
-    static List<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupJobStats stats,
+    static List<IndexRequest> processBuckets(CompositeAggregation agg, String rollupIndex, RollupIndexerJobStats stats,
                                              GroupConfig groupConfig, String jobId, boolean isUpgradedDocID) {
 
         logger.debug("Buckets: [" + agg.getBuckets().size() + "][" + jobId + "]");

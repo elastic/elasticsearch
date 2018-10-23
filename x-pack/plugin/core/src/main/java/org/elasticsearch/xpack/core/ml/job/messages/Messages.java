@@ -67,6 +67,8 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_STARTED_FROM_TO = "Datafeed started (from: {0} to: {1}) with frequency [{2}]";
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "Datafeed started in real-time";
     public static final String JOB_AUDIT_DATAFEED_STOPPED = "Datafeed stopped";
+    public static final String JOB_AUDIT_DELETING = "Deleting job by task with id ''{0}''";
+    public static final String JOB_AUDIT_DELETING_FAILED = "Error deleting job: {0}";
     public static final String JOB_AUDIT_DELETED = "Job deleted";
     public static final String JOB_AUDIT_KILLING = "Killing job";
     public static final String JOB_AUDIT_OLD_RESULTS_DELETED = "Deleted results prior to {1}";
@@ -161,7 +163,9 @@ public final class Messages {
     public static final String REST_JOB_NOT_CLOSED_REVERT = "Can only revert to a model snapshot when the job is closed.";
     public static final String REST_NO_SUCH_MODEL_SNAPSHOT = "No model snapshot with id [{0}] exists for job [{1}]";
     public static final String REST_START_AFTER_END = "Invalid time range: end time ''{0}'' is earlier than start time ''{1}''.";
-
+    public static final String REST_NO_SUCH_FORECAST = "No forecast(s) [{0}] exists for job [{1}]";
+    public static final String REST_CANNOT_DELETE_FORECAST_IN_CURRENT_STATE =
+        "Forecast(s) [{0}] for job [{1}] needs to be either FAILED or FINISHED to be deleted";
     public static final String FIELD_CANNOT_BE_NULL = "Field [{0}] cannot be null";
 
     private Messages() {

@@ -7,6 +7,7 @@ package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
-
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -152,7 +152,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     public static void initDefaultSettings() {
         if (SECURITY_DEFAULT_SETTINGS == null) {
             SECURITY_DEFAULT_SETTINGS =
-                    new SecuritySettingsSource(defaultMaxNumberOfNodes(), randomBoolean(), createTempDir(), Scope.SUITE);
+                    new SecuritySettingsSource(randomBoolean(), createTempDir(), Scope.SUITE);
         }
     }
 
@@ -367,7 +367,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     private class CustomSecuritySettingsSource extends SecuritySettingsSource {
 
         private CustomSecuritySettingsSource(boolean sslEnabled, Path configDir, Scope scope) {
-            super(maxNumberOfNodes(), sslEnabled, configDir, scope);
+            super(sslEnabled, configDir, scope);
         }
 
         @Override
@@ -420,14 +420,18 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         createIndex(indices);
 
         if (frequently()) {
+            boolean aliasAdded = false;
             IndicesAliasesRequestBuilder builder = client().admin().indices().prepareAliases();
             for (String index : indices) {
                 if (frequently()) {
                     //one alias per index with prefix "alias-"
                     builder.addAlias(index, "alias-" + index);
+                    aliasAdded = true;
                 }
             }
-            if (randomBoolean()) {
+            // If we get to this point and we haven't added an alias to the request we need to add one 
+            // or the request will fail so use noAliasAdded to force adding the alias in this case 
+            if (aliasAdded == false || randomBoolean()) {
                 //one alias pointing to all indices
                 for (String index : indices) {
                     builder.addAlias(index, "alias");

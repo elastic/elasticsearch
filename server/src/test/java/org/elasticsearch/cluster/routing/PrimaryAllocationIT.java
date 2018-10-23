@@ -32,6 +32,7 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
@@ -55,6 +56,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -64,6 +66,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
@@ -83,18 +86,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
     }
 
-    private void createStaleReplicaScenario() throws Exception {
-        logger.info("--> starting 3 nodes, 1 master, 2 data");
-        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        internalCluster().startDataOnlyNodes(2);
-
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
-            .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get());
-        ensureGreen();
-        logger.info("--> indexing...");
+    private void createStaleReplicaScenario(String master) throws Exception {
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         refresh();
-
         ClusterState state = client().admin().cluster().prepareState().all().get().getState();
         List<ShardRouting> shards = state.routingTable().allShards("test");
         assertThat(shards.size(), equalTo(2));
@@ -140,7 +134,13 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     }
 
     public void testDoNotAllowStaleReplicasToBePromotedToPrimary() throws Exception {
-        createStaleReplicaScenario();
+        logger.info("--> starting 3 nodes, 1 master, 2 data");
+        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNodes(2);
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get());
+        ensureGreen();
+        createStaleReplicaScenario(master);
 
         logger.info("--> starting node that reuses data folder with the up-to-date primary shard");
         internalCluster().startDataOnlyNode(Settings.EMPTY);
@@ -176,9 +176,17 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     }
 
     public void testForceStaleReplicaToBePromotedToPrimary() throws Exception {
-        boolean useStaleReplica = randomBoolean(); // if true, use stale replica, otherwise a completely empty copy
-        createStaleReplicaScenario();
+        logger.info("--> starting 3 nodes, 1 master, 2 data");
+        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNodes(2);
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get());
+        ensureGreen();
+        Set<String> historyUUIDs = Arrays.stream(client().admin().indices().prepareStats("test").clear().get().getShards())
+            .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY)).collect(Collectors.toSet());
+        createStaleReplicaScenario(master);
 
+        boolean useStaleReplica = randomBoolean(); // if true, use stale replica, otherwise a completely empty copy
         logger.info("--> explicitly promote old primary shard");
         final String idxName = "test";
         ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = client().admin().indices().prepareShardStores(idxName).get().getStoreStatuses().get(idxName);
@@ -213,6 +221,11 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         assertEquals(Collections.singleton(state.routingTable().index(idxName).shard(0).primary.allocationId().getId()),
             state.metaData().index(idxName).inSyncAllocationIds(0));
+
+        Set<String> newHistoryUUIds = Arrays.stream(client().admin().indices().prepareStats("test").clear().get().getShards())
+            .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY)).collect(Collectors.toSet());
+        assertThat(newHistoryUUIds, everyItem(not(isIn(historyUUIDs))));
+        assertThat(newHistoryUUIds, hasSize(1));
     }
 
     public void testForcePrimaryShardIfAllocationDecidersSayNoAfterIndexCreation() throws ExecutionException, InterruptedException {
@@ -392,6 +405,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 assertThat(shard.getLocalCheckpoint(), equalTo(numDocs + moreDocs));
             }
         }, 30, TimeUnit.SECONDS);
+        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
 }

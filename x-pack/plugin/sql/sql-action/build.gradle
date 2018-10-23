@@ -139,13 +139,3 @@ thirdPartyAudit.excludes = [
         'org.zeromq.ZMQ$Socket',
         'org.zeromq.ZMQ'
 ]
-
-if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
-    // Used by Log4J 2.11.1
-    thirdPartyAudit.excludes += [
-      'java.io.ObjectInputFilter',
-      'java.io.ObjectInputFilter$Config',
-      'java.io.ObjectInputFilter$FilterInfo',
-      'java.io.ObjectInputFilter$Status'
-    ]
-}

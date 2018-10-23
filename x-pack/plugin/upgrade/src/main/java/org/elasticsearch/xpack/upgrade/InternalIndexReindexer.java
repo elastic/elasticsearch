@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.upgrade;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
@@ -28,6 +26,8 @@ import org.elasticsearch.transport.TransportResponse;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.index.IndexSettings.same;
 
 /**
  * A component that performs the following upgrade procedure:
@@ -116,10 +116,10 @@ public class InternalIndexReindexer<T> {
 
     private void reindex(ParentTaskAssigningClient parentAwareClient, String index, String newIndex,
                          ActionListener<BulkByScrollResponse> listener) {
-        SearchRequest sourceRequest = new SearchRequest(index);
-        sourceRequest.types(types);
-        IndexRequest destinationRequest = new IndexRequest(newIndex);
-        ReindexRequest reindexRequest = new ReindexRequest(sourceRequest, destinationRequest);
+        ReindexRequest reindexRequest = new ReindexRequest();
+        reindexRequest.setSourceIndices(index);
+        reindexRequest.setSourceDocTypes(types);
+        reindexRequest.setDestIndex(newIndex);
         reindexRequest.setRefresh(true);
         reindexRequest.setScript(transformScript);
         parentAwareClient.execute(ReindexAction.INSTANCE, reindexRequest, listener);
@@ -145,11 +145,16 @@ public class InternalIndexReindexer<T> {
                     throw new IllegalStateException("unable to upgrade a read-only index[" + index + "]");
                 }
 
-                Settings.Builder indexSettings = Settings.builder().put(indexMetaData.getSettings())
-                        .put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), true);
+                final Settings indexSettingsBuilder =
+                        Settings.builder()
+                                .put(indexMetaData.getSettings())
+                                .put(IndexMetaData.INDEX_READ_ONLY_SETTING.getKey(), true)
+                                .build();
+                final IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData).settings(indexSettingsBuilder);
+                assert same(indexMetaData.getSettings(), indexSettingsBuilder) == false;
+                builder.settingsVersion(1 + builder.settingsVersion());
 
-                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData())
-                        .put(IndexMetaData.builder(indexMetaData).settings(indexSettings));
+                MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData()).put(builder);
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
                         .addIndexBlock(index, IndexMetaData.INDEX_READ_ONLY_BLOCK);

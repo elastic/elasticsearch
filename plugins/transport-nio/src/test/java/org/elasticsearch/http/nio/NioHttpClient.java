@@ -32,9 +32,9 @@ import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -86,11 +86,11 @@ class NioHttpClient implements Closeable {
         return list;
     }
 
+    private static final Logger logger = LogManager.getLogger(NioHttpClient.class);
+
     private final NioGroup nioGroup;
-    private final Logger logger;
 
     NioHttpClient() {
-        logger = Loggers.getLogger(NioHttpClient.class, Settings.EMPTY);
         try {
             nioGroup = new NioGroup(daemonThreadFactory(Settings.EMPTY, "nio-http-client"), 1,
                 (s) -> new EventHandler(this::onException, s));

@@ -371,7 +371,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     private void assertGeoBoundingBoxQuery(String query) throws IOException {
         QueryShardContext shardContext = createShardContext();
-        Query parsedQuery = parseQuery(query).toQuery(shardContext);
+        // just check if we can parse the query
+        parseQuery(query).toQuery(shardContext);
     }
 
     public void testFromJson() throws IOException {

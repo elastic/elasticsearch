@@ -6,10 +6,9 @@
 package org.elasticsearch.xpack.watcher.execution;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 
 import java.util.function.Consumer;
@@ -17,12 +16,10 @@ import java.util.function.Consumer;
 import static java.util.stream.StreamSupport.stream;
 
 public class AsyncTriggerEventConsumer implements Consumer<Iterable<TriggerEvent>> {
-
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(SyncTriggerEventConsumer.class);
     private final ExecutionService executionService;
 
-    public AsyncTriggerEventConsumer(Settings settings, ExecutionService executionService) {
-        this.logger = Loggers.getLogger(SyncTriggerEventConsumer.class, settings);
+    public AsyncTriggerEventConsumer(ExecutionService executionService) {
         this.executionService = executionService;
     }
 

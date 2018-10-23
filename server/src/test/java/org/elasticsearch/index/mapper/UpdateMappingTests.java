@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -188,4 +191,30 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 () -> mapperService2.merge("type", new CompressedXContent(mapping1), MergeReason.MAPPING_UPDATE));
         assertThat(e.getMessage(), equalTo("mapper [foo] of different type, current_type [long], merged_type [ObjectMapper]"));
     }
+
+    public void testMappingVersion() {
+        createIndex("test", client().admin().indices().prepareCreate("test").addMapping("type"));
+        final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        {
+            final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
+            final PutMappingRequest request = new PutMappingRequest();
+            request.indices("test");
+            request.type("type");
+            request.source("field", "type=text");
+            client().admin().indices().putMapping(request).actionGet();
+            assertThat(clusterService.state().metaData().index("test").getMappingVersion(), Matchers.equalTo(1 + previousVersion));
+        }
+
+        {
+            final long previousVersion = clusterService.state().metaData().index("test").getMappingVersion();
+            final PutMappingRequest request = new PutMappingRequest();
+            request.indices("test");
+            request.type("type");
+            request.source("field", "type=text");
+            client().admin().indices().putMapping(request).actionGet();
+            // the version should be unchanged after putting the same mapping again
+            assertThat(clusterService.state().metaData().index("test").getMappingVersion(), Matchers.equalTo(previousVersion));
+        }
+    }
+
 }

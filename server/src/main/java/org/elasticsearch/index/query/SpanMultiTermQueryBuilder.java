@@ -20,10 +20,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.TermContext;
+import org.apache.lucene.index.TermStates;
+import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -165,7 +167,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                 }
 
                 @Override
-                protected void addClause(List<SpanQuery> topLevel, Term term, int docCount, float boost, TermContext states) {
+                protected void addClause(List<SpanQuery> topLevel, Term term, int docCount, float boost, TermStates states) {
                     SpanTermQuery q = new SpanTermQuery(term, states);
                     topLevel.add(q);
                 }
@@ -190,9 +192,14 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                 break;
             }
         }
-        final SpanQuery spanQuery;
         // no MultiTermQuery extends SpanQuery, so SpanBoostQuery is not supported here
         assert subQuery instanceof SpanBoostQuery == false;
+
+        if (subQuery instanceof MatchNoDocsQuery) {
+            return new SpanMatchNoDocsQuery(multiTermQueryBuilder.fieldName(), subQuery.toString());
+        }
+
+        final SpanQuery spanQuery;
         if (subQuery instanceof TermQuery) {
             /**
              * Text fields that index prefixes can rewrite prefix queries

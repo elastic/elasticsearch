@@ -553,4 +553,12 @@ public class IndexSettingsTests extends ESTestCase {
         );
         assertThat(index.getDefaultFields(), equalTo(Arrays.asList("body", "title")));
     }
+
+    public void testUpdateSoftDeletesFails() {
+        IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () ->
+            settings.updateSettings(Settings.builder().put("index.soft_deletes.enabled", randomBoolean()).build(),
+                Settings.builder(), Settings.builder(), "index"));
+        assertThat(error.getMessage(), equalTo("final index setting [index.soft_deletes.enabled], not updateable"));
+    }
 }

@@ -77,7 +77,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                    ActionListener<PutDatafeedAction.Response> listener) {
         // If security is enabled only create the datafeed if the user requesting creation has
         // permission to read the indices the datafeed is going to read from
-        if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) {
+        if (licenseState.isAuthAllowed()) {
             final String username = securityContext.getUser().principal();
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
                     r -> handlePrivsResponse(username, request, r, listener),

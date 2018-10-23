@@ -189,6 +189,11 @@ For more information, see
 {xpack-ref}/ldap-realm.html#mapping-roles-ldap[Mapping LDAP Groups to Roles] 
 and 
 {xpack-ref}/mapping-roles.html[Mapping Users and Groups to Roles].
+
+NOTE: The LDAP realm supports
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
+alternative to role mapping.
+
 --
 
 . (Optional) Configure the `metadata` setting on the LDAP realm to include extra 

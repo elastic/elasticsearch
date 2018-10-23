@@ -20,9 +20,8 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -32,13 +31,9 @@ import java.util.Objects;
 
 public class ScriptScoreFunction extends ScoreFunction {
 
-    static final class CannedScorer extends Scorer {
+    static final class CannedScorer extends Scorable {
         protected int docid;
         protected float score;
-
-        CannedScorer() {
-            super(null);
-        }
 
         @Override
         public int docID() {
@@ -46,13 +41,8 @@ public class ScriptScoreFunction extends ScoreFunction {
         }
 
         @Override
-        public float score() throws IOException {
+        public float score() {
             return score;
-        }
-
-        @Override
-        public DocIdSetIterator iterator() {
-            throw new UnsupportedOperationException();
         }
     }
 
@@ -88,10 +78,10 @@ public class ScriptScoreFunction extends ScoreFunction {
                 if (leafScript instanceof ExplainableSearchScript) {
                     leafScript.setDocument(docId);
                     scorer.docid = docId;
-                    scorer.score = subQueryScore.getValue();
+                    scorer.score = subQueryScore.getValue().floatValue();
                     exp = ((ExplainableSearchScript) leafScript).explain(subQueryScore);
                 } else {
-                    double score = score(docId, subQueryScore.getValue());
+                    double score = score(docId, subQueryScore.getValue().floatValue());
                     String explanation = "script score function, computed with script:\"" + sScript + "\"";
                     if (sScript.getParams() != null) {
                         explanation += " and parameters: \n" + sScript.getParams().toString();

@@ -473,7 +473,7 @@ or separate keys used for each of those.
 
 The Elastic Stack uses X.509 certificates with RSA private keys for SAML
 cryptography. These keys can be generated using any standard SSL tool, including
-the `elasticsearch-certutil` tool that ships with X-Pack.
+the `elasticsearch-certutil` tool that ships with {xpack}.
 
 Your IdP may require that the Elastic Stack have a cryptographic key for signing
 SAML messages, and that you provide the corresponding signing certificate within
@@ -624,9 +624,10 @@ When a user authenticates using SAML, they are identified to the Elastic Stack,
 but this does not automatically grant them access to perform any actions or
 access any data.
 
-Your SAML users cannot do anything until they are mapped to {security}
-roles. This mapping is performed through the
-{ref}/security-api-put-role-mapping.html[add role mapping API].
+Your SAML users cannot do anything until they are assigned {security}
+roles. This is done through either the
+{ref}/security-api-put-role-mapping.html[add role mapping API], or with
+<<authorization_realms, authorization realms>>.
 
 This is an example of a simple role mapping that grants the `kibana_user` role
 to any user who authenticates against the `saml1` realm:
@@ -682,6 +683,18 @@ PUT /_xpack/security/role_mapping/saml-finance
 --------------------------------------------------
 // CONSOLE
 // TEST
+
+If your users also exist in a repository that can be directly accessed by {security}
+(such as an LDAP directory) then you can use
+<<authorization_realms, authorization realms>> instead of role mappings.
+
+In this case, you perform the following steps:
+1. In your SAML realm, assigned a SAML attribute to act as the lookup userid,
+   by configuring the `attributes.principal` setting.
+2. Create a new realm that can lookup users from your local repository (e.g. an
+   `ldap` realm)
+3. In your SAML realm, set `authorization_realms` to the name of the realm you
+   created in step 2.
 
 [[saml-user-metadata]]
 === User metadata

@@ -1,10 +1,14 @@
 ---
 "External GTE version":
 
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
  - do:
       index:
+          include_type_name: false
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external_gte
@@ -14,8 +18,8 @@
 
  - do:
       index:
+          include_type_name: false
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external_gte
@@ -26,8 +30,8 @@
  - do:
       catch:             conflict
       index:
+          include_type_name: false
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external_gte
@@ -35,8 +39,8 @@
 
  - do:
       index:
+          include_type_name: false
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar2 }
           version_type:   external_gte
@@ -46,8 +50,8 @@
 
  - do:
       index:
+          include_type_name: false
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar2 }
           version_type:   external_gte

@@ -78,7 +78,7 @@ public class PutRoleRequestTests extends ESTestCase {
         final PutRoleRequest original = buildRandomRequest();
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.V_6_3_2);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_3_2);
         out.setVersion(version);
         original.writeTo(out);
 

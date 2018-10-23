@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class StubbableTransport implements Transport {
+public final class StubbableTransport implements Transport {
 
     private final ConcurrentHashMap<TransportAddress, SendRequestBehavior> sendBehaviors = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<TransportAddress, OpenConnectionBehavior> connectBehaviors = new ConcurrentHashMap<>();
@@ -57,6 +57,12 @@ public class StubbableTransport implements Transport {
     boolean setDefaultSendBehavior(SendRequestBehavior sendBehavior) {
         SendRequestBehavior prior = defaultSendRequest;
         defaultSendRequest = sendBehavior;
+        return prior == null;
+    }
+
+    public boolean setDefaultConnectBehavior(OpenConnectionBehavior openConnectionBehavior) {
+        OpenConnectionBehavior prior = this.defaultConnectBehavior;
+        this.defaultConnectBehavior = openConnectionBehavior;
         return prior == null;
     }
 

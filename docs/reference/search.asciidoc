@@ -4,7 +4,7 @@
 [partintro]
 --
 
-Most search APIs are <<search-multi-index-type,multi-index&#44; multi-type>>, with the
+Most search APIs are <<search-multi-index,multi-index>>, with the
 exception of the <<search-explain>> endpoints.
 
 [float]
@@ -19,7 +19,7 @@ the user name:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet?routing=kimchy
+POST /twitter/_doc?routing=kimchy
 {
     "user" : "kimchy",
     "postDate" : "2009-11-15T14:12:12",
@@ -119,10 +119,14 @@ Individual searches can have a timeout as part of the
 <<search-request-body>>. Since search requests can originate from many
 sources, Elasticsearch has a dynamic cluster-level setting for a global
 search timeout that applies to all search requests that do not set a
-timeout in the <<search-request-body>>. The default value is no global
-timeout. The setting key is `search.default_search_timeout` and can be
-set using the <<cluster-update-settings>> endpoints. Setting this value
-to `-1` resets the global search timeout to no timeout.
+timeout in the request body. These requests will be cancelled after
+the specified time using the mechanism described in the following section on
+<<global-search-cancellation>>. Therefore the same caveats about timeout
+responsiveness apply.
+
+The setting key is `search.default_search_timeout` and can be set using the
+<<cluster-update-settings>> endpoints. The default value is no global timeout.
+Setting this value to `-1` resets the global search timeout to no timeout.
 
 [float]
 [[global-search-cancellation]]

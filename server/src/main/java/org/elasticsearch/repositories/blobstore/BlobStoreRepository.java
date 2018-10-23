@@ -39,7 +39,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -719,7 +718,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     protected void writeIndexGen(final RepositoryData repositoryData, final long repositoryStateId) throws IOException {
         assert isReadOnly() == false; // can not write to a read only repository
         final long currentGen = latestIndexBlobId();
-        if (repositoryStateId != SnapshotsInProgress.UNDEFINED_REPOSITORY_STATE_ID && currentGen != repositoryStateId) {
+        if (currentGen != repositoryStateId) {
             // the index file was updated by a concurrent operation, so we were operating on stale
             // repository data
             throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +
@@ -846,8 +845,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
-        SnapshotContext snapshotContext = new SnapshotContext(shard, snapshotId, indexId, snapshotStatus, System.currentTimeMillis());
+    public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
+                              IndexShardSnapshotStatus snapshotStatus) {
+        SnapshotContext snapshotContext = new SnapshotContext(store, snapshotId, indexId, snapshotStatus, System.currentTimeMillis());
         try {
             snapshotContext.snapshot(snapshotIndexCommit);
         } catch (Exception e) {
@@ -855,7 +855,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (e instanceof IndexShardSnapshotFailedException) {
                 throw (IndexShardSnapshotFailedException) e;
             } else {
-                throw new IndexShardSnapshotFailedException(shard.shardId(), e);
+                throw new IndexShardSnapshotFailedException(store.shardId(), e);
             }
         }
     }
@@ -1158,15 +1158,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         /**
          * Constructs new context
          *
-         * @param shard          shard to be snapshotted
+         * @param store          store to be snapshotted
          * @param snapshotId     snapshot id
          * @param indexId        the id of the index being snapshotted
          * @param snapshotStatus snapshot status to report progress
          */
-        SnapshotContext(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus, long startTime) {
-            super(snapshotId, Version.CURRENT, indexId, shard.shardId());
+        SnapshotContext(Store store, SnapshotId snapshotId, IndexId indexId, IndexShardSnapshotStatus snapshotStatus, long startTime) {
+            super(snapshotId, Version.CURRENT, indexId, store.shardId());
             this.snapshotStatus = snapshotStatus;
-            this.store = shard.store();
+            this.store = store;
             this.startTime = startTime;
         }
 
@@ -1338,7 +1338,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         private void failStoreIfCorrupted(Exception e) {
-            if (e instanceof CorruptIndexException || e instanceof IndexFormatTooOldException || e instanceof IndexFormatTooNewException) {
+            if (Lucene.isCorruptionException(e)) {
                 try {
                     store.markStoreCorrupted((IOException) e);
                 } catch (IOException inner) {
@@ -1493,6 +1493,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     // empty shard would cause exceptions to be thrown.  Since there is no data to restore from an empty
                     // shard anyway, we just create the empty shard here and then exit.
                     IndexWriter writer = new IndexWriter(store.directory(), new IndexWriterConfig(null)
+                        .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                         .setOpenMode(IndexWriterConfig.OpenMode.CREATE)
                         .setCommitOnClose(true));
                     writer.close();

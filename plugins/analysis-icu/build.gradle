@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.precommit.ForbiddenApisCliTask
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -22,9 +22,10 @@ import org.elasticsearch.gradle.precommit.ForbiddenApisCliTask
 esplugin {
   description 'The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.'
   classname 'org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin'
+  hasClientJar = true
 }
 
-tasks.withType(ForbiddenApisCliTask) {
+tasks.withType(CheckForbiddenApis) {
   signatures += [
     "com.ibm.icu.text.Collator#getInstance() @ Don't use default locale, use getInstance(ULocale) instead"
   ]

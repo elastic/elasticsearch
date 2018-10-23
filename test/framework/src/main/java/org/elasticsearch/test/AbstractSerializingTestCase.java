@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.Strings;
@@ -34,9 +35,17 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * both for equality and asserts equality on the two instances.
      */
     public final void testFromXContent() throws IOException {
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, this::createTestInstance, supportsUnknownFields(),
-                getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-                this::assertEqualInstances, true, getToXContentParams());
+        AbstractXContentTestCase.testFromXContent(
+                NUMBER_OF_TEST_RUNS,
+                this::createTestInstance,
+                supportsUnknownFields(),
+                getShuffleFieldsExceptions(),
+                getRandomFieldsExcludeFilter(),
+                this::createParser,
+                this::doParseInstance,
+                this::assertEqualInstances,
+                assertToXContentEquivalence(),
+                getToXContentParams());
     }
 
     /**
@@ -72,4 +81,15 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     protected ToXContent.Params getToXContentParams() {
         return ToXContent.EMPTY_PARAMS;
     }
+
+    /**
+     * Whether or not to assert equivalence of the {@link org.elasticsearch.common.xcontent.XContent} of the test instance and the instance
+     * parsed from the {@link org.elasticsearch.common.xcontent.XContent} of the test instance.
+     *
+     * @return true if equivalence should be asserted, otherwise false
+     */
+    protected boolean assertToXContentEquivalence() {
+        return true;
+    }
+
 }

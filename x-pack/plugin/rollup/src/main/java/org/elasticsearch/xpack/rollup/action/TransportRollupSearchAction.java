@@ -155,6 +155,18 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         rolledSearchSource.size(0);
         AggregatorFactories.Builder sourceAgg = request.source().aggregations();
 
+        // If there are no aggs in the request, our translation won't create any msearch.
+        // So just add an dummy request to the msearch and return.  This is a bit silly
+        // but maintains how the regular search API behaves
+        if (sourceAgg == null || sourceAgg.count() == 0) {
+
+            // Note: we can't apply any query rewriting or filtering on the query because there
+            // are no validated caps, so we have no idea what job is intended here.  The only thing
+            // this affects is doc count, since hits and aggs will both be empty it doesn't really matter.
+            msearch.add(new SearchRequest(context.getRollupIndices(), request.source()).types(request.types()));
+            return msearch;
+        }
+
         // Find our list of "best" job caps
         Set<RollupJobCaps> validatedCaps = new HashSet<>();
         sourceAgg.getAggregatorFactories()
@@ -247,11 +259,6 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
         if (request.source().explain() != null && request.source().explain()) {
             throw new IllegalArgumentException("Rollup search does not support explaining.");
-        }
-
-        // Rollup is only useful if aggregations are set, throw an exception otherwise
-        if (request.source().aggregations() == null) {
-            throw new IllegalArgumentException("Rollup requires at least one aggregation to be set.");
         }
     }
 

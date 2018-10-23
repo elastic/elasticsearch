@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Date;
@@ -50,12 +48,12 @@ public class UpdateByQueryWithScriptTests
 
     @Override
     protected UpdateByQueryRequest request() {
-        return new UpdateByQueryRequest(new SearchRequest());
+        return new UpdateByQueryRequest();
     }
 
     @Override
     protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action(ScriptService scriptService, UpdateByQueryRequest request) {
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService, null,
-                listener(), Settings.EMPTY);
+        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService,
+                null, listener());
     }
 }

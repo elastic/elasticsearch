@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
@@ -19,9 +18,8 @@ public class WebhookActionFactory extends ActionFactory {
     private final HttpClient httpClient;
     private final TextTemplateEngine templateEngine;
 
-    public WebhookActionFactory(Settings settings, HttpClient httpClient, TextTemplateEngine templateEngine) {
-
-        super(Loggers.getLogger(ExecutableWebhookAction.class, settings));
+    public WebhookActionFactory(HttpClient httpClient, TextTemplateEngine templateEngine) {
+        super(LogManager.getLogger(ExecutableWebhookAction.class));
         this.httpClient = httpClient;
         this.templateEngine = templateEngine;
     }

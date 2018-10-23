@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -53,11 +51,6 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
 
         String executorNode = datafeedTask.getExecutorNode();
         DiscoveryNodes nodes = state.nodes();
-        if (nodes.resolveNode(executorNode).getVersion().before(Version.V_5_5_0)) {
-            listener.onFailure(new ElasticsearchException("Force delete datafeed is not supported because the datafeed task " +
-                    "is running on a node [" + executorNode + "] with a version prior to " + Version.V_5_5_0));
-            return;
-        }
 
         request.setNodes(datafeedTask.getExecutorNode());
         super.doExecute(task, request, listener);

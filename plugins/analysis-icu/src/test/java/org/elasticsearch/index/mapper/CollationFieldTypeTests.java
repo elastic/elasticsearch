@@ -121,6 +121,14 @@ public class CollationFieldTypeTests extends FieldTypeTestCase {
             () -> ft.prefixQuery("prefix", null, null));
     }
 
+    public void testWildcardQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        expectThrows(UnsupportedOperationException.class,
+            () -> ft.wildcardQuery("foo*", null, null));
+    }
+
     public void testRangeQuery() {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");

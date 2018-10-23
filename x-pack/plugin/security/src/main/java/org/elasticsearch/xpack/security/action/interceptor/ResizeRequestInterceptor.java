@@ -39,31 +39,33 @@ public final class ResizeRequestInterceptor extends AbstractComponent implements
 
     @Override
     public void intercept(ResizeRequest request, Authentication authentication, Role userPermissions, String action) {
-        if (licenseState.isSecurityEnabled() == false) {
-            return;
-        }
-
-        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
-            IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(request.getSourceIndex());
-            if (indexAccessControl != null) {
-                final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                final boolean dls = indexAccessControl.getQueries() != null;
-                if (fls || dls) {
-                    throw new ElasticsearchSecurityException("Resize requests are not allowed for users when " +
+        final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
+        if (frozenLicenseState.isAuthAllowed()) {
+            if (frozenLicenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+                IndicesAccessControl indicesAccessControl =
+                    threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+                IndicesAccessControl.IndexAccessControl indexAccessControl =
+                    indicesAccessControl.getIndexPermissions(request.getSourceIndex());
+                if (indexAccessControl != null) {
+                    final boolean fls = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+                    final boolean dls = indexAccessControl.getQueries() != null;
+                    if (fls || dls) {
+                        throw new ElasticsearchSecurityException("Resize requests are not allowed for users when " +
                             "field or document level security is enabled on the source index", RestStatus.BAD_REQUEST);
+                    }
                 }
             }
-        }
 
-        // ensure that the user would have the same level of access OR less on the target index
-        final Automaton sourceIndexPermissions = userPermissions.indices().allowedActionsMatcher(request.getSourceIndex());
-        final Automaton targetIndexPermissions = userPermissions.indices().allowedActionsMatcher(request.getTargetIndexRequest().index());
-        if (Operations.subsetOf(targetIndexPermissions, sourceIndexPermissions) == false) {
-            // TODO we've already audited a access granted event so this is going to look ugly
-            auditTrailService.accessDenied(authentication, action, request, userPermissions.names());
-            throw Exceptions.authorizationError("Resizing an index is not allowed when the target index " +
+            // ensure that the user would have the same level of access OR less on the target index
+            final Automaton sourceIndexPermissions = userPermissions.indices().allowedActionsMatcher(request.getSourceIndex());
+            final Automaton targetIndexPermissions =
+                userPermissions.indices().allowedActionsMatcher(request.getTargetIndexRequest().index());
+            if (Operations.subsetOf(targetIndexPermissions, sourceIndexPermissions) == false) {
+                // TODO we've already audited a access granted event so this is going to look ugly
+                auditTrailService.accessDenied(authentication, action, request, userPermissions.names());
+                throw Exceptions.authorizationError("Resizing an index is not allowed when the target index " +
                     "has more permissions than the source index");
+            }
         }
     }
 

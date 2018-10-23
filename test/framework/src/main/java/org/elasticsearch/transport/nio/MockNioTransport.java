@@ -193,6 +193,7 @@ public class MockNioTransport extends TcpTransport {
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
                 readWriteHandler, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
+            nioChannel.setSoLinger(0);
             return nioChannel;
         }
 
@@ -276,8 +277,9 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public void setSoLinger(int value) throws IOException {
-            if (isOpen()) {
-                getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
+            SocketChannel rawChannel = getRawChannel();
+            if (rawChannel.isConnected()) {
+                rawChannel.setOption(StandardSocketOptions.SO_LINGER, value);
             }
         }
 

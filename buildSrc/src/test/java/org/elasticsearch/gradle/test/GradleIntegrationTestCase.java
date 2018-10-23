@@ -9,6 +9,8 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -46,6 +48,12 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         }
     }
 
+    protected void assertOutputContains(String output, Set<String> lines) {
+        for (String line : lines) {
+            assertOutputContains(output, line);
+        }
+    }
+
     protected void assertOutputContains(String output, String line) {
         assertTrue(
             "Expected the following line in output:\n\n" + line + "\n\nOutput is:\n" + output,
@@ -66,15 +74,24 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         }
     }
 
-    protected void assertTaskSuccessfull(BuildResult result, String taskName) {
+    protected void assertTaskFailed(BuildResult result, String taskName) {
+        assertTaskOutcome(result, taskName, TaskOutcome.FAILED);
+    }
+
+    protected void assertTaskSuccessful(BuildResult result, String taskName) {
+        assertTaskOutcome(result, taskName, TaskOutcome.SUCCESS);
+    }
+
+    private void assertTaskOutcome(BuildResult result, String taskName, TaskOutcome taskOutcome) {
         BuildTask task = result.task(taskName);
         if (task == null) {
-            fail("Expected task `" + taskName + "` to be successful, but it did not run");
+            fail("Expected task `" + taskName + "` to be " + taskOutcome +", but it did not run" +
+                "\n\nOutput is:\n" + result.getOutput());
         }
         assertEquals(
-            "Expected task to be successful but it was: " + task.getOutcome() +
-                "\n\nOutput is:\n" + result.getOutput() ,
-            TaskOutcome.SUCCESS,
+            "Expected task `" + taskName +"` to be successful but it was: " + task.getOutcome() +
+                taskOutcome + "\n\nOutput is:\n" + result.getOutput() ,
+            taskOutcome,
             task.getOutcome()
         );
     }
@@ -108,5 +125,18 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
                 "\n\nOutput is:\n" + result.getOutput(),
             Files.exists(absPath)
         );
+    }
+
+    protected String getLocalTestRepoPath() {
+        String property = System.getProperty("test.local-test-repo-path");
+        Objects.requireNonNull(property, "test.local-test-repo-path not passed to tests");
+        File file = new File(property);
+        assertTrue("Expected " + property + " to exist, but it did not!", file.exists());
+        if (File.separator.equals("\\")) {
+            // Use / on Windows too, the build script is not happy with \
+            return file.getAbsolutePath().replace(File.separator, "/");
+        } else {
+            return file.getAbsolutePath();
+        }
     }
 }

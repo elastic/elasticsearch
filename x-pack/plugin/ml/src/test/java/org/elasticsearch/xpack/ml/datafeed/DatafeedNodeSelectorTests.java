@@ -349,7 +349,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                         true, ShardRoutingState.RELOCATING);
             } else {
                 shardRouting = ShardRouting.newUnassigned(shardId, true,
-                        RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
+                        RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
             }
 

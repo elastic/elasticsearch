@@ -62,9 +62,8 @@ public final class WhitelistClass {
 
     /** Standard constructor. All values must be not {@code null}. */
     public WhitelistClass(String origin, String javaClassName, boolean noImport,
-                          List<WhitelistConstructor> whitelistConstructors,
-                          List<WhitelistMethod> whitelistMethods,
-                          List<WhitelistField> whitelistFields) {
+            List<WhitelistConstructor> whitelistConstructors, List<WhitelistMethod> whitelistMethods, List<WhitelistField> whitelistFields)
+    {
 
         this.origin = Objects.requireNonNull(origin);
         this.javaClassName = Objects.requireNonNull(javaClassName);

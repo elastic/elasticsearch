@@ -12,6 +12,7 @@
 * <<sql-functions-math, Mathematical>>
 * <<sql-functions-string, String>>
 * <<sql-functions-type-conversion,Type Conversion>>
+* <<sql-functions-geo,Geo>>
 
 include::operators.asciidoc[]
 include::aggs.asciidoc[]

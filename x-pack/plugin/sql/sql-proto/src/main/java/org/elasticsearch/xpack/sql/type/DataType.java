@@ -127,7 +127,7 @@ public enum DataType {
     public String sqlName() {
         return jdbcType.getName();
     }
-    
+
     public Class<?> javaClass() {
         return javaClass;
     }
@@ -152,13 +152,18 @@ public enum DataType {
         return this != OBJECT && this != NESTED;
     }
 
+
+    public boolean isGeo() {
+        return this == GEO_POINT || this == GEO_SHAPE;
+    }
+
     public static DataType fromJdbcType(SQLType jdbcType) {
         if (jdbcToEs.containsKey(jdbcType) == false) {
             throw new IllegalArgumentException("Unsupported JDBC type [" + jdbcType + "]");
         }
         return jdbcToEs.get(jdbcType);
     }
-    
+
     public static Class<?> fromJdbcTypeToJava(SQLType jdbcType) {
         if (jdbcToEs.containsKey(jdbcType) == false) {
             throw new IllegalArgumentException("Unsupported JDBC type [" + jdbcType + "]");

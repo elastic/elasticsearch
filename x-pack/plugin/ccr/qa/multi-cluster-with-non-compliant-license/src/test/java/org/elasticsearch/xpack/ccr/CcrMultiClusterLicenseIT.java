@@ -25,7 +25,7 @@ public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
     public void testFollow() {
         if ("follow".equals(targetCluster)) {
             final Request request = new Request("PUT", "/follower/_ccr/follow");
-            request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"leader\"}");
+            request.setJsonEntity("{\"remote_cluster\": \"leader_cluster\", \"leader_index\": \"leader\"}");
             assertNonCompliantLicense(request);
         }
     }
@@ -34,7 +34,7 @@ public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
         assumeFalse("windows is the worst", Constants.WINDOWS);
         if ("follow".equals(targetCluster)) {
             final Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-            request.setJsonEntity("{\"leader_index_patterns\":[\"*\"], \"leader_cluster\": \"leader_cluster\"}");
+            request.setJsonEntity("{\"leader_index_patterns\":[\"*\"], \"remote_cluster\": \"leader_cluster\"}");
             client().performRequest(request);
 
             // parse the logs and ensure that the auto-coordinator skipped coordination on the leader cluster

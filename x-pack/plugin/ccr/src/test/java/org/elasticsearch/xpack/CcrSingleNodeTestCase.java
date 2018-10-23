@@ -74,7 +74,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected PutFollowAction.Request getPutFollowRequest() {
         PutFollowAction.Request request = new PutFollowAction.Request();
-        request.setLeaderCluster("local");
+        request.setRemoteCluster("local");
         request.setLeaderIndex("leader");
         request.setFollowRequest(getResumeFollowRequest());
         return request;

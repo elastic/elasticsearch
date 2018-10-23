@@ -154,7 +154,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"timestamp\":\"" + new DateTime(nodeTimestamp, DateTimeZone.UTC).toString() +  "\""
                                 + "},"
                                 + "\"ccr_stats\":{"
-                                        + "\"leader_cluster\":\"leader_cluster\","
+                                        + "\"remote_cluster\":\"leader_cluster\","
                                         + "\"leader_index\":\"leader_index\","
                                         + "\"follower_index\":\"follower_index\","
                                         + "\"shard_id\":" + shardId + ","
@@ -168,7 +168,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"number_of_queued_writes\":" + numberOfQueuedWrites + ","
                                         + "\"mapping_version\":" + mappingVersion + ","
                                         + "\"total_fetch_time_millis\":" + totalFetchTimeMillis + ","
-                                        + "\"total_fetch_leader_time_millis\":" + totalFetchTookTimeMillis + ","
+                                        + "\"total_fetch_remote_time_millis\":" + totalFetchTookTimeMillis + ","
                                         + "\"number_of_successful_fetches\":" + numberOfSuccessfulFetches + ","
                                         + "\"number_of_failed_fetches\":" + numberOfFailedFetches + ","
                                         + "\"operations_received\":" + operationsReceived + ","
@@ -197,7 +197,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions =
             new TreeMap<>(Collections.singletonMap(1L, Tuple.tuple(2, new ElasticsearchException("shard is sad"))));
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
-            "leader_cluster",
+            "remote_cluster",
             "leader_index",
             "follower_index",
             0,

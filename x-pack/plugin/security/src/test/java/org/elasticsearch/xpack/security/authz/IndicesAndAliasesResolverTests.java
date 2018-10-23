@@ -778,11 +778,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testResolveAliasesWildcardsIndicesAliasesRequestDeleteActionsNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
         request.addAliasAction(AliasActions.remove().index("foo*").alias("foo*"));
-        //no authorized aliases match bar*, hence aliases are replaced with empty string for that action
+        //no authorized aliases match bar*, hence aliases are replaced with no-aliases-expression for that action
         request.addAliasAction(AliasActions.remove().index("*bar").alias("bar*"));
         resolveIndices(request, buildAuthorizedIndices(user, IndicesAliasesAction.NAME));
         assertThat(request.getAliasActions().get(0).aliases(), arrayContainingInAnyOrder("foofoobar", "foobarfoo"));
-        assertThat(request.getAliasActions().get(1).aliases().length, equalTo(0));
+        assertThat(request.getAliasActions().get(1).aliases(), arrayContaining(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY));
     }
 
     public void testResolveWildcardsIndicesAliasesRequestAddAndDeleteActions() {
@@ -1084,11 +1084,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testResolveAliasesWildcardsGetAliasesRequestNoAuthorizedIndices() {
         GetAliasesRequest request = new GetAliasesRequest();
-        //no authorized aliases match bar*, hence aliases are replaced with empty array
+        //no authorized aliases match bar*, hence aliases are replaced with the no-aliases-expression
         request.aliases("bar*");
         request.indices("*bar");
         resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME));
-        assertThat(request.aliases().length, equalTo(0));
+        assertThat(request.aliases(), arrayContaining(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY));
     }
 
     public void testResolveAliasesExclusionWildcardsGetAliasesRequest() {
@@ -1112,10 +1112,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             request.aliases("_all");
         }
         request.indices("non_existing");
-        //current user is not authorized for any index, foo* resolves to no indices, aliases are replaced with empty array
+        //current user is not authorized for any index, aliases are replaced with the no-aliases-expression
         ResolvedIndices resolvedIndices = resolveIndices(request, buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME));
         assertThat(resolvedIndices.getLocal(), contains("non_existing"));
-        assertThat(request.aliases().length, equalTo(0));
+        assertThat(Arrays.asList(request.indices()), contains("non_existing"));
+        assertThat(request.aliases(), arrayContaining(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_ARRAY));
     }
 
     /**
@@ -1372,7 +1373,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final List<String> localIndices = resolvedIndices.getLocal();
         assertEquals(1, localIndices.size());
         assertEquals(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER, localIndices.iterator().next());
-        assertEquals(IndicesAndAliasesResolver.NO_INDICES_LIST, Arrays.asList(request.indices()));
+        assertEquals(IndicesAndAliasesResolver.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(request.indices()));
         assertEquals(0, resolvedIndices.getRemote().size());
     }
 

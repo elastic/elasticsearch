@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.precommit.ForbiddenApisCliTask
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 
 /*
  * Licensed to Elasticsearch under one or more contributor
@@ -52,7 +52,7 @@ dependencies {
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
-tasks.withType(ForbiddenApisCliTask) {
+tasks.withType(CheckForbiddenApis) {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles ('jdk-signatures', 'http-signatures')
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.SearchSlowLog;
@@ -99,38 +98,11 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             return;
         }
         final String clusterAlias = request.getLeaderCluster();
-        if (clusterAlias == null) {
-            followLocalIndex(request, listener);
-        } else {
-            // In the case of following a local index there is no cluster alias:
-            client.getRemoteClusterClient(clusterAlias);
-            final String leaderIndex = request.getLeaderIndex();
-            followRemoteIndex(request, clusterAlias, leaderIndex, listener);
-        }
-    }
+        // Validates whether the leader cluster has been configured properly:
+        client.getRemoteClusterClient(clusterAlias);
 
-    private void followLocalIndex(final ResumeFollowAction.Request request,
-                                  final ActionListener<AcknowledgedResponse> listener) {
-        final ClusterState state = clusterService.state();
-        final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
-        // following an index in local cluster, so use local cluster state to fetch leader index metadata
-        final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getLeaderIndex());
-        if (leaderIndexMetadata == null) {
-            throw new IndexNotFoundException(request.getFollowerIndex());
-        }
-        ccrLicenseChecker.hasPrivilegesToFollowIndices(client, new String[] {request.getLeaderIndex()}, e -> {
-            if (e == null) {
-                ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDs -> {
-                    try {
-                        start(request, null, leaderIndexMetadata, followerIndexMetadata, historyUUIDs, listener);
-                    } catch (final IOException ioe) {
-                        listener.onFailure(ioe);
-                    }
-                });
-            } else {
-                listener.onFailure(e);
-            }
-        });
+        final String leaderIndex = request.getLeaderIndex();
+        followRemoteIndex(request, clusterAlias, leaderIndex, listener);
     }
 
     private void followRemoteIndex(
@@ -267,6 +239,9 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
 
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             throw new IllegalArgumentException("leader index [" + leaderIndexName + "] does not have soft deletes enabled");
+        }
+        if (followIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+            throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() + "] does not have soft deletes enabled");
         }
         if (leaderIndex.getNumberOfShards() != followIndex.getNumberOfShards()) {
             throw new IllegalArgumentException("leader index primary shards [" + leaderIndex.getNumberOfShards() +
@@ -410,7 +385,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING);
         whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING);
 
-        whiteListedSettings.add(IndexSettings.INDEX_SOFT_DELETES_SETTING);
         whiteListedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
 
         WHITE_LISTED_SETTINGS = Collections.unmodifiableSet(whiteListedSettings);

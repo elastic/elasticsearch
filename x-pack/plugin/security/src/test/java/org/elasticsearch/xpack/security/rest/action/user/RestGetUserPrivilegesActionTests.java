@@ -6,17 +6,24 @@
 
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestChannel;
+import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
-import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -24,8 +31,26 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RestGetUserPrivilegesActionTests extends ESTestCase {
+
+    public void testBasicLicense() throws Exception {
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        final RestGetUserPrivilegesAction action = new RestGetUserPrivilegesAction(Settings.EMPTY, mock(RestController.class),
+            mock(SecurityContext.class), licenseState);
+        when(licenseState.isSecurityAvailable()).thenReturn(false);
+        final FakeRestRequest request = new FakeRestRequest();
+        final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
+        action.handleRequest(request, channel, mock(NodeClient.class));
+        assertThat(channel.capturedResponse(), notNullValue());
+        assertThat(channel.capturedResponse().status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(channel.capturedResponse().content().utf8ToString(), containsString("current license is non-compliant for [security]"));
+    }
 
     public void testBuildResponse() throws Exception {
         final RestGetUserPrivilegesAction.RestListener listener = new RestGetUserPrivilegesAction.RestListener(null);
@@ -37,8 +62,8 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
         final Set<GetUserPrivilegesResponse.Indices> index = new LinkedHashSet<>(Arrays.asList(
             new GetUserPrivilegesResponse.Indices(Arrays.asList("index-1", "index-2", "index-3-*"), Arrays.asList("read", "write"),
                 new LinkedHashSet<>(Arrays.asList(
-                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[]{ "public.*" }, new String[0]),
-                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[]{ "*" }, new String[]{ "private.*" })
+                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[]{"public.*"}, new String[0]),
+                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[]{"*"}, new String[]{"private.*"})
                 )),
                 new LinkedHashSet<>(Arrays.asList(
                     new BytesArray("{ \"term\": { \"access\": \"public\" } }"),
@@ -60,7 +85,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
         listener.buildResponse(response, builder);
 
         String json = Strings.toString(builder);
-        assertThat(json, Matchers.equalTo("{" +
+        assertThat(json, equalTo("{" +
             "\"cluster\":[\"monitor\",\"manage_ml\",\"manage_watcher\"]," +
             "\"global\":[" +
             "{\"application\":{\"manage\":{\"applications\":[\"app01\",\"app02\"]}}}" +

@@ -31,18 +31,10 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
         return true;
     }
 
-    public void testResumeFollow() {
-        if (runningAgainstLeaderCluster == false) {
-            final Request request = new Request("POST", "/follower/_ccr/resume_follow");
-            request.setJsonEntity("{\"leader_index\": \"leader_cluster:leader\"}");
-            assertNonCompliantLicense(request);
-        }
-    }
-
     public void testFollow() {
         if (runningAgainstLeaderCluster == false) {
             final Request request = new Request("PUT", "/follower/_ccr/follow");
-            request.setJsonEntity("{\"leader_index\": \"leader_cluster:leader\"}");
+            request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"leader\"}");
             assertNonCompliantLicense(request);
         }
     }
@@ -50,8 +42,8 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
     public void testAutoFollow() throws Exception {
         assumeFalse("windows is the worst", Constants.WINDOWS);
         if (runningAgainstLeaderCluster == false) {
-            final Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
-            request.setJsonEntity("{\"leader_index_patterns\":[\"*\"]}");
+            final Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+            request.setJsonEntity("{\"leader_index_patterns\":[\"*\"], \"leader_cluster\": \"leader_cluster\"}");
             client().performRequest(request);
 
             // parse the logs and ensure that the auto-coordinator skipped coordination on the leader cluster
@@ -64,7 +56,7 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
                 while (it.hasNext()) {
                     final String line = it.next();
                     if (line.matches(".*\\[WARN\\s*\\]\\[o\\.e\\.x\\.c\\.a\\.AutoFollowCoordinator\\s*\\] \\[node-0\\] " +
-                            "failure occurred while fetching cluster state in leader cluster \\[leader_cluster\\]")) {
+                            "failure occurred while fetching cluster state for auto follow pattern \\[test_pattern\\]")) {
                         warn = true;
                         break;
                     }

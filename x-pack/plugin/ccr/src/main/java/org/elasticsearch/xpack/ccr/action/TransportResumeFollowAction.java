@@ -36,8 +36,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -48,7 +46,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -69,7 +66,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
     private final Client client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final RemoteClusterService remoteClusterService;
     private final PersistentTasksService persistentTasksService;
     private final IndicesService indicesService;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -89,7 +85,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.remoteClusterService = transportService.getRemoteClusterService();
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
@@ -103,63 +98,34 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final String[] indices = new String[]{request.getLeaderIndex()};
-        final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
-        if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-            followLocalIndex(request, listener);
-        } else {
-            assert remoteClusterIndices.size() == 1;
-            final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
-            assert entry.getValue().size() == 1;
-            final String clusterAlias = entry.getKey();
-            final String leaderIndex = entry.getValue().get(0);
-            followRemoteIndex(request, clusterAlias, leaderIndex, listener);
-        }
-    }
 
-    private void followLocalIndex(final ResumeFollowAction.Request request,
-                                  final ActionListener<AcknowledgedResponse> listener) {
         final ClusterState state = clusterService.state();
         final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
-        // following an index in local cluster, so use local cluster state to fetch leader index metadata
-        final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getLeaderIndex());
-        if (leaderIndexMetadata == null) {
-            throw new IndexNotFoundException(request.getFollowerIndex());
+        if (followerIndexMetadata == null) {
+            listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
+            return;
         }
-        ccrLicenseChecker.hasPrivilegesToFollowIndices(client, new String[] {request.getLeaderIndex()}, e -> {
-            if (e == null) {
-                ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDs -> {
-                    try {
-                        start(request, null, leaderIndexMetadata, followerIndexMetadata, historyUUIDs, listener);
-                    } catch (final IOException ioe) {
-                        listener.onFailure(ioe);
-                    }
-                });
-            } else {
-                listener.onFailure(e);
-            }
-        });
-    }
 
-    private void followRemoteIndex(
-            final ResumeFollowAction.Request request,
-            final String clusterAlias,
-            final String leaderIndex,
-            final ActionListener<AcknowledgedResponse> listener) {
-        final ClusterState state = clusterService.state();
-        final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
+        final Map<String, String> ccrMetadata = followerIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        if (ccrMetadata == null) {
+            throw new IllegalArgumentException("follow index ["+ request.getFollowerIndex() + "] does not have ccr metadata");
+        }
+        final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_CLUSTER_NAME_KEY);
+        // Validates whether the leader cluster has been configured properly:
+        client.getRemoteClusterClient(leaderCluster);
+        final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
-                client,
-                clusterAlias,
-                leaderIndex,
-                listener::onFailure,
-                (leaderHistoryUUID, leaderIndexMetadata) -> {
-                    try {
-                        start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
-                    } catch (final IOException e) {
-                        listener.onFailure(e);
-                    }
-                });
+            client,
+            leaderCluster,
+            leaderIndex,
+            listener::onFailure,
+            (leaderHistoryUUID, leaderIndexMetadata) -> {
+                try {
+                    start(request, leaderCluster, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
+                } catch (final IOException e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     /**
@@ -243,12 +209,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             final IndexMetaData followIndex,
             final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
-        if (leaderIndex == null) {
-            throw new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist");
-        }
-        if (followIndex == null) {
-            throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] does not exist");
-        }
         Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         if (ccrIndexMetadata == null) {
             throw new IllegalArgumentException("follow index ["+ followIndex.getIndex().getName() + "] does not have ccr metadata");
@@ -273,7 +233,11 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         }
 
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
-            throw new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled");
+            throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
+                "] does not have soft deletes enabled");
+        }
+        if (followIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+            throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() + "] does not have soft deletes enabled");
         }
         if (leaderIndex.getNumberOfShards() != followIndex.getNumberOfShards()) {
             throw new IllegalArgumentException("leader index primary shards [" + leaderIndex.getNumberOfShards() +
@@ -417,7 +381,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING);
         whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING);
 
-        whiteListedSettings.add(IndexSettings.INDEX_SOFT_DELETES_SETTING);
         whiteListedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
 
         WHITE_LISTED_SETTINGS = Collections.unmodifiableSet(whiteListedSettings);

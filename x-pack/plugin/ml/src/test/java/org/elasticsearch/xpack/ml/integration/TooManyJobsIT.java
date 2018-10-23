@@ -61,6 +61,68 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         assertEquals(JobState.OPENED, ((JobTaskState) task.getState()).getState());
     }
 
+    public void testLazyNodeValidation() throws Exception {
+        int numNodes = 1;
+        int maxNumberOfJobsPerNode = 1;
+        int maxNumberOfLazyNodes = 2;
+        internalCluster().ensureAtMostNumDataNodes(0);
+        logger.info("[{}] is [{}]", AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode);
+        for (int i = 0; i < numNodes; i++) {
+            internalCluster().startNode(Settings.builder()
+                .put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
+        }
+        logger.info("Started [{}] nodes", numNodes);
+        ensureStableCluster(numNodes);
+        logger.info("[{}] is [{}]", MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes);
+        // Set our lazy node number
+        assertTrue(client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder()
+                    .put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes))
+            .get()
+            .isAcknowledged());
+        // create and open first job, which succeeds:
+        Job.Builder job = createJob("lazy-node-validation-job-1", new ByteSizeValue(2, ByteSizeUnit.MB));
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
+        client().execute(PutJobAction.INSTANCE, putJobRequest).get();
+        client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse =
+                client().execute(GetJobsStatsAction.INSTANCE,
+                    new GetJobsStatsAction.Request("lazy-node-validation-job-1")).actionGet();
+            assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
+        });
+
+        // create and try to open second job, which succeeds due to lazy node number:
+        job = createJob("lazy-node-validation-job-2", new ByteSizeValue(2, ByteSizeUnit.MB));
+        putJobRequest = new PutJobAction.Request(job);
+        client().execute(PutJobAction.INSTANCE, putJobRequest).get();
+        client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get(); // Should return while job is opening
+
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse =
+                client().execute(GetJobsStatsAction.INSTANCE,
+                    new GetJobsStatsAction.Request("lazy-node-validation-job-2")).actionGet();
+            // Should get to opening state w/o a node
+            assertEquals(JobState.OPENING, statsResponse.getResponse().results().get(0).getState());
+        });
+
+        // Add another Node so we can get allocated
+        internalCluster().startNode(Settings.builder()
+            .put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
+        ensureStableCluster(numNodes+1);
+
+        // We should automatically get allocated and opened to new node
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse =
+                client().execute(GetJobsStatsAction.INSTANCE,
+                    new GetJobsStatsAction.Request("lazy-node-validation-job-2")).actionGet();
+            assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
+        });
+    }
+
     public void testSingleNode() throws Exception {
         verifyMaxNumberOfJobsLimit(1, randomIntBetween(1, 100));
     }

@@ -23,11 +23,12 @@ You can also specify `index`, which puts the auditing events in an {es} index
 that is prefixed with `.security_audit_log`. The index can reside on the same
 cluster or a separate cluster.
 
-For backwards compatibility reasons, the logfile contents are duplicated to
-the `<clustername>_access.log` file with the format for versions prior to 6.5.0.
+For backwards compatibility reasons, if you use the logfile output type, a
+`<clustername>_access.log` file is also created. It contains the same
+information, but it uses the older (pre-6.5.0) formatting style.
 If the backwards compatible format is not required, it should be disabled.
-To do that, change its logger level to `off` in the `log4j2.properties` file
-from `ES_PATH_CONF`.
+To do that, change its logger level to `off` in the `log4j2.properties` file.
+For more information, see <<configuring-logging-levels>>.
 
 +
 --
@@ -79,10 +80,11 @@ The default value is `false`.
 
 `xpack.security.audit.logfile.emit_node_id`::
 Specifies whether to include the node id as a field in each audit event.
-This is available for the new format only.
+This is available for the new format only. That is to say, this information
+does not exist in the `<clustername>_access.log` file.
 Unlike <<node-name, node name>>, whose value might change if the administrator
 changes the setting in the config file, the node id will persist across cluster
-restarts and the administrator has no handle to change it.
+restarts and the administrator cannot change it.
 The default value is `true`.
 
 [[index-audit-settings]]

@@ -9,8 +9,10 @@ is also generated next to it. They differ in the output format but the contents
 are similar. For systems that are not ingesting the audit file for search or
 analytics it is strongly recommended to only keep the newer format.
 Turning off the deprecated output format can be achieved by disabling the logger
-in the `log4j2.properties` file in `ES_PATH_CONF` (hint: there is a config comment
+in the `log4j2.properties` file (hint: there is a config comment
 about it).
+For more information, see <<configuring-logging-levels>>.
+
 
 [float]
 [[audit-log-entry-format]]

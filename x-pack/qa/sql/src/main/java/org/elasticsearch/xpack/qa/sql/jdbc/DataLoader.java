@@ -44,6 +44,7 @@ public class DataLoader {
     protected static void loadEmpDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "test_emp", "employees");
         loadEmpDatasetWithExtraIntoEs(client, "test_emp_copy", "employees");
+        loadLogsDatasetIntoEs(client, "logs", "logs");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
     }
@@ -187,6 +188,56 @@ public class DataLoader {
                 bulk.append("]");
             }
 
+            bulk.append("}\n");
+        });
+        request.setJsonEntity(bulk.toString());
+        client.performRequest(request);
+    }
+
+    protected static void loadLogsDatasetIntoEs(RestClient client, String index, String filename) throws Exception {
+        Request request = new Request("PUT", "/" + index);
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("settings");
+        {
+            createIndex.field("number_of_shards", 1);
+            createIndex.field("number_of_replicas", 1);
+        }
+        createIndex.endObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("_doc");
+            {
+                createIndex.startObject("properties");
+                {
+                    createIndex.startObject("id").field("type", "short").endObject();
+                    createIndex.startObject("@timestamp").field("type", "date").endObject();
+                    createIndex.startObject("bytes_in").field("type", "long").endObject();
+                    createIndex.startObject("bytes_out").field("type", "long").endObject();
+                    createIndex.startObject("client_ip").field("type", "ip").endObject();
+                    createIndex.startObject("client_port").field("type", "integer").endObject();
+                    createIndex.startObject("dest_ip").field("type", "ip").endObject();
+                    createIndex.startObject("status").field("type", "keyword").endObject();
+                }
+                createIndex.endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+        request.setJsonEntity(Strings.toString(createIndex));
+        client.performRequest(request);
+
+        request = new Request("POST", "/" + index + "/_doc/_bulk");
+        request.addParameter("refresh", "true");
+        StringBuilder bulk = new StringBuilder();
+        csvToLines(filename, (titles, fields) -> {
+            bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
+            bulk.append("{");
+            for (int f = 0; f < titles.size(); f++) {
+                if (f > 0) {
+                    bulk.append(",");
+                }
+                bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
+            }
             bulk.append("}\n");
         });
         request.setJsonEntity(bulk.toString());

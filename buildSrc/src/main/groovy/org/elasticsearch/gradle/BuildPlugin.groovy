@@ -99,7 +99,7 @@ class BuildPlugin implements Plugin<Project> {
         configureSourcesJar(project)
         configurePomGeneration(project)
 
-        applyCommonTestConfigPresentAndFuture(project)
+        applyCommonTestConfig(project)
         configureTest(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
@@ -778,7 +778,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    static void applyCommonTestConfigPresentAndFuture(Project project) {
+    static void applyCommonTestConfig(Project project) {
         project.tasks.withType(RandomizedTestingTask) {
             jvm "${project.runtimeJavaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')

@@ -36,8 +36,8 @@ public enum DataType {
     SCALED_FLOAT(JDBCType.FLOAT,     Double.class,    Double.BYTES,      19,                25, false, true, true),
     KEYWORD(     JDBCType.VARCHAR,   String.class,    Integer.MAX_VALUE, 256,               0),
     TEXT(        JDBCType.VARCHAR,   String.class,    Integer.MAX_VALUE, Integer.MAX_VALUE, 0, false, false, false),
-    OBJECT(      JDBCType.STRUCT,    null,            -1,                0,                 0),
-    NESTED(      JDBCType.STRUCT,    null,            -1,                0,                 0),
+    OBJECT(      JDBCType.STRUCT,    null,            -1,                0,                 0, false, false, false),
+    NESTED(      JDBCType.STRUCT,    null,            -1,                0,                 0, false, false, false),
     BINARY(      JDBCType.VARBINARY, byte[].class,    -1,                Integer.MAX_VALUE, 0),
     // since ODBC and JDBC interpret precision for Date as display size,
     // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
@@ -223,7 +223,11 @@ public enum DataType {
      * For any dataType DataType.fromEsType(dataType.esType) == dataType
      */
     public static DataType fromEsType(String esType) {
-        return DataType.valueOf(esType.toUpperCase(Locale.ROOT));
+        try {
+            return DataType.valueOf(esType.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return DataType.UNSUPPORTED;
+        }
     }
 
     public boolean isCompatibleWith(DataType other) {

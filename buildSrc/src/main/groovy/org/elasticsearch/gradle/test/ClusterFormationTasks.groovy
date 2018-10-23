@@ -133,9 +133,7 @@ class ClusterFormationTasks {
                     esConfig['discovery.zen.ping.unicast.hosts'] = []
                     esConfig
                 }
-                dependsOn = startDependencies
             } else {
-                dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
                 writeConfigSetup = { Map esConfig ->
                     String unicastTransportUri = node.config.unicastTransportUri(nodes[0], node, project.ant)
                     if (unicastTransportUri == null) {
@@ -146,6 +144,7 @@ class ClusterFormationTasks {
                     esConfig
                 }
             }
+            dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
             startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, writeConfigSetup))
         }
 

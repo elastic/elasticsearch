@@ -56,7 +56,7 @@ And type:
 
 [source,js]
 --------------------------------------------------
-GET /test/type/_mget
+GET /test/_doc/_mget
 {
     "docs" : [
         {
@@ -75,7 +75,7 @@ request:
 
 [source,js]
 --------------------------------------------------
-GET /test/type/_mget
+GET /test/_doc/_mget
 {
     "ids" : ["1", "2"]
 }
@@ -160,7 +160,7 @@ as a default to be applied to all documents.
 
 [source,js]
 --------------------------------------------------
-GET /test/type/_mget?stored_fields=field1,field2
+GET /test/_doc/_mget?stored_fields=field1,field2
 {
     "docs" : [
         {
@@ -204,8 +204,8 @@ GET /_mget?routing=key1
 --------------------------------------------------
 // CONSOLE
 
-In this example, document `test/type/2` will be fetch from shard corresponding to routing key `key1` but
-document `test/type/1` will be fetch from shard corresponding to routing key `key2`.
+In this example, document `test/_doc/2` will be fetch from shard corresponding to routing key `key1` but
+document `test/_doc/1` will be fetch from shard corresponding to routing key `key2`.
 
 [float]
 [[mget-security]]

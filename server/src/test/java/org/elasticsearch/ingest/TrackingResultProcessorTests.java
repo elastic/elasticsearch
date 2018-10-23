@@ -158,7 +158,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String pipelineId = "pipeline1";
         IngestService ingestService = mock(IngestService.class);
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("pipeline", pipelineId);
+        pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);
@@ -204,7 +204,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String pipelineId = "pipeline1";
         IngestService ingestService = mock(IngestService.class);
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("pipeline", pipelineId);
+        pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);
@@ -256,7 +256,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String pipelineId = "pipeline1";
         IngestService ingestService = mock(IngestService.class);
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("pipeline", pipelineId);
+        pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, pipelineConfig);
@@ -277,7 +277,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String pipelineId = "pipeline1";
         IngestService ingestService = mock(IngestService.class);
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("pipeline", pipelineId);
+        pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);

@@ -216,6 +216,8 @@ aggMinWithCastAndFilter
 SELECT gender g, CAST(MIN(emp_no) AS SMALLINT) m, COUNT(1) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender ORDER BY gender;
 aggMinWithAlias
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
+aggMinOnDate
+SELECT gender, MIN(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 
 // Conditional MIN
 aggMinWithHaving
@@ -270,6 +272,8 @@ aggMaxAndCountWithFilterAndLimit
 SELECT gender g, MAX(emp_no) m, COUNT(1) c FROM "test_emp" WHERE emp_no > 10000 GROUP BY gender ORDER BY gender LIMIT 1;
 aggMaxWithAlias
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
+aggMaxOnDate
+SELECT gender, MAX(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 
 // Conditional MAX
 aggMaxWithHaving
@@ -422,6 +426,11 @@ SELECT MIN(emp_no) AS a, 1 + MIN(emp_no) AS b, ABS(MIN(emp_no)) AS c FROM test_e
 aggRepeatFunctionBetweenSelectAndHaving
 SELECT gender, COUNT(DISTINCT languages) AS c FROM test_emp GROUP BY gender HAVING count(DISTINCT languages) > 0 ORDER BY gender;
 
+// filter with IN
+aggMultiWithHavingUsingIn
+SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max IN(74999, 74600) ORDER BY gender;
+aggMultiGroupByMultiWithHavingUsingIn
+SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74500, 74600) ORDER BY gender, languages;
 
 
 //

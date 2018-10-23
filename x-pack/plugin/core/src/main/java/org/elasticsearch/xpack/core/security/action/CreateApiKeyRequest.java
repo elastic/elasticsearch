@@ -39,7 +39,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
         super(in);
         this.name = in.readString();
         this.expiration = in.readOptionalTimeValue();
-        this.roleDescriptors = in.readList(RoleDescriptor::new);
+        this.roleDescriptors = Collections.unmodifiableList(in.readList(RoleDescriptor::new));
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
     }
 
@@ -68,7 +68,7 @@ public final class CreateApiKeyRequest extends ActionRequest {
     }
 
     public void setRoleDescriptors(List<RoleDescriptor> roleDescriptors) {
-        this.roleDescriptors = Objects.requireNonNull(roleDescriptors, "role descriptors may not be null");
+        this.roleDescriptors = Collections.unmodifiableList(Objects.requireNonNull(roleDescriptors, "role descriptors may not be null"));
     }
 
     public WriteRequest.RefreshPolicy getRefreshPolicy() {

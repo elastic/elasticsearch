@@ -100,11 +100,6 @@ public abstract class MetaDataStateFormat<T> {
         }
     }
 
-    private static void performDirectoryCleanup(Path stateLocation, Directory stateDir, String tmpFileName) {
-        deleteFileIgnoreExceptions(stateLocation, stateDir, tmpFileName);
-        IOUtils.closeWhileHandlingException(stateDir);
-    }
-
     private void writeStateToFirstLocation(final T state, Path stateLocation, Directory stateDir, String tmpFileName)
             throws WriteStateException {
         try {
@@ -231,7 +226,8 @@ public abstract class MetaDataStateFormat<T> {
             performStateDirectoriesFsync(directories);
         } finally {
             for (Tuple<Path, Directory> pathAndDirectory : directories) {
-                performDirectoryCleanup(pathAndDirectory.v1(), pathAndDirectory.v2(), tmpFileName);
+                deleteFileIgnoreExceptions(pathAndDirectory.v1(), pathAndDirectory.v2(), tmpFileName);
+                IOUtils.closeWhileHandlingException(pathAndDirectory.v2());
             }
         }
 

@@ -122,10 +122,7 @@ dependencies {
   compile localGroovy()
   compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
-
-  compile("junit:junit:${props.getProperty('junit')}") {
-    transitive = false
-  }
+  
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
@@ -135,7 +132,7 @@ dependencies {
   compile "org.elasticsearch:jna:4.5.1"
   compile 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
   compile 'de.thetaphi:forbiddenapis:2.6'
-//  testCompile "junit:junit:${props.getProperty('junit')}"
+  testCompile "junit:junit:${props.getProperty('junit')}"
 }
 
 

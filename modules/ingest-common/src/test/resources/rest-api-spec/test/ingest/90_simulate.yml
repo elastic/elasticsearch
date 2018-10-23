@@ -617,7 +617,7 @@ teardown:
           "processors" : [
             {
               "pipeline" : {
-                "pipeline": "inner"
+                "name": "inner"
               }
             }
           ]
@@ -633,7 +633,7 @@ teardown:
           "processors" : [
             {
               "pipeline" : {
-                "pipeline": "outer"
+                "name": "outer"
               }
             }
           ]
@@ -649,7 +649,7 @@ teardown:
             "processors" : [
             {
               "pipeline" : {
-                "pipeline": "outer"
+                "name": "outer"
               }
             }
             ]
@@ -687,7 +687,7 @@ teardown:
           },
           {
             "pipeline": {
-              "pipeline": "pipeline2"
+              "name": "pipeline2"
             }
           }
           ]
@@ -725,7 +725,7 @@ teardown:
             },
             {
               "pipeline": {
-                "pipeline": "pipeline1"
+                "name": "pipeline1"
               }
             }
             ]

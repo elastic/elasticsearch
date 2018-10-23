@@ -52,7 +52,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.xpack.CCRIntegTestCase;
+import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngine;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
@@ -91,7 +91,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class IndexFollowingIT extends CCRIntegTestCase {
+public class IndexFollowingIT extends CcrIntegTestCase {
 
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
@@ -271,6 +271,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfShards);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34696")
     public void testFollowIndexAndCloseNode() throws Exception {
         getFollowerCluster().ensureAtLeastNumDataNodes(3);
         String leaderIndexSettings = getIndexSettings(3, 1, singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
@@ -618,6 +619,7 @@ public class IndexFollowingIT extends CCRIntegTestCase {
         assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits(), equalTo(2L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34696")
     public void testFailOverOnFollower() throws Exception {
         int numberOfReplicas = between(1, 2);
         getFollowerCluster().startMasterOnlyNode();

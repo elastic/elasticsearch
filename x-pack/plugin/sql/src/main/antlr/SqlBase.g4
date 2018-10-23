@@ -226,14 +226,20 @@ primaryExpression
     ;
 
 castExpression
-    : castTemplate                                                                   
-    | FUNCTION_ESC castTemplate ESC_END                                              
+    : castTemplate
+    | FUNCTION_ESC castTemplate ESC_END
+    | convertTemplate
+    | FUNCTION_ESC convertTemplate ESC_END
     ;
     
 castTemplate
     : CAST '(' expression AS dataType ')'
     ;
-    
+
+convertTemplate
+    : CONVERT '(' expression ',' dataType ')'
+    ;
+
 extractExpression
     : extractTemplate
     | FUNCTION_ESC extractTemplate ESC_END
@@ -347,6 +353,7 @@ CAST: 'CAST';
 CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
+CONVERT: 'CONVERT';
 DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';

@@ -201,7 +201,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String pipelineId = "pipeline1";
         IngestService ingestService = mock(IngestService.class);
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("pipeline", pipelineId);
+        pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);
@@ -246,11 +246,11 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String pipelineId2 = "pipeline2";
         IngestService ingestService = mock(IngestService.class);
         Map<String, Object> pipelineConfig0 = new HashMap<>();
-        pipelineConfig0.put("pipeline", pipelineId1);
+        pipelineConfig0.put("name", pipelineId1);
         Map<String, Object> pipelineConfig1 = new HashMap<>();
-        pipelineConfig1.put("pipeline", pipelineId1);
+        pipelineConfig1.put("name", pipelineId1);
         Map<String, Object> pipelineConfig2 = new HashMap<>();
-        pipelineConfig2.put("pipeline", pipelineId2);
+        pipelineConfig2.put("name", pipelineId2);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);
@@ -314,11 +314,11 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String pipelineId2 = "pipeline2";
         IngestService ingestService = mock(IngestService.class);
         Map<String, Object> pipelineConfig0 = new HashMap<>();
-        pipelineConfig0.put("pipeline", pipelineId1);
+        pipelineConfig0.put("name", pipelineId1);
         Map<String, Object> pipelineConfig1 = new HashMap<>();
-        pipelineConfig1.put("pipeline", pipelineId1);
+        pipelineConfig1.put("name", pipelineId1);
         Map<String, Object> pipelineConfig2 = new HashMap<>();
-        pipelineConfig2.put("pipeline", pipelineId2);
+        pipelineConfig2.put("name", pipelineId2);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);
@@ -383,7 +383,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String pipelineId = "pipeline1";
         IngestService ingestService = mock(IngestService.class);
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("pipeline", pipelineId);
+        pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);
@@ -436,11 +436,11 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String pipelineId2 = "pipeline2";
         IngestService ingestService = mock(IngestService.class);
         Map<String, Object> pipelineConfig0 = new HashMap<>();
-        pipelineConfig0.put("pipeline", pipelineId1);
+        pipelineConfig0.put("name", pipelineId1);
         Map<String, Object> pipelineConfig1 = new HashMap<>();
-        pipelineConfig1.put("pipeline", pipelineId1);
+        pipelineConfig1.put("name", pipelineId1);
         Map<String, Object> pipelineConfig2 = new HashMap<>();
-        pipelineConfig2.put("pipeline", pipelineId2);
+        pipelineConfig2.put("name", pipelineId2);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         Pipeline pipeline1 = new Pipeline(
@@ -467,7 +467,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         String pipelineId = "pipeline1";
         IngestService ingestService = mock(IngestService.class);
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("pipeline", pipelineId);
+        pipelineConfig.put("name", pipelineId);
         PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
 
         String key1 = randomAlphaOfLength(10);

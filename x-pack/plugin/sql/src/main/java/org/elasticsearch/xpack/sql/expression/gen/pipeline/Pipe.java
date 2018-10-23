@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 
+import org.elasticsearch.xpack.sql.capabilities.Resolvable;
 import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -24,7 +25,7 @@ import java.util.List;
  * Is an {@code Add} operator with left {@code ABS} over an aggregate (MAX), and
  * right being a {@code CAST} function.
  */
-public abstract class Pipe extends Node<Pipe> implements FieldExtraction {
+public abstract class Pipe extends Node<Pipe> implements FieldExtraction, Resolvable {
 
     private final Expression expression;
 
@@ -36,8 +37,6 @@ public abstract class Pipe extends Node<Pipe> implements FieldExtraction {
     public Expression expression() {
         return expression;
     }
-
-    public abstract boolean resolved();
 
     public abstract Processor asProcessor();
 

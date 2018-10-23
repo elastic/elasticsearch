@@ -225,4 +225,16 @@ public enum DataType {
     public static DataType fromEsType(String esType) {
         return DataType.valueOf(esType.toUpperCase(Locale.ROOT));
     }
+
+    public boolean isCompatibleWith(DataType other) {
+        if (this == other) {
+            return true;
+        } else if (isString() && other.isString()) {
+            return true;
+        } else if (isNumeric() && other.isNumeric()) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 }

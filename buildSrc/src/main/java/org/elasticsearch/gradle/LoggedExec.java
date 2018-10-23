@@ -10,6 +10,7 @@ import org.gradle.process.ExecSpec;
 import org.gradle.process.JavaExecSpec;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.function.Function;
 
@@ -33,6 +34,12 @@ public class LoggedExec extends Exec {
                             }
                         } catch (UnsupportedEncodingException e) {
                             throw new GradleException("Failed to read exec output", e);
+                        } finally {
+                            try {
+                                output.close();
+                            } catch (IOException e) {
+                                throw new GradleException("Failed to close buffers", e);
+                            }
                         }
                         throw new GradleException(
                             String.format(
@@ -80,6 +87,12 @@ public class LoggedExec extends Exec {
                 throw new GradleException("Failed to read exec output", ue);
             }
             throw e;
+        } finally {
+            try {
+                output.close();
+            } catch (IOException e) {
+                throw new GradleException("Failed to close buffers", e);
+            }
         }
     }
 }

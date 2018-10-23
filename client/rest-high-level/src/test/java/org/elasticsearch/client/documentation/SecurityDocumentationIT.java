@@ -60,7 +60,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.nullValue;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -267,7 +267,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::authenticate-response
 
             assertThat(user.username(), is("test_user"));
-            assertThat(user.roles(), equalTo(new String[] {"superuser"}));
+            assertThat(user.roles(), contains(new String[] {"superuser"}));
             assertThat(user.fullName(), nullValue());
             assertThat(user.email(), nullValue());
             assertThat(user.metadata().isEmpty(), is(true));

@@ -370,7 +370,9 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                         // has a leader index uuid custom metadata entry that matches with uuid of leaderIndexMetaData variable
                         // If so then handle it differently: not follow it, but just add an entry to
                         // AutoFollowMetadata#followedLeaderIndexUUIDs
-                        leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
+                        if (TransportPutFollowAction.canFollow(clusterAlias, leaderIndexMetaData) == null) {
+                            leaderIndicesToFollow.add(leaderIndexMetaData.getIndex());
+                        }
                     }
                 }
             }

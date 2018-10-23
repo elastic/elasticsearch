@@ -103,6 +103,20 @@ public final class TransportPutFollowAction
         createFollowerIndexAndFollowRemoteIndex(request, leaderCluster, leaderIndex, listener);
     }
 
+    /**
+     * Pre-flight check if the given index can be a leader index.
+     * This method returns {@code null} if no issue found; otherwise it returns the first issue that it found.
+     */
+    static Exception canFollow(String leaderCluster, IndexMetaData leaderIndexMetaData) {
+        Objects.requireNonNull(leaderIndexMetaData, "leader index metadata must not be null");
+        // soft-deletes is mandatory for the leader index.
+        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+            return new IllegalArgumentException("leader index [" + leaderCluster + ":" + leaderIndexMetaData.getIndex().getName()
+                + "] does not have soft deletes enabled");
+        }
+        return null;
+    }
+
     private void createFollowerIndexAndFollowRemoteIndex(
             final PutFollowAction.Request request,
             final String leaderCluster,
@@ -123,6 +137,12 @@ public final class TransportPutFollowAction
             final ActionListener<PutFollowAction.Response> listener) {
         if (leaderIndexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
+            return;
+        }
+
+        final Exception preFlightError = canFollow(request.getLeaderCluster(), leaderIndexMetaData);
+        if (preFlightError != null) {
+            listener.onFailure(preFlightError);
             return;
         }
 

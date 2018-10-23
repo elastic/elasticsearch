@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DateEsField;
 import org.elasticsearch.xpack.sql.type.EsField;
@@ -295,6 +296,9 @@ public class IndexResolver {
                     errorMessage.append(Arrays.toString(fieldCap.nonAggregatableIndices()));
                 }
                 if (fieldCap.isSearchable() && fieldCap.nonSearchableIndices() != null) {
+                    if (errorMessage.length() > 0) {
+                        errorMessage.append(",");
+                    }
                     errorMessage.append("[" + indexPattern + "] points to indices with incompatible mappings: ");
                     errorMessage.append("field [" + name + "] is searchable except in ");
                     errorMessage.append(Arrays.toString(fieldCap.nonSearchableIndices()));
@@ -328,7 +332,10 @@ public class IndexResolver {
             EsField parent = flattedMapping.get(parentName);
             if (parent == null) {
                 Map<String, FieldCapabilities> map = globalCaps.get(parentName);
-                FieldCapabilities parentCap = map == null ? null : map.values().iterator().next();
+                if (map == null) {
+                    throw new SqlIllegalArgumentException("Cannot find field {}; this is likely a bug", parentName);
+                }
+                FieldCapabilities parentCap = map.values().iterator().next();
                 parent = createField(parentName, parentCap, globalCaps, hierarchicalMapping, flattedMapping, true);
             }
             parentProps = parent.getProperties();
@@ -344,7 +351,7 @@ public class IndexResolver {
                 break;
             case KEYWORD:
                 int length = DataType.KEYWORD.defaultPrecision;
-                // to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
+                // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
                 boolean normalized = false;
                 field = new KeywordEsField(fieldName, props, caps.isAggregatable(), length, normalized);
                 break;
@@ -373,7 +380,7 @@ public class IndexResolver {
                 .indicesOptions(IndicesOptions.lenientExpandOpen());
     }
 
-    // Concrete indices still uses get mapping
+    // TODO: Concrete indices still uses get mapping
     // waiting on https://github.com/elastic/elasticsearch/pull/34071
     //
     

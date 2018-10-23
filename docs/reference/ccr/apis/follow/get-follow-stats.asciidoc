@@ -123,6 +123,9 @@ The `shards` array consists of objects containing the following fields:
   (long) the total time fetches were outstanding, measured from the time a fetch
   was sent to the leader to the time a reply was returned to the follower
 
+`indices[].shards[].total_fetch_leader_time_millis`::
+  (long) the total time fetches spent executing on the remote cluster
+
 `indices[].shards[].number_of_successful_fetches`::
   (long) the number of successful fetches
 

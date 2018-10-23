@@ -25,9 +25,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.List;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Comparator;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
-
 
 public class TermVectorsResponseTests extends ESTestCase {
 
@@ -53,9 +54,11 @@ public class TermVectorsResponseTests extends ESTestCase {
         builder.field("_version", response.getDocVersion());
         builder.field("found", response.getFound());
         builder.field("took", response.getTookInMillis());
-        if (response.getTermVectorsList() != null) {
+        List<TermVectorsResponse.TermVector> termVectorList = response.getTermVectorsList();
+        if (termVectorList != null) {
+            Collections.sort(termVectorList, Comparator.comparing(TermVectorsResponse.TermVector::getFieldName));
             builder.startObject("term_vectors");
-            for (TermVectorsResponse.TermVector tv : response.getTermVectorsList()) {
+            for (TermVectorsResponse.TermVector tv : termVectorList) {
                 toXContent(tv, builder);
             }
             builder.endObject();
@@ -74,19 +77,28 @@ public class TermVectorsResponseTests extends ESTestCase {
             builder.endObject();
         }
         // build terms
-        if (tv.getTerms() != null) {
+        List<TermVectorsResponse.TermVector.Term> terms = tv.getTerms();
+        if (terms != null) {
+            Collections.sort(terms, Comparator.comparing(TermVectorsResponse.TermVector.Term::getTerm));
             builder.startObject("terms");
-            for (TermVectorsResponse.TermVector.Term term : tv.getTerms()) {
+            for (TermVectorsResponse.TermVector.Term term : terms) {
                 builder.startObject(term.getTerm());
                 // build term_statistics
                 if (term.getDocFreq() != null) builder.field("doc_freq", term.getDocFreq());
                 if (term.getTotalTermFreq() != null) builder.field("ttf", term.getTotalTermFreq());
-
                 builder.field("term_freq", term.getTermFreq());
+
                 // build tokens
-                if (term.getTokens() != null) {
+                List<TermVectorsResponse.TermVector.Token> tokens = term.getTokens();
+                if (tokens != null) {
+                    Collections.sort(
+                        tokens,
+                        Comparator.comparing(TermVectorsResponse.TermVector.Token::getPosition, Comparator.nullsFirst(Integer::compareTo))
+                            .thenComparing(TermVectorsResponse.TermVector.Token::getStartOffset, Comparator.nullsFirst(Integer::compareTo))
+                            .thenComparing(TermVectorsResponse.TermVector.Token::getEndOffset, Comparator.nullsFirst(Integer::compareTo))
+                    );
                     builder.startArray("tokens");
-                    for (TermVectorsResponse.TermVector.Token token : term.getTokens()) {
+                    for (TermVectorsResponse.TermVector.Token token : tokens) {
                         builder.startObject();
                         if (token.getPosition() != null) builder.field("position", token.getPosition());
                         if (token.getStartOffset()!= null) builder.field("start_offset", token.getStartOffset());

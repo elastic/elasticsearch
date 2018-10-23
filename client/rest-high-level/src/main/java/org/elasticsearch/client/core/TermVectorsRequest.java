@@ -54,8 +54,7 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
      * @param docId - id of the document
      */
     public TermVectorsRequest(String index, String type, String docId) {
-        this.index = index;
-        this.type = type;
+        this(index, type);
         this.id = docId;
     }
 

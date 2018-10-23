@@ -37,7 +37,7 @@ set of fields for each sog entry type.
 [[deprecated-audit-log-entry-format]]
 === Deprecated log entry format
 
-This is the format for a log entries as appended to `<clustername>_access.log`:
+The log entries in the `<clustername>_access.log` file have the following format:
 
 [source,txt]
 ----------------------------------------------------------------------------

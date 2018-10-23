@@ -660,7 +660,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         String leaderIndexSettings = getIndexSettings(1, numberOfReplicas,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
-        PutFollowAction.Request follow = follow("leader-index", "follower-index");
+        PutFollowAction.Request follow = putFollow("leader-index", "follower-index");
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
         getFollowerCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(2, 3));
         ensureFollowerGreen("follower-index");

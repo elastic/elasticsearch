@@ -207,6 +207,7 @@ public class XPackIT extends AbstractRollingTestCase {
      * would pollute the cluster state with its job that the non-xpack
      * nodes couldn't understand.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34764")
     public void testCreateRollup() throws IOException {
         // Rollup validates its input on job creation so lets make an index for it
         Request indexInputDoc = new Request("POST", "/rollup_test_input_1/doc/");

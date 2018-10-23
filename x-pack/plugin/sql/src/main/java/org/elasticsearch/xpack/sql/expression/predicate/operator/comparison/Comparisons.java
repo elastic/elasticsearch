@@ -5,12 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
+import java.util.Set;
+
 /**
  * Comparison utilities.
  */
-abstract class Comparisons {
+public final class Comparisons {
 
-    static Boolean eq(Object l, Object r) {
+    private Comparisons() {}
+
+    public static Boolean eq(Object l, Object r) {
         Integer i = compare(l, r);
         return i == null ? null : i.intValue() == 0;
     }
@@ -33,6 +37,10 @@ abstract class Comparisons {
     static Boolean gte(Object l, Object r) {
         Integer i = compare(l, r);
         return i == null ? null : i.intValue() >= 0;
+    }
+
+    static Boolean in(Object l, Set<Object> r) {
+        return r.contains(l);
     }
 
     /**

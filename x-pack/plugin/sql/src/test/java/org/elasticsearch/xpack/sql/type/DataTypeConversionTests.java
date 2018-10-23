@@ -246,4 +246,10 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(type, DataType.fromEsType(type.esType));
         }
     }
+
+    public void testConversionToUnsupported() {
+            Exception e = expectThrows(SqlIllegalArgumentException.class,
+                () -> DataTypeConversion.conversionFor(DataType.INTEGER, DataType.UNSUPPORTED));
+            assertEquals("cannot convert from [INTEGER] to [UNSUPPORTED]", e.getMessage());
+    }
 }

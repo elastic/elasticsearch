@@ -125,6 +125,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 verify("SELECT AVG(int) FROM test GROUP BY AVG(int)"));
     }
 
+    public void testNotSupportedAggregateOnDate() {
+        assertEquals("1:8: Argument required to be numeric ('date' of type 'date')",
+            verify("SELECT AVG(date) FROM test"));
+    }
+
     public void testGroupByOnNested() {
         assertEquals("1:38: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
                 verify("SELECT dep.dep_id FROM test GROUP BY dep.dep_id"));

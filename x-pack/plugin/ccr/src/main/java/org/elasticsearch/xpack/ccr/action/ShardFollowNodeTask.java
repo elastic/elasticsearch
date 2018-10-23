@@ -28,6 +28,8 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -371,6 +373,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
             fatalException = ExceptionsHelper.convertToElastic(e);
+            LOGGER.warn("shard follow task encounter non-retryable error", e);
         }
     }
 
@@ -399,7 +402,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof AlreadyClosedException ||
             actual instanceof ElasticsearchSecurityException || // If user does not have sufficient privileges
             actual instanceof ClusterBlockException || // If leader index is closed or no elected master
-            actual instanceof IndexClosedException; // If follow index is closed
+            actual instanceof IndexClosedException || // If follow index is closed
+            actual instanceof NodeDisconnectedException ||
+            actual instanceof NodeNotConnectedException ||
+            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
     }
 
     // These methods are protected for testing purposes:

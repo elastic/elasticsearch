@@ -116,7 +116,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
         } else if (names != null && names.size() == 1) {
             getRoleDescriptor(Objects.requireNonNull(names.iterator().next()), listener);
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 QueryBuilder query;
                 if (names == null || names.isEmpty()) {
                     query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
@@ -144,16 +144,22 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
     }
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            DeleteRequest request = client.prepareDelete(SecurityIndexManager.SECURITY_INDEX_NAME,
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
+            listener.onResponse(false);
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                DeleteRequest request = client.prepareDelete(SecurityIndexManager.SECURITY_INDEX_NAME,
                     ROLE_DOC_TYPE, getIdForUser(deleteRoleRequest.name())).request();
-            request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     new ActionListener<DeleteResponse>() {
                         @Override
                         public void onResponse(DeleteResponse deleteResponse) {
                             clearRoleCache(deleteRoleRequest.name(), listener,
-                                    deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                                deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
                         }
 
                         @Override
@@ -162,7 +168,8 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
                             listener.onFailure(e);
                         }
                     }, client::delete);
-        });
+            });
+        }
     }
 
     public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
@@ -210,13 +217,13 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> usageStats = new HashMap<>(3);
-        if (securityIndex.indexExists() == false) {
+        if (securityIndex.isAvailable() == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
             usageStats.put("dls", false);
             listener.onResponse(usageStats);
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareMultiSearch()
                         .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
@@ -298,7 +305,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
     }
 
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+        securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareGet(SECURITY_INDEX_NAME,
                             ROLE_DOC_TYPE, getIdForUser(role)).request(),

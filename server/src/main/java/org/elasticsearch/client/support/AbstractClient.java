@@ -1256,6 +1256,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
             return new IndicesExistsRequestBuilder(this, IndicesExistsAction.INSTANCE, indices);
         }
 
+        @Deprecated
         @Override
         public ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request) {
             return execute(TypesExistsAction.INSTANCE, request);

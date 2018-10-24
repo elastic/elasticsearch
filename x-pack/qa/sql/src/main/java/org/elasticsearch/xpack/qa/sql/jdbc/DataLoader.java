@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.qa.sql.jdbc;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -151,7 +152,7 @@ public class DataLoader {
             list.add(dep);
         });
 
-        request = new Request("POST", "/" + index + "/emp/_bulk");
+        request = new Request("POST", "/" + index + "/emp/_bulk?refresh=wait_for");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(fileName, (titles, fields) -> {
@@ -226,22 +227,24 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/_doc/_bulk");
+        request = new Request("POST", "/" + index + "/_doc/_bulk?refresh=wait_for");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         csvToLines(filename, (titles, fields) -> {
             bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
             bulk.append("{");
             for (int f = 0; f < titles.size(); f++) {
-                if (f > 0) {
-                    bulk.append(",");
+                if (Strings.hasText(fields.get(f))) {
+                    if (f > 0) {
+                        bulk.append(",");
+                    }
+                    bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
                 }
-                bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
             }
             bulk.append("}\n");
         });
         request.setJsonEntity(bulk.toString());
-        client.performRequest(request);
+        Response response = client.performRequest(request);
     }
 
     protected static void loadLibDatasetIntoEs(RestClient client, String index) throws Exception {
@@ -272,7 +275,7 @@ public class DataLoader {
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
-        request = new Request("POST", "/" + index + "/book/_bulk");
+        request = new Request("POST", "/" + index + "/book/_bulk?refresh=wait_for");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         csvToLines("library", (titles, fields) -> {
@@ -287,7 +290,7 @@ public class DataLoader {
             bulk.append("}\n");
         });
         request.setJsonEntity(bulk.toString());
-        client.performRequest(request);
+        Response response = client.performRequest(request);
     }
 
     protected static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {

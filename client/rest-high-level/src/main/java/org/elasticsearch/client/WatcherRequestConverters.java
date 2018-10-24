@@ -32,7 +32,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.client.watcher.DeleteWatchRequest;
 import org.elasticsearch.client.watcher.PutWatchRequest;
 
-public class WatcherRequestConverters {
+final class WatcherRequestConverters {
+
+    private WatcherRequestConverters() {}
 
     static Request startWatchService(StartWatchServiceRequest startWatchServiceRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()

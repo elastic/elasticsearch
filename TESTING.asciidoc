@@ -77,38 +77,23 @@ Run a single test case (variants)
 ./gradlew test "-Dtests.class=*.ClassName"
 ----------------------------------------------------------
 
-Run all tests in a package and sub-packages
+Run all tests in a package and its sub-packages
 
 ----------------------------------------------------
 ./gradlew test "-Dtests.class=org.elasticsearch.package.*"
 ----------------------------------------------------
 
-Run any test methods that contain 'esi' (like: ...r*esi*ze...).
+Run any test methods that contain 'esi' (like: ...r*esi*ze...)
 
 -------------------------------
 ./gradlew test "-Dtests.method=*esi*"
 -------------------------------
 
-You can also filter tests by certain annotations ie:
-
-  * `@Nightly` - tests that only run in nightly builds (disabled by default)
-  * `@Backwards` - backwards compatibility tests (disabled by default)
-  * `@AwaitsFix` - tests that are waiting for a bugfix (disabled by default)
-  * `@BadApple` - tests that are known to fail randomly (disabled by default)
-
-Those annotation names can be combined into a filter expression like:
+Run all tests that are waiting for a bugfix (disabled by default)
 
 ------------------------------------------------
-./gradlew test -Dtests.filter="@nightly and not @backwards"
+./gradlew test -Dtests.filter=@awaitsfix
 ------------------------------------------------
-
-to run all nightly test but not the ones that are backwards tests. `tests.filter` supports
-the boolean operators `and, or, not` and grouping ie:
-
-
----------------------------------------------------------------
-./gradlew test -Dtests.filter="@nightly and not(@badapple or @backwards)"
----------------------------------------------------------------
 
 === Seed and repetitions.
 
@@ -160,8 +145,6 @@ Test groups can be enabled or disabled (true/false).
 Default value provided below in [brackets].
 
 ------------------------------------------------------------------
-./gradlew test -Dtests.nightly=[false]   - nightly test group (@Nightly)
-./gradlew test -Dtests.weekly=[false]    - weekly tests (@Weekly)
 ./gradlew test -Dtests.awaitsfix=[false] - known issue (@AwaitsFix)
 ------------------------------------------------------------------
 

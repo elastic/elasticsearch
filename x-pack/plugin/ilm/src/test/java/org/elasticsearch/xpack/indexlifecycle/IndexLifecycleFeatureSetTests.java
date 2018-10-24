@@ -6,9 +6,11 @@
 
 package org.elasticsearch.xpack.indexlifecycle;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.Phase;
 import org.junit.Before;
@@ -32,7 +35,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -81,23 +83,31 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
         assertNull(featureSet.nativeCodeInfo());
     }
 
-    @SuppressWarnings("unchecked")
     public void testUsageStats() throws Exception {
+        Map<String, String> indexPolicies = new HashMap<>();
         List<LifecyclePolicy> policies = new ArrayList<>();
-        LifecyclePolicy policy1 = new LifecyclePolicy(randomAlphaOfLength(10), Collections.emptyMap());
+        String policy1Name = randomAlphaOfLength(10);
+        String policy2Name = randomAlphaOfLength(10);
+        String policy3Name = randomAlphaOfLength(10);
+        indexPolicies.put("index_1", policy1Name);
+        indexPolicies.put("index_2", policy1Name);
+        indexPolicies.put("index_3", policy1Name);
+        indexPolicies.put("index_4", policy1Name);
+        indexPolicies.put("index_5", policy3Name);
+        LifecyclePolicy policy1 = new LifecyclePolicy(policy1Name, Collections.emptyMap());
         policies.add(policy1);
-        PolicyStats policy1Stats = new PolicyStats(Collections.emptyMap());
+        PolicyStats policy1Stats = new PolicyStats(Collections.emptyMap(), 4);
 
         Map<String, Phase> phases1 = new HashMap<>();
-        LifecyclePolicy policy2 = new LifecyclePolicy(randomAlphaOfLength(10), phases1);
+        LifecyclePolicy policy2 = new LifecyclePolicy(policy2Name, phases1);
         policies.add(policy2);
-        PolicyStats policy2Stats = new PolicyStats(Collections.emptyMap());
+        PolicyStats policy2Stats = new PolicyStats(Collections.emptyMap(), 0);
 
-        LifecyclePolicy policy3 = new LifecyclePolicy(randomAlphaOfLength(10), Collections.emptyMap());
+        LifecyclePolicy policy3 = new LifecyclePolicy(policy3Name, Collections.emptyMap());
         policies.add(policy3);
-        PolicyStats policy3Stats = new PolicyStats(Collections.emptyMap());
+        PolicyStats policy3Stats = new PolicyStats(Collections.emptyMap(), 1);
 
-        ClusterState clusterState = buildClusterState(policies);
+        ClusterState clusterState = buildClusterState(policies, indexPolicies);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
         PlainActionFuture<IndexLifecycleFeatureSet.Usage> future = new PlainActionFuture<>();
@@ -109,17 +119,28 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
 
         List<PolicyStats> policyStatsList = ilmUsage.getPolicyStats();
         assertThat(policyStatsList.size(), equalTo(policies.size()));
-        assertThat(policyStatsList, contains(equalTo(policy1Stats), equalTo(policy2Stats), equalTo(policy3Stats)));
+        assertTrue(policyStatsList.contains(policy1Stats));
+        assertTrue(policyStatsList.contains(policy2Stats));
+        assertTrue(policyStatsList.contains(policy3Stats));
 
     }
 
-    private ClusterState buildClusterState(List<LifecyclePolicy> lifecyclePolicies) {
+    private ClusterState buildClusterState(List<LifecyclePolicy> lifecyclePolicies, Map<String, String> indexPolicies) {
         Map<String, LifecyclePolicyMetadata> lifecyclePolicyMetadatasMap = lifecyclePolicies.stream()
                 .map(p -> new LifecyclePolicyMetadata(p, Collections.emptyMap(), 1, 0L))
                 .collect(Collectors.toMap(LifecyclePolicyMetadata::getName, Function.identity()));
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(lifecyclePolicyMetadatasMap, OperationMode.RUNNING);
 
-        MetaData metadata = MetaData.builder().putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata).build();
+        MetaData.Builder metadata = MetaData.builder().putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata);
+        indexPolicies.forEach((indexName, policyName) -> {
+            Settings indexSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            IndexMetaData.Builder indexMetadata = IndexMetaData.builder(indexName).settings(indexSettings);
+            metadata.put(indexMetadata);
+        });
+        
         return ClusterState.builder(new ClusterName("my_cluster")).metaData(metadata).build();
     }
 }

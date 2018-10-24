@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -19,7 +20,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage.PhaseStats;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage.PolicyStats;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -64,14 +67,26 @@ public class IndexLifecycleFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        IndexLifecycleMetadata lifecycleMetadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
+        MetaData metaData = clusterService.state().metaData();
+        IndexLifecycleMetadata lifecycleMetadata = metaData.custom(IndexLifecycleMetadata.TYPE);
         if (enabled() && lifecycleMetadata != null) {
+            Map<String, Integer> policyUsage = new HashMap<>();
+            metaData.indices().forEach(entry -> {
+                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(entry.value.getSettings());
+                Integer indicesManaged = policyUsage.get(policyName);
+                if (indicesManaged == null) {
+                    indicesManaged = 1;
+                } else {
+                    indicesManaged = indicesManaged + 1;
+                }
+                policyUsage.put(policyName, indicesManaged);
+            });
             List<PolicyStats> policyStats = lifecycleMetadata.getPolicies().values().stream().map(policy -> {
                 Map<String, PhaseStats> phaseStats = policy.getPhases().values().stream().map(phase -> {
                     String[] actionNames = phase.getActions().keySet().toArray(new String[phase.getActions().size()]);
                     return new Tuple<String, PhaseStats>(phase.getName(), new PhaseStats(phase.getMinimumAge(), actionNames));
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-                return new PolicyStats(phaseStats);
+                return new PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
             }).collect(Collectors.toList());
             listener.onResponse(new IndexLifecycleFeatureSetUsage(available(), enabled(), policyStats));
         } else {

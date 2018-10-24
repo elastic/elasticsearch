@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.core.indexlifecycle;
+package org.elasticsearch.xpack.indexlifecycle;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -19,34 +19,35 @@ public class PolicyStatsTests extends AbstractWireSerializingTestCase<PolicyStat
 
     @Override
     protected PolicyStats createTestInstance() {
-        return createRandomInstance();
+        return randomPolicyStats();
     }
 
-    public static PolicyStats createRandomInstance() {
+    static PolicyStats randomPolicyStats() {
+        Map<String, PhaseStats> phaseStats = new HashMap<>();
         int size = randomIntBetween(0, 10);
-        Map<String, PhaseStats> phaseStats = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            phaseStats.put(randomAlphaOfLengthBetween(1, 20), PhaseStatsTests.createRandomInstance());
+            phaseStats.put(randomAlphaOfLength(10), PhaseStatsTests.randomPhaseStats());
         }
-        return new PolicyStats(phaseStats, randomIntBetween(0, 100));
+        int numberIndicesManaged = randomIntBetween(0, 1000);
+        return new PolicyStats(phaseStats, numberIndicesManaged);
     }
 
     @Override
     protected PolicyStats mutateInstance(PolicyStats instance) throws IOException {
         Map<String, PhaseStats> phaseStats = instance.getPhaseStats();
-        int indicesManaged = instance.getIndicesManaged();
+        int numberIndicesManaged = instance.getIndicesManaged();
         switch (between(0, 1)) {
         case 0:
-            phaseStats = new HashMap<>(instance.getPhaseStats());
-            phaseStats.put(randomAlphaOfLengthBetween(1, 20), PhaseStatsTests.createRandomInstance());
+            phaseStats = new HashMap<>(phaseStats);
+            phaseStats.put(randomAlphaOfLength(10), PhaseStatsTests.randomPhaseStats());
             break;
         case 1:
-            indicesManaged = randomIntBetween(1, 50);
+            numberIndicesManaged += randomIntBetween(1, 10);
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new PolicyStats(phaseStats, indicesManaged);
+        return new PolicyStats(phaseStats, numberIndicesManaged);
     }
 
     @Override

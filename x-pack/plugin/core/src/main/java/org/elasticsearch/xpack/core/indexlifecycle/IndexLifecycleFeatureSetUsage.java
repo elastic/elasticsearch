@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -82,25 +84,33 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     public static final class PolicyStats implements ToXContentObject, Writeable {
-        private final Map<String, PhaseStats> phaseStats;
 
-        public PolicyStats(Map<String, PhaseStats> phaseStats) {
+        public static final ParseField INDICES_MANAGED_FIELD = new ParseField("indices_managed");
+
+        private final Map<String, PhaseStats> phaseStats;
+        private final int indicesManaged;
+
+        public PolicyStats(Map<String, PhaseStats> phaseStats, int numberIndicesManaged) {
             this.phaseStats = phaseStats;
+            this.indicesManaged = numberIndicesManaged;
         }
 
         public PolicyStats(StreamInput in) throws IOException {
             this.phaseStats = in.readMap(StreamInput::readString, PhaseStats::new);
+            this.indicesManaged = in.readVInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(phaseStats, StreamOutput::writeString, (o, p) -> p.writeTo(o));
+            out.writeVInt(indicesManaged);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(LifecyclePolicy.PHASES_FIELD.getPreferredName(), phaseStats);
+            builder.field(INDICES_MANAGED_FIELD.getPreferredName(), indicesManaged);
             builder.endObject();
             return builder;
         }
@@ -109,9 +119,13 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             return phaseStats;
         }
 
+        public int getIndicesManaged() {
+            return indicesManaged;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(phaseStats);
+            return Objects.hash(phaseStats, indicesManaged);
         }
 
         @Override
@@ -123,7 +137,13 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 return false;
             }
             PolicyStats other = (PolicyStats) obj;
-            return Objects.equals(phaseStats, other.phaseStats);
+            return Objects.equals(phaseStats, other.phaseStats) &&
+                    Objects.equals(indicesManaged, other.indicesManaged);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 

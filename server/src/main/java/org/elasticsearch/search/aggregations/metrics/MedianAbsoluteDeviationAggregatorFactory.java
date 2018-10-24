@@ -37,7 +37,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends
 
     private final double compression;
 
-    public MedianAbsoluteDeviationAggregatorFactory(String name,
+    MedianAbsoluteDeviationAggregatorFactory(String name,
                                                     ValuesSourceConfig<ValuesSource.Numeric> config,
                                                     SearchContext context,
                                                     AggregatorFactory<?> parent,

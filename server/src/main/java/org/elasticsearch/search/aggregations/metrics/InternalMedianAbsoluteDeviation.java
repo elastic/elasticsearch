@@ -53,10 +53,10 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
         }
     }
 
-    protected final TDigestState valuesSketch;
-    protected final double medianAbsoluteDeviation;
+    private final TDigestState valuesSketch;
+    private final double medianAbsoluteDeviation;
 
-    public InternalMedianAbsoluteDeviation(String name,
+    InternalMedianAbsoluteDeviation(String name,
                                            List<PipelineAggregator> pipelineAggregators,
                                            Map<String, Object> metaData,
                                            DocValueFormat format,
@@ -123,6 +123,10 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     @Override
     public String getWriteableName() {
         return MedianAbsoluteDeviationAggregationBuilder.NAME;
+    }
+
+    public TDigestState getValuesSketch() {
+        return valuesSketch;
     }
 
     @Override

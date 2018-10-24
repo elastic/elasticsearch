@@ -51,7 +51,7 @@ public class MedianAbsoluteDeviationAggregator extends NumericMetricsAggregator.
 
     private ObjectArray<TDigestState> valueSketches;
 
-    public MedianAbsoluteDeviationAggregator(String name,
+    MedianAbsoluteDeviationAggregator(String name,
                                              SearchContext context,
                                              Aggregator parent,
                                              List<PipelineAggregator> pipelineAggregators,

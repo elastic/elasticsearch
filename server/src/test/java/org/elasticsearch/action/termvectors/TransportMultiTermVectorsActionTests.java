@@ -63,6 +63,7 @@ public class TransportMultiTermVectorsActionTests extends ESSingleNodeTestCase {
     private TransportMultiTermVectorsAction transportMultiTermVectorsAction;
 
     @Before
+    @Override
     public void setUp() throws Exception {
         super.setUp();
 
@@ -81,6 +82,7 @@ public class TransportMultiTermVectorsActionTests extends ESSingleNodeTestCase {
     }
 
     @After
+    @Override
     public void tearDown() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;

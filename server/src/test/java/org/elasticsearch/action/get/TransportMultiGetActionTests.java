@@ -61,6 +61,7 @@ public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
     private TransportMultiGetAction transportMultiGetAction;
 
     @Before
+    @Override
     public void setUp() throws Exception {
         super.setUp();
 
@@ -79,6 +80,7 @@ public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
     }
 
     @After
+    @Override
     public void tearDown() throws Exception {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;

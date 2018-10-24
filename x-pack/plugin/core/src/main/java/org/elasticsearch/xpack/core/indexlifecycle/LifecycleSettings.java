@@ -19,7 +19,7 @@ public class LifecycleSettings {
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.positiveTimeSetting(LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString(LIFECYCLE_NAME,
-        Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.InternalIndex);
+        Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<Boolean> LIFECYCLE_SKIP_SETTING = Setting.boolSetting(LIFECYCLE_SKIP, false,
         Setting.Property.Dynamic, Setting.Property.IndexScope);
 }

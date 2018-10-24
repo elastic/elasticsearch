@@ -15,6 +15,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Arrays;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -77,9 +79,19 @@ public class ApiKeyService {
                 builder.startObject()
                     .field("doc_type", "api_key")
                     .field("creation_time", created.toEpochMilli())
-                    .field("expiration_time", expiration == null ? null : expiration.toEpochMilli())
-                    .field("api_key", apiKey)
-                    .array("role_descriptors", request.getRoleDescriptors())
+                    .field("expiration_time", expiration == null ? null : expiration.toEpochMilli());
+
+                byte[] utf8Bytes = null;
+                try {
+                    utf8Bytes = CharArrays.toUtf8Bytes(apiKey.getChars());
+                    builder.field("api_key").utf8Value(utf8Bytes, 0, utf8Bytes.length);
+                } finally {
+                    if (utf8Bytes != null) {
+                        Arrays.fill(utf8Bytes, (byte) 0);
+                    }
+                }
+
+                builder.array("role_descriptors", request.getRoleDescriptors())
                     .field("name", request.getName())
                     .field("version", version.id)
                     .startObject("creator")

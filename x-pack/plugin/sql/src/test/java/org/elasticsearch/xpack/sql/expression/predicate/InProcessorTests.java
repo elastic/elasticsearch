@@ -22,6 +22,7 @@ public class InProcessorTests extends AbstractWireSerializingTestCase<InProcesso
     private static final Literal ONE = L(1);
     private static final Literal TWO = L(2);
     private static final Literal THREE = L(3);
+    private static final Literal NULL = L(null);
 
     public static InProcessor randomProcessor() {
         return new InProcessor(Arrays.asList(new ConstantProcessor(randomLong()), new ConstantProcessor(randomLong())));
@@ -45,6 +46,16 @@ public class InProcessorTests extends AbstractWireSerializingTestCase<InProcesso
     public void testEq() {
         assertEquals(true, new In(EMPTY, TWO, Arrays.asList(ONE, TWO, THREE)).makePipe().asProcessor().process(null));
         assertEquals(false, new In(EMPTY, THREE, Arrays.asList(ONE, TWO)).makePipe().asProcessor().process(null));
+    }
+
+    public void testHandleNullOnLeftValue() {
+        assertNull(new In(EMPTY, NULL, Arrays.asList(ONE, TWO, THREE)).makePipe().asProcessor().process(null));
+        assertNull(new In(EMPTY, NULL, Arrays.asList(ONE, NULL, TWO)).makePipe().asProcessor().process(null));
+    }
+
+    public void testHandleNullOnRightValue() {
+        assertEquals(true, new In(EMPTY, THREE, Arrays.asList(ONE, NULL, THREE)).makePipe().asProcessor().process(null));
+        assertNull(new In(EMPTY, TWO, Arrays.asList(ONE, NULL, THREE)).makePipe().asProcessor().process(null));
     }
 
     private static Literal L(Object value) {

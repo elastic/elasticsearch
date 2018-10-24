@@ -19,15 +19,15 @@
 
 package org.elasticsearch.example.painlesswhitelist;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
+import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.SearchScript;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /** An extension of painless which adds a whitelist. */
 public class ExampleWhitelistExtension implements PainlessExtension {
@@ -37,6 +37,6 @@ public class ExampleWhitelistExtension implements PainlessExtension {
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
-        return Collections.singletonMap(SearchScript.CONTEXT, Collections.singletonList(WHITELIST));
+        return Collections.singletonMap(FieldScript.CONTEXT, Collections.singletonList(WHITELIST));
     }
 }

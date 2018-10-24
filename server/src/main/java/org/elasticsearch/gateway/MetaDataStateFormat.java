@@ -30,6 +30,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -91,8 +92,16 @@ public abstract class MetaDataStateFormat<T> {
         logger.trace("cleaned up {}", stateLocation.resolve(fileName));
     }
 
-    private void writeStateToFirstLocation(final T state, Path stateLocation, Directory stateDir, String fileName, String tmpFileName)
-            throws IOException {
+    private static void deleteFileIgnoreExceptions(Path stateLocation, Directory directory, String fileName) {
+        try {
+            deleteFileIfExists(stateLocation, directory, fileName);
+        } catch (IOException e) {
+            logger.trace("clean up failed {}", stateLocation.resolve(fileName));
+        }
+    }
+
+    private void writeStateToFirstLocation(final T state, Path stateLocation, Directory stateDir, String tmpFileName)
+            throws WriteStateException {
         try {
             deleteFileIfExists(stateLocation, stateDir, tmpFileName);
             try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
@@ -100,42 +109,70 @@ public abstract class MetaDataStateFormat<T> {
                 out.writeInt(FORMAT.index());
                 try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
                     @Override
-                    public void close() throws IOException {
+                    public void close() {
                         // this is important since some of the XContentBuilders write bytes on close.
                         // in order to write the footer we need to prevent closing the actual index input.
                     }
                 })) {
 
                     builder.startObject();
-                    {
-                        toXContent(builder, state);
-                    }
+                    toXContent(builder, state);
                     builder.endObject();
                 }
                 CodecUtil.writeFooter(out);
             }
 
             stateDir.sync(Collections.singleton(tmpFileName));
-            stateDir.rename(tmpFileName, fileName);
-            stateDir.syncMetaData();
-            logger.trace("written state to {}", stateLocation.resolve(fileName));
-        } finally {
-            deleteFileIfExists(stateLocation, stateDir, tmpFileName);
+        } catch (Exception e) {
+            throw new WriteStateException(false, "failed to write state to the first location tmp file " +
+                    stateLocation.resolve(tmpFileName), e);
         }
     }
 
-    private void copyStateToExtraLocation(Directory srcStateDir, Path extraStateLocation, String fileName, String tmpFileName)
-            throws IOException {
-        try (Directory extraStateDir = newDirectory(extraStateLocation)) {
+    private static void copyStateToExtraLocations(List<Tuple<Path, Directory>> stateDirs, String tmpFileName)
+            throws WriteStateException {
+        Directory srcStateDir = stateDirs.get(0).v2();
+        for (int i = 1; i < stateDirs.size(); i++) {
+            Tuple<Path, Directory> extraStatePathAndDir = stateDirs.get(i);
+            Path extraStateLocation = extraStatePathAndDir.v1();
+            Directory extraStateDir = extraStatePathAndDir.v2();
             try {
                 deleteFileIfExists(extraStateLocation, extraStateDir, tmpFileName);
-                extraStateDir.copyFrom(srcStateDir, fileName, tmpFileName, IOContext.DEFAULT);
+                extraStateDir.copyFrom(srcStateDir, tmpFileName, tmpFileName, IOContext.DEFAULT);
                 extraStateDir.sync(Collections.singleton(tmpFileName));
-                extraStateDir.rename(tmpFileName, fileName);
-                extraStateDir.syncMetaData();
-                logger.trace("copied state to {}", extraStateLocation.resolve(fileName));
-            } finally {
-                deleteFileIfExists(extraStateLocation, extraStateDir, tmpFileName);
+            } catch (Exception e) {
+                throw new WriteStateException(false, "failed to copy tmp state file to extra location " + extraStateLocation, e);
+            }
+        }
+    }
+
+    private static void performRenames(String tmpFileName, String fileName, final List<Tuple<Path, Directory>> stateDirectories) throws
+            WriteStateException {
+        Directory firstStateDirectory = stateDirectories.get(0).v2();
+        try {
+            firstStateDirectory.rename(tmpFileName, fileName);
+        } catch (IOException e) {
+            throw new WriteStateException(false, "failed to rename tmp file to final name in the first state location " +
+                    stateDirectories.get(0).v1().resolve(tmpFileName), e);
+        }
+
+        for (int i = 1; i < stateDirectories.size(); i++) {
+            Directory extraStateDirectory = stateDirectories.get(i).v2();
+            try {
+                extraStateDirectory.rename(tmpFileName, fileName);
+            } catch (IOException e) {
+                throw new WriteStateException(true, "failed to rename tmp file to final name in extra state location " +
+                        stateDirectories.get(i).v1().resolve(tmpFileName), e);
+            }
+        }
+    }
+
+    private static void performStateDirectoriesFsync(List<Tuple<Path, Directory>> stateDirectories) throws WriteStateException {
+        for (int i = 0; i < stateDirectories.size(); i++) {
+            try {
+                stateDirectories.get(i).v2().syncMetaData();
+            } catch (IOException e) {
+                throw new WriteStateException(true, "meta data directory fsync has failed " + stateDirectories.get(i).v1(), e);
             }
         }
     }
@@ -145,32 +182,52 @@ public abstract class MetaDataStateFormat<T> {
      * state directory ({@value #STATE_DIR_NAME}) underneath each of the given file locations and is created if it
      * doesn't exist. The state is serialized to a temporary file in that directory and is then atomically moved to
      * it's target filename of the pattern {@code {prefix}{version}.st}.
-     * If this method returns without exception there is a guarantee that state is persisted to the disk and loadLatestState will return it.
-     * But if this method throws an exception, loadLatestState could return this state or some previous state.
+     * If this method returns without exception there is a guarantee that state is persisted to the disk and loadLatestState will return
+     * it.
      *
      * @param state     the state object to write
      * @param locations the locations where the state should be written to.
-     * @throws IOException if an IOException occurs
+     * @throws WriteStateException if some exception during writing state occurs. See also {@link WriteStateException#isDirty()}.
      */
-    public final void write(final T state, final Path... locations) throws IOException {
+
+    public final void write(final T state, final Path... locations) throws WriteStateException {
         if (locations == null) {
             throw new IllegalArgumentException("Locations must not be null");
         }
         if (locations.length <= 0) {
             throw new IllegalArgumentException("One or more locations required");
         }
-        final long maxStateId = findMaxStateId(prefix, locations) + 1;
+
+        long maxStateId;
+        try {
+            maxStateId = findMaxStateId(prefix, locations) + 1;
+        } catch (Exception e) {
+            throw new WriteStateException(false, "exception during looking up max state id", e);
+        }
         assert maxStateId >= 0 : "maxStateId must be positive but was: [" + maxStateId + "]";
 
         final String fileName = prefix + maxStateId + STATE_FILE_EXTENSION;
         final String tmpFileName = fileName + ".tmp";
-        final Path firstStateLocation = locations[0].resolve(STATE_DIR_NAME);
-        try (Directory stateDir = newDirectory(firstStateLocation)) {
-            writeStateToFirstLocation(state, firstStateLocation, stateDir, fileName, tmpFileName);
+        List<Tuple<Path, Directory>> directories = new ArrayList<>();
 
-            for (int i = 1; i < locations.length; i++) {
-                final Path extraStateLocation = locations[i].resolve(STATE_DIR_NAME);
-                copyStateToExtraLocation(stateDir, extraStateLocation, fileName, tmpFileName);
+        try {
+            for (Path location : locations) {
+                Path stateLocation = location.resolve(STATE_DIR_NAME);
+                try {
+                    directories.add(new Tuple<>(location, newDirectory(stateLocation)));
+                } catch (IOException e) {
+                    throw new WriteStateException(false, "failed to open state directory " + stateLocation, e);
+                }
+            }
+
+            writeStateToFirstLocation(state, directories.get(0).v1(), directories.get(0).v2(), tmpFileName);
+            copyStateToExtraLocations(directories, tmpFileName);
+            performRenames(tmpFileName, fileName, directories);
+            performStateDirectoriesFsync(directories);
+        } finally {
+            for (Tuple<Path, Directory> pathAndDirectory : directories) {
+                deleteFileIgnoreExceptions(pathAndDirectory.v1(), pathAndDirectory.v2(), tmpFileName);
+                IOUtils.closeWhileHandlingException(pathAndDirectory.v2());
             }
         }
 
@@ -227,16 +284,18 @@ public abstract class MetaDataStateFormat<T> {
         return new SimpleFSDirectory(dir);
     }
 
-    private void cleanupOldFiles(final String currentStateFile, Path[] locations) throws IOException {
+    private void cleanupOldFiles(final String currentStateFile, Path[] locations) {
         for (Path location : locations) {
             logger.trace("cleanupOldFiles: cleaning up {}", location);
             Path stateLocation = location.resolve(STATE_DIR_NAME);
             try (Directory stateDir = newDirectory(stateLocation)) {
                 for (String file : stateDir.listAll()) {
                     if (file.startsWith(prefix) && file.equals(currentStateFile) == false) {
-                        deleteFileIfExists(stateLocation, stateDir, file);
+                        deleteFileIgnoreExceptions(stateLocation, stateDir, file);
                     }
                 }
+            } catch (Exception e) {
+                logger.trace("clean up failed for state location {}", stateLocation);
             }
         }
     }

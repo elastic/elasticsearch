@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.monitor.jvm.HotThreads;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.LongGCDisruption;
@@ -67,7 +66,6 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  * Tests relating to the loss of the master.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
@@ -153,8 +151,8 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      */
     @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.test.disruption:TRACE")
     public void testStaleMasterNotHijackingMajority() throws Exception {
-        // 3 node cluster with unicast discovery and minimum_master_nodes set to 2:
-        final List<String> nodes = startCluster(3, 2);
+        // 3 node cluster with unicast discovery and minimum_master_nodes set to the default of 2:
+        final List<String> nodes = startCluster(3);
 
         // Save the current master node as old master node, because that node will get frozen
         final String oldMasterNode = internalCluster().getMasterName();
@@ -267,7 +265,7 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
      */
     public void testMasterNodeGCs() throws Exception {
-        List<String> nodes = startCluster(3, -1);
+        List<String> nodes = startCluster(3);
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect

@@ -28,7 +28,6 @@ import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
@@ -54,13 +53,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 /**
  * Tests for discovery during disruptions.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
 public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testIsolatedUnicastNodes() throws Exception {
         internalCluster().setHostsListContainsOnlyFirstNode(true);
-        List<String> nodes = startCluster(4, -1);
+        List<String> nodes = startCluster(4);
         // Figure out what is the elected master node
         final String unicastTarget = nodes.get(0);
 
@@ -100,7 +98,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testUnicastSinglePingResponseContainsMaster() throws Exception {
         internalCluster().setHostsListContainsOnlyFirstNode(true);
-        List<String> nodes = startCluster(4, -1);
+        List<String> nodes = startCluster(4);
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
         logger.info("---> legit elected master node={}", masterNode);
@@ -138,8 +136,8 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * Test cluster join with issues in cluster state publishing *
      */
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
-        List<String> nodes = startCluster(2, 1);
-
+        List<String> nodes = startCluster(2);
+        setMinimumMasterNodes(1);
         String masterNode = internalCluster().getMasterName();
         String nonMasterNode;
         if (masterNode.equals(nodes.get(0))) {
@@ -196,7 +194,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testClusterFormingWithASlowNode() throws Exception {
-        configureCluster(3, 2);
+        configureCluster(3);
 
         SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(random(), 0, 0, 1000, 2000);
 
@@ -212,7 +210,7 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testElectMasterWithLatestVersion() throws Exception {
-        configureCluster(3, 2);
+        configureCluster(3);
         final Set<String> nodes = new HashSet<>(internalCluster().startNodes(3));
         ensureStableCluster(3);
         ServiceDisruptionScheme isolateAllNodes =

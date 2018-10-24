@@ -31,7 +31,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -49,7 +48,6 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  * Tests snapshot operations during disruptions.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0, autoMinMasterNodes = false)
 @TestLogging("org.elasticsearch.snapshot:TRACE")
 public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
 
@@ -59,9 +57,10 @@ public class SnapshotDisruptionIT extends AbstractDisruptionTestCase {
             .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // wait till cluster state is committed
             .build();
         final String idxName = "test";
-        configureCluster(settings, 4, 2);
+        configureCluster(settings, 4);
         final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(3);
         final String dataNode = internalCluster().startDataOnlyNode();
+        setMinimumMasterNodes(2);
         ensureStableCluster(4);
 
         createRandomIndex(idxName);

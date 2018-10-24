@@ -164,6 +164,7 @@ public class TransportPutAutoFollowPatternAction extends
             request.getMaxConcurrentReadBatches(),
             request.getMaxBatchSize(),
             request.getMaxConcurrentWriteBatches(),
+            request.getMaxWriteBufferCount(),
             request.getMaxWriteBufferSize(),
             request.getMaxRetryDelay(),
             request.getPollTimeout());

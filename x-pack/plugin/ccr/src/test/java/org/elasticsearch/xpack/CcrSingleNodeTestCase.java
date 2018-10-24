@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.CcrIntegTestCase.ensureEmptyWriteBuffers;
 import static org.elasticsearch.xpack.CcrIntegTestCase.removeCCRRelatedMetadataFromClusterState;
 
 public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
@@ -56,6 +57,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @After
     public void remoteLocalRemote() throws Exception {
+        ensureEmptyWriteBuffers(client());
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         removeCCRRelatedMetadataFromClusterState(clusterService);
 

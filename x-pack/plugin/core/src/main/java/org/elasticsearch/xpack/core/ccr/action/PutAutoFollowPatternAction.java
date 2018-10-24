@@ -59,7 +59,12 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                     AutoFollowPattern.MAX_BATCH_SIZE,
                     ObjectParser.ValueType.STRING);
             PARSER.declareInt(Request::setMaxConcurrentWriteBatches, AutoFollowPattern.MAX_CONCURRENT_WRITE_BATCHES);
-            PARSER.declareInt(Request::setMaxWriteBufferSize, AutoFollowPattern.MAX_WRITE_BUFFER_SIZE);
+            PARSER.declareInt(Request::setMaxWriteBufferCount, AutoFollowPattern.MAX_WRITE_BUFFER_COUNT);
+            PARSER.declareField(
+                Request::setMaxWriteBufferSize,
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), AutoFollowPattern.MAX_WRITE_BUFFER_SIZE.getPreferredName()),
+                AutoFollowPattern.MAX_WRITE_BUFFER_SIZE,
+                ObjectParser.ValueType.STRING);
             PARSER.declareField(Request::setMaxRetryDelay,
                 (p, c) -> TimeValue.parseTimeValue(p.text(), AutoFollowPattern.MAX_RETRY_DELAY.getPreferredName()),
                 AutoFollowPattern.MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
@@ -91,7 +96,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         private Integer maxConcurrentReadBatches;
         private ByteSizeValue maxBatchSize;
         private Integer maxConcurrentWriteBatches;
-        private Integer maxWriteBufferSize;
+        private Integer maxWriteBufferCount;
+        private ByteSizeValue maxWriteBufferSize;
         private TimeValue maxRetryDelay;
         private TimeValue pollTimeout;
 
@@ -189,11 +195,19 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
         }
 
-        public Integer getMaxWriteBufferSize() {
+        public Integer getMaxWriteBufferCount() {
+            return maxWriteBufferCount;
+        }
+
+        public void setMaxWriteBufferCount(Integer maxWriteBufferCount) {
+            this.maxWriteBufferCount = maxWriteBufferCount;
+        }
+
+        public ByteSizeValue getMaxWriteBufferSize() {
             return maxWriteBufferSize;
         }
 
-        public void setMaxWriteBufferSize(Integer maxWriteBufferSize) {
+        public void setMaxWriteBufferSize(ByteSizeValue maxWriteBufferSize) {
             this.maxWriteBufferSize = maxWriteBufferSize;
         }
 
@@ -224,7 +238,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             maxConcurrentReadBatches = in.readOptionalVInt();
             maxBatchSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxConcurrentWriteBatches = in.readOptionalVInt();
-            maxWriteBufferSize = in.readOptionalVInt();
+            maxWriteBufferCount = in.readOptionalVInt();
+            maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxRetryDelay = in.readOptionalTimeValue();
             pollTimeout = in.readOptionalTimeValue();
         }
@@ -240,7 +255,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             out.writeOptionalVInt(maxConcurrentReadBatches);
             out.writeOptionalWriteable(maxBatchSize);
             out.writeOptionalVInt(maxConcurrentWriteBatches);
-            out.writeOptionalVInt(maxWriteBufferSize);
+            out.writeOptionalVInt(maxWriteBufferCount);
+            out.writeOptionalWriteable(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
             out.writeOptionalTimeValue(pollTimeout);
         }
@@ -261,8 +277,11 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                 if (maxBatchSize != null) {
                     builder.field(AutoFollowPattern.MAX_BATCH_SIZE.getPreferredName(), maxBatchSize.getStringRep());
                 }
+                if (maxWriteBufferCount != null) {
+                    builder.field(AutoFollowPattern.MAX_WRITE_BUFFER_COUNT.getPreferredName(), maxWriteBufferCount);
+                }
                 if (maxWriteBufferSize != null) {
-                    builder.field(AutoFollowPattern.MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
+                    builder.field(AutoFollowPattern.MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize.getStringRep());
                 }
                 if (maxConcurrentReadBatches != null) {
                     builder.field(AutoFollowPattern.MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
@@ -294,6 +313,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                     Objects.equals(maxConcurrentReadBatches, request.maxConcurrentReadBatches) &&
                     Objects.equals(maxBatchSize, request.maxBatchSize) &&
                     Objects.equals(maxConcurrentWriteBatches, request.maxConcurrentWriteBatches) &&
+                    Objects.equals(maxWriteBufferCount, request.maxWriteBufferCount) &&
                     Objects.equals(maxWriteBufferSize, request.maxWriteBufferSize) &&
                     Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
                     Objects.equals(pollTimeout, request.pollTimeout);
@@ -310,6 +330,7 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                     maxConcurrentReadBatches,
                     maxBatchSize,
                     maxConcurrentWriteBatches,
+                    maxWriteBufferCount,
                     maxWriteBufferSize,
                     maxRetryDelay,
                     pollTimeout);

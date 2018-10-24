@@ -327,7 +327,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
             followRequest.setMaxConcurrentReadBatches(pattern.getMaxConcurrentReadBatches());
             followRequest.setMaxBatchSize(pattern.getMaxBatchSize());
             followRequest.setMaxConcurrentWriteBatches(pattern.getMaxConcurrentWriteBatches());
-            followRequest.setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
+            followRequest.setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
             followRequest.setMaxRetryDelay(pattern.getMaxRetryDelay());
             followRequest.setPollTimeout(pattern.getPollTimeout());
 

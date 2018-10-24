@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.http;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +45,8 @@ import java.util.Map;
  * and returns their values.
  */
 public class TestDeprecationHeaderRestAction extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(TestDeprecationHeaderRestAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final Setting<Boolean> TEST_DEPRECATED_SETTING_TRUE1 =
         Setting.boolSetting("test.setting.deprecated.true1", true,

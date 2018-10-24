@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -59,6 +61,8 @@ import java.util.Set;
  * Service responsible for submitting open/close index requests
  */
 public class MetaDataIndexStateService extends AbstractComponent {
+    private static final Logger logger = LogManager.getLogger(MetaDataIndexStateService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false, false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
 

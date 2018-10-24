@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -67,10 +67,14 @@ public class ConnectionManager implements Closeable {
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
     public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool) {
+        this(settings, transport, threadPool, buildDefaultConnectionProfile(settings));
+    }
+
+    public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool, ConnectionProfile defaultProfile) {
         this.transport = transport;
         this.threadPool = threadPool;
         this.pingSchedule = TcpTransport.PING_SCHEDULE.get(settings);
-        this.defaultProfile = buildDefaultConnectionProfile(settings);
+        this.defaultProfile = defaultProfile;
         this.lifecycle.moveToStarted();
 
         if (pingSchedule.millis() > 0) {

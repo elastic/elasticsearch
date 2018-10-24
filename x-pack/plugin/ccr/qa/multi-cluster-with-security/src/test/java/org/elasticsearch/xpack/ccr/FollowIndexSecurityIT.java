@@ -132,13 +132,13 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
         {
             Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-            request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"leader_cluster\": \"leader_cluster\"}");
+            request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"remote_cluster\": \"leader_cluster\"}");
             Exception e = expectThrows(ResponseException.class, () -> assertOK(client().performRequest(request)));
             assertThat(e.getMessage(), containsString("insufficient privileges to follow index [logs-*]"));
         }
 
         Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu-*\"], \"leader_cluster\": \"leader_cluster\"}");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu-*\"], \"remote_cluster\": \"leader_cluster\"}");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {

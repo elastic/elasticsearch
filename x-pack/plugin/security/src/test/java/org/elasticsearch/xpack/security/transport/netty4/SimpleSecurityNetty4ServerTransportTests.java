@@ -22,14 +22,13 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
@@ -51,19 +50,6 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.hamcrest.Matchers.containsString;
 
 public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecurityTransportTestCase {
-
-    private static final ConnectionProfile SINGLE_CHANNEL_PROFILE;
-
-    static {
-        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
-        builder.addConnections(1,
-            TransportRequestOptions.Type.BULK,
-            TransportRequestOptions.Type.PING,
-            TransportRequestOptions.Type.RECOVERY,
-            TransportRequestOptions.Type.REG,
-            TransportRequestOptions.Type.STATE);
-        SINGLE_CHANNEL_PROFILE = builder.build();
-    }
 
     public MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
                                                     ClusterSettings clusterSettings, boolean doHandshake) {

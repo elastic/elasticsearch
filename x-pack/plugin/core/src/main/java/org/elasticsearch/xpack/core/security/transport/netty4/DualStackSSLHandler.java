@@ -6,47 +6,52 @@
 package org.elasticsearch.xpack.core.security.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.ssl.NotSslRecordException;
+import io.netty.channel.ChannelPromise;
 import io.netty.handler.ssl.SslHandler;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.xpack.core.security.transport.ESMessageHelper;
 
 import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
-import java.util.List;
 
-public class DualStackSSLHandler extends SslHandler {
+public class DualStackSSLHandler extends ChannelDuplexHandler {
 
-    private boolean firstRead = true;
-    private boolean isTLS = true;
+
+    public static final String HANDLER_NAME = "dual_tls_stack_handler";
+    private final SSLEngine engine;
 
     public DualStackSSLHandler(SSLEngine engine) {
-        super(engine);
+        this.engine = engine;
     }
 
     @Override
-    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws SSLException {
-        if (firstRead) {
-            attemptHandshakeReads(ctx, in, out);
-        }
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        if (msg instanceof ByteBuf) {
+            ByteBuf in = (ByteBuf) msg;
+            if (in.readableBytes() < 2) {
+                return;
+            } else if (ESMessageHelper.isPlaintextElasticsearchMessage(Netty4Utils.toBytesReference(in))) {
+                ctx.pipeline().remove(this);
+            } else {
+                ctx.pipeline().addAfter(HANDLER_NAME,"sslhandler", new SslHandler(engine));
+                ctx.pipeline().remove(this);
+            }
 
-        if (isTLS) {
-            super.decode(ctx, in, out);
-        } else {
             ctx.fireChannelRead(in);
+        } else {
+            ctx.fireChannelRead(msg);
         }
-
     }
 
-    private void attemptHandshakeReads(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws SSLException {
-        int initialReaderIndex = in.readerIndex();
-        try {
-            super.decode(ctx, in, out);
-            firstRead = super.handshakeFuture().isDone() == false;
-        } catch (NotSslRecordException e) {
-            isTLS = false;
-            firstRead = false;
-            in.readerIndex(initialReaderIndex);
-            ctx.fireChannelRead(in);
-        }
+    @Override
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+        assert false : "Should not write before receiving read";
+    }
+
+    @Override
+    public void flush(ChannelHandlerContext ctx) throws Exception {
+        assert false : "Should not flush before receiving read";
     }
 }

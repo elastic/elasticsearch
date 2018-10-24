@@ -160,8 +160,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             super.initChannel(ch);
             SSLEngine serverEngine = sslService.createSSLEngine(configuration, null, -1);
             serverEngine.setUseClientMode(false);
-            final SslHandler sslHandler = new SslHandler(serverEngine);
-            ch.pipeline().addFirst("sslhandler", sslHandler);
+            ch.pipeline().addFirst(DualStackSSLHandler.HANDLER_NAME, new DualStackSSLHandler(serverEngine));
         }
     }
 

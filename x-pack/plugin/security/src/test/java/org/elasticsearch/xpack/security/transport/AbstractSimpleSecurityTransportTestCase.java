@@ -5,17 +5,20 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
@@ -23,6 +26,7 @@ import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -38,7 +42,9 @@ import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -46,6 +52,20 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSimpleTransportTestCase {
+
+    protected static final ConnectionProfile SINGLE_CHANNEL_PROFILE;
+
+    static {
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1,
+            TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.PING,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STATE);
+        SINGLE_CHANNEL_PROFILE = ConnectionProfile.resolveConnectionProfile(builder.build(),
+            ConnectionManager.buildDefaultConnectionProfile(Settings.EMPTY));
+    }
 
     protected SSLService createSSLService() {
         return createSSLService(Settings.EMPTY);
@@ -119,6 +139,25 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
             Version version = originalTransport.executeHandshake(connection.getNode(),
                 connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
             assertEquals(version, Version.CURRENT);
+        }
+    }
+
+    public void testDualTLSStack() throws Exception {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        Version expectedVersion = serviceA.getLocalNode().getVersion();
+
+        MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()));
+
+        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, expectedVersion, threadPool,
+            null, Collections.emptySet())) {
+            service.start();
+            service.acceptIncomingRequests();
+            try (TcpTransport.NodeChannels connection = transport.openConnection(serviceA.getLocalNode(), SINGLE_CHANNEL_PROFILE)) {
+                Version version = transport.executeHandshake(connection.getNode(),
+                    connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
+                assertEquals(expectedVersion, version);
+            }
         }
     }
 

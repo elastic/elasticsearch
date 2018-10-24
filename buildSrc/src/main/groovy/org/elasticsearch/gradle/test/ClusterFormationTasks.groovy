@@ -122,8 +122,31 @@ class ClusterFormationTasks {
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
-            Object dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
-            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, nodes.get(0)))
+            Closure<Map> writeConfigSetup
+            Object dependsOn
+            if (node.nodeVersion.onOrAfter("6.5.0-SNAPSHOT")) {
+                writeConfigSetup = { Map esConfig ->
+                    // Don't force discovery provider if one is set by the test cluster specs already
+                    if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
+                        esConfig['discovery.zen.hosts_provider'] = 'file'
+                    }
+                    esConfig['discovery.zen.ping.unicast.hosts'] = []
+                    esConfig
+                }
+                dependsOn = startDependencies
+            } else {
+                dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
+                writeConfigSetup = { Map esConfig ->
+                    String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.ant)
+                    if (unicastTransportUri == null) {
+                        esConfig['discovery.zen.ping.unicast.hosts'] = []
+                    } else {
+                        esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
+                    }
+                    esConfig
+                }
+            }
+            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, writeConfigSetup))
         }
 
         Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks, config.nodeStartupWaitSeconds)
@@ -184,7 +207,7 @@ class ClusterFormationTasks {
      * @return a task which starts the node.
      */
     static Task configureNode(Project project, String prefix, Task runner, Object dependsOn, NodeInfo node, ClusterConfiguration config,
-                              Configuration distribution, NodeInfo seedNode) {
+                              Configuration distribution, Closure<Map> writeConfig) {
 
         // tasks are chained so their execution order is maintained
         Task setup = project.tasks.create(name: taskName(prefix, node, 'clean'), type: Delete, dependsOn: dependsOn) {
@@ -200,7 +223,7 @@ class ClusterFormationTasks {
         setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution)
-        setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, seedNode)
+        setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, writeConfig)
         setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
         setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
         setup = configureAddKeystoreFileTasks(prefix, project, setup, node)
@@ -303,7 +326,7 @@ class ClusterFormationTasks {
     }
 
     /** Adds a task to write elasticsearch.yml for the given node configuration */
-    static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
+    static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, Closure<Map> configFilter) {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
                 'node.name'                    : "node-" + node.nodeNum,
@@ -347,10 +370,7 @@ class ClusterFormationTasks {
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
-            String unicastTransportUri = node.config.unicastTransportUri(seedNode, node, project.ant)
-            if (unicastTransportUri != null) {
-                esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
-            }
+            esConfig = configFilter.call(esConfig)
             File configFile = new File(node.pathConf, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
@@ -681,6 +701,19 @@ class ClusterFormationTasks {
     static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks, int waitSeconds) {
         Task wait = project.tasks.create(name: name, dependsOn: startTasks)
         wait.doLast {
+
+            Collection<String> unicastHosts = new HashSet<>()
+            nodes.forEach { otherNode ->
+                String unicastHost = otherNode.config.unicastTransportUri(otherNode, null, project.ant)
+                if (unicastHost != null) {
+                    unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
+                }
+            }
+            String unicastHostsTxt = String.join("\n", unicastHosts)
+            nodes.forEach { node ->
+                node.pathConf.toPath().resolve("unicast_hosts.txt").setText(unicastHostsTxt)
+            }
+
             ant.waitfor(maxwait: "${waitSeconds}", maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
                 or {
                     for (NodeInfo node : nodes) {

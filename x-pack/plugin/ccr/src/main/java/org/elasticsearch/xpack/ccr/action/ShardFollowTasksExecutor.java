@@ -79,8 +79,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
         final Client leaderClient;
-        if (params.getLeaderCluster() != null) {
-            leaderClient = wrapClient(client.getRemoteClusterClient(params.getLeaderCluster()), params.getHeaders());
+        if (params.getRemoteCluster() != null) {
+            leaderClient = wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
         } else {
             leaderClient = wrapClient(client, params.getHeaders());
         }

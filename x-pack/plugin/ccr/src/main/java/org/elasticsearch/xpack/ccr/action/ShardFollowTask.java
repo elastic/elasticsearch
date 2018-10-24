@@ -122,7 +122,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     }
 
     public ShardFollowTask(StreamInput in) throws IOException {
-        this.remoteCluster = in.readOptionalString();
+        this.remoteCluster = in.readString();
         this.followShardId = ShardId.readShardId(in);
         this.leaderShardId = ShardId.readShardId(in);
         this.maxBatchOperationCount = in.readVInt();
@@ -190,7 +190,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(remoteCluster);
+        out.writeString(remoteCluster);
         followShardId.writeTo(out);
         leaderShardId.writeTo(out);
         out.writeVLong(maxBatchOperationCount);
@@ -210,7 +210,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
+        builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), leaderCluster);
         builder.field(FOLLOW_SHARD_INDEX_FIELD.getPreferredName(), followShardId.getIndex().getName());
         builder.field(FOLLOW_SHARD_INDEX_UUID_FIELD.getPreferredName(), followShardId.getIndex().getUUID());
         builder.field(FOLLOW_SHARD_SHARDID_FIELD.getPreferredName(), followShardId.id());

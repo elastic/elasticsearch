@@ -49,6 +49,7 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
                 new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
+                new ByteSizeValue(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(500),
                 TimeValue.timeValueMillis(500));
             configs.put(Integer.toString(i), autoFollowPattern);

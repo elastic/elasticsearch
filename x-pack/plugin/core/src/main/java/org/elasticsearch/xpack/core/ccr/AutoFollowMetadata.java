@@ -182,6 +182,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         public static final ParseField MAX_CONCURRENT_READ_BATCHES = new ParseField("max_concurrent_read_batches");
         public static final ParseField MAX_BATCH_SIZE = new ParseField("max_batch_size");
         public static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
+        public static final ParseField MAX_WRITE_BUFFER_COUNT = new ParseField("max_write_buffer_count");
         public static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
         public static final ParseField MAX_RETRY_DELAY = new ParseField("max_retry_delay");
         public static final ParseField POLL_TIMEOUT = new ParseField("poll_timeout");
@@ -190,8 +191,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         private static final ConstructingObjectParser<AutoFollowPattern, Void> PARSER =
             new ConstructingObjectParser<>("auto_follow_pattern",
                 args -> new AutoFollowPattern((String) args[0], (List<String>) args[1], (String) args[2], (Integer) args[3],
-                    (Integer) args[4], (ByteSizeValue) args[5], (Integer) args[6], (Integer) args[7], (TimeValue) args[8],
-                    (TimeValue) args[9]));
+                    (Integer) args[4], (ByteSizeValue) args[5], (Integer) args[6], (Integer) args[7], (ByteSizeValue) args[8],
+                    (TimeValue) args[9], (TimeValue) args[10]));
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), REMOTE_CLUSTER_FIELD);
@@ -205,7 +206,12 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                     MAX_BATCH_SIZE,
                     ObjectParser.ValueType.STRING);
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_CONCURRENT_WRITE_BATCHES);
-            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_WRITE_BUFFER_SIZE);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_WRITE_BUFFER_COUNT);
+            PARSER.declareField(
+                    ConstructingObjectParser.optionalConstructorArg(),
+                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
+                    MAX_WRITE_BUFFER_SIZE,
+                    ObjectParser.ValueType.STRING);
             PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY.getPreferredName()),
                 MAX_RETRY_DELAY, ObjectParser.ValueType.STRING);
@@ -221,7 +227,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
         private final Integer maxConcurrentReadBatches;
         private final ByteSizeValue maxBatchSize;
         private final Integer maxConcurrentWriteBatches;
-        private final Integer maxWriteBufferSize;
+        private final Integer maxWriteBufferCount;
+        private final ByteSizeValue maxWriteBufferSize;
         private final TimeValue maxRetryDelay;
         private final TimeValue pollTimeout;
 
@@ -232,8 +239,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                                  Integer maxConcurrentReadBatches,
                                  ByteSizeValue maxBatchSize,
                                  Integer maxConcurrentWriteBatches,
-                                 Integer maxWriteBufferSize,
-                                 TimeValue maxRetryDelay,
+                                 Integer maxWriteBufferCount,
+                                 ByteSizeValue maxWriteBufferSize, TimeValue maxRetryDelay,
                                  TimeValue pollTimeout) {
             this.remoteCluster = remoteCluster;
             this.leaderIndexPatterns = leaderIndexPatterns;
@@ -242,6 +249,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             this.maxConcurrentReadBatches = maxConcurrentReadBatches;
             this.maxBatchSize = maxBatchSize;
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
+            this.maxWriteBufferCount = maxWriteBufferCount;
             this.maxWriteBufferSize = maxWriteBufferSize;
             this.maxRetryDelay = maxRetryDelay;
             this.pollTimeout = pollTimeout;
@@ -255,7 +263,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             maxConcurrentReadBatches = in.readOptionalVInt();
             maxBatchSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxConcurrentWriteBatches = in.readOptionalVInt();
-            maxWriteBufferSize = in.readOptionalVInt();
+            maxWriteBufferCount = in.readOptionalVInt();
+            maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxRetryDelay = in.readOptionalTimeValue();
             pollTimeout = in.readOptionalTimeValue();
         }
@@ -296,7 +305,11 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             return maxConcurrentWriteBatches;
         }
 
-        public Integer getMaxWriteBufferSize() {
+        public Integer getMaxWriteBufferCount() {
+            return maxWriteBufferCount;
+        }
+
+        public ByteSizeValue getMaxWriteBufferSize() {
             return maxWriteBufferSize;
         }
 
@@ -317,7 +330,8 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             out.writeOptionalVInt(maxConcurrentReadBatches);
             out.writeOptionalWriteable(maxBatchSize);
             out.writeOptionalVInt(maxConcurrentWriteBatches);
-            out.writeOptionalVInt(maxWriteBufferSize);
+            out.writeOptionalVInt(maxWriteBufferCount);
+            out.writeOptionalWriteable(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
             out.writeOptionalTimeValue(pollTimeout);
         }
@@ -341,8 +355,11 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
             if (maxConcurrentWriteBatches != null) {
                 builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
             }
-            if (maxWriteBufferSize != null){
-                builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
+            if (maxWriteBufferCount != null){
+                builder.field(MAX_WRITE_BUFFER_COUNT.getPreferredName(), maxWriteBufferCount);
+            }
+            if (maxWriteBufferSize != null) {
+                builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize.getStringRep());
             }
             if (maxRetryDelay != null) {
                 builder.field(MAX_RETRY_DELAY.getPreferredName(), maxRetryDelay);
@@ -370,6 +387,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                     Objects.equals(maxConcurrentReadBatches, that.maxConcurrentReadBatches) &&
                     Objects.equals(maxBatchSize, that.maxBatchSize) &&
                     Objects.equals(maxConcurrentWriteBatches, that.maxConcurrentWriteBatches) &&
+                    Objects.equals(maxWriteBufferCount, that.maxWriteBufferCount) &&
                     Objects.equals(maxWriteBufferSize, that.maxWriteBufferSize) &&
                     Objects.equals(maxRetryDelay, that.maxRetryDelay) &&
                     Objects.equals(pollTimeout, that.pollTimeout);
@@ -385,6 +403,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<MetaData.Custom> i
                     maxConcurrentReadBatches,
                     maxBatchSize,
                     maxConcurrentWriteBatches,
+                    maxWriteBufferCount,
                     maxWriteBufferSize,
                     maxRetryDelay,
                     pollTimeout);

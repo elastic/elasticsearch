@@ -88,9 +88,7 @@ public class In extends NamedExpression implements ScriptWeaver {
         for (Expression rightValue : list) {
             Boolean compResult = Comparisons.eq(foldedLeftValue, rightValue.fold());
             if (compResult == null) {
-//                if (value().dataType() == DataType.NULL || rightValue.dataType() == DataType.NULL) {
-                    result = null;
-//                }
+                result = null;
             } else if (compResult) {
                 return true;
             }

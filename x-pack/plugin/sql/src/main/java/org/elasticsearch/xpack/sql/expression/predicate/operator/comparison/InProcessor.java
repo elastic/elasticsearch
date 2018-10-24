@@ -46,8 +46,7 @@ public class InProcessor implements Processor {
             Boolean compResult = Comparisons.eq(leftValue, processsors.get(i).process(input));
             if (compResult == null) {
                 result = null;
-            }
-            if (compResult != null && compResult) {
+            } else if (compResult) {
                 return true;
             }
         }

@@ -46,15 +46,9 @@ public abstract class Foldables {
     }
 
     public static <T> List<T> valuesOf(List<Expression> list, DataType to) {
-        return valuesOf(list, to, false);
-    }
-
-    public static <T> List<T> valuesOf(List<Expression> list, DataType to, boolean removeNulls) {
         List<T> l = new ArrayList<>(list.size());
         for (Expression e : list) {
-            if (!removeNulls || e.dataType() != DataType.NULL) {
-                l.add(valueOf(e, to));
-            }
+             l.add(valueOf(e, to));
         }
         return l;
     }

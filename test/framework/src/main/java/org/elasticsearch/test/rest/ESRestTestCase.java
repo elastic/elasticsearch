@@ -68,6 +68,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -449,7 +450,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    private void wipeRollupJobs() throws IOException {
+    private void wipeRollupJobs() throws IOException, InterruptedException {
         Response response = adminClient().performRequest(new Request("GET", "/_xpack/rollup/job/_all"));
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
@@ -459,6 +460,29 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (jobConfigs == null) {
             return;
         }
+
+        for (Map<String, Object> jobConfig : jobConfigs) {
+            @SuppressWarnings("unchecked")
+            String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
+            Request request = new Request("POST", "/_xpack/rollup/job/" + jobId + "/_stop");
+            request.addParameter("ignore", "404");
+            logger.debug("stopping rollup job [{}]", jobId);
+            adminClient().performRequest(request);
+        }
+
+        // TODO this is temporary until StopJob API gains the ability to block until stopped
+        awaitBusy(() -> {
+            Request request = new Request("GET", "/_xpack/rollup/job/_all");
+            try {
+                Response jobsResponse = adminClient().performRequest(request);
+                String body = EntityUtils.toString(jobsResponse.getEntity());
+                logger.error(body);
+                // If the body contains any of the non-stopped states, at least one job is not finished yet
+                return Arrays.stream(new String[]{"started", "aborting", "stopping", "indexing"}).noneMatch(body::contains);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 10, TimeUnit.SECONDS);
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             @SuppressWarnings("unchecked")

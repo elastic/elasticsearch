@@ -88,3 +88,14 @@ If the request does not encounter errors, you receive the following result:
 --------------------------------------------------
 // CONSOLE
 // TESTRESPONSE
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+POST _ilm/start
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+//////////////////////////

@@ -55,13 +55,16 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.StartILMRequest;
+import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -88,10 +91,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.StartILMRequest;
-import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -1508,25 +1507,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(request.getMethod(), HttpDelete.METHOD_NAME);
         assertEquals(request.getEndpoint(), "/_ilm/" + lifecycleName);
         assertEquals(request.getParameters(), expectedParams);
-    }
-
-    public void testSetIndexLifecyclePolicy() throws Exception {
-        SetIndexLifecyclePolicyRequest req = new SetIndexLifecyclePolicyRequest();
-        String policyName = randomAlphaOfLength(10);
-        String[] indices = rarely() ? null : randomIndicesNames(0, 10);
-        req.policy(policyName);
-        req.indices(indices);
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req, expectedParams);
-        setRandomIndicesOptions(req::indicesOptions, req::indicesOptions, expectedParams);
-
-        Request request = RequestConverters.setIndexLifecyclePolicy(req);
-        assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
-        String idxString = Strings.arrayToCommaDelimitedString(indices);
-        assertThat(request.getEndpoint(),
-            equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) +
-                "_ilm/" + policyName));
-        assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
     public void testRemoveIndexLifecyclePolicy() {

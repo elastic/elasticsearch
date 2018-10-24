@@ -53,7 +53,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StartILMAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestDeleteLifecycleAction;
@@ -64,7 +63,6 @@ import org.elasticsearch.xpack.indexlifecycle.action.RestMoveToStepAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestPutLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestRemoveIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestRetryAction;
-import org.elasticsearch.xpack.indexlifecycle.action.RestSetIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestStartILMAction;
 import org.elasticsearch.xpack.indexlifecycle.action.RestStopAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportDeleteLifecycleAction;
@@ -75,7 +73,6 @@ import org.elasticsearch.xpack.indexlifecycle.action.TransportMoveToStepAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportPutLifecycleAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportRemoveIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportRetryAction;
-import org.elasticsearch.xpack.indexlifecycle.action.TransportSetIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportStartILMAction;
 import org.elasticsearch.xpack.indexlifecycle.action.TransportStopILMAction;
 
@@ -176,7 +173,6 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new RestGetLifecycleAction(settings, restController),
                 new RestDeleteLifecycleAction(settings, restController),
                 new RestExplainLifecycleAction(settings, restController),
-                new RestSetIndexLifecyclePolicyAction(settings, restController),
                 new RestRemoveIndexLifecyclePolicyAction(settings, restController),
                 new RestMoveToStepAction(settings, restController),
                 new RestRetryAction(settings, restController),
@@ -196,7 +192,6 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),
                 new ActionHandler<>(DeleteLifecycleAction.INSTANCE, TransportDeleteLifecycleAction.class),
                 new ActionHandler<>(ExplainLifecycleAction.INSTANCE, TransportExplainLifecycleAction.class),
-                new ActionHandler<>(SetIndexLifecyclePolicyAction.INSTANCE, TransportSetIndexLifecyclePolicyAction.class),
                 new ActionHandler<>(RemoveIndexLifecyclePolicyAction.INSTANCE, TransportRemoveIndexLifecyclePolicyAction.class),
                 new ActionHandler<>(MoveToStepAction.INSTANCE, TransportMoveToStepAction.class),
                 new ActionHandler<>(RetryAction.INSTANCE, TransportRetryAction.class),
@@ -207,6 +202,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     @Override
     public void close() {
-        indexLifecycleInitialisationService.get().close();
+        IndexLifecycleService lifecycleService = indexLifecycleInitialisationService.get();
+        if (lifecycleService != null) {
+            lifecycleService.close();
+        }
     }
 }

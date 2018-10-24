@@ -86,7 +86,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -1476,15 +1475,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void writeIndexingBuffer() throws EngineException {
-        try {
-            if (indexWriter.flushNextBuffer() == false) {
-                // nothing was actually flushed, so any RAM used will be due to deletes
-                // in the version map.  Refresh to clear these out.
-                refresh("writeIndexingBuffer", SearcherScope.INTERNAL);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+    public void writeIndexingBuffer() throws IOException {
+        if (indexWriter.flushNextBuffer() == false) {
+            // nothing was actually flushed, so any RAM used will be due to deletes
+            // in the version map.  Refresh to clear these out.
+            refresh("writeIndexingBuffer", SearcherScope.INTERNAL);
         }
     }
 

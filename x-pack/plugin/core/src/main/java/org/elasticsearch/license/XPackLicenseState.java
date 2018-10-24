@@ -628,6 +628,20 @@ public class XPackLicenseState {
         return licensed && localStatus.active;
     }
 
+    /**
+     * Determine if ODBC support should be enabled.
+     * <p>
+     * ODBC is available only in for {@link OperationMode#PLATINUM} and {@link OperationMode#TRIAL} licences
+     */
+    public synchronized boolean isOdbcAllowed() {
+        Status localStatus = status;
+        OperationMode operationMode = localStatus.mode;
+
+        boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
+
+        return licensed && localStatus.active;
+    }
+
     public synchronized boolean isTrialLicense() {
         return status.mode == OperationMode.TRIAL;
     }

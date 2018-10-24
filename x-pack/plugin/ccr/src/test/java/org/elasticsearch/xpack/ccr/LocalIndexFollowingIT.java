@@ -65,6 +65,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             assertThat(client().prepareSearch("follower").get().getHits().totalHits,
                 equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
         });
+        ensureEmptyWriteBuffers();
     }
 
     private String getIndexSettings(final int numberOfShards, final int numberOfReplicas,

@@ -16,6 +16,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.junit.After;
@@ -25,8 +27,8 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.CcrIntegTestCase.ensureEmptyWriteBuffers;
 import static org.elasticsearch.xpack.CcrIntegTestCase.removeCCRRelatedMetadataFromClusterState;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
@@ -57,7 +59,6 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @After
     public void remoteLocalRemote() throws Exception {
-        ensureEmptyWriteBuffers(client());
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         removeCCRRelatedMetadataFromClusterState(clusterService);
 
@@ -80,6 +81,18 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         request.setLeaderIndex("leader");
         request.setFollowRequest(getResumeFollowRequest());
         return request;
+    }
+
+    protected void ensureEmptyWriteBuffers() throws Exception {
+        assertBusy(() -> {
+            FollowStatsAction.StatsResponses statsResponses =
+                client().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
+            for (FollowStatsAction.StatsResponse statsResponse : statsResponses.getStatsResponses()) {
+                ShardFollowNodeTaskStatus status = statsResponse.status();
+                assertThat(status.numberOfQueuedWrites(), equalTo(0));
+                assertThat(status.bufferSize(), equalTo(0L));
+            }
+        });
     }
 
 }

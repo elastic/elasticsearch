@@ -106,7 +106,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     @After
     public void afterTest() throws Exception {
-        ensureEmptyWriteBuffers(followerClient());
+        ensureEmptyWriteBuffers();
         String masterNode = clusterGroup.followerCluster.getMasterName();
         ClusterService clusterService = clusterGroup.followerCluster.getInstance(ClusterService.class, masterNode);
         removeCCRRelatedMetadataFromClusterState(clusterService);
@@ -267,10 +267,10 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         return actionGet;
     }
 
-    protected static void ensureEmptyWriteBuffers(Client client) throws Exception {
+    protected void ensureEmptyWriteBuffers() throws Exception {
         assertBusy(() -> {
             FollowStatsAction.StatsResponses statsResponses =
-                client.execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
+                leaderClient().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
             for (FollowStatsAction.StatsResponse statsResponse : statsResponses.getStatsResponses()) {
                 ShardFollowNodeTaskStatus status = statsResponse.status();
                 assertThat(status.numberOfQueuedWrites(), equalTo(0));

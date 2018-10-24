@@ -264,7 +264,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("a*").setIndicesOptions(allowNoIndices).get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
+            assertThat(e.getMessage(), is("no such index [a*]"));
         }
     }
 
@@ -275,7 +275,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
+            assertThat(e.getMessage(), is("no such index [fzzbzz]"));
         }
     }
 

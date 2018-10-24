@@ -57,7 +57,7 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
                         .source("test1", "index1")
                         .filter(QueryBuilders.matchAllQuery())
                         .get());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [index1]", e.getMessage());
     }
 
     public void testUpdateByQuery() {
@@ -71,7 +71,7 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
 
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> UpdateByQueryAction.INSTANCE.newRequestBuilder(client()).source("test1", "index1").get());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [index1]", e.getMessage());
     }
 
     public void testReindex() {
@@ -86,6 +86,6 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
 
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> ReindexAction.INSTANCE.newRequestBuilder(client()).source("test1", "index1").destination("dest").get());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [index1]", e.getMessage());
     }
 }

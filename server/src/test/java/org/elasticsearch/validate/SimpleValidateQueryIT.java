@@ -151,7 +151,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             client().admin().indices().prepareValidateQuery().get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
+            assertThat(e.getMessage(), is("no such index [null]"));
         }
     }
 

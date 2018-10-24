@@ -153,10 +153,14 @@ if (isEclipse) {
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
-additionalTest('testScriptDocValuesMissingV7Behaviour') {
+task testScriptDocValuesMissingV7Behaviour(type: RandomizedTestingTask) {
   include '**/ScriptDocValuesMissingV7BehaviourTests.class'
   systemProperty 'es.scripting.exception_for_missing_value', 'true'
+  classpath = tasks.test.classpath
+  testClassesDirs = tasks.test.testClassesDirs
 }
+check.dependsOn(testScriptDocValuesMissingV7Behaviour)
+
 test {
   // these are tested explicitly in separate test tasks
   exclude '**/*ScriptDocValuesMissingV7BehaviourTests.class'
@@ -337,11 +341,14 @@ if (isEclipse == false || project.path == ":server-tests") {
   integTest.mustRunAfter test
 }
 // TODO: remove these compatibility tests in 7.0
-additionalTest('testScriptedMetricAggParamsV6Compatibility') {
+task testScriptedMetricAggParamsV6Compatibility(type: RandomizedTestingTask) {
   include '**/ScriptedMetricAggregatorAggStateV6CompatTests.class'
   include '**/InternalScriptedMetricAggStateV6CompatTests.class'
   systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'true'
+  classpath = tasks.test.classpath
+  testClassesDirs = tasks.test.testClassesDirs
 }
+check.dependsOn(testScriptedMetricAggParamsV6Compatibility)
 
 test {
   // these are tested explicitly in separate test tasks

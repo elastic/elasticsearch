@@ -76,7 +76,7 @@ public class TransportPutAutoFollowPatternAction extends
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final Client leaderClient = client.getRemoteClusterClient(request.getLeaderCluster());
+        final Client leaderClient = client.getRemoteClusterClient(request.getRemoteCluster());
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
@@ -93,7 +93,7 @@ public class TransportPutAutoFollowPatternAction extends
                     ActionListener.wrap(
                         clusterStateResponse -> {
                             final ClusterState leaderClusterState = clusterStateResponse.getState();
-                            clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getLeaderCluster(),
+                            clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getRemoteCluster(),
                                 new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
                                     @Override
@@ -157,7 +157,7 @@ public class TransportPutAutoFollowPatternAction extends
         }
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
-            request.getLeaderCluster(),
+            request.getRemoteCluster(),
             request.getLeaderIndexPatterns(),
             request.getFollowIndexNamePattern(),
             request.getMaxBatchOperationCount(),

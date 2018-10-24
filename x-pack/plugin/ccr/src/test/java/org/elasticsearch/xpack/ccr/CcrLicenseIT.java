@@ -118,7 +118,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName("name");
-        request.setLeaderCluster("leader");
+        request.setRemoteCluster("leader");
         request.setLeaderIndexPatterns(Collections.singletonList("*"));
         client().execute(
                 PutAutoFollowPatternAction.INSTANCE,

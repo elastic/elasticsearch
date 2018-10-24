@@ -30,7 +30,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
     public void testInnerPut() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName("name1");
-        request.setLeaderCluster("eu_cluster");
+        request.setRemoteCluster("eu_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
@@ -45,7 +45,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderCluster(), equalTo("eu_cluster"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().get(0), equalTo("logs-*"));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
@@ -55,7 +55,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
     public void testInnerPut_existingLeaderIndices() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName("name1");
-        request.setLeaderCluster("eu_cluster");
+        request.setRemoteCluster("eu_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
 
         ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
@@ -86,7 +86,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderCluster(), equalTo("eu_cluster"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().get(0), equalTo("logs-*"));
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
@@ -96,7 +96,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
     public void testInnerPut_existingLeaderIndicesAndAutoFollowMetadata() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName("name1");
-        request.setLeaderCluster("eu_cluster");
+        request.setRemoteCluster("eu_cluster");
         request.setLeaderIndexPatterns(Arrays.asList("logs-*", "transactions-*"));
 
         Map<String, AutoFollowPattern> existingAutoFollowPatterns = new HashMap<>();
@@ -133,7 +133,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         AutoFollowMetadata autoFollowMetadata = result.metaData().custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
-        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderCluster(), equalTo("eu_cluster"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().size(), equalTo(2));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().get(0), equalTo("logs-*"));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().get(1), equalTo("transactions-*"));

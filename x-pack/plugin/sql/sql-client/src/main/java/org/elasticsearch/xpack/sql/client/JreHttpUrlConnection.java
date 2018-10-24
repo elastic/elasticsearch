@@ -177,13 +177,13 @@ public class JreHttpUrlConnection implements Closeable {
         SqlExceptionType type = SqlExceptionType.fromRemoteFailureType(failure.type());
         if (type == null) {
             if (con.getResponseCode() == HttpURLConnection.HTTP_BAD_REQUEST) {
-                return new ResponseOrException<>(new SQLException("It doesn't look like the X-Pack or the X-Pack SQL component"
-                        + " are available on this Elasticsearch node using the access path '"
+                return new ResponseOrException<>(new SQLException("X-Pack/SQL do not seem to be available"
+                        + " on the Elasticsearch node using the access path '"
                         + con.getURL().getHost()
                         + (con.getURL().getPort() > 0 ? ":" + con.getURL().getPort() : "")
                         + "'."
-                        + " Please verify that X-Pack is installed and SQL enabled; alternatively, check if any proxy is interferring"
-                        + " with the SQL request to Elasticsearch",
+                        + " Please verify X-Pack is installed and SQL enabled. Alternatively, check if any proxy is interfering"
+                        + " the communication to Elasticsearch",
                         SQL_STATE_BAD_SERVER));
             }
             return new ResponseOrException<>(new SQLException("Server sent bad type ["

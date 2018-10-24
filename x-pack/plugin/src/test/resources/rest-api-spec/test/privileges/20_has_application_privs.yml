@@ -131,7 +131,7 @@ teardown:
   - skip:
       features: headers
 
-- do:
+  - do:
       headers: { Authorization: "Basic ZW5nX3JlYWQ6cEBzc3cwcmQ=" } # eng_read
       xpack.security.has_privileges:
         user: null

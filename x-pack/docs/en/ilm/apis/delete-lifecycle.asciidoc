@@ -1,0 +1,89 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-delete-lifecycle]]
+=== Delete Lifecycle Policy API
+++++
+<titleabbrev>Delete Policy</titleabbrev>
+++++
+
+Deletes an existing lifecycle policy
+
+==== Request
+
+`DELETE _ilm/<policy>`
+
+==== Description
+
+Deletes an existing lifecycle policy
+
+==== Path Parameters
+
+`policy` (required)::
+  (string) Identifier for the policy.
+
+==== Request Parameters
+
+`timeout`::
+  (time units) Specifies the period of time to wait for the completion of the 
+  DELETE operation. When this period of time elapses, the API fails and returns
+  an error. The default value is `30s`. For more information about time units, 
+  see <<time-units>>.
+
+`master_timeout`::
+  (time units) Specifies the period of time to wait for the connection with master.
+  When this period of time elapses, the API fails and returns an error.
+  The default value is `30s`. For more information about time units, see <<time-units>>.
+
+
+==== Examples
+
+The following example deletes an existing policy named `my_policy`:
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "minimum_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+//////////////////////////
+
+[source,js]
+--------------------------------------------------
+DELETE _ilm/my_policy
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the request does not encounter errors, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+// CONSOLE
+// TESTRESPONSE

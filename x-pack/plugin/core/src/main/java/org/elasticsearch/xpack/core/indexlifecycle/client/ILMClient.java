@@ -12,8 +12,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
-import org.elasticsearch.xpack.core.indexlifecycle.SetIndexLifecyclePolicyRequest;
-import org.elasticsearch.xpack.core.indexlifecycle.SetIndexLifecyclePolicyResponse;
 import org.elasticsearch.xpack.core.indexlifecycle.StartILMRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.StopILMRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
@@ -21,9 +19,8 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.RemovePolicyForIndexAction;
+import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StartILMAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
 
@@ -109,32 +106,19 @@ public class ILMClient {
     }
 
     /**
-     * Sets the lifecycle policy to use for an index
+     * Removes index lifecycle management from an index
      */
-    public void setIndexLifecyclePolicy(SetIndexLifecyclePolicyRequest request, ActionListener<SetIndexLifecyclePolicyResponse> listener) {
-        client.execute(SetIndexLifecyclePolicyAction.INSTANCE, request, listener);
-    }
-
-    /**
-     * Sets the lifecycle policy to use for an index
-     */
-    public ActionFuture<SetIndexLifecyclePolicyResponse> setIndexLifecyclePolicy(SetIndexLifecyclePolicyRequest request) {
-        return client.execute(SetIndexLifecyclePolicyAction.INSTANCE, request);
+    public void removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyAction.Request request,
+            ActionListener<RemoveIndexLifecyclePolicyAction.Response> listener) {
+        client.execute(RemoveIndexLifecyclePolicyAction.INSTANCE, request, listener);
     }
 
     /**
      * Removes index lifecycle management from an index
      */
-    public void removePolicyForIndex(RemovePolicyForIndexAction.Request request,
-            ActionListener<RemovePolicyForIndexAction.Response> listener) {
-        client.execute(RemovePolicyForIndexAction.INSTANCE, request, listener);
-    }
-
-    /**
-     * Removes index lifecycle management from an index
-     */
-    public ActionFuture<RemovePolicyForIndexAction.Response> removePolicyForIndex(RemovePolicyForIndexAction.Request request) {
-        return client.execute(RemovePolicyForIndexAction.INSTANCE, request);
+    public ActionFuture<RemoveIndexLifecyclePolicyAction.Response> removeIndexLifecyclePolicy(
+            RemoveIndexLifecyclePolicyAction.Request request) {
+        return client.execute(RemoveIndexLifecyclePolicyAction.INSTANCE, request);
     }
 
     /**

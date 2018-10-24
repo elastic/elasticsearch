@@ -1,0 +1,82 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-put-lifecycle]]
+=== Put Lifecycle Policy API
+++++
+<titleabbrev>Put Policy</titleabbrev>
+++++
+
+Creates or updates an ILM Policy
+
+==== Request
+
+`PUT _ilm/<policy>`
+
+==== Description
+
+This API creates a new Lifecycle Policy, or updates an existing one with the same
+identifier. Each call will replace the existing policy and increment the `version`
+associated with the policy.
+
+NOTE: The `version` is only for informational purposes. Only the latest version
+of the policy is stored.
+
+==== Path Parameters
+
+`policy` (required)::
+  (string) Identifier for the policy.
+
+==== Request Parameters
+
+`timeout`::
+  (time units) Specifies the period of time to wait for the completion of the 
+  PUT operation. When this period of time elapses, the API fails and returns
+  an error. The default value is `30s`. For more information about time units, 
+  see <<time-units>>.
+
+`master_timeout`::
+  (time units) Specifies the period of time to wait for the connection with master.
+  When this period of time elapses, the API fails and returns an error.
+  The default value is `30s`. For more information about time units, see <<time-units>>.
+
+
+==== Examples
+
+The following example creates a new policy named `my_policy`:
+
+[source,js]
+--------------------------------------------------
+PUT _ilm/my_policy
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "minimum_age": "10d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "delete": {
+        "minimum_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+If the request does not encounter errors, you receive the following result:
+[source,js]
+----
+{
+  "acknowledged": true
+}
+----
+// CONSOLE
+// TESTRESPONSE

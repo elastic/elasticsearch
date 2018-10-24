@@ -122,7 +122,7 @@ class VersionCollection {
                         if (isReleased(version) == false) {
                             // caveat 1 - This should only ever contain 2 non released branches in flight. An example is 6.x is frozen,
                             // and 6.2 is cut but not yet released there is some simple logic to make sure that in the case of more than 2,
-                            // it will bail. The order is that the minor snapshot is fufilled first, and then the staged minor snapshot
+                            // it will bail. The order is that the minor snapshot is fulfilled first, and then the staged minor snapshot
                             if (nextMinorSnapshot == null) {
                                 // it has not been set yet
                                 nextMinorSnapshot = replaceAsSnapshot(version)

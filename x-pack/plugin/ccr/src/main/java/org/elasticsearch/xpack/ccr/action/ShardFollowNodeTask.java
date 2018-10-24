@@ -57,7 +57,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private static final int DELAY_MILLIS = 50;
     private static final Logger LOGGER = LogManager.getLogger(ShardFollowNodeTask.class);
 
-    private final String leaderIndex;
     private final ShardFollowTask params;
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
@@ -72,6 +71,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private int numConcurrentReads = 0;
     private int numConcurrentWrites = 0;
     private long currentMappingVersion = 0;
+    private long totalFetchTookTimeMillis = 0;
     private long totalFetchTimeMillis = 0;
     private long numberOfSuccessfulFetches = 0;
     private long numberOfFailedFetches = 0;
@@ -84,6 +84,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long lastFetchTime = -1;
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
     private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
+
+    private volatile ElasticsearchException fatalException;
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
@@ -102,12 +104,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 return size() > params.getMaxConcurrentReadBatches();
             }
         };
-
-        if (params.getLeaderClusterAlias() != null) {
-            leaderIndex = params.getLeaderClusterAlias() + ":" + params.getLeaderShardId().getIndexName();
-        } else {
-            leaderIndex = params.getLeaderShardId().getIndexName();
-        }
     }
 
     void start(
@@ -238,15 +234,17 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         }
         innerSendShardChangesRequest(from, maxOperationCount,
                 response -> {
-                    if (response.getOperations().length > 0) {
-                        // do not count polls against fetch stats
-                        synchronized (ShardFollowNodeTask.this) {
+                    synchronized (ShardFollowNodeTask.this) {
+                        // Always clear fetch exceptions:
+                        fetchExceptions.remove(from);
+                        if (response.getOperations().length > 0) {
+                            // do not count polls against fetch stats
+                            totalFetchTookTimeMillis += response.getTookInMillis();
                             totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                             numberOfSuccessfulFetches++;
-                            fetchExceptions.remove(from);
                             operationsReceived += response.getOperations().length;
                             totalTransferredBytes +=
-                                    Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+                                Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
                         }
                     }
                     handleReadResponse(from, maxRequiredSeqNo, response);
@@ -372,7 +370,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             long delay = computeDelay(currentRetry, params.getPollTimeout().getMillis());
             scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
-            markAsFailed(e);
+            fatalException = ExceptionsHelper.convertToElastic(e);
         }
     }
 
@@ -422,7 +420,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     protected boolean isStopped() {
-        return isCancelled() || isCompleted();
+        return fatalException != null || isCancelled() || isCompleted();
     }
 
     public ShardId getFollowShardId() {
@@ -439,7 +437,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             timeSinceLastFetchMillis = -1;
         }
         return new ShardFollowNodeTaskStatus(
-                leaderIndex,
+                params.getLeaderCluster(),
+                params.getLeaderShardId().getIndexName(),
                 params.getFollowShardId().getIndexName(),
                 getFollowShardId().getId(),
                 leaderGlobalCheckpoint,
@@ -452,6 +451,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 buffer.size(),
                 currentMappingVersion,
                 totalFetchTimeMillis,
+                totalFetchTookTimeMillis,
                 numberOfSuccessfulFetches,
                 numberOfFailedFetches,
                 operationsReceived,
@@ -466,7 +466,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                                 .stream()
                                 .collect(
                                         Collectors.toMap(Map.Entry::getKey, e -> Tuple.tuple(e.getValue().v1().get(), e.getValue().v2())))),
-                timeSinceLastFetchMillis);
+                timeSinceLastFetchMillis,
+                fatalException);
     }
 
 }

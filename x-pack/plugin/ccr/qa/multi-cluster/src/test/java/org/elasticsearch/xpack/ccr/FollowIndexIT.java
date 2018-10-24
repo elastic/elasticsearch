@@ -67,11 +67,11 @@ public class FollowIndexIT extends ESRestTestCase {
         } else {
             logger.info("Running against follow cluster");
             final String followIndexName = "test_index2";
-            followIndex("leader_cluster:" + leaderIndexName, followIndexName);
+            followIndex(leaderIndexName, followIndexName);
             assertBusy(() -> verifyDocuments(followIndexName, numDocs));
             // unfollow and then follow and then index a few docs in leader index:
             pauseFollow(followIndexName);
-            resumeFollow("leader_cluster:" + leaderIndexName, followIndexName);
+            resumeFollow(leaderIndexName, followIndexName);
             try (RestClient leaderClient = buildLeaderClient()) {
                 int id = numDocs;
                 index(leaderClient, leaderIndexName, Integer.toString(id), "field", id, "filtered_field", "true");
@@ -80,17 +80,22 @@ public class FollowIndexIT extends ESRestTestCase {
             }
             assertBusy(() -> verifyDocuments(followIndexName, numDocs + 3));
             assertBusy(() -> verifyCcrMonitoring(leaderIndexName, followIndexName));
+
+            pauseFollow(followIndexName);
+            assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_close")));
+            assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_ccr/unfollow")));
+            Exception e = expectThrows(ResponseException.class, () -> resumeFollow(leaderIndexName, followIndexName));
+            assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));
         }
     }
 
     public void testFollowNonExistingLeaderIndex() throws Exception {
         assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> resumeFollow("leader_cluster:non-existing-index", "non-existing-index"));
+        ResponseException e = expectThrows(ResponseException.class, () -> resumeFollow("non-existing-index", "non-existing-index"));
         assertThat(e.getMessage(), containsString("no such index"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
-        e = expectThrows(ResponseException.class, () -> followIndex("leader_cluster:non-existing-index", "non-existing-index"));
+        e = expectThrows(ResponseException.class, () -> followIndex("non-existing-index", "non-existing-index"));
         assertThat(e.getMessage(), containsString("no such index"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
@@ -98,8 +103,8 @@ public class FollowIndexIT extends ESRestTestCase {
     public void testAutoFollowPatterns() throws Exception {
         assumeFalse("Test should only run when both clusters are running", runningAgainstLeaderCluster);
 
-        Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"]}");
+        Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"leader_cluster\": \"leader_cluster\"}");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {
@@ -148,13 +153,15 @@ public class FollowIndexIT extends ESRestTestCase {
 
     private static void resumeFollow(String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_ccr/resume_follow");
-        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
+        request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"" + leaderIndex +
+            "\", \"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
     private static void followIndex(String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
-        request.setJsonEntity("{\"leader_index\": \"" + leaderIndex + "\", \"poll_timeout\": \"10ms\"}");
+        request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"" + leaderIndex +
+            "\", \"poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
@@ -182,7 +189,7 @@ public class FollowIndexIT extends ESRestTestCase {
 
     private static void verifyCcrMonitoring(final String expectedLeaderIndex, final String expectedFollowerIndex) throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"leader_cluster:" + expectedLeaderIndex + "\"}}}");
+        request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"" + expectedLeaderIndex + "\"}}}");
         Map<String, ?> response;
         try {
             response = toMap(client().performRequest(request));

@@ -219,7 +219,7 @@ attaches the payload data to the message:
 "actions" : {
   "send_email" : { <1>
     "email" : { <2>
-      "to" : "<username>@<domainname>",
+      "to" : "email@example.org",
       "subject" : "Watcher Notification",
       "body" : "{{ctx.payload.hits.total}} error logs found",
       "attachments" : {

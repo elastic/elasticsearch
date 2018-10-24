@@ -62,7 +62,7 @@ teardown:
         ignore: 404
 
 ---
-"Test shared index seperating user by using DLS role query with user's username":
+"Test shared index separating user by using DLS role query with user's username":
   - do:
       xpack.security.put_role:
         name: "small_companies_role"
@@ -130,7 +130,7 @@ teardown:
   - match: { hits.hits.0._source.user.username: john}
 
 ---
-"Test shared index seperating user by using DLS role query with user's metadata":
+"Test shared index separating user by using DLS role query with user's metadata":
   - do:
       xpack.security.put_role:
         name: "small_companies_role"

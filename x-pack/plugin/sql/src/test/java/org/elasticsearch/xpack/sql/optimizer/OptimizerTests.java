@@ -332,7 +332,7 @@ public class OptimizerTests extends ESTestCase {
     public void testConstantFoldingIn_LeftValueIsNull() {
         In in = new In(EMPTY, NULL, Arrays.asList(ONE, TWO, THREE));
         Literal result= (Literal) new ConstantFolding().rule(in);
-        assertEquals(false, result.value());
+        assertNull(result.value());
     }
 
     public void testArithmeticFolding() {

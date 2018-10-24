@@ -149,28 +149,28 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
     public static final class PhaseStats implements ToXContentObject, Writeable {
         private final String[] actionNames;
-        private final TimeValue after;
+        private final TimeValue minimumAge;
 
         public PhaseStats(TimeValue after, String[] actionNames) {
             this.actionNames = actionNames;
-            this.after = after;
+            this.minimumAge = after;
         }
 
         public PhaseStats(StreamInput in) throws IOException {
             actionNames = in.readStringArray();
-            after = in.readTimeValue();
+            minimumAge = in.readTimeValue();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringArray(actionNames);
-            out.writeTimeValue(after);
+            out.writeTimeValue(minimumAge);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Phase.MINIMUM_AGE.getPreferredName(), after.getStringRep());
+            builder.field(Phase.MINIMUM_AGE.getPreferredName(), minimumAge.getMillis());
             builder.field(Phase.ACTIONS_FIELD.getPreferredName(), actionNames);
             builder.endObject();
             return builder;
@@ -181,12 +181,12 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         }
         
         public TimeValue getAfter() {
-            return after;
+            return minimumAge;
         }
         
         @Override
         public int hashCode() {
-            return Objects.hash(Arrays.hashCode(actionNames), after);
+            return Objects.hash(Arrays.hashCode(actionNames), minimumAge);
         }
         
         @Override
@@ -198,7 +198,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 return false;
             }
             PhaseStats other = (PhaseStats) obj;
-            return Objects.equals(after, other.after) &&
+            return Objects.equals(minimumAge, other.minimumAge) &&
                     Objects.deepEquals(actionNames, other.actionNames);
         }
     }

@@ -9,9 +9,7 @@ package org.elasticsearch.xpack.ccr;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.nio.file.Files;
 import java.util.Iterator;
@@ -22,36 +20,21 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 
-public class CcrMultiClusterLicenseIT extends ESRestTestCase {
-
-    private final boolean runningAgainstLeaderCluster = Booleans.parseBoolean(System.getProperty("tests.is_leader_cluster"));
-
-    @Override
-    protected boolean preserveClusterUponCompletion() {
-        return true;
-    }
-
-    public void testResumeFollow() {
-        if (runningAgainstLeaderCluster == false) {
-            final Request request = new Request("POST", "/follower/_ccr/resume_follow");
-            request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"leader\"}");
-            assertNonCompliantLicense(request);
-        }
-    }
+public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
 
     public void testFollow() {
-        if (runningAgainstLeaderCluster == false) {
+        if ("follow".equals(targetCluster)) {
             final Request request = new Request("PUT", "/follower/_ccr/follow");
-            request.setJsonEntity("{\"leader_cluster\": \"leader_cluster\", \"leader_index\": \"leader\"}");
+            request.setJsonEntity("{\"remote_cluster\": \"leader_cluster\", \"leader_index\": \"leader\"}");
             assertNonCompliantLicense(request);
         }
     }
 
     public void testAutoFollow() throws Exception {
         assumeFalse("windows is the worst", Constants.WINDOWS);
-        if (runningAgainstLeaderCluster == false) {
-            final Request request = new Request("PUT", "/_ccr/auto_follow/leader_cluster");
-            request.setJsonEntity("{\"leader_index_patterns\":[\"*\"]}");
+        if ("follow".equals(targetCluster)) {
+            final Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
+            request.setJsonEntity("{\"leader_index_patterns\":[\"*\"], \"remote_cluster\": \"leader_cluster\"}");
             client().performRequest(request);
 
             // parse the logs and ensure that the auto-coordinator skipped coordination on the leader cluster
@@ -64,7 +47,7 @@ public class CcrMultiClusterLicenseIT extends ESRestTestCase {
                 while (it.hasNext()) {
                     final String line = it.next();
                     if (line.matches(".*\\[WARN\\s*\\]\\[o\\.e\\.x\\.c\\.a\\.AutoFollowCoordinator\\s*\\] \\[node-0\\] " +
-                            "failure occurred while fetching cluster state in leader cluster \\[leader_cluster\\]")) {
+                            "failure occurred while fetching cluster state for auto follow pattern \\[test_pattern\\]")) {
                         warn = true;
                         break;
                     }

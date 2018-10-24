@@ -17,10 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.action.get;
+package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.get.TransportMultiGetActionTests;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -49,14 +51,14 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
+public class TransportMultiTermVectorsActionTests extends ESSingleNodeTestCase {
 
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private IndicesService indicesService;
     private TransportService transportService;
 
-    private TransportMultiGetAction transportMultiGetAction;
+    private TransportMultiTermVectorsAction transportMultiTermVectorsAction;
 
     @Before
     public void setUp() throws Exception {
@@ -72,8 +74,8 @@ public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        transportMultiGetAction = new TransportMultiGetAction(Settings.EMPTY, transportService, clusterService,
-            new TestTransportShardMultiGetAction(), new ActionFilters(emptySet()), new Resolver());
+        transportMultiTermVectorsAction = new TransportMultiTermVectorsAction(Settings.EMPTY, transportService, clusterService,
+            new TestTransportShardMultiTermsVectorAction(), new ActionFilters(emptySet()), new Resolver());
     }
 
     @After
@@ -84,23 +86,23 @@ public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
         super.tearDown();
     }
 
-    public void testTransportMultiGetAction() throws IOException {
+    public void testTransportMultiTermVectorsAction() throws IOException {
         // GIVEN
         final String indexName = createAndPrepareIndex(5, false);
 
         final Task task = createMultiGetTask();
 
-        final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client(), MultiGetAction.INSTANCE);
-        request.add(new MultiGetRequest.Item(indexName, "type1", "1"));
-        request.add(new MultiGetRequest.Item(indexName, "type1", "2"));
+        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client(), MultiTermVectorsAction.INSTANCE);
+        request.add(new TermVectorsRequest(indexName, "type1", "1"));
+        request.add(new TermVectorsRequest(indexName, "type1", "2"));
 
         // WHEN
-        transportMultiGetAction.execute(task, request.request(), new ActionListener<MultiGetResponse>() {
+        transportMultiTermVectorsAction.execute(task, request.request(), new ActionListener<MultiTermVectorsResponse>() {
             // THEN
             @Override
-            public void onResponse(MultiGetResponse multiGetResponse) {
+            public void onResponse(MultiTermVectorsResponse multiTermVectorsResponse) {
                 try {
-                    final MultiGetItemResponse[] responses = multiGetResponse.getResponses();
+                    final MultiTermVectorsItemResponse[] responses = multiTermVectorsResponse.getResponses();
 
                     assertThat(responses, arrayWithSize(2));
 
@@ -125,21 +127,21 @@ public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
         });
     }
 
-    public void testTransportMultiGetAction_withMissingRouting() throws IOException {
+    public void testTransportMultiTermVectorsAction_withMissingRouting() throws IOException {
         // GIVEN
         final String indexName = createAndPrepareIndex(5, true);
 
-        final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client(), MultiGetAction.INSTANCE);
-        request.add(new MultiGetRequest.Item(indexName, "type1", "1").routing("1"));
-        request.add(new MultiGetRequest.Item(indexName, "type1", "2"));
+        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client(), MultiTermVectorsAction.INSTANCE);
+        request.add(new TermVectorsRequest(indexName, "type1", "1").routing("1"));
+        request.add(new TermVectorsRequest(indexName, "type1", "2"));
 
         // WHEN
-        transportMultiGetAction.execute(createMultiGetTask(), request.request(), new ActionListener<MultiGetResponse>() {
+        transportMultiTermVectorsAction.execute(createMultiGetTask(), request.request(), new ActionListener<MultiTermVectorsResponse>() {
             // THEN
             @Override
-            public void onResponse(MultiGetResponse multiGetResponse) {
+            public void onResponse(MultiTermVectorsResponse multiTermVectorsResponse) {
                 try {
-                    final MultiGetItemResponse[] responses = multiGetResponse.getResponses();
+                    final MultiTermVectorsItemResponse[] responses = multiTermVectorsResponse.getResponses();
 
                     assertThat(responses, arrayWithSize(2));
 
@@ -148,7 +150,8 @@ public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
                     assertThat(responses[0].getFailure(), nullValue());
 
                     assertThat(responses[1].getResponse(), nullValue());
-                    assertThat(responses[1].getFailure().getMessage(), equalTo("routing is required for [" + indexName + "]/[type1]/[2]"));
+                    assertThat(responses[1].getFailure().getCause().getMessage(),
+                        equalTo("routing is required for [" + indexName + "]/[type1]/[2]"));
                 } catch (final Exception e) {
                     logger.error(e.getMessage(), e);
                     fail(e.getMessage());
@@ -182,11 +185,12 @@ public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
             new TaskId(node().getNodeEnvironment().nodeId() + ":" + randomLong()), emptyMap());
     }
 
-    class TestTransportShardMultiGetAction extends TransportShardMultiGetAction {
+    class TestTransportShardMultiTermsVectorAction extends TransportShardMultiTermsVectorAction {
 
-        TestTransportShardMultiGetAction() {
-            super(Settings.EMPTY, TransportMultiGetActionTests.this.clusterService, TransportMultiGetActionTests.this.transportService,
-                indicesService, TransportMultiGetActionTests.this.threadPool, new ActionFilters(emptySet()), new Resolver());
+        TestTransportShardMultiTermsVectorAction() {
+            super(Settings.EMPTY, TransportMultiTermVectorsActionTests.this.clusterService,
+                TransportMultiTermVectorsActionTests.this.transportService, indicesService,
+                TransportMultiTermVectorsActionTests.this.threadPool, new ActionFilters(emptySet()), new Resolver());
         }
     }
 

@@ -466,7 +466,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 numConcurrentReads,
                 numConcurrentWrites,
                 buffer.size(),
-            bufferSizeInBytes,
+                bufferSizeInBytes,
                 currentMappingVersion,
                 totalFetchTimeMillis,
                 totalFetchTookTimeMillis,

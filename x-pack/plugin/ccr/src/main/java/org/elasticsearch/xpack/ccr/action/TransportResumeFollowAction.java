@@ -107,7 +107,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         if (ccrMetadata == null) {
             throw new IllegalArgumentException("follow index ["+ request.getFollowerIndex() + "] does not have ccr metadata");
         }
-        final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_CLUSTER_NAME_KEY);
+        final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
         // Validates whether the leader cluster has been configured properly:
         client.getRemoteClusterClient(leaderCluster);
         final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);

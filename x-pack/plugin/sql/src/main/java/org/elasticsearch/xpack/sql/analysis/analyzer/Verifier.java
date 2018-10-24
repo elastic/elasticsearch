@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -40,7 +41,9 @@ import java.util.function.Consumer;
 
 import static java.lang.String.format;
 
-abstract class Verifier {
+final class Verifier {
+
+    private Verifier() {}
 
     static class Failure {
         private final Node<?> source;
@@ -187,6 +190,8 @@ abstract class Verifier {
                 }
 
                 Set<Failure> localFailures = new LinkedHashSet<>();
+
+                validateInExpression(p, localFailures);
 
                 if (!groupingFailures.contains(p)) {
                     checkGroupBy(p, localFailures, resolvedFunctions, groupingFailures);
@@ -487,5 +492,20 @@ abstract class Verifier {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
         }
+    }
+
+    private static void validateInExpression(LogicalPlan p, Set<Failure> localFailures) {
+        p.forEachExpressions(e ->
+            e.forEachUp((In in) -> {
+                    DataType dt = in.value().dataType();
+                    for (Expression value : in.list()) {
+                        if (!in.value().dataType().isCompatibleWith(value.dataType())) {
+                            localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
+                                dt, value.dataType()));
+                            return;
+                        }
+                    }
+                },
+                In.class));
     }
 }

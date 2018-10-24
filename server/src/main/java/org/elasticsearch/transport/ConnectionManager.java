@@ -251,6 +251,10 @@ public class ConnectionManager implements Closeable {
         }
     }
 
+    TimeValue getPingSchedule() {
+        return pingSchedule;
+    }
+
     private class ScheduledPing extends AbstractLifecycleRunnable {
 
         private ScheduledPing() {
@@ -288,10 +292,6 @@ public class ConnectionManager implements Closeable {
                 logger.warn("failed to send ping transport message", e);
             }
         }
-    }
-
-    public TimeValue getPingSchedule() {
-        return pingSchedule;
     }
 
     private static final class DelegatingNodeConnectionListener implements TransportConnectionListener {

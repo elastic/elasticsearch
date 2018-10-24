@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process.logging;
+package org.elasticsearch.xpack.ml.process.logging;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
@@ -203,7 +203,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         }
     }
 
-    private static void executeLoggingTest(InputStream is, MockLogAppender mockAppender, Level level, String jobId) 
+    private static void executeLoggingTest(InputStream is, MockLogAppender mockAppender, Level level, String jobId)
             throws IOException {
         Logger cppMessageLogger = Loggers.getLogger(CppLogMessageHandler.class);
         Loggers.addAppender(cppMessageLogger, mockAppender);

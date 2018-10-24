@@ -63,7 +63,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             .custom(AutoFollowMetadata.TYPE);
         assertThat(result.getPatterns().size(), equalTo(1));
         assertThat(result.getPatterns().get("name2"), notNullValue());
-        assertThat(result.getPatterns().get("name2").getLeaderCluster(), equalTo("asia_cluster"));
+        assertThat(result.getPatterns().get("name2").getRemoteCluster(), equalTo("asia_cluster"));
         assertThat(result.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
         assertThat(result.getFollowedLeaderIndexUUIDs().get("name2"), notNullValue());
         assertThat(result.getHeaders().size(), equalTo(1));

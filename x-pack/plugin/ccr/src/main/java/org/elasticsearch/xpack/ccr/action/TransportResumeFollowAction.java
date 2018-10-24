@@ -32,7 +32,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,8 +48,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
 public class TransportResumeFollowAction extends HandledTransportAction<ResumeFollowAction.Request, AcknowledgedResponse> {
@@ -144,62 +141,22 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             IndexMetaData leaderIndexMetadata,
             IndexMetaData followIndexMetadata,
             String[] leaderIndexHistoryUUIDs,
-            ActionListener<AcknowledgedResponse> handler) throws IOException {
+            ActionListener<AcknowledgedResponse> listener) throws IOException {
 
         MapperService mapperService = followIndexMetadata != null ? indicesService.createIndexMapperService(followIndexMetadata) : null;
         validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
         final int numShards = followIndexMetadata.getNumberOfShards();
-        final AtomicInteger counter = new AtomicInteger(numShards);
-        final AtomicReferenceArray<Object> responses = new AtomicReferenceArray<>(followIndexMetadata.getNumberOfShards());
+        final ResponseHandler handler = new ResponseHandler(numShards, listener);
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
                 .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        for (int i = 0; i < numShards; i++) {
-            final int shardId = i;
+        for (int shardId = 0; shardId < numShards; shardId++) {
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
 
             final ShardFollowTask shardFollowTask = createShardFollowTask(shardId, clusterNameAlias, request,
                 leaderIndexMetadata, followIndexMetadata, filteredHeaders);
-            persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
-                    new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
-                        @Override
-                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask> task) {
-                            responses.set(shardId, task);
-                            finalizeResponse();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            responses.set(shardId, e);
-                            finalizeResponse();
-                        }
-
-                        void finalizeResponse() {
-                            Exception error = null;
-                            if (counter.decrementAndGet() == 0) {
-                                for (int j = 0; j < responses.length(); j++) {
-                                    Object response = responses.get(j);
-                                    if (response instanceof Exception) {
-                                        if (error == null) {
-                                            error = (Exception) response;
-                                        } else {
-                                            error.addSuppressed((Throwable) response);
-                                        }
-                                    }
-                                }
-
-                                if (error == null) {
-                                    // include task ids?
-                                    handler.onResponse(new AcknowledgedResponse(true));
-                                } else {
-                                    // TODO: cancel all started tasks
-                                    handler.onFailure(error);
-                                }
-                            }
-                        }
-                    }
-            );
+            persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask, handler.getActionListener(shardId));
         }
     }
 

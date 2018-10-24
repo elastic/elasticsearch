@@ -422,7 +422,6 @@ public class MockScriptEngine implements ScriptEngine {
             Map<String, Object> map = new HashMap<>();
 
             if (getParams() != null) {
-                map.putAll(getParams()); // TODO: remove this once scripts know to look for params under params key
                 map.put("params", getParams());
             }
 
@@ -453,7 +452,6 @@ public class MockScriptEngine implements ScriptEngine {
                     Map<String, Object> map = new HashMap<>();
 
                     if (getParams() != null) {
-                        map.putAll(getParams()); // TODO: remove this once scripts know to look for params under params key
                         map.put("params", getParams());
                     }
 
@@ -480,7 +478,6 @@ public class MockScriptEngine implements ScriptEngine {
             Map<String, Object> map = new HashMap<>();
 
             if (getParams() != null) {
-                map.putAll(getParams()); // TODO: remove this once scripts know to look for params under params key
                 map.put("params", getParams());
             }
 
@@ -502,7 +499,6 @@ public class MockScriptEngine implements ScriptEngine {
             Map<String, Object> map = new HashMap<>();
 
             if (getParams() != null) {
-                map.putAll(getParams()); // TODO: remove this once scripts know to look for params under params key
                 map.put("params", getParams());
             }
 

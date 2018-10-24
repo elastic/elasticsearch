@@ -13,6 +13,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -60,7 +61,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
@@ -139,13 +139,26 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
                 final String[] roleIds = names.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
                 MultiGetRequest multiGetRequest = client.prepareMultiGet().add(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, roleIds).request();
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, multiGetRequest,
-                    ActionListener.<MultiGetResponse>wrap(mGetResponse ->
-                            listener.onResponse(RoleRetrievalResult.success(Arrays.stream(mGetResponse.getResponses())
-                                .filter(item -> item.isFailed() == false)
-                                .filter(item -> item.getResponse().isExists())
-                                .map(item -> transformRole(item.getResponse()))
-                                .filter(Objects::nonNull)
-                                .collect(Collectors.toSet()))),
+                    ActionListener.<MultiGetResponse>wrap(mGetResponse -> {
+                            final MultiGetItemResponse[] responses = mGetResponse.getResponses();
+                            Set<RoleDescriptor> descriptors = new HashSet<>();
+                            for (int i = 0; i < responses.length; i++) {
+                                MultiGetItemResponse item = responses[i];
+                                if (item.isFailed()) {
+                                    final Exception failure = item.getFailure().getFailure();
+                                    for (int j = i + 1; j < responses.length; j++) {
+                                        item = responses[j];
+                                        if (item.isFailed()) {
+                                            failure.addSuppressed(failure);
+                                        }
+                                    }
+                                    listener.onResponse(RoleRetrievalResult.failure(failure));
+                                } else if (item.getResponse().isExists()) {
+                                    descriptors.add(transformRole(item.getResponse()));
+                                }
+                            }
+                            listener.onResponse(RoleRetrievalResult.success(descriptors));
+                        },
                         e -> listener.onResponse(RoleRetrievalResult.failure(e))), client::multiGet);
             });
         }

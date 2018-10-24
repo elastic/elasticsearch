@@ -187,39 +187,43 @@ public class ChunkedDataExtractor implements DataExtractor {
          * @throws IOException when timefield range search fails
          */
         private DataSummary buildDataSummary() throws IOException {
-            if (context.hasAggregations) {
-                // TODO: once RollupSearchAction is changed from indices:admin* to indices:data/read/* this branch is not needed
-                ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder =
-                    dataExtractorFactory instanceof RollupDataExtractorFactory ? rollupRangeSearchRequest() : rangeSearchRequest();
-                SearchResponse response = executeSearchRequest(searchRequestBuilder);
-                LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
+            return context.hasAggregations ? newAggregatedDataSummary() : newScrolledDataSummary();
+        }
 
-                ExtractorUtils.checkSearchWasSuccessful(context.jobId, response);
+        private DataSummary newScrolledDataSummary() throws IOException {
+            SearchRequestBuilder searchRequestBuilder = rangeSearchRequest().setTypes(context.types);
 
-                Aggregations aggregations = response.getAggregations();
+            SearchResponse response = executeSearchRequest(searchRequestBuilder);
+            LOGGER.debug("[{}] Scrolling Data summary response was obtained", context.jobId);
+
+            ExtractorUtils.checkSearchWasSuccessful(context.jobId, response);
+
+            Aggregations aggregations = response.getAggregations();
+            long earliestTime = 0;
+            long latestTime = 0;
+            long totalHits = response.getHits().getTotalHits();
+            if (totalHits > 0) {
                 Min min = aggregations.get(EARLIEST_TIME);
+                earliestTime = (long) min.getValue();
                 Max max = aggregations.get(LATEST_TIME);
-                return new AggregatedDataSummary(min.getValue(), max.getValue(), context.histogramInterval);
-            } else {
-                SearchRequestBuilder searchRequestBuilder = rangeSearchRequest().setTypes(context.types);
-
-                SearchResponse response = executeSearchRequest(searchRequestBuilder);
-                LOGGER.debug("[{}] Scrolling Data summary response was obtained", context.jobId);
-
-                ExtractorUtils.checkSearchWasSuccessful(context.jobId, response);
-
-                Aggregations aggregations = response.getAggregations();
-                long earliestTime = 0;
-                long latestTime = 0;
-                long totalHits = response.getHits().getTotalHits();
-                if (totalHits > 0) {
-                    Min min = aggregations.get(EARLIEST_TIME);
-                    earliestTime = (long) min.getValue();
-                    Max max = aggregations.get(LATEST_TIME);
-                    latestTime = (long) max.getValue();
-                }
-                return new ScrolledDataSummary(earliestTime, latestTime, totalHits);
+                latestTime = (long) max.getValue();
             }
+            return new ScrolledDataSummary(earliestTime, latestTime, totalHits);
+        }
+
+        private DataSummary newAggregatedDataSummary() throws IOException {
+            // TODO: once RollupSearchAction is changed from indices:admin* to indices:data/read/* this branch is not needed
+            ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder =
+                dataExtractorFactory instanceof RollupDataExtractorFactory ? rollupRangeSearchRequest() : rangeSearchRequest();
+            SearchResponse response = executeSearchRequest(searchRequestBuilder);
+            LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
+
+            ExtractorUtils.checkSearchWasSuccessful(context.jobId, response);
+
+            Aggregations aggregations = response.getAggregations();
+            Min min = aggregations.get(EARLIEST_TIME);
+            Max max = aggregations.get(LATEST_TIME);
+            return new AggregatedDataSummary(min.getValue(), max.getValue(), context.histogramInterval);
         }
 
         private SearchSourceBuilder rangeSearchBuilder() {

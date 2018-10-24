@@ -56,16 +56,16 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
             (String) a[0],
             (boolean) a[1],
             (String) a[2],
-            (long) (a[4] == null ? -1L: a[4]),
+            (long) (a[3] == null ? -1L: a[3]),
+            (String) a[4],
             (String) a[5],
             (String) a[6],
             (String) a[7],
-            (String) a[8],
+            (long) (a[8] == null ? -1L: a[8]),
             (long) (a[9] == null ? -1L: a[9]),
             (long) (a[10] == null ? -1L: a[10]),
-            (long) (a[11] == null ? -1L: a[11]),
-            (BytesReference) a[12],
-            (PhaseExecutionInfo) a[13]));
+            (BytesReference) a[11],
+            (PhaseExecutionInfo) a[12]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), MANAGED_BY_ILM_FIELD);

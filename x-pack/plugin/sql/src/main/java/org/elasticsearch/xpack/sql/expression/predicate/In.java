@@ -78,11 +78,16 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public boolean foldable() {
-        return Expressions.foldable(children());
+        return Expressions.foldable(children()) ||
+            (Expressions.foldable(list) && list().stream().allMatch(e -> e.dataType() == DataType.NULL));
     }
 
     @Override
     public Boolean fold() {
+        if (value.dataType() == DataType.NULL || list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
+            return false;
+        }
+
         Object foldedLeftValue = value.fold();
         Boolean result = false;
         for (Expression rightValue : list) {

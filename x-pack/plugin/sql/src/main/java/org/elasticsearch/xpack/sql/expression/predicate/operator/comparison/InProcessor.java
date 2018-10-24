@@ -40,14 +40,17 @@ public class InProcessor implements Processor {
     @Override
     public Object process(Object input) {
         Object leftValue = processsors.get(processsors.size() - 1).process(input);
+        Boolean result = false;
 
         for (int i = 0; i < processsors.size() - 1; i++) {
             Boolean compResult = Comparisons.eq(leftValue, processsors.get(i).process(input));
-            if (compResult != null && compResult) {
+            if (compResult == null) {
+                result = null;
+            } else if (compResult) {
                 return true;
             }
         }
-        return false;
+        return result;
     }
 
     @Override

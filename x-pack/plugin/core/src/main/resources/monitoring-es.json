@@ -929,7 +929,7 @@
         },
         "ccr_stats": {
           "properties": {
-            "leader_cluster": {
+            "remote_cluster": {
               "type": "keyword"
             },
             "leader_index": {
@@ -969,6 +969,9 @@
               "type": "long"
             },
             "total_fetch_time_millis": {
+              "type": "long"
+            },
+            "total_fetch_remote_time_millis": {
               "type": "long"
             },
             "number_of_successful_fetches": {

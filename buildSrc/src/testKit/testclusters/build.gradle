@@ -2,40 +2,40 @@ plugins {
     id 'elasticsearch.testclusters'
 }
 
-elasticSearchClusters {
+testClusters {
     myTestCluster {
        distribution = 'ZIP'
     }
 }
 
 task user1 {
-    useCluster elasticSearchClusters.myTestCluster
+    useCluster testClusters.myTestCluster
     doLast {
         println "user1 executing"
     }
 }
 
 task user2 {
-    useCluster elasticSearchClusters.myTestCluster
+    useCluster testClusters.myTestCluster
     doLast {
         println "user2 executing"
     }
 }
 
 task upToDate1 {
-    useCluster elasticSearchClusters.myTestCluster
+    useCluster testClusters.myTestCluster
 }
 
 task upToDate2 {
-    useCluster elasticSearchClusters.myTestCluster
+    useCluster testClusters.myTestCluster
 }
 
 task skipped1 {
     enabled = false
-    useCluster elasticSearchClusters.myTestCluster
+    useCluster testClusters.myTestCluster
 }
 
 task skipped2 {
     enabled = false
-    useCluster elasticSearchClusters.myTestCluster
+    useCluster testClusters.myTestCluster
 }

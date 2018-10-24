@@ -1,5 +1,5 @@
-[[pause-resume-ilm]]
-== Pause and resume {ilm}
+[[start-stop-ilm]]
+== Start And Stop {ilm}
 
 All indices that are managed by ILM will continue to run through
 their policies. There may be times when this is not desired on certain
@@ -71,8 +71,7 @@ The operating modes of ILM:
 |===
 |Name |Description
 |RUNNING |Normal operation where all policies are executed as normal
-|STOPPING |This represents a state where only sensitive actions (like the Shrink Action) will be executed
-until they finish, at which point the operation mode will move to `STOPPED`
+|STOPPING|ILM has received a request to stop but is still processing some policies
 |STOPPED |This represents a state where no policies are executed
 |===
 
@@ -88,7 +87,7 @@ POST _ilm/stop
 // CONSOLE
 // TEST[continued]
 
-After stopping, all further policy actions will be halted. This will
+When stopped, all further policy actions will be halted. This will
 be reflected in the Status API
 
 ////
@@ -109,11 +108,9 @@ GET _ilm/status
 // CONSOLE
 // TESTRESPONSE
 
-You may notice that the response shows `STOPPING` as the operating mode.
-This is because the API will only send a request to stop to the ILM service.
-The ILM service will then, asynchronously, run through and verify that it is
-safe to stop. After ILM verifies that it is safe, it will move to the `STOPPED`
-mode.
+The ILM service will then, asynchronously, run all policies to a point
+where it is safe to stop. After ILM verifies that it is safe, it will
+move to the `STOPPED` mode.
 
 ////
 [source,js]
@@ -137,7 +134,7 @@ GET _ilm/status
 
 === Starting ILM
 
-To start ILM back up and continue executing policies, use the <<ilm-start, Start API>>.
+To start ILM and continue executing policies, use the <<ilm-start, Start API>>.
 
 
 [source,js]

@@ -94,6 +94,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         final int numberOfQueuedWrites = randomIntBetween(0, Integer.MAX_VALUE);
         final long mappingVersion = randomIntBetween(0, Integer.MAX_VALUE);
         final long totalFetchTimeMillis = randomLongBetween(0, 4096);
+        final long totalFetchTookTimeMillis = randomLongBetween(0, 4096);
         final long numberOfSuccessfulFetches = randomNonNegativeLong();
         final long numberOfFailedFetches = randomLongBetween(0, 8);
         final long operationsReceived = randomNonNegativeLong();
@@ -108,7 +109,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                         Tuple.tuple(randomIntBetween(0, Integer.MAX_VALUE), new ElasticsearchException("shard is sad"))));
         final long timeSinceLastFetchMillis = randomNonNegativeLong();
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
-                "cluster_alias:leader_index",
+                "leader_cluster",
+                "leader_index",
                 "follower_index",
                 shardId,
                 leaderGlobalCheckpoint,
@@ -121,6 +123,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                 numberOfQueuedWrites,
                 mappingVersion,
                 totalFetchTimeMillis,
+                totalFetchTookTimeMillis,
                 numberOfSuccessfulFetches,
                 numberOfFailedFetches,
                 operationsReceived,
@@ -130,7 +133,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                 numberOfFailedBulkOperations,
                 numberOfOperationsIndexed,
                 fetchExceptions,
-                timeSinceLastFetchMillis);
+                timeSinceLastFetchMillis,
+                new ElasticsearchException("fatal error"));
         final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, status);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertThat(
@@ -150,7 +154,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"timestamp\":\"" + new DateTime(nodeTimestamp, DateTimeZone.UTC).toString() +  "\""
                                 + "},"
                                 + "\"ccr_stats\":{"
-                                        + "\"leader_index\":\"cluster_alias:leader_index\","
+                                        + "\"remote_cluster\":\"leader_cluster\","
+                                        + "\"leader_index\":\"leader_index\","
                                         + "\"follower_index\":\"follower_index\","
                                         + "\"shard_id\":" + shardId + ","
                                         + "\"leader_global_checkpoint\":" + leaderGlobalCheckpoint + ","
@@ -163,6 +168,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"number_of_queued_writes\":" + numberOfQueuedWrites + ","
                                         + "\"mapping_version\":" + mappingVersion + ","
                                         + "\"total_fetch_time_millis\":" + totalFetchTimeMillis + ","
+                                        + "\"total_fetch_remote_time_millis\":" + totalFetchTookTimeMillis + ","
                                         + "\"number_of_successful_fetches\":" + numberOfSuccessfulFetches + ","
                                         + "\"number_of_failed_fetches\":" + numberOfFailedFetches + ","
                                         + "\"operations_received\":" + operationsReceived + ","
@@ -181,7 +187,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                                         + "}"
                                                 + "}"
                                         + "],"
-                                        + "\"time_since_last_fetch_millis\":" + timeSinceLastFetchMillis
+                                        + "\"time_since_last_fetch_millis\":" + timeSinceLastFetchMillis + ","
+                                        + "\"fatal_exception\":{\"type\":\"exception\",\"reason\":\"fatal error\"}"
                                 + "}"
                         + "}"));
     }
@@ -190,7 +197,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions =
             new TreeMap<>(Collections.singletonMap(1L, Tuple.tuple(2, new ElasticsearchException("shard is sad"))));
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
-            "cluster_alias:leader_index",
+            "remote_cluster",
+            "leader_index",
             "follower_index",
             0,
             1,
@@ -203,6 +211,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             1,
             1,
             100,
+            50,
             10,
             0,
             10,
@@ -212,7 +221,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             0,
             10,
             fetchExceptions,
-            2);
+            2,
+            null);
         XContentBuilder builder = jsonBuilder();
         builder.value(status);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
@@ -220,7 +230,6 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         Map<String, Object> template =
             XContentHelper.convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
         Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues.extractValue("mappings.doc.properties.ccr_stats.properties", template);
-
         assertThat(serializedStatus.size(), equalTo(followStatsMapping.size()));
         for (Map.Entry<String, Object> entry : serializedStatus.entrySet()) {
             String fieldName = entry.getKey();

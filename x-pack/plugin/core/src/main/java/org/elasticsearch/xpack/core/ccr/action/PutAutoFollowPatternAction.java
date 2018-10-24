@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern.REMOTE_CLUSTER_FIELD;
 
 public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
@@ -42,12 +43,13 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        static final ParseField LEADER_CLUSTER_ALIAS_FIELD = new ParseField("leader_cluster_alias");
-
         private static final ObjectParser<Request, String> PARSER = new ObjectParser<>("put_auto_follow_pattern_request", Request::new);
 
+        private static final ParseField NAME_FIELD = new ParseField("name");
+
         static {
-            PARSER.declareString(Request::setLeaderClusterAlias, LEADER_CLUSTER_ALIAS_FIELD);
+            PARSER.declareString(Request::setName, NAME_FIELD);
+            PARSER.declareString(Request::setRemoteCluster, REMOTE_CLUSTER_FIELD);
             PARSER.declareStringArray(Request::setLeaderIndexPatterns, AutoFollowPattern.LEADER_PATTERNS_FIELD);
             PARSER.declareString(Request::setFollowIndexNamePattern, AutoFollowPattern.FOLLOW_PATTERN_FIELD);
             PARSER.declareInt(Request::setMaxBatchOperationCount, AutoFollowPattern.MAX_BATCH_OPERATION_COUNT);
@@ -67,21 +69,22 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
                 AutoFollowPattern.POLL_TIMEOUT, ObjectParser.ValueType.STRING);
         }
 
-        public static Request fromXContent(XContentParser parser, String remoteClusterAlias) throws IOException {
+        public static Request fromXContent(XContentParser parser, String name) throws IOException {
             Request request = PARSER.parse(parser, null);
-            if (remoteClusterAlias != null) {
-                if (request.leaderClusterAlias == null) {
-                    request.leaderClusterAlias = remoteClusterAlias;
+            if (name != null) {
+                if (request.name == null) {
+                    request.name = name;
                 } else {
-                    if (request.leaderClusterAlias.equals(remoteClusterAlias) == false) {
-                        throw new IllegalArgumentException("provided leaderClusterAlias is not equal");
+                    if (request.name.equals(name) == false) {
+                        throw new IllegalArgumentException("provided name is not equal");
                     }
                 }
             }
             return request;
         }
 
-        private String leaderClusterAlias;
+        private String name;
+        private String remoteCluster;
         private List<String> leaderIndexPatterns;
         private String followIndexNamePattern;
 
@@ -96,8 +99,11 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (leaderClusterAlias == null) {
-                validationException = addValidationError("[" + LEADER_CLUSTER_ALIAS_FIELD.getPreferredName() +
+            if (name == null) {
+                validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] is missing", validationException);
+            }
+            if (remoteCluster == null) {
+                validationException = addValidationError("[" + REMOTE_CLUSTER_FIELD.getPreferredName() +
                     "] is missing", validationException);
             }
             if (leaderIndexPatterns == null || leaderIndexPatterns.isEmpty()) {
@@ -120,12 +126,20 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             return validationException;
         }
 
-        public String getLeaderClusterAlias() {
-            return leaderClusterAlias;
+        public String getName() {
+            return name;
         }
 
-        public void setLeaderClusterAlias(String leaderClusterAlias) {
-            this.leaderClusterAlias = leaderClusterAlias;
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getRemoteCluster() {
+            return remoteCluster;
+        }
+
+        public void setRemoteCluster(String remoteCluster) {
+            this.remoteCluster = remoteCluster;
         }
 
         public List<String> getLeaderIndexPatterns() {
@@ -203,7 +217,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            leaderClusterAlias = in.readString();
+            name = in.readString();
+            remoteCluster = in.readString();
             leaderIndexPatterns = in.readList(StreamInput::readString);
             followIndexNamePattern = in.readOptionalString();
             maxBatchOperationCount = in.readOptionalVInt();
@@ -218,7 +233,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(leaderClusterAlias);
+            out.writeString(name);
+            out.writeString(remoteCluster);
             out.writeStringList(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
             out.writeOptionalVInt(maxBatchOperationCount);
@@ -234,7 +250,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(LEADER_CLUSTER_ALIAS_FIELD.getPreferredName(), leaderClusterAlias);
+                builder.field(NAME_FIELD.getPreferredName(), name);
+                builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                 builder.field(AutoFollowPattern.LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
                 if (followIndexNamePattern != null) {
                     builder.field(AutoFollowPattern.FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
@@ -270,7 +287,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(leaderClusterAlias, request.leaderClusterAlias) &&
+            return Objects.equals(name, request.name) &&
+                    Objects.equals(remoteCluster, request.remoteCluster) &&
                     Objects.equals(leaderIndexPatterns, request.leaderIndexPatterns) &&
                     Objects.equals(followIndexNamePattern, request.followIndexNamePattern) &&
                     Objects.equals(maxBatchOperationCount, request.maxBatchOperationCount) &&
@@ -285,7 +303,8 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             return Objects.hash(
-                    leaderClusterAlias,
+                    name,
+                    remoteCluster,
                     leaderIndexPatterns,
                     followIndexNamePattern,
                     maxBatchOperationCount,

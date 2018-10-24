@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -72,6 +73,7 @@ public final class ScriptProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument document) {
         IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
         factory.newInstance(script.getParams()).execute(document.getSourceAndMetadata());
+        CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
         return document;
     }
 

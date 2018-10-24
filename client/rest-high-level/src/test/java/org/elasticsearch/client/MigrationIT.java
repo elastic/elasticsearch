@@ -19,25 +19,71 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.client.migration.IndexUpgradeRequest;
+import org.elasticsearch.client.migration.IndexUpgradeSubmissionResponse;
+
 
 import java.io.IOException;
+import java.util.function.BooleanSupplier;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class MigrationIT extends ESRestHighLevelClientTestCase {
 
     public void testGetAssistance() throws IOException {
-        RestHighLevelClient client = highLevelClient();
         {
-            IndexUpgradeInfoResponse response = client.migration().getAssistance(new IndexUpgradeInfoRequest(), RequestOptions.DEFAULT);
+            IndexUpgradeInfoResponse response = highLevelClient().migration()
+                .getAssistance(new IndexUpgradeInfoRequest(), RequestOptions.DEFAULT);
             assertEquals(0, response.getActions().size());
         }
         {
-            client.indices().create(new CreateIndexRequest("test"), RequestOptions.DEFAULT);
-            IndexUpgradeInfoResponse response = client.migration().getAssistance(
+            createIndex("test", Settings.EMPTY);
+            IndexUpgradeInfoResponse response = highLevelClient().migration().getAssistance(
                 new IndexUpgradeInfoRequest("test"), RequestOptions.DEFAULT);
             assertEquals(0, response.getActions().size());
         }
+    }
+
+    public void testUpgrade() throws IOException {
+        createIndex("test", Settings.EMPTY);
+
+        ThrowingRunnable execute = () -> execute(new IndexUpgradeRequest("test"),
+            highLevelClient().migration()::upgrade,
+            highLevelClient().migration()::upgradeAsync);
+
+        ElasticsearchStatusException responseException = expectThrows(ElasticsearchStatusException.class, execute);
+
+        assertThat(responseException.getDetailedMessage(), containsString("cannot be upgraded"));
+    }
+
+    public void testUpgradeWithTaskApi() throws IOException, InterruptedException {
+        createIndex("test", Settings.EMPTY);
+
+        IndexUpgradeRequest request = new IndexUpgradeRequest("test");
+
+        IndexUpgradeSubmissionResponse upgrade = highLevelClient().migration()
+            .submitUpgradeTask(request, RequestOptions.DEFAULT);
+
+        assertNotNull(upgrade.getTask());
+
+        BooleanSupplier hasUpgradeCompleted = checkCompletionStatus(upgrade);
+        awaitBusy(hasUpgradeCompleted);
+    }
+
+    private BooleanSupplier checkCompletionStatus(IndexUpgradeSubmissionResponse upgrade) {
+        return () -> {
+            try {
+                Response response = client().performRequest(new Request("GET", "/_tasks/" + upgrade.getTask().toString()));
+                return (boolean) entityAsMap(response).get("completed");
+            } catch (IOException e) {
+                e.printStackTrace();
+                fail();
+                return false;
+            }
+        };
     }
 }

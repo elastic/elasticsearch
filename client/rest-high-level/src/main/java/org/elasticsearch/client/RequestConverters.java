@@ -886,10 +886,7 @@ final class RequestConverters {
         }
 
         Params withWaitForCompletion(boolean waitForCompletion) {
-            if (waitForCompletion) {
-                return putParam("wait_for_completion", Boolean.TRUE.toString());
-            }
-            return this;
+            return putParam("wait_for_completion", Boolean.toString(waitForCompletion));
         }
 
         Params withNodes(String[] nodes) {

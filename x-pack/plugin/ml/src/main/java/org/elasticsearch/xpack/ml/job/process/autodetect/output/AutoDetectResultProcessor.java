@@ -100,6 +100,7 @@ public class AutoDetectResultProcessor {
     private final boolean restoredSnapshot;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
+    CountDownLatch onCloseActionsLatch;
     final Semaphore updateModelSnapshotIdSemaphore = new Semaphore(1);
     private final FlushListener flushListener;
     private volatile boolean processKilled;
@@ -170,9 +171,11 @@ public class AutoDetectResultProcessor {
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
+            if (processKilled == false) {
+                onAutodetectClose();
+            }
 
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
-            onAutodetectClose();
         } catch (Exception e) {
             failed = true;
 
@@ -428,10 +431,17 @@ public class AutoDetectResultProcessor {
     }
 
     private void onAutodetectClose() {
+        onCloseActionsLatch = new CountDownLatch(1);
 
         ActionListener<UpdateResponse> updateListener = ActionListener.wrap(
-                updateResponse -> runEstablishedModelMemoryUpdate(true),
-                e -> LOGGER.error("[" + jobId + "] Failed to finalize job on autodetect close", e)
+                updateResponse -> {
+                    runEstablishedModelMemoryUpdate(true);
+                    onCloseActionsLatch.countDown();
+                },
+                e -> {
+                    LOGGER.error("[" + jobId + "] Failed to finalize job on autodetect close", e);
+                    onCloseActionsLatch.countDown();
+                }
         );
 
         updateJob(jobId, Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date()),
@@ -486,6 +496,12 @@ public class AutoDetectResultProcessor {
                     TimeUnit.MINUTES) == false) {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
             }
+
+            if (onCloseActionsLatch != null && onCloseActionsLatch.await(
+                    MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
+                throw new TimeoutException("Timed out waiting for results processor run post close actions " + jobId);
+            }
+
             // Input stream has been completely processed at this point.
             // Wait for any updateModelSnapshotIdOnJob calls to complete.
             updateModelSnapshotIdSemaphore.acquire();

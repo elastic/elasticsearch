@@ -16,6 +16,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.junit.After;
 import org.junit.Before;
@@ -63,13 +64,19 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 
-    protected ResumeFollowAction.Request getFollowRequest() {
+    protected ResumeFollowAction.Request getResumeFollowRequest() {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setLeaderCluster("local");
-        request.setLeaderIndex("leader");
         request.setFollowerIndex("follower");
         request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.setPollTimeout(TimeValue.timeValueMillis(10));
+        return request;
+    }
+
+    protected PutFollowAction.Request getPutFollowRequest() {
+        PutFollowAction.Request request = new PutFollowAction.Request();
+        request.setLeaderCluster("local");
+        request.setLeaderIndex("leader");
+        request.setFollowRequest(getResumeFollowRequest());
         return request;
     }
 

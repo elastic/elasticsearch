@@ -971,6 +971,9 @@
             "total_fetch_time_millis": {
               "type": "long"
             },
+            "total_fetch_leader_time_millis": {
+              "type": "long"
+            },
             "number_of_successful_fetches": {
               "type": "long"
             },

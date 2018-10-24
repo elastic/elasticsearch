@@ -6,12 +6,12 @@
 package org.elasticsearch.protocol.xpack.watcher;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.AbstractHLRCXContentTestCase;
+import org.elasticsearch.protocol.AbstractHlrcXContentTestCase;
 
 import java.io.IOException;
 
-public class DeleteWatchResponseTests extends AbstractHLRCXContentTestCase<DeleteWatchResponse,
-    org.elasticsearch.client.watcher.DeleteWatchResponse> {
+public class DeleteWatchResponseTests extends
+        AbstractHlrcXContentTestCase<DeleteWatchResponse, org.elasticsearch.client.watcher.DeleteWatchResponse> {
 
     @Override
     protected DeleteWatchResponse createTestInstance() {
@@ -27,12 +27,12 @@ public class DeleteWatchResponseTests extends AbstractHLRCXContentTestCase<Delet
     }
 
     @Override
-    public org.elasticsearch.client.watcher.DeleteWatchResponse doHLRCParseInstance(XContentParser parser) throws IOException {
+    public org.elasticsearch.client.watcher.DeleteWatchResponse doHlrcParseInstance(XContentParser parser) throws IOException {
         return org.elasticsearch.client.watcher.DeleteWatchResponse.fromXContent(parser);
     }
 
     @Override
-    public DeleteWatchResponse convert(org.elasticsearch.client.watcher.DeleteWatchResponse instance) {
+    public DeleteWatchResponse convertHlrcToInternal(org.elasticsearch.client.watcher.DeleteWatchResponse instance) {
         return new DeleteWatchResponse(instance.getId(), instance.getVersion(), instance.isFound());
     }
 

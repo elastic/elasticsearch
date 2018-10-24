@@ -8,7 +8,7 @@ package org.elasticsearch.protocol.xpack.license;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.PostStartBasicResponse;
-import org.elasticsearch.protocol.AbstractHLRCStreamableXContentTestCase;
+import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -16,16 +16,16 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class StartBasicResponseTests extends AbstractHLRCStreamableXContentTestCase<PostStartBasicResponse,
-    org.elasticsearch.client.license.StartBasicResponse> {
+public class StartBasicResponseTests extends
+        AbstractHlrcStreamableXContentTestCase<PostStartBasicResponse, org.elasticsearch.client.license.StartBasicResponse> {
 
     @Override
-    public org.elasticsearch.client.license.StartBasicResponse doHLRCParseInstance(XContentParser parser) throws IOException {
+    public org.elasticsearch.client.license.StartBasicResponse doHlrcParseInstance(XContentParser parser) throws IOException {
         return org.elasticsearch.client.license.StartBasicResponse.fromXContent(parser);
     }
 
     @Override
-    public PostStartBasicResponse convert(org.elasticsearch.client.license.StartBasicResponse instance) {
+    public PostStartBasicResponse convertHlrcToInternal(org.elasticsearch.client.license.StartBasicResponse instance) {
         return new PostStartBasicResponse(PostStartBasicResponse.Status.valueOf(instance.getStatus().name()),
             instance.getAcknowledgeMessages(), instance.getAcknowledgeMessage());
     }

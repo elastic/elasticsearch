@@ -6,12 +6,12 @@
 package org.elasticsearch.protocol.xpack.watcher;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.AbstractHLRCXContentTestCase;
+import org.elasticsearch.protocol.AbstractHlrcXContentTestCase;
 
 import java.io.IOException;
 
-public class PutWatchResponseTests extends AbstractHLRCXContentTestCase<PutWatchResponse,
-    org.elasticsearch.client.watcher.PutWatchResponse> {
+public class PutWatchResponseTests extends
+        AbstractHlrcXContentTestCase<PutWatchResponse, org.elasticsearch.client.watcher.PutWatchResponse> {
 
     @Override
     protected PutWatchResponse createTestInstance() {
@@ -27,12 +27,12 @@ public class PutWatchResponseTests extends AbstractHLRCXContentTestCase<PutWatch
     }
 
     @Override
-    public org.elasticsearch.client.watcher.PutWatchResponse doHLRCParseInstance(XContentParser parser) throws IOException {
+    public org.elasticsearch.client.watcher.PutWatchResponse doHlrcParseInstance(XContentParser parser) throws IOException {
         return org.elasticsearch.client.watcher.PutWatchResponse.fromXContent(parser);
     }
 
     @Override
-    public PutWatchResponse convert(org.elasticsearch.client.watcher.PutWatchResponse instance) {
+    public PutWatchResponse convertHlrcToInternal(org.elasticsearch.client.watcher.PutWatchResponse instance) {
         return new PutWatchResponse(instance.getId(), instance.getVersion(), instance.isCreated());
     }
 

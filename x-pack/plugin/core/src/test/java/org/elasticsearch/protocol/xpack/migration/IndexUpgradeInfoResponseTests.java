@@ -6,7 +6,7 @@
 package org.elasticsearch.protocol.xpack.migration;
 
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.AbstractHLRCStreamableXContentTestCase;
+import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -15,8 +15,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class IndexUpgradeInfoResponseTests extends AbstractHLRCStreamableXContentTestCase<IndexUpgradeInfoResponse,
-    org.elasticsearch.client.migration.IndexUpgradeInfoResponse> {
+public class IndexUpgradeInfoResponseTests extends
+        AbstractHlrcStreamableXContentTestCase<IndexUpgradeInfoResponse, org.elasticsearch.client.migration.IndexUpgradeInfoResponse> {
 
     @Override
     protected IndexUpgradeInfoResponse doParseInstance(XContentParser parser) {
@@ -24,12 +24,12 @@ public class IndexUpgradeInfoResponseTests extends AbstractHLRCStreamableXConten
     }
 
     @Override
-    public org.elasticsearch.client.migration.IndexUpgradeInfoResponse doHLRCParseInstance(XContentParser parser) throws IOException {
+    public org.elasticsearch.client.migration.IndexUpgradeInfoResponse doHlrcParseInstance(XContentParser parser) throws IOException {
         return org.elasticsearch.client.migration.IndexUpgradeInfoResponse.fromXContent(parser);
     }
 
     @Override
-    public IndexUpgradeInfoResponse convert(org.elasticsearch.client.migration.IndexUpgradeInfoResponse instance) {
+    public IndexUpgradeInfoResponse convertHlrcToInternal(org.elasticsearch.client.migration.IndexUpgradeInfoResponse instance) {
         final Map<String, org.elasticsearch.client.migration.UpgradeActionRequired> actions = instance.getActions();
         return new IndexUpgradeInfoResponse(actions.entrySet().stream().map(
             e -> new AbstractMap.SimpleEntry<>(e.getKey(), UpgradeActionRequired.valueOf(e.getValue().name()))

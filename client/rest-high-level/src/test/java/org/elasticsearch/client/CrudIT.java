@@ -44,12 +44,15 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
@@ -73,6 +76,7 @@ import org.joda.time.format.DateTimeFormat;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -80,6 +84,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -1153,5 +1158,81 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id", getResponse.getId());
             assertEquals(routing, getResponse.getField("_routing").getValue());
         }
+    }
+
+    // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
+    public void testTermvectors() throws IOException {
+        final String sourceIndex = "index1";
+        {
+            // prepare : index docs
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            String mappings = "\"_doc\":{\"properties\":{\"field\":{\"type\":\"text\"}}}";
+            createIndex(sourceIndex, settings, mappings);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(sourceIndex, "_doc", "1")
+                            .source(Collections.singletonMap("field", "value1"), XContentType.JSON))
+                        .add(new IndexRequest(sourceIndex, "_doc", "2")
+                            .source(Collections.singletonMap("field", "value2"), XContentType.JSON))
+                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }
+        {
+            // test _termvectors on real documents
+            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc", "1");
+            tvRequest.setFields("field");
+            TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
+
+            TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
+            TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term(
+                "value1", 1, null, null, null, Collections.singletonList(expectedToken));
+            TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats =
+                new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
+            TermVectorsResponse.TermVector expectedTV =
+                new TermVectorsResponse.TermVector("field", expectedFieldStats, Collections.singletonList(expectedTerm));
+            List<TermVectorsResponse.TermVector> expectedTVlist = Collections.singletonList(expectedTV);
+
+            assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
+            assertThat(Integer.valueOf(tvResponse.getId()), equalTo(1));
+            assertTrue(tvResponse.getFound());
+            assertEquals(expectedTVlist, tvResponse.getTermVectorsList());
+        }
+        {
+            // test _termvectors on artificial documents
+            TermVectorsRequest tvRequest = new TermVectorsRequest(sourceIndex, "_doc");
+            XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+            docBuilder.startObject().field("field", "valuex").endObject();
+            tvRequest.setDoc(docBuilder);
+            TermVectorsResponse tvResponse = execute(tvRequest, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync);
+
+            TermVectorsResponse.TermVector.Token expectedToken = new TermVectorsResponse.TermVector.Token(0, 6, 0, null);
+            TermVectorsResponse.TermVector.Term expectedTerm = new TermVectorsResponse.TermVector.Term(
+                "valuex", 1, null, null, null, Collections.singletonList(expectedToken));
+            TermVectorsResponse.TermVector.FieldStatistics expectedFieldStats =
+                new TermVectorsResponse.TermVector.FieldStatistics(2, 2, 2);
+            TermVectorsResponse.TermVector expectedTV =
+                new TermVectorsResponse.TermVector("field", expectedFieldStats, Collections.singletonList(expectedTerm));
+            List<TermVectorsResponse.TermVector> expectedTVlist = Collections.singletonList(expectedTV);
+
+            assertThat(tvResponse.getIndex(), equalTo(sourceIndex));
+            assertTrue(tvResponse.getFound());
+            assertEquals(expectedTVlist, tvResponse.getTermVectorsList());
+        }
+    }
+
+    // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
+    public void testTermvectorsWithNonExistentIndex() {
+        TermVectorsRequest request = new TermVectorsRequest("non-existent", "non-existent", "non-existent");
+
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> execute(request, highLevelClient()::termvectors, highLevelClient()::termvectorsAsync));
+        assertEquals(RestStatus.NOT_FOUND, exception.status());
     }
 }

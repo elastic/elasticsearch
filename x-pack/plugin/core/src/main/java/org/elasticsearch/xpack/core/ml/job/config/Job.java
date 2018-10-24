@@ -90,7 +90,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 1;
 
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, Void> parser = new ObjectParser<>("job_details", ignoreUnknownFields, Builder::new);
+        ObjectParser<Builder, Void> parser = new ObjectParser<>("job_details", ignoreUnknownFields, () -> new Builder(true));
 
         parser.declareString(Builder::setId, ID);
         parser.declareString(Builder::setJobType, JOB_TYPE);
@@ -641,7 +641,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private ModelPlotConfig modelPlotConfig;
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
-        private Long modelSnapshotRetentionDays = DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS;
+        private Long modelSnapshotRetentionDays;
         private Long resultsRetentionDays;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
@@ -649,10 +649,22 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private String resultsIndexName;
         private boolean deleting;
 
+        private Builder(boolean ignoreDefaults) {
+            // Private constructor called by the parser to prevent default
+            // values being set. If a field with a default has explicitly
+            // been set to null then it isn't written in toXContent, hence
+            // won't be read by the parser and so won't be set back to null.
+            //
+            // The parameter isn't used it purely serves as a marker
+            // to differentiate between the different constructors
+        }
+
         public Builder() {
+            modelSnapshotRetentionDays = DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS;
         }
 
         public Builder(String id) {
+            this();
             this.id = id;
         }
 

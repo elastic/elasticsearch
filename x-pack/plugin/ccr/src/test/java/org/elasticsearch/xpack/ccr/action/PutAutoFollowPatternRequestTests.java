@@ -77,6 +77,31 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[name] is missing"));
 
+        request.setName("_name");
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[name] must not start with a '_'"));
+
+        request.setName("name1,name2");
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[name] must not contain a ','"));
+
+        request.setName("name#1");
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[name] must not contain a '#'"));
+
+        request.setName("name 1");
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[name] must not contain a space"));
+
+        request.setName("Name1");
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[name] must be lower cased"));
+
         request.setName("name");
         validationException = request.validate();
         assertThat(validationException, notNullValue());

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -102,6 +103,28 @@ public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
             ActionRequestValidationException validationException = null;
             if (name == null) {
                 validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] is missing", validationException);
+            }
+            if (name != null) {
+                if (name.startsWith("_")) {
+                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] must not start with a '_'",
+                        validationException);
+                }
+                if (name.contains("#")) {
+                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] must not contain a '#'",
+                        validationException);
+                }
+                if (name.contains(",")) {
+                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] must not contain a ','",
+                        validationException);
+                }
+                if (name.contains(" ")) {
+                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] must not contain a space",
+                        validationException);
+                }
+                if (name.toLowerCase(Locale.ROOT).equals(name) == false) {
+                    validationException = addValidationError("[" + NAME_FIELD.getPreferredName() + "] must be lower cased",
+                        validationException);
+                }
             }
             if (leaderCluster == null) {
                 validationException = addValidationError("[" + AutoFollowPattern.LEADER_CLUSTER_FIELD.getPreferredName() +

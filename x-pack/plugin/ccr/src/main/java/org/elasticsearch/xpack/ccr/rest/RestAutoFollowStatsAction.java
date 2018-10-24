@@ -20,7 +20,7 @@ public class RestAutoFollowStatsAction extends BaseRestHandler {
 
     public RestAutoFollowStatsAction(final Settings settings, final RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow/stats", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow/_stats", this);
     }
 
     @Override

@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ccr/auto_follow/stats",
-      "paths": [ "/_ccr/auto_follow/stats" ],
+      "path": "/_ccr/auto_follow/_stats",
+      "paths": [ "/_ccr/auto_follow/_stats" ],
       "parts": {},
       "body": null
     }

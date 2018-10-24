@@ -25,7 +25,6 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
 import java.util.Objects;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -69,20 +68,20 @@ public class ElasticsearchNode {
 
     public void claim() {
         noOfClaims.incrementAndGet();
+        logger.debug("{} registered new claim", this);
     }
 
     /**
      * Start the cluster if not running. Does nothing if the cluster is already running.
      *
-     * @return future of thread running in the background
      */
-    public Future<Void> start() {
+    public void start() {
         if (started.getAndSet(true)) {
-            logger.lifecycle("Already started cluster: {}", name);
+            logger.info("Already started `{}`", this);
+            return;
         } else {
-            logger.lifecycle("Starting cluster: {}", name);
+            logger.lifecycle("Starting `{}`", this);
         }
-        return null;
     }
 
     /**
@@ -91,14 +90,18 @@ public class ElasticsearchNode {
     public void unClaimAndStop() {
         int decrementedClaims = noOfClaims.decrementAndGet();
         if (decrementedClaims > 0) {
-            logger.lifecycle("Not stopping {}, since cluster still has {} claim(s)", name, decrementedClaims);
+            logger.lifecycle("Not stopping `{}`, since node still has {} claim(s)", this , decrementedClaims);
             return;
         }
         if (started.get() == false) {
-            logger.lifecycle("Asked to unClaimAndStop, but cluster was not running: {}", name);
+            logger.lifecycle("`{}` was not running, no need to stop", this);
             return;
         }
-        logger.lifecycle("Stopping {}, number of claims is {}", name, decrementedClaims);
+        logger.lifecycle("Stopping `{}`, number of claims is {}", this, decrementedClaims);
+    }
+
+    void forceStop() {
+        logger.lifecycle("Forcefully stopping `{}`, number of claims is {}", this, noOfClaims.get());
     }
 
     private void checkNotRunning() {
@@ -118,5 +121,14 @@ public class ElasticsearchNode {
     @Override
     public int hashCode() {
         return Objects.hash(name);
+    }
+
+    @Override
+    public String toString() {
+        return "ElasticsearchNode{" +
+            "name='" + name + '\'' +
+            ", noOfClaims=" + noOfClaims +
+            ", started=" + started +
+            '}';
     }
 }

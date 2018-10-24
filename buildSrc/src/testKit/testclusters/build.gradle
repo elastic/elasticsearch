@@ -39,3 +39,15 @@ task skipped2 {
     enabled = false
     useCluster testClusters.myTestCluster
 }
+
+task itAlwaysFails {
+    doLast {
+        throw new GradleException("Task 1 failed!")
+    }
+    useCluster testClusters.myTestCluster
+}
+
+task dependsOnFailed {
+    dependsOn itAlwaysFails
+    useCluster testClusters.myTestCluster
+}

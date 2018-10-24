@@ -49,95 +49,129 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
             .withArguments("user1", "-s")
             .withPluginClasspath()
             .build();
-
         assertEquals(TaskOutcome.SUCCESS, result.task(":user1").getOutcome());
         assertOutputContains(
             result.getOutput(),
-                "Starting cluster: myTestCluster",
-                "Stopping myTestCluster, number of claims is 0"
+            "Starting `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=true}`",
+            "Stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=0, started=true}`, number of claims is 0"
         );
     }
-
     public void testUseClusterByOneWithDryRun() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("testclusters"))
             .withArguments("user1", "-s", "--dry-run")
             .withPluginClasspath()
             .build();
-
         assertNull(result.task(":user1"));
         assertOutputDoesNotContain(
             result.getOutput(),
-            "Starting cluster: myTestCluster",
-            "Stopping myTestCluster, number of claims is 0"
+            "Starting `myTestCluster`",
+            "Stopping `myTestCluster`, number of claims is 0"
         );
     }
-
     public void testUseClusterByTwo() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("testclusters"))
             .withArguments("user1", "user2", "-s")
             .withPluginClasspath()
             .build();
-
         assertEquals(TaskOutcome.SUCCESS, result.task(":user1").getOutcome());
         assertEquals(TaskOutcome.SUCCESS, result.task(":user2").getOutcome());
         assertOutputContains(
             result.getOutput(),
-            "Starting cluster: myTestCluster",
-            "Not stopping myTestCluster, since cluster still has 1 claim(s)",
-            "Stopping myTestCluster, number of claims is 0"
+            "Starting `ElasticsearchNode{name='myTestCluster', noOfClaims=2, started=true}`",
+            "Not stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=true}`, since node still has 1 claim(s)",
+            "Stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=0, started=true}`, number of claims is 0"
         );
     }
-
     public void testUseClusterByUpToDateTask() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("testclusters"))
             .withArguments("upToDate1", "upToDate2", "-s")
             .withPluginClasspath()
             .build();
-
         assertEquals(TaskOutcome.UP_TO_DATE, result.task(":upToDate1").getOutcome());
         assertEquals(TaskOutcome.UP_TO_DATE, result.task(":upToDate2").getOutcome());
         assertOutputContains(
             result.getOutput(),
-            "Not stopping myTestCluster, since cluster still has 1 claim(s)",
-            "cluster was not running: myTestCluster"
+            "Not stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=false}`, since node still has 1 claim(s)",
+            "`ElasticsearchNode{name='myTestCluster', noOfClaims=0, started=false}` was not running, no need to stop"
         );
-        assertOutputDoesNotContain(result.getOutput(), "Starting cluster: myTestCluster");
+        assertOutputDoesNotContain(result.getOutput(), "Starting `myTestCluster`");
     }
-
     public void testUseClusterBySkippedTask() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("testclusters"))
             .withArguments("skipped1", "skipped2", "-s")
             .withPluginClasspath()
             .build();
-
         assertEquals(TaskOutcome.SKIPPED, result.task(":skipped1").getOutcome());
         assertEquals(TaskOutcome.SKIPPED, result.task(":skipped2").getOutcome());
         assertOutputContains(
             result.getOutput(),
-            "Not stopping myTestCluster, since cluster still has 1 claim(s)",
-            "cluster was not running: myTestCluster"
+            "Not stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=false}`, since node still has 1 claim(s)",
+            "`ElasticsearchNode{name='myTestCluster', noOfClaims=0, started=false}` was not running, no need to stop"
         );
         assertOutputDoesNotContain(result.getOutput(), "Starting cluster: myTestCluster");
     }
-
     public void tetUseClusterBySkippedAndWorkingTask() {
         BuildResult result = GradleRunner.create()
             .withProjectDir(getProjectDir("testclusters"))
             .withArguments("skipped1", "user1", "-s")
             .withPluginClasspath()
             .build();
-
         assertEquals(TaskOutcome.SKIPPED, result.task(":skipped1").getOutcome());
         assertEquals(TaskOutcome.SUCCESS, result.task(":user1").getOutcome());
         assertOutputContains(
             result.getOutput(),
             "> Task :user1",
-            "Starting cluster: myTestCluster",
-            "Stopping myTestCluster, number of claims is 0"
+            "Starting `myTestCluster`",
+            "Stopping `myTestCluster`, number of claims is 0"
+        );
+    }
+    public void testMultiProject() {
+        BuildResult result = GradleRunner.create()
+            .withProjectDir(getProjectDir("testclusters_multiproject"))
+            .withArguments("user1", "user2", "-s", "--parallel")
+            .withPluginClasspath()
+            .build();
+        assertEquals(TaskOutcome.SUCCESS, result.task(":user1").getOutcome());
+        assertEquals(TaskOutcome.SUCCESS, result.task(":user2").getOutcome());
+        String output = result.getOutput();
+        assertOutputContains(
+            output,
+            "Starting `ElasticsearchNode{name='myTestCluster', noOfClaims=2, started=true}`",
+            "Not stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=true}`, since node still has 1 claim(s)",
+            "Stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=0, started=true}`, number of claims is 0"
+        );
+        assertOutputOnlyOnce(output, "Task :synctestclustersArtifacts");
+    }
+    public void testUseClusterByFailingOne() {
+        BuildResult result = GradleRunner.create()
+            .withProjectDir(getProjectDir("testclusters"))
+            .withArguments("itAlwaysFails", "-s")
+            .withPluginClasspath()
+            .buildAndFail();
+        assertEquals(TaskOutcome.FAILED, result.task(":itAlwaysFails").getOutcome());
+        assertOutputContains(
+            result.getOutput(),
+            "Starting `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=true}`",
+            "Forcefully stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=1, started=true}`, number of claims is 1",
+            "Execution failed for task ':itAlwaysFails'."
+        );
+    }
+    public void testUseClusterByFailingDependency() {
+        BuildResult result = GradleRunner.create()
+            .withProjectDir(getProjectDir("testclusters"))
+            .withArguments("dependsOnFailed", "-s")
+            .withPluginClasspath()
+            .buildAndFail();
+        assertEquals(TaskOutcome.FAILED, result.task(":itAlwaysFails").getOutcome());
+        assertNull(result.task(":dependsOnFailed"));
+        assertOutputContains(
+            result.getOutput(),
+            "Starting `ElasticsearchNode{name='myTestCluster', noOfClaims=2, started=true}`",
+            "Forcefully stopping `ElasticsearchNode{name='myTestCluster', noOfClaims=2, started=true}`, number of claims is 2"
         );
     }
 

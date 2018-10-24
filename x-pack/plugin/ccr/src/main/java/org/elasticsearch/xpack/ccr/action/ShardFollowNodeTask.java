@@ -213,8 +213,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     break;
                 }
             }
-            long opsSize = ops.stream().mapToLong(Translog.Operation::estimateSize).sum();
-            bufferSizeInBytes -= opsSize;
+            bufferSizeInBytes -= sumEstimatedSize;
             numConcurrentWrites++;
             LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops.get(0).seqNo(),
                 ops.get(ops.size() - 1).seqNo(), ops.size());

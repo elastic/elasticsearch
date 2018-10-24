@@ -202,6 +202,9 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     @Override
     public void close() {
-        indexLifecycleInitialisationService.get().close();
+        IndexLifecycleService lifecycleService = indexLifecycleInitialisationService.get();
+        if (lifecycleService != null) {
+            lifecycleService.close();
+        }
     }
 }

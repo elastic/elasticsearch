@@ -21,19 +21,14 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.scheduler.Cron;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -52,7 +47,6 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
     private static final String PAGE_SIZE = "page_size";
     private static final String INDEX_PATTERN = "index_pattern";
     private static final String ROLLUP_INDEX = "rollup_index";
-    private static final List<String> DEFAULT_HISTO_METRICS = Arrays.asList(MaxAggregationBuilder.NAME, MinAggregationBuilder.NAME);
 
     private final String id;
     private final String indexPattern;
@@ -134,7 +128,7 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         this.indexPattern = indexPattern;
         this.rollupIndex = rollupIndex;
         this.groupConfig = groupConfig;
-        this.metricsConfig = addDefaultMetricsIfNeeded(metricsConfig, groupConfig);
+        this.metricsConfig = metricsConfig != null ? metricsConfig : Collections.emptyList();
         this.timeout = timeout != null ? timeout : DEFAULT_TIMEOUT;
         this.cron = cron;
         this.pageSize = pageSize;
@@ -287,24 +281,5 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
 
     public static RollupJobConfig fromXContent(final XContentParser parser, @Nullable final String optionalJobId) throws IOException {
         return PARSER.parse(parser, optionalJobId);
-    }
-
-    private static List<MetricConfig> addDefaultMetricsIfNeeded(List<MetricConfig> metrics, GroupConfig groupConfig) {
-        List<MetricConfig> inputMetrics = metrics != null ? new ArrayList<>(metrics) : new ArrayList<>();
-        if (groupConfig != null) {
-            String timeField = groupConfig.getDateHistogram().getField();
-            Set<String> currentFields = inputMetrics.stream().map(MetricConfig::getField).collect(Collectors.toSet());
-            if (currentFields.contains(timeField) == false) {
-                inputMetrics.add(new MetricConfig(timeField, DEFAULT_HISTO_METRICS));
-            }
-            if (groupConfig.getHistogram() != null) {
-                for (String histoField : groupConfig.getHistogram().getFields()) {
-                    if (currentFields.contains(histoField) == false) {
-                        inputMetrics.add(new MetricConfig(histoField, DEFAULT_HISTO_METRICS));
-                    }
-                }
-            }
-        }
-        return Collections.unmodifiableList(inputMetrics);
     }
 }

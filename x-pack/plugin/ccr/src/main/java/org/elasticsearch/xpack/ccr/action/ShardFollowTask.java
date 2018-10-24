@@ -210,7 +210,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), leaderCluster);
+        builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
         builder.field(FOLLOW_SHARD_INDEX_FIELD.getPreferredName(), followShardId.getIndex().getName());
         builder.field(FOLLOW_SHARD_INDEX_UUID_FIELD.getPreferredName(), followShardId.getIndex().getUUID());
         builder.field(FOLLOW_SHARD_SHARDID_FIELD.getPreferredName(), followShardId.id());

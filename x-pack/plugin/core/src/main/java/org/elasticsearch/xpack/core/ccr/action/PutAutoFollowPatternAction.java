@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern.REMOTE_CLUSTER_FIELD;
 
 public class PutAutoFollowPatternAction extends Action<AcknowledgedResponse> {
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -15,14 +16,19 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 public class TransportStopRollupAction extends TransportTasksAction<RollupJobTask, StopRollupJobAction.Request,
@@ -52,10 +58,50 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
                                  ActionListener<StopRollupJobAction.Response> listener) {
         if (jobTask.getConfig().getId().equals(request.getId())) {
             jobTask.stop(listener);
+            waitForStopped(request, jobTask, listener);
         } else {
             listener.onFailure(new RuntimeException("ID of rollup task [" + jobTask.getConfig().getId()
                     + "] does not match request's ID [" + request.getId() + "]"));
         }
+    }
+
+    private static void waitForStopped(StopRollupJobAction.Request request,
+                                       RollupJobTask jobTask,
+                                       ActionListener<StopRollupJobAction.Response> listener) {
+        if (request.waitForStopped() != null) {
+            try {
+                boolean stopped = awaitBusy(() -> ((RollupJobStatus) jobTask.getStatus()).getIndexerState().equals(IndexerState.STOPPED),
+                    request.waitForStopped());
+
+                if (stopped == false) {
+                    listener.onFailure(new ElasticsearchTimeoutException("Timed out after [" + request.waitForStopped().getStringRep()
+                        + "] while waiting for rollup job [" + request.getId() + "] to stop"));
+                }
+            } catch (InterruptedException e) {
+                listener.onFailure(e);
+            }
+        }
+    }
+
+    /**
+     * Lifted from ESTestCase, must stay private and do not reuse!  This is temporary until
+     * the Rollup state refactor makes it unnecessary to await on a status change
+     */
+    private static boolean awaitBusy(BooleanSupplier breakSupplier, TimeValue maxWaitTime) throws InterruptedException {
+        long maxTimeInMillis = maxWaitTime.getMillis();
+        long timeInMillis = 1;
+        long sum = 0;
+        while (sum + timeInMillis < maxTimeInMillis) {
+            if (breakSupplier.getAsBoolean()) {
+                return true;
+            }
+            Thread.sleep(timeInMillis);
+            sum += timeInMillis;
+            timeInMillis = Math.min(1000L, timeInMillis * 2);
+        }
+        timeInMillis = maxTimeInMillis - sum;
+        Thread.sleep(Math.max(timeInMillis, 0));
+        return breakSupplier.getAsBoolean();
     }
 
     @Override

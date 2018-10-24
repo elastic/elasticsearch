@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -14,8 +15,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.rollup.Rollup;
-
-import java.io.IOException;
 
 public class RestStopRollupJobAction extends BaseRestHandler {
 
@@ -25,9 +24,10 @@ public class RestStopRollupJobAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(RollupField.ID.getPreferredName());
-        StopRollupJobAction.Request request = new StopRollupJobAction.Request(id);
+        TimeValue waitForStopped = restRequest.paramAsTime(StopRollupJobAction.WAIT_FOR_STOPPED.getPreferredName(), null);
+        StopRollupJobAction.Request request = new StopRollupJobAction.Request(id, waitForStopped);
 
         return channel -> client.execute(StopRollupJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

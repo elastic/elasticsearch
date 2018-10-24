@@ -5,15 +5,19 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,6 +32,7 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
 
     public static final StopRollupJobAction INSTANCE = new StopRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/stop";
+    public static final ParseField WAIT_FOR_STOPPED = new ParseField("wait_for_stopped");
 
     private StopRollupJobAction() {
         super(NAME);
@@ -40,9 +45,15 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContent {
         private String id;
+        private TimeValue waitForStopped = null;
 
-        public Request(String id) {
+        public Request (String id) {
+            this(id, null);
+        }
+
+        public Request(String id, @Nullable TimeValue waitForStopped) {
             this.id = ExceptionsHelper.requireNonNull(id, RollupField.ID.getPreferredName());
+            this.waitForStopped = waitForStopped;
         }
 
         public Request() {}
@@ -51,16 +62,29 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
             return id;
         }
 
+        @Nullable
+        public TimeValue waitForStopped() {
+            return waitForStopped;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             id = in.readString();
+            // TODO change this after backport
+            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+                waitForStopped = in.readTimeValue();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            // TODO change this after backport
+            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+                out.writeTimeValue(waitForStopped);
+            }
         }
 
         @Override
@@ -71,12 +95,15 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RollupField.ID.getPreferredName(), id);
+            if (waitForStopped != null) {
+                builder.field(WAIT_FOR_STOPPED.getPreferredName(), waitForStopped);
+            }
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id);
+            return Objects.hash(id, waitForStopped);
         }
 
         @Override
@@ -88,7 +115,8 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id);
+            return Objects.equals(id, other.id)
+                && Objects.equals(waitForStopped, other.waitForStopped);
         }
     }
 

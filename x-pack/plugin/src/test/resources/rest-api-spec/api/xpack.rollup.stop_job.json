@@ -11,6 +11,13 @@
           "required": true,
           "description": "The ID of the job to stop"
         }
+      },
+      "params": {
+        "wait_for_stopped": {
+          "type": "time",
+          "required": false,
+          "description": "If set, the API will block for (at maximum) the specified duration while waiting for the job to stop. If unset, returns immediately."
+        }
       }
     }
   }

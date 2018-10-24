@@ -15,6 +15,9 @@ public interface AuthorizationEngine {
     void authorizeRunAs(Authentication authentication, TransportRequest request, String action,
                         ActionListener<AuthorizationResult> listener);
 
+    void authorizeClusterAction(Authentication authentication, TransportRequest request, String action,
+                                ActionListener<AuthorizationResult> listener);
+
     class AuthorizationResult {
 
         private final boolean granted;

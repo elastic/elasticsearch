@@ -354,7 +354,8 @@ public class AuthorizationService {
      * @throws ElasticsearchSecurityException If the given user is no allowed to execute the given request
      */
     public void authorizeWithEngine(final Authentication authentication, final String action,
-                                    final TransportRequest originalRequest) throws ElasticsearchSecurityException {
+                                    final TransportRequest originalRequest,
+                                    final ActionListener<Void> listener) throws ElasticsearchSecurityException {
         // prior to doing any authorization lets set the originating action in the context only
         putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
 
@@ -370,16 +371,48 @@ public class AuthorizationService {
                     if (result.isGranted()) {
                         if (result.isAuditable()) {
                             // TODO get roles from result as AuthzInfo?
-                            auditTrail.runAsGranted(authentication, action, unwrappedRequest, authentication.getUser().authenticatedUser().roles());
+                            auditTrail.runAsGranted(authentication, action, unwrappedRequest,
+                                authentication.getUser().authenticatedUser().roles());
                         }
-
+                        authorizePostRunAs(authentication, action, unwrappedRequest, listener);
+                    } else {
+                        listener.onFailure(denyRunAs(authentication, action, unwrappedRequest,
+                            authentication.getUser().authenticatedUser().roles()));
                     }
                 }, e -> {
                     // TODO need a failure handler better than this!
-                    throw denyRunAs(authentication, action, unwrappedRequest, authentication.getUser().authenticatedUser().roles(), e);
+                    listener.onFailure(denyRunAs(authentication, action, unwrappedRequest,
+                        authentication.getUser().authenticatedUser().roles(), e));
                 });
                 authorizeRunAs(authentication, unwrappedRequest, action, runAsListener);
             }
+        }
+    }
+
+    private void authorizePostRunAs(final Authentication authentication, final String action,
+                                    final TransportRequest unwrappedRequest, final ActionListener<Void> listener) {
+        final AuthorizationEngine authzEngine = getAuthorizationEngine(authentication);
+        // TODO this is missing storage of roles/authz info in context
+        if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
+            authzEngine.authorizeClusterAction(authentication, unwrappedRequest, action, ActionListener.wrap(result -> {
+                if (result.isGranted()) {
+                    if (result.isAuditable()) {
+                        // TODO authzInfo
+                        auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
+                    }
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(denial(authentication, action, unwrappedRequest, authentication.getUser().roles()));
+                }
+            }, e -> {
+                // TODO need a failure handler better than this!
+                listener.onFailure(denial(authentication, action, unwrappedRequest,
+                    authentication.getUser().roles(), e));
+            }));
+        } else if (IndexPrivilege.ACTION_MATCHER.test(action)) {
+
+        } else {
+            listener.onFailure(denial(authentication, action, unwrappedRequest, authentication.getUser().roles()));
         }
     }
 

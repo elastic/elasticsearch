@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 /**
  * A builder for {@link TypesExistsRequest}.
  */
+@Deprecated
 public class TypesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
 
     /**

@@ -73,7 +73,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
-        request.setJsonEntity("{\"leader_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
+        request.setJsonEntity("{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
             "\", \"poll_timeout\": \"10ms\"}");
         assertOK(client.performRequest(request));
     }

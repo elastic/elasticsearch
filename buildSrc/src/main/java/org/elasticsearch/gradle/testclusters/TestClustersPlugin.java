@@ -39,8 +39,8 @@ import java.util.Map;
 
 public class TestClustersPlugin implements Plugin<Project> {
 
-    public static final String LIST_TASK_NAME = "listElasticSearchClusters";
-    public static final String EXTENSION_NAME = "elasticSearchClusters";
+    private static final String LIST_TASK_NAME = "listTestClusters";
+    private static final String NODE_EXTENSION_NAME = "testClusters";
 
     private final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
@@ -50,7 +50,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             ElasticsearchNode.class,
             (name) -> new ElasticsearchNode(name, GradleServicesAdapter.getInstance(project))
         );
-        project.getExtensions().add(EXTENSION_NAME, container);
+        project.getExtensions().add(NODE_EXTENSION_NAME, container);
 
         Task listTask = project.getTasks().create(LIST_TASK_NAME);
         listTask.setGroup("ES cluster formation");

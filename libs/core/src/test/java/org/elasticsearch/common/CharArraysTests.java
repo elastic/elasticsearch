@@ -43,6 +43,7 @@ public class CharArraysTests extends ESTestCase {
         assertArrayEquals(expectedChars, convertedChars);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34765")
     public void testCharsBeginsWith() {
         assertFalse(CharArrays.charsBeginsWith(randomAlphaOfLength(4), null));
         assertFalse(CharArrays.charsBeginsWith(null, null));

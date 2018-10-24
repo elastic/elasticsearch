@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +30,7 @@ import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVE
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.LIMIT_LOCAL_PORTS_COUNT;
 import static org.elasticsearch.transport.TcpTransport.PORT;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34781")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SettingsBasedHostProviderIT extends ESIntegTestCase {
 

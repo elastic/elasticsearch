@@ -90,7 +90,7 @@ public class MedianAbsoluteDeviationAggregationBuilder extends LeafOnly<ValuesSo
     public MedianAbsoluteDeviationAggregationBuilder compression(double compression) {
         if (compression <= 0d) {
             throw new IllegalArgumentException(
-                "[compression] must be greater than 0. Found [" + compression + "] in [" + name + "]");
+                "[" + COMPRESSION_FIELD.getPreferredName() + "] must be greater than 0. Found [" + compression + "] in [" + name + "]");
         }
         this.compression = compression;
         return this;

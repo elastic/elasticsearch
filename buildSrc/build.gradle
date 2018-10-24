@@ -89,7 +89,8 @@ sourceCompatibility = "10"
 // those
 sourceSets {
   javaMin {
-    java {
+    // We only want Java here, but the Groovy doesn't configure javadoc correctly if we don't define this as groovy
+    groovy {
       srcDirs = ['src/main/javaMin']
     }
   }
@@ -103,11 +104,11 @@ compileJavaMinJava {
 dependencies {
   compile sourceSets.javaMin.output
   javaMinCompile "junit:junit:${props.getProperty('junit')}"
+  javaMinCompile localGroovy()
 }
 jar {
   from sourceSets.javaMin.output
 }
-
 
 
 /*****************************************************************************

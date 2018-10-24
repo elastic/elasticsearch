@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -39,6 +40,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -47,7 +49,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
 
@@ -106,11 +108,11 @@ public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
 
                     assertThat(responses[0].getResponse().getId(), equalTo("1"));
                     assertTrue(responses[0].getResponse().isExists());
-                    assertThat(responses[0].getFailure(), nullValue());
+                    assertNull(responses[0].getFailure());
 
                     assertThat(responses[1].getResponse().getId(), equalTo("2"));
                     assertTrue(responses[1].getResponse().isExists());
-                    assertThat(responses[1].getFailure(), nullValue());
+                    assertNull(responses[1].getFailure());
                 } catch (final Exception e) {
                     logger.error(e.getMessage(), e);
                     fail(e.getMessage());
@@ -145,10 +147,12 @@ public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
 
                     assertThat(responses[0].getResponse().getId(), equalTo("1"));
                     assertTrue(responses[0].getResponse().isExists());
-                    assertThat(responses[0].getFailure(), nullValue());
+                    assertNull(responses[0].getFailure());
 
-                    assertThat(responses[1].getResponse(), nullValue());
-                    assertThat(responses[1].getFailure().getMessage(), equalTo("routing is required for [" + indexName + "]/[type1]/[2]"));
+                    assertNull(responses[1].getResponse());
+                    assertThat(responses[1].getFailure().getFailure(), instanceOf(RoutingMissingException.class));
+                    assertThat(responses[1].getFailure().getFailure().getMessage(),
+                        equalTo("routing is required for [" + indexName + "]/[type1]/[2]"));
                 } catch (final Exception e) {
                     logger.error(e.getMessage(), e);
                     fail(e.getMessage());
@@ -164,7 +168,7 @@ public class TransportMultiGetActionTests extends ESSingleNodeTestCase {
     }
 
     private String createAndPrepareIndex(int numberOfDocs, boolean routingRequired) throws IOException {
-        final String indexName = randomAlphaOfLength(5).toLowerCase();
+        final String indexName = randomAlphaOfLength(5).toLowerCase(Locale.getDefault());
         createIndex(indexName, Settings.EMPTY, "type1", "_routing", "required=" + routingRequired, "field1", "type=text");
         ensureGreen(indexName);
 

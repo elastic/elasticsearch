@@ -59,12 +59,17 @@ public class DateUtils {
             return null;
         }
 
-        String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(timeZone.getID());
+        return of(timeZone.getID());
+    }
+
+    public static ZoneId of(String zoneId) {
+        String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(zoneId);
         if (deprecatedId != null) {
             DEPRECATION_LOGGER.deprecatedAndMaybeLog("timezone",
-                "Use of short timezone id " + timeZone.getID() + " is deprecated. Use " + deprecatedId + " instead");
+                "Use of short timezone id " + zoneId + " is deprecated. Use " + deprecatedId + " instead");
             return ZoneId.of(deprecatedId);
         }
-        return ZoneId.of(timeZone.getID());
+        return ZoneId.of(zoneId);
+
     }
 }

@@ -66,7 +66,9 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                     IndexMetaData newIndexMetaData = newState.metaData().index(indexMetaData.getIndex());
                     if (newIndexMetaData == null) {
-                        // Index must have been deleted
+                        // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
+                        logger.debug("index [" + indexMetaData.getIndex() + "] has been deleted after moving to step [" +
+                            request.getNextStepKey() + "], skipping async action check");
                         return;
                     }
                     indexLifecycleService.maybeRunAsyncAction(newState, newIndexMetaData, request.getNextStepKey());

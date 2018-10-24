@@ -26,27 +26,23 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.elasticsearch.script.GeneralScriptException;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.ScoreScript;
 
 import java.io.IOException;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
- * of a {@link SearchScript}.
+ * of a {@link ScoreScript}.
  */
-class ExpressionSearchScript implements SearchScript.LeafFactory {
+class ExpressionScoreScript implements ScoreScript.LeafFactory {
 
-    final Expression exprScript;
-    final SimpleBindings bindings;
-    final DoubleValuesSource source;
-    final ReplaceableConstDoubleValueSource specialValue; // _value
-    final boolean needsScores;
+    private final Expression exprScript;
+    private final DoubleValuesSource source;
+    private final boolean needsScores;
 
-    ExpressionSearchScript(Expression e, SimpleBindings b, ReplaceableConstDoubleValueSource v, boolean needsScores) {
-        exprScript = e;
-        bindings = b;
-        source = exprScript.getDoubleValuesSource(bindings);
-        specialValue = v;
+    ExpressionScoreScript(Expression e, SimpleBindings b, boolean needsScores) {
+        this.exprScript = e;
+        this.source = exprScript.getDoubleValuesSource(b);
         this.needsScores = needsScores;
     }
 
@@ -55,15 +51,14 @@ class ExpressionSearchScript implements SearchScript.LeafFactory {
         return needsScores;
     }
 
-
     @Override
-    public SearchScript newInstance(final LeafReaderContext leaf) throws IOException {
-        return new SearchScript(null, null, null) {
+    public ScoreScript newInstance(final LeafReaderContext leaf) throws IOException {
+        return new ScoreScript(null, null, null) {
             // Fake the scorer until setScorer is called.
             DoubleValues values = source.getValues(leaf, new DoubleValues() {
                 @Override
                 public double doubleValue() throws IOException {
-                    return getScore();
+                    return get_score();
                 }
 
                 @Override
@@ -73,10 +68,7 @@ class ExpressionSearchScript implements SearchScript.LeafFactory {
             });
 
             @Override
-            public Object run() { return Double.valueOf(runAsDouble()); }
-
-            @Override
-            public double runAsDouble() {
+            public double execute() {
                 try {
                     return values.doubleValue();
                 } catch (Exception exception) {
@@ -91,24 +83,6 @@ class ExpressionSearchScript implements SearchScript.LeafFactory {
                 } catch (IOException e) {
                     throw new IllegalStateException("Can't advance to doc using " + exprScript, e);
                 }
-            }
-
-            @Override
-            public void setNextAggregationValue(Object value) {
-                // _value isn't used in script if specialValue == null
-                if (specialValue != null) {
-                    if (value instanceof Number) {
-                        specialValue.setValue(((Number)value).doubleValue());
-                    } else {
-                        throw new GeneralScriptException("Cannot use expression with text variable using " + exprScript);
-                    }
-                }
-            }
-
-            @Override
-            public void setNextVar(String name, Object value) {
-                // other per-document variables aren't supported yet, even if they are numbers
-                // but we shouldn't encourage this anyway.
             }
         };
     }

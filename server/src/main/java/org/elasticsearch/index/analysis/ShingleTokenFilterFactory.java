@@ -64,7 +64,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
-    public TokenFilterFactory getSynonymFilter() {
+    public TokenFilterFactory getSynonymFilter(boolean lenient) {
         return IDENTITY_FILTER;
     }
 

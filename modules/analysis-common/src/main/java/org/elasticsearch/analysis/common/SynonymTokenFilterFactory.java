@@ -44,7 +44,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final String format;
     private final boolean expand;
     private final boolean lenient;
-    private final List<String> parseFilters;
     protected final Settings settings;
     protected final Environment environment;
 
@@ -60,8 +59,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
 
         this.expand = settings.getAsBoolean("expand", true);
-        this.parseFilters = settings.getAsList("filters");
-        this.lenient = settings.getAsBoolean("lenient", this.parseFilters.size() > 0);
+        this.lenient = settings.getAsBoolean("lenient", false);
         this.format = settings.get("format", "");
         this.environment = env;
     }
@@ -90,7 +88,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             }
 
             @Override
-            public TokenFilterFactory getSynonymFilter() {
+            public TokenFilterFactory getSynonymFilter(boolean lenient) {
                 return IDENTITY_FILTER;     // Don't apply synonyms to a synonym file, this will just confuse things
             }
         };
@@ -98,23 +96,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     Analyzer buildSynonymAnalyzer(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
                                   List<TokenFilterFactory> tokenFilters, Function<String, TokenFilterFactory> allFilters) {
-        if (parseFilters.size() != 0) {
-            tokenFilters = new ArrayList<>();
-            for (String filter : parseFilters) {
-                TokenFilterFactory tff = allFilters.apply(filter);
-                if (tff == null) {
-                    throw new IllegalArgumentException("Synonym filter [" + name() + "] refers to undefined token filter [" + filter + "]");
-                }
-                tokenFilters.add(tff);
-            }
-            // For explicitly defined analysis chains, we don't use TokenFilterFactory.getSynonymFilter
-            // because the user is trying to bypass default behaviour
-            return new CustomAnalyzer("synonyms", tokenizer, charFilters.toArray(new CharFilterFactory[0]),
-                tokenFilters.toArray(new TokenFilterFactory[0]));
-        }
         return new CustomAnalyzer("synonyms", tokenizer, charFilters.toArray(new CharFilterFactory[0]),
             tokenFilters.stream()
-                .map(TokenFilterFactory::getSynonymFilter)
+                .map(ts -> ts.getSynonymFilter(lenient))
                 .toArray(TokenFilterFactory[]::new));
     }
 

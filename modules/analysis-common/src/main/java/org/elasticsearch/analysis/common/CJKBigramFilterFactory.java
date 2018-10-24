@@ -91,7 +91,7 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
-    public TokenFilterFactory getSynonymFilter() {
+    public TokenFilterFactory getSynonymFilter(boolean lenient) {
         if (outputUnigrams) {
             return IDENTITY_FILTER;     // don't combine for synonyms
         }

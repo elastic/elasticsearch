@@ -60,7 +60,7 @@ public interface TokenFilterFactory {
      * Filters that should not be applied to synonyms (for example, those that produce
      * multiple tokens) can return {@link #IDENTITY_FILTER}
      */
-    default TokenFilterFactory getSynonymFilter() {
+    default TokenFilterFactory getSynonymFilter(boolean lenient) {
         return this;
     }
 

@@ -51,7 +51,7 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
     }
 
     @Override
-    public TokenFilterFactory getSynonymFilter() {
+    public TokenFilterFactory getSynonymFilter(boolean lenient) {
         if (preserveOriginal == false) {
             return this;
         } else {
@@ -71,6 +71,6 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
 
     @Override
     public Object getMultiTermComponent() {
-        return getSynonymFilter();
+        return getSynonymFilter(true);
     }
 }

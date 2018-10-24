@@ -117,5 +117,4 @@ public interface TcpChannel extends CloseableChannel {
             }
         }
     }
-
 }

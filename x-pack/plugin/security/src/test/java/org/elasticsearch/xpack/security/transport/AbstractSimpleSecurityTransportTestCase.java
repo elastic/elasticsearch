@@ -17,6 +17,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
@@ -28,8 +30,10 @@ import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.MockNioTransport;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -146,8 +150,8 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Version expectedVersion = serviceA.getLocalNode().getVersion();
 
-        MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()));
+        MockNioTransport transport = new MockNioTransport(Settings.EMPTY, threadPool, new NetworkService(Collections.emptyList()),
+            BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(Settings.EMPTY), namedWriteableRegistry, new NoneCircuitBreakerService());
 
         try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, transport, expectedVersion, threadPool,
             null, Collections.emptySet())) {
@@ -158,6 +162,13 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                     connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
                 assertEquals(expectedVersion, version);
             }
+
+//            TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
+//            try (TcpTransport.NodeChannels connection = originalTransport.openConnection(service.getLocalNode(), SINGLE_CHANNEL_PROFILE)) {
+//                Version version = originalTransport.executeHandshake(connection.getNode(),
+//                    connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
+//                assertEquals(expectedVersion, version);
+//            }
         }
     }
 

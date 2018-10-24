@@ -72,7 +72,7 @@ public class MockNioTransport extends TcpTransport {
     private volatile NioGroup nioGroup;
     private volatile MockTcpChannelFactory clientChannelFactory;
 
-    MockNioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+    public MockNioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                      PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                      CircuitBreakerService circuitBreakerService) {
         super("mock-nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);

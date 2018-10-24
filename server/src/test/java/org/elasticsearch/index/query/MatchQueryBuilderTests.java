@@ -69,7 +69,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
-                DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
+            DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
         Object value;
         if (isTextField(fieldName)) {
             int terms = randomIntBetween(0, 3);
@@ -136,10 +136,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         Map<String, MatchQueryBuilder> alternateVersions = new HashMap<>();
         MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
         String contentString = "{\n" +
-                "    \"match\" : {\n" +
-                "        \"" + matchQuery.fieldName() + "\" : \"" + matchQuery.value() + "\"\n" +
-                "    }\n" +
-                "}";
+            "    \"match\" : {\n" +
+            "        \"" + matchQuery.fieldName() + "\" : \"" + matchQuery.value() + "\"\n" +
+            "    }\n" +
+            "}";
         alternateVersions.put(contentString, matchQuery);
         return alternateVersions;
     }
@@ -238,7 +238,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> matchQuery.maxExpansions(randomIntBetween(-10, 0)));
+                () -> matchQuery.maxExpansions(randomIntBetween(-10, 0)));
             assertEquals("[match] requires maxExpansions to be positive.", e.getMessage());
         }
 
@@ -261,20 +261,20 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     public void testSimpleMatchQuery() throws IOException {
         String json = "{\n" +
-                "  \"match\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"to be or not to be\",\n" +
-                "      \"operator\" : \"AND\",\n" +
-                "      \"prefix_length\" : 0,\n" +
-                "      \"max_expansions\" : 50,\n" +
-                "      \"fuzzy_transpositions\" : true,\n" +
-                "      \"lenient\" : false,\n" +
-                "      \"zero_terms_query\" : \"ALL\",\n" +
-                "      \"auto_generate_synonyms_phrase_query\" : true,\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+            "  \"match\" : {\n" +
+            "    \"message\" : {\n" +
+            "      \"query\" : \"to be or not to be\",\n" +
+            "      \"operator\" : \"AND\",\n" +
+            "      \"prefix_length\" : 0,\n" +
+            "      \"max_expansions\" : 50,\n" +
+            "      \"fuzzy_transpositions\" : true,\n" +
+            "      \"lenient\" : false,\n" +
+            "      \"zero_terms_query\" : \"ALL\",\n" +
+            "      \"auto_generate_synonyms_phrase_query\" : true,\n" +
+            "      \"boost\" : 1.0\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
         MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, qb);
 
@@ -287,14 +287,14 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         query.fuzziness(randomFuzziness(INT_FIELD_NAME));
         QueryShardContext context = createShardContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> query.toQuery(context));
+            () -> query.toQuery(context));
         assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
-                e.getMessage());
+            e.getMessage());
         query.analyzer("keyword"); // triggers a different code path
         e = expectThrows(IllegalArgumentException.class,
-                () -> query.toQuery(context));
+            () -> query.toQuery(context));
         assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
-                e.getMessage());
+            e.getMessage());
 
         query.lenient(true);
         query.toQuery(context); // no exception
@@ -313,43 +313,43 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     public void testParseFailsWithMultipleFields() throws IOException {
         String json = "{\n" +
-                "  \"match\" : {\n" +
-                "    \"message1\" : {\n" +
-                "      \"query\" : \"this is a test\"\n" +
-                "    },\n" +
-                "    \"message2\" : {\n" +
-                "      \"query\" : \"this is a test\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+            "  \"match\" : {\n" +
+            "    \"message1\" : {\n" +
+            "      \"query\" : \"this is a test\"\n" +
+            "    },\n" +
+            "    \"message2\" : {\n" +
+            "      \"query\" : \"this is a test\"\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
         String shortJson = "{\n" +
-                "  \"match\" : {\n" +
-                "    \"message1\" : \"this is a test\",\n" +
-                "    \"message2\" : \"this is a test\"\n" +
-                "  }\n" +
-                "}";
+            "  \"match\" : {\n" +
+            "    \"message1\" : \"this is a test\",\n" +
+            "    \"message2\" : \"this is a test\"\n" +
+            "  }\n" +
+            "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
     public void testParseFailsWithTermsArray() throws Exception {
         String json1 = "{\n" +
-                "  \"match\" : {\n" +
-                "    \"message1\" : {\n" +
-                "      \"query\" : [\"term1\", \"term2\"]\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+            "  \"match\" : {\n" +
+            "    \"message1\" : {\n" +
+            "      \"query\" : [\"term1\", \"term2\"]\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
         expectThrows(ParsingException.class, () -> parseQuery(json1));
 
         String json2 = "{\n" +
-                "  \"match\" : {\n" +
-                "    \"message1\" : [\"term1\", \"term2\"]\n" +
-                "  }\n" +
-                "}";
+            "  \"match\" : {\n" +
+            "    \"message1\" : [\"term1\", \"term2\"]\n" +
+            "  }\n" +
+            "}";
         expectThrows(IllegalStateException.class, () -> parseQuery(json2));
     }
 
@@ -364,9 +364,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef(
-                "_doc",
-                "string_boost", "type=text,boost=4", "string_no_pos",
-                "type=text,index_options=docs"))
+            "_doc",
+            "string_boost", "type=text,boost=4", "string_no_pos",
+            "type=text,index_options=docs"))
             ),
             MapperService.MergeReason.MAPPING_UPDATE);
     }
@@ -409,25 +409,28 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
     }
 
+    // nocommit - fix
     private static class MockGraphAnalyzer extends Analyzer {
-        final CannedBinaryTokenStream.BinaryToken[] tokens;
+        Tokenizer tokenizer;
+        CannedBinaryTokenStream tokenStream;
 
-        private MockGraphAnalyzer(CannedBinaryTokenStream.BinaryToken[] tokens ) {
-            this.tokens = tokens;
-        }
-        @Override
-        protected TokenStreamComponents createComponents(String fieldName) {
-            Tokenizer tokenizer = new MockTokenizer(MockTokenizer.SIMPLE, true);
-            return new TokenStreamComponents(tokenizer) {
+        MockGraphAnalyzer(CannedBinaryTokenStream.BinaryToken[] tokens) {
+            this.tokenStream = new CannedBinaryTokenStream(tokens);
+            this.tokenizer = new Tokenizer(tokenStream.getAttributeFactory()) {
                 @Override
-                public TokenStream getTokenStream() {
-                    return new CannedBinaryTokenStream(tokens);
-                }
-
-                @Override
-                protected void setReader(final Reader reader) {
+                public boolean incrementToken() throws IOException {
+                    if (tokenizer.incrementToken() == false) {
+                        return false;
+                    }
+                    this.restoreState(tokenStream.captureState());
+                    return true;
                 }
             };
+        }
+
+        @Override
+        protected TokenStreamComponents createComponents(String fieldName) {
+            return new TokenStreamComponents(tokenizer);
         }
     }
 

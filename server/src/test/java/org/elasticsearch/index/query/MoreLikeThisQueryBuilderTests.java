@@ -43,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;
@@ -256,7 +257,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         for (String fieldName : fieldNames) {
             index.addField(fieldName, text, new WhitespaceAnalyzer());
         }
-        return MultiFields.getFields(index.createSearcher().getIndexReader());
+        return index.createSearcher().getIndexReader().getTermVectors(0);
     }
 
     @Override

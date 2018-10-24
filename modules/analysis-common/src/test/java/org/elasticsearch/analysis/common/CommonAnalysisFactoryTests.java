@@ -48,7 +48,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("edgengram", EdgeNGramTokenizerFactory.class);
         tokenizers.put("classic", ClassicTokenizerFactory.class);
         tokenizers.put("letter", LetterTokenizerFactory.class);
-        tokenizers.put("lowercase", LowerCaseTokenizerFactory.class);
+        tokenizers.put("lowercase", XLowerCaseTokenizerFactory.class);
         tokenizers.put("pathhierarchy", PathHierarchyTokenizerFactory.class);
         tokenizers.put("pattern", PatternTokenizerFactory.class);
         tokenizers.put("uax29urlemail", UAX29URLEmailTokenizerFactory.class);

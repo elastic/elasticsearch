@@ -9,6 +9,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -24,7 +25,9 @@ public class TermsQuery extends LeafQuery {
     public TermsQuery(Location location, String term, List<Expression> values) {
         super(location);
         this.term = term;
+        values.removeIf(e -> e.dataType() == DataType.NULL);
         this.values = new LinkedHashSet<>(Foldables.valuesOf(values, values.get(0).dataType()));
+        this.values.removeIf(Objects::isNull);
     }
 
     @Override

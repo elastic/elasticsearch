@@ -21,7 +21,7 @@ public class PutFollowActionRequestTests extends AbstractStreamableXContentTestC
     @Override
     protected PutFollowAction.Request createTestInstance() {
         PutFollowAction.Request request = new PutFollowAction.Request();
-        request.setLeaderCluster(randomAlphaOfLength(4));
+        request.setRemoteCluster(randomAlphaOfLength(4));
         request.setLeaderIndex(randomAlphaOfLength(4));
         request.setFollowRequest(ResumeFollowActionRequestTests.createTestRequest());
         return request;

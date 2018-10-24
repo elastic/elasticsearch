@@ -51,7 +51,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
 
-        private static final ParseField LEADER_CLUSTER_FIELD = new ParseField("leader_cluster");
+        private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
         private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
 
         private static final ObjectParser<Request, String> PARSER = new ObjectParser<>(NAME, () -> {
@@ -61,7 +61,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         });
 
         static {
-            PARSER.declareString(Request::setLeaderCluster, LEADER_CLUSTER_FIELD);
+            PARSER.declareString(Request::setRemoteCluster, REMOTE_CLUSTER_FIELD);
             PARSER.declareString(Request::setLeaderIndex, LEADER_INDEX_FIELD);
             PARSER.declareString((request, value) -> request.followRequest.setFollowerIndex(value), FOLLOWER_INDEX_FIELD);
             PARSER.declareInt((request, value) -> request.followRequest.setMaxBatchOperationCount(value), MAX_BATCH_OPERATION_COUNT);
@@ -99,19 +99,19 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             return request;
         }
 
-        private String leaderCluster;
+        private String remoteCluster;
         private String leaderIndex;
         private ResumeFollowAction.Request followRequest;
 
         public Request() {
         }
 
-        public String getLeaderCluster() {
-            return leaderCluster;
+        public String getRemoteCluster() {
+            return remoteCluster;
         }
 
-        public void setLeaderCluster(String leaderCluster) {
-            this.leaderCluster = leaderCluster;
+        public void setRemoteCluster(String remoteCluster) {
+            this.remoteCluster = remoteCluster;
         }
 
         public String getLeaderIndex() {
@@ -133,8 +133,8 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException e = followRequest.validate();
-            if (leaderCluster == null) {
-                e = addValidationError(LEADER_CLUSTER_FIELD.getPreferredName() + " is missing", e);
+            if (remoteCluster == null) {
+                e = addValidationError(REMOTE_CLUSTER_FIELD.getPreferredName() + " is missing", e);
             }
             if (leaderIndex == null) {
                 e = addValidationError(LEADER_INDEX_FIELD.getPreferredName() + " is missing", e);
@@ -155,7 +155,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            leaderCluster = in.readString();
+            remoteCluster = in.readString();
             leaderIndex = in.readString();
             followRequest = new ResumeFollowAction.Request();
             followRequest.readFrom(in);
@@ -164,7 +164,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(leaderCluster);
+            out.writeString(remoteCluster);
             out.writeString(leaderIndex);
             followRequest.writeTo(out);
         }
@@ -173,7 +173,7 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(LEADER_CLUSTER_FIELD.getPreferredName(), leaderCluster);
+                builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
                 builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
                 followRequest.toXContentFragment(builder, params);
             }
@@ -186,14 +186,14 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(leaderCluster, request.leaderCluster) &&
+            return Objects.equals(remoteCluster, request.remoteCluster) &&
                 Objects.equals(leaderIndex, request.leaderIndex) &&
                 Objects.equals(followRequest, request.followRequest);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(leaderCluster, leaderIndex, followRequest);
+            return Objects.hash(remoteCluster, leaderIndex, followRequest);
         }
     }
 

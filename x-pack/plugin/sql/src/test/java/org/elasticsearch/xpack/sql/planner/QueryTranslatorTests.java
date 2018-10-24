@@ -173,6 +173,19 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
         assertEquals("keyword:(bar foo lala)", tq.asBuilder().toQuery(createShardContext()).toString());
     }
 
+    public void testTranslateInExpression_WhereClauseAndNullHAndling() throws IOException {
+        LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', null, 'lala', null, 'foo', concat('la', 'la'))");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        Query query = translation.query;
+        assertTrue(query instanceof TermsQuery);
+        TermsQuery tq = (TermsQuery) query;
+        assertEquals("keyword:(foo lala)", tq.asBuilder().toQuery(createShardContext()).toString());
+    }
+
     public void testTranslateInExpressionInvalidValues_WhereClause() {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', 'bar', keyword)");
         assertTrue(p instanceof Project);
@@ -186,6 +199,19 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
 
     public void testTranslateInExpression_HavingClause_Painless() {
         LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) in (10, 20, 30 - 10)");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sq = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(params.a0==10 || params.a0==20)", sq.script().toString());
+        assertThat(sq.script().params().toString(), startsWith("[{a=MAX(int){a->"));
+    }
+
+    public void testTranslateInExpression_HavingClauseAndNullHandling_Painless() {
+        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) in (10, null, 20, null, 30 - 10)");
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();

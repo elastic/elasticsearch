@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -46,12 +47,17 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRollupJobAction.Request, AcknowledgedResponse> {
@@ -92,6 +98,8 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
+        addDefaultMetricsIfNecessary(request, clusterState);
+
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
             .indices(request.getConfig().getIndexPattern())
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
@@ -122,6 +130,41 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 .filter(e -> Rollup.HEADER_FILTERS.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         return new RollupJob(config, filteredHeaders);
+    }
+
+    static void addDefaultMetricsIfNecessary(PutRollupJobAction.Request request, ClusterState clusterState) {
+        // All nodes need to support `date` field types in RollupJobConfig#metricConfig settings
+        if (clusterState.nodes().getMinNodeVersion().before(Version.V_6_5_0)) {
+            return;
+        }
+        final RollupJobConfig oldConfig = request.getConfig();
+        final GroupConfig groupConfig = oldConfig.getGroupConfig();
+
+        List<MetricConfig> inputMetrics =
+            oldConfig.getMetricsConfig() != null ? new ArrayList<>(oldConfig.getMetricsConfig()) : new ArrayList<>();
+        if (groupConfig != null) {
+            String timeField = groupConfig.getDateHistogram().getField();
+            Set<String> currentFields = inputMetrics.stream().map(MetricConfig::getField).collect(Collectors.toSet());
+            if (currentFields.contains(timeField) == false) {
+                inputMetrics.add(new MetricConfig(timeField, RollupJobConfig.DEFAULT_HISTO_METRICS));
+            }
+            if (groupConfig.getHistogram() != null) {
+                for (String histoField : groupConfig.getHistogram().getFields()) {
+                    if (currentFields.contains(histoField) == false) {
+                        inputMetrics.add(new MetricConfig(histoField, RollupJobConfig.DEFAULT_HISTO_METRICS));
+                    }
+                }
+            }
+        }
+
+        request.setConfig(new RollupJobConfig(oldConfig.getId(),
+            oldConfig.getIndexPattern(),
+            oldConfig.getRollupIndex(),
+            oldConfig.getCron(),
+            oldConfig.getPageSize(),
+            groupConfig,
+            inputMetrics,
+            oldConfig.getTimeout()));
     }
 
     static void createIndex(RollupJob job, ActionListener<AcknowledgedResponse> listener,

@@ -1,9 +1,22 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.xpack.core.watcher.support.xcontent;
+package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Strings;
 
@@ -11,11 +24,20 @@ import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Map;
 
-public class ObjectPath {
+/**
+ * Helper class for navigating arbitrary nested maps and lists using dot
+ * notation
+ */
+public final class ObjectPath {
 
     private ObjectPath() {
     }
 
+    /**
+     * Extracts the value at a dot notation location in the given object
+     * @return {@code null} if the location does not exist, otherwise the relevant value
+     */
+    @SuppressWarnings("unchecked")
     public static <T> T eval(String path, Object object) {
         return (T) evalContext(path, object);
     }
@@ -24,25 +46,16 @@ public class ObjectPath {
         final String[] parts;
         if (path == null || path.isEmpty()) parts = Strings.EMPTY_ARRAY;
         else parts = path.split("\\.");
-        StringBuilder resolved = new StringBuilder();
         for (String part : parts) {
             if (ctx == null) {
                 return null;
             }
             if (ctx instanceof Map) {
                 ctx = ((Map) ctx).get(part);
-                if (resolved.length() != 0) {
-                    resolved.append(".");
-                }
-                resolved.append(part);
             } else if (ctx instanceof List) {
                 try {
                     int index = Integer.parseInt(part);
                     ctx = ((List) ctx).get(index);
-                    if (resolved.length() != 0) {
-                        resolved.append(".");
-                    }
-                    resolved.append(part);
                 } catch (NumberFormatException nfe) {
                     return null;
                 }
@@ -50,10 +63,6 @@ public class ObjectPath {
                 try {
                     int index = Integer.parseInt(part);
                     ctx = Array.get(ctx, index);
-                    if (resolved.length() != 0) {
-                        resolved.append(".");
-                    }
-                    resolved.append(part);
                 } catch (NumberFormatException nfe) {
                     return null;
                 }

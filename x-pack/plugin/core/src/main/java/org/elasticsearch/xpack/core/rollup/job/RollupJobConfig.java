@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.common.Nullable;
@@ -243,7 +244,11 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         out.writeString(rollupIndex);
         out.writeString(cron);
         out.writeOptionalWriteable(groupConfig);
-        out.writeList(metricsConfig);
+        if(out.getVersion().before(Version.V_6_5_0)) {
+            out.writeList(metricsWithoutDateField());
+        } else {
+            out.writeList(metricsConfig);
+        }
         out.writeTimeValue(timeout);
         out.writeInt(pageSize);
     }
@@ -283,6 +288,16 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
      */
     public String toJSONString() {
         return toString();
+    }
+
+    private List<MetricConfig> metricsWithoutDateField() {
+        if (groupConfig != null) {
+            String timeField = groupConfig.getDateHistogram().getField();
+            return metricsConfig.stream()
+                .filter(metricConfig -> metricConfig.getField().equals(timeField) == false)
+                .collect(Collectors.toList());
+        }
+        return metricsConfig;
     }
 
     public static RollupJobConfig fromXContent(final XContentParser parser, @Nullable final String optionalJobId) throws IOException {

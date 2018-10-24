@@ -67,15 +67,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     public void validate(ShardFollowTask params, ClusterState clusterState) {
-        if (params.getLeaderCluster() == null) {
-            // We can only validate IndexRoutingTable in local cluster,
-            // for remote cluster we would need to make a remote call and we cannot do this here.
-            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getLeaderShardId().getIndex());
-            if (routingTable.shard(params.getLeaderShardId().id()).primaryShard().started() == false) {
-                throw new IllegalArgumentException("Not all copies of leader shard are started");
-            }
-        }
-
         IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
         if (routingTable.shard(params.getFollowShardId().id()).primaryShard().started() == false) {
             throw new IllegalArgumentException("Not all copies of follow shard are started");

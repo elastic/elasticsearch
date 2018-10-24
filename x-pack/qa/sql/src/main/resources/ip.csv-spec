@@ -7,16 +7,16 @@ SELECT * FROM logs ORDER BY id LIMIT 10;
 
        @timestamp       |   bytes_in    |   bytes_out   |   client_ip   |  client_port  |    dest_ip    |      id       |    status     
 ------------------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------
-2017-11-10T21:15:54.130Z|47             |388            |10.0.1.166     |9152           |172.27.1.1     |1              |OK             
-2017-11-10T21:15:39.988Z|29             |374            |10.0.1.166     |31693          |172.27.1.1     |2              |OK             
-2017-11-10T21:15:39.611Z|35             |303            |10.0.1.166     |23625          |172.27.1.1     |3              |OK             
-2017-11-10T21:15:39.601Z|36             |312            |10.0.1.166     |9932           |172.27.1.1     |4              |OK             
-2017-11-10T21:15:40.792Z|35             |344            |10.0.1.166     |22695          |172.27.1.1     |5              |OK             
-2017-11-10T21:15:40.805Z|31             |503            |10.0.1.166     |59811          |172.27.1.1     |6              |OK             
-2017-11-10T21:15:40.790Z|35             |458            |10.0.1.166     |57372          |172.27.1.1     |7              |OK             
-2017-11-10T21:15:41.799Z|35             |281            |10.0.1.166     |17370          |172.27.1.1     |8              |OK             
-2017-11-10T21:15:41.867Z|46             |231            |10.0.1.166     |65004          |172.27.1.1     |9              |OK             
-2017-11-10T20:36:07.364Z|40             |506            |10.0.1.166     |22661          |172.27.1.1     |10             |OK  
+2017-11-10T21:15:54.130Z|47             |388            |10.0.1.1       |9152           |172.27.1.129   |1              |OK             
+2017-11-10T21:15:39.988Z|29             |374            |10.0.1.1       |31693          |172.27.1.123   |2              |OK             
+2017-11-10T21:15:39.611Z|35             |303            |10.0.1.1       |23625          |172.27.1.113   |3              |OK             
+2017-11-10T21:15:39.601Z|36             |312            |10.0.1.1       |9932           |172.27.1.116   |4              |OK             
+2017-11-10T21:15:40.792Z|35             |344            |10.0.1.1       |22695          |172.27.1.149   |5              |OK             
+2017-11-10T21:15:40.805Z|31             |503            |10.0.1.1       |59811          |172.27.1.122   |6              |OK             
+2017-11-10T21:15:40.790Z|35             |458            |10.0.1.7       |57372          |172.27.1.140   |7              |OK             
+2017-11-10T20:36:08.083Z|34             |471            |10.0.1.11      |16752          |172.27.1.131   |11             |OK             
+2017-11-10T20:36:07.402Z|39             |503            |10.0.1.12      |19479          |172.27.1.103   |12             |OK             
+2017-11-10T20:36:07.852Z|29             |502            |10.0.1.13      |2326           |172.27.1.139   |13             |OK    
 ;
 
 selectIpField
@@ -24,50 +24,52 @@ SELECT client_ip, dest_ip FROM logs ORDER BY id LIMIT 10;
 
    client_ip   |    dest_ip    
 ---------------+---------------
-10.0.1.166     |172.27.1.1     
-10.0.1.166     |172.27.1.1     
-10.0.1.166     |172.27.1.1     
-10.0.1.166     |172.27.1.1     
-10.0.1.166     |172.27.1.1     
-10.0.1.166     |172.27.1.1     
-10.0.1.166     |172.27.1.1     
-10.0.1.166     |172.27.1.1     
-10.0.1.166     |172.27.1.1     
-10.0.1.166     |172.27.1.1 
+10.0.1.1       |172.27.1.129   
+10.0.1.1       |172.27.1.123   
+10.0.1.1       |172.27.1.113   
+10.0.1.1       |172.27.1.116   
+10.0.1.1       |172.27.1.149   
+10.0.1.1       |172.27.1.122   
+10.0.1.7       |172.27.1.140   
+10.0.1.11      |172.27.1.131   
+10.0.1.12      |172.27.1.103   
+10.0.1.13      |172.27.1.139   
 ;
 
-orderByIpField
-SELECT client_ip FROM logs ORDER BY client_ip LIMIT 10;
+orderByIpv4Field
+SELECT client_ip, dest_ip FROM logs ORDER BY client_ip LIMIT 5;
 
-   client_ip   
----------------
-10.0.1.122     
-10.0.1.122     
-10.0.1.122     
-10.0.1.122     
-10.0.1.122     
-10.0.1.122     
-10.0.1.122     
-10.0.1.122     
-10.0.1.122     
-10.0.1.122 
+   client_ip   |           dest_ip            
+---------------+------------------------------
+10.0.0.105     |172.27.1.1                    
+10.0.0.107     |172.20.10.8                   
+10.0.0.109     |2001:cafe::470f:60b7:f84a:25b6
+10.0.0.113     |90.128.199.24                 
+10.0.0.118     |172.27.1.1        
+;
+
+orderByIpv6Field
+SELECT client_ip, dest_ip FROM logs ORDER BY dest_ip DESC LIMIT 5;
+
+   client_ip   |           dest_ip            
+---------------+------------------------------
+10.0.1.222     |fe80::a65e:60ff:fee8:fee9     
+10.0.1.13      |fe80::86ba:3bff:fe05:c3f3     
+10.0.1.199     |2001:cafe::ff07:bdcc:bc59:ff9f
+10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9f
+10.0.1.199     |2001:cafe::ff07:bdcc:bc59:ff9f
 ;
 
 filterExactMatchIpv4
-SELECT id, client_ip, dest_ip FROM logs WHERE client_ip = '10.0.1.166' ORDER BY id LIMIT 10;
+SELECT id, client_ip, dest_ip FROM logs WHERE client_ip = '10.0.1.166' ORDER BY id LIMIT 5;
 
-      id       |   client_ip   |    dest_ip    
----------------+---------------+---------------
-1              |10.0.1.166     |172.27.1.1     
-2              |10.0.1.166     |172.27.1.1     
-3              |10.0.1.166     |172.27.1.1     
-4              |10.0.1.166     |172.27.1.1     
-5              |10.0.1.166     |172.27.1.1     
-6              |10.0.1.166     |172.27.1.1     
-7              |10.0.1.166     |172.27.1.1     
-8              |10.0.1.166     |172.27.1.1     
-9              |10.0.1.166     |172.27.1.1     
-10             |10.0.1.166     |172.27.1.1      
+      id       |   client_ip   |           dest_ip            
+---------------+---------------+------------------------------
+22             |10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9f
+24             |10.0.1.166     |2001:cafe::13e1:16fc:8726:1bf8
+29             |10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9f
+33             |10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9f
+34             |10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9e
 ;
 
 filterExactMatchIpv6
@@ -75,7 +77,7 @@ SELECT id, client_ip, dest_ip FROM logs WHERE dest_ip = 'fe80::86ba:3bff:fe05:c3
 
       id       |   client_ip   |         dest_ip         
 ---------------+---------------+-------------------------
-19             |10.0.1.222     |fe80::86ba:3bff:fe05:c3f3
+19             |10.0.1.13      |fe80::86ba:3bff:fe05:c3f3
 ;
 
 
@@ -84,37 +86,47 @@ SELECT id, client_ip, dest_ip FROM logs WHERE client_ip BETWEEN '10.0.1.1' AND '
 
       id       |   client_ip   |    dest_ip    
 ---------------+---------------+---------------
-1              |10.0.1.166     |172.27.1.1     
-2              |10.0.1.166     |172.27.1.1     
-3              |10.0.1.166     |172.27.1.1     
-4              |10.0.1.166     |172.27.1.1     
-5              |10.0.1.166     |172.27.1.1     
-6              |10.0.1.166     |172.27.1.1     
-7              |10.0.1.166     |172.27.1.1     
-8              |10.0.1.166     |172.27.1.1     
-9              |10.0.1.166     |172.27.1.1     
-10             |10.0.1.166     |172.27.1.1   
+1              |10.0.1.1       |172.27.1.129   
+2              |10.0.1.1       |172.27.1.123   
+3              |10.0.1.1       |172.27.1.113   
+4              |10.0.1.1       |172.27.1.116   
+5              |10.0.1.1       |172.27.1.149   
+6              |10.0.1.1       |172.27.1.122   
+7              |10.0.1.7       |172.27.1.140   
+11             |10.0.1.11      |172.27.1.131   
+12             |10.0.1.12      |172.27.1.103   
+13             |10.0.1.13      |172.27.1.139   
 ;
 
 filterRangeCIDRIpv4
-SELECT id, client_ip, dest_ip FROM logs WHERE client_ip = '10.0.0.0/16' ORDER BY id LIMIT 10;
+SELECT id, client_ip, dest_ip FROM logs WHERE client_ip = '10.0.0.0/16' ORDER BY id LIMIT 5;
 
       id       |   client_ip   |    dest_ip    
 ---------------+---------------+---------------
-1              |10.0.1.166     |172.27.1.1     
-2              |10.0.1.166     |172.27.1.1     
-3              |10.0.1.166     |172.27.1.1     
-4              |10.0.1.166     |172.27.1.1     
-5              |10.0.1.166     |172.27.1.1     
-6              |10.0.1.166     |172.27.1.1     
-7              |10.0.1.166     |172.27.1.1     
-8              |10.0.1.166     |172.27.1.1     
-9              |10.0.1.166     |172.27.1.1     
-10             |10.0.1.166     |172.27.1.1 
+1              |10.0.1.1       |172.27.1.129   
+2              |10.0.1.1       |172.27.1.123   
+3              |10.0.1.1       |172.27.1.113   
+4              |10.0.1.1       |172.27.1.116   
+5              |10.0.1.1       |172.27.1.149   
 ;
 
 filterRangeCIDRIpv6
-SELECT id, client_ip, dest_ip FROM logs WHERE dest_ip = '2001:cafe::/48' ORDER BY id LIMIT 10;
+SELECT id, client_ip, dest_ip FROM logs WHERE dest_ip = '2001:cafe::/48' ORDER BY id LIMIT 5;
+
+      id       |   client_ip   |           dest_ip            
+---------------+---------------+------------------------------
+20             |10.0.1.199     |2001:cafe::ff07:bdcc:bc59:ff9f
+22             |10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9f
+24             |10.0.1.166     |2001:cafe::13e1:16fc:8726:1bf8
+25             |10.0.1.199     |2001:cafe::ff07:bdcc:bc59:ff9f
+27             |10.0.1.199     |2001:cafe::13e1:16fc:8726:1bf8
+;
+
+//
+// waiting on https://github.com/elastic/elasticsearch/issues/34799
+//
+filterInCIDRIpv4-Ignore
+SELECT id, client_ip, dest_ip FROM logs WHERE dest_ip IN ('10.0.1.1', '10.0.1.200', '10.0.0.0/16') ORDER BY id LIMIT 10;
 
       id       |   client_ip   |           dest_ip            
 ---------------+---------------+------------------------------
@@ -122,28 +134,65 @@ SELECT id, client_ip, dest_ip FROM logs WHERE dest_ip = '2001:cafe::/48' ORDER B
 22             |10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9f
 23             |10.0.1.199     |2001:cafe::d46a:9bdc:8126:b00b
 24             |10.0.1.166     |2001:cafe::13e1:16fc:8726:1bf8
-25             |10.0.1.199     |2001:cafe::ff07:bdcc:bc59:ff9f
-26             |10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9f
-27             |10.0.1.199     |2001:cafe::13e1:16fc:8726:1bf8
-28             |10.0.1.199     |2001:cafe::ff07:bdcc:bc59:ff9f
-29             |10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9f
-30             |10.0.1.199     |2001:cafe::13e1:16fc:8726:1bf8
 ;
 
-//
-// below - not supported yet by composite-aggs
-// 
-groupByIp-Ignore
-SELECT client_ip FROM logs GROUP BY client_ip LIMIT 10;
 
-id | client_ip | dest_ip
-1    | 10.0.0.1  | 10.0.0.1
+filterInCIDRIpv6-Ignore
+SELECT id, client_ip, dest_ip FROM logs WHERE dest_ip IN ('127.0.0.1', '2001:cafe::13e1:16fc:8726:1bf8', '2001:cafe::/48') ORDER BY id LIMIT 10;
+
+      id       |   client_ip   |           dest_ip            
+---------------+---------------+------------------------------
+20             |10.0.1.199     |2001:cafe::ff07:bdcc:bc59:ff9f
+22             |10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9f
+23             |10.0.1.199     |2001:cafe::d46a:9bdc:8126:b00b
+24             |10.0.1.166     |2001:cafe::13e1:16fc:8726:1bf8
 ;
 
-// not supported yet by composite-aggs
-groupByWithMinAndMaxOnIp-Ignore
-SELECT status, MIN(dest_ip) FROM logs GROUP BY status ORDER BY status LIMIT 10;
+groupByIpv4
+SELECT client_ip FROM logs GROUP BY client_ip LIMIT 5;
 
-id | client_ip | dest_ip
-1    | 10.0.0.1  | 10.0.0.1
+   client_ip   
+---------------
+10.0.0.105     
+10.0.0.107     
+10.0.0.109     
+10.0.0.113     
+10.0.0.118   
+;
+
+groupByIpv6
+SELECT dest_ip FROM logs GROUP BY dest_ip ORDER BY dest_ip DESC LIMIT 5;
+
+           dest_ip            
+------------------------------
+fe80::a65e:60ff:fee8:fee9     
+fe80::86ba:3bff:fe05:c3f3     
+2001:cafe::ff07:bdcc:bc59:ff9f
+2001:cafe::ff07:bdcc:bc59:ff9e
+2001:cafe::ff07:bdcc:bc59:ff9d
+;
+
+groupByIpv4AndIpv6
+SELECT client_ip, dest_ip FROM logs GROUP BY client_ip, dest_ip ORDER BY dest_ip DESC LIMIT 5;
+
+   client_ip   |           dest_ip            
+---------------+------------------------------
+10.0.1.222     |fe80::a65e:60ff:fee8:fee9     
+10.0.1.13      |fe80::86ba:3bff:fe05:c3f3     
+10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9f
+10.0.1.199     |2001:cafe::ff07:bdcc:bc59:ff9f
+10.0.1.207     |2001:cafe::ff07:bdcc:bc59:ff9f
+;
+
+
+groupByIpv4AndPort
+SELECT client_ip, client_port FROM logs GROUP BY client_ip, client_port ORDER BY client_port DESC LIMIT 5;
+
+   client_ip   |  client_port  
+---------------+---------------
+10.0.0.129     |63982          
+10.0.1.1       |59811          
+10.0.1.177     |59769          
+10.0.0.145     |57783          
+10.0.1.7       |57372      
 ;

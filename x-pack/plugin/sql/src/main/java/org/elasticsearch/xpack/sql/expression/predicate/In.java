@@ -42,7 +42,7 @@ public class In extends NamedExpression implements ScriptWeaver {
     public In(Location location, Expression value, List<Expression> list) {
         super(location, null, CollectionUtils.combine(list, value), null);
         this.value = value;
-        this.list = list.stream().distinct().collect(Collectors.toList());
+        this.list = new ArrayList<>(new LinkedHashSet<>(list));
     }
 
     @Override

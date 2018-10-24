@@ -209,10 +209,10 @@ public class DataLoader {
             {
                 createIndex.startObject("properties");
                 {
-                    createIndex.startObject("id").field("type", "short").endObject();
+                    createIndex.startObject("id").field("type", "integer").endObject();
                     createIndex.startObject("@timestamp").field("type", "date").endObject();
-                    createIndex.startObject("bytes_in").field("type", "long").endObject();
-                    createIndex.startObject("bytes_out").field("type", "long").endObject();
+                    createIndex.startObject("bytes_in").field("type", "integer").endObject();
+                    createIndex.startObject("bytes_out").field("type", "integer").endObject();
                     createIndex.startObject("client_ip").field("type", "ip").endObject();
                     createIndex.startObject("client_port").field("type", "integer").endObject();
                     createIndex.startObject("dest_ip").field("type", "ip").endObject();

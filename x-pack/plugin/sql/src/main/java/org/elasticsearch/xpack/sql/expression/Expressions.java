@@ -141,12 +141,6 @@ public final class Expressions {
                 new TypeResolution(incorrectTypeErrorMessage(e, "numeric", "date"));
     }
     
-    public static TypeResolution typeMustBeNumerical(Expression e) {
-        return e.dataType().isNumeric() || e.dataType() == DataType.DATE || e.dataType() == DataType.IP?
-            TypeResolution.TYPE_RESOLVED :
-                new TypeResolution(incorrectTypeErrorMessage(e, "numeric", "date", "ip"));
-    }
-
     private static String incorrectTypeErrorMessage(Expression e, String...acceptedTypes) {
         return "Argument required to be " + Strings.arrayToDelimitedString(acceptedTypes, " or ")
                 + " ('" + Expressions.name(e) + "' type is '" + e.dataType().esType + "')";

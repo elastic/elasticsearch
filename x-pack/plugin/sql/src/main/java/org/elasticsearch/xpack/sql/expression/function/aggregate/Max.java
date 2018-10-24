@@ -44,6 +44,6 @@ public class Max extends NumericAggregate implements EnclosedAgg {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeNumerical(field());
+        return Expressions.typeMustBeNumericOrDate(field());
     }
 }

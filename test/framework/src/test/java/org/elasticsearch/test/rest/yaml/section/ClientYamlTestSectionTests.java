@@ -59,13 +59,17 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
     public void testAddingDoWithWarningWithSkipButNotWarnings() {
         int lineNumber = between(1, 10000);
         ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
-        section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
+        if (randomBoolean()) {
+            section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
+        } else {
+            section.setSkipSection(SkipSection.EMPTY);
+        }
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
         doSection.setApiCallSection(new ApiCallSection("test"));
         Exception e = expectThrows(IllegalArgumentException.class, () -> section.addExecutableSection(doSection));
-        assertEquals("Attempted to add a [do] with a [warnings] section without a corresponding [skip] so runners that do not support the"
-                + " [warnings] section can skip the test at line [" + lineNumber + "]", e.getMessage());
+        assertEquals("Attempted to add a [do] with a [warnings] section without a corresponding [skip: \"features\": \"warnings\"] so " +
+            "runners that do not support the [warnings] section can skip the test at line [" + lineNumber + "]", e.getMessage());
     }
 
     public void testAddingDoWithHeaderWithoutSkipHeaders() {
@@ -81,8 +85,8 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         apiCallSection.addHeaders(Collections.singletonMap("header", "value"));
         doSection.setApiCallSection(apiCallSection);
         Exception e = expectThrows(IllegalArgumentException.class, () -> section.addExecutableSection(doSection));
-        assertEquals("Attempted to add a [do] with a [headers] section without a corresponding [skip] so runners that do not support the"
-            + " [headers] section can skip the test at line [" + lineNumber + "]", e.getMessage());
+        assertEquals("Attempted to add a [do] with a [headers] section without a corresponding [skip: \"features\": \"headers\"] so " +
+            "runners that do not support the [headers] section can skip the test at line [" + lineNumber + "]", e.getMessage());
     }
 
     public void testAddingDoWithNodeSelectorWithSkip() {
@@ -99,14 +103,18 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
     public void testAddingDoWithNodeSelectorWithSkipButNotWarnings() {
         int lineNumber = between(1, 10000);
         ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
-        section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
+        if (randomBoolean()) {
+            section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
+        } else {
+            section.setSkipSection(SkipSection.EMPTY);
+        }
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCall = new ApiCallSection("test");
         apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
         doSection.setApiCallSection(apiCall);
         Exception e = expectThrows(IllegalArgumentException.class, () -> section.addExecutableSection(doSection));
         assertEquals("Attempted to add a [do] with a [node_selector] section without a corresponding"
-                + " [skip] so runners that do not support the [node_selector] section can skip the test at"
+                + " [skip: \"features\": \"node_selector\"] so runners that do not support the [node_selector] section can skip the test at"
                 + " line [" + lineNumber + "]", e.getMessage());
     }
 

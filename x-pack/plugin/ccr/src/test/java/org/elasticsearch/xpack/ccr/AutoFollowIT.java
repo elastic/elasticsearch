@@ -164,7 +164,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 assertThat(shardFollowTask.getMaxWriteBufferCount(), equalTo(request.getMaxWriteBufferCount()));
             }
             if (request.getMaxWriteBufferSize() != null) {
-                assertThat(shardFollowTask.getMaxConcurrentWriteBatches(), equalTo(request.getMaxConcurrentWriteBatches()));
+                assertThat(shardFollowTask.getMaxWriteBufferSize(), equalTo(request.getMaxWriteBufferSize()));
             }
             if (request.getMaxConcurrentReadBatches() != null) {
                 assertThat(shardFollowTask.getMaxConcurrentReadBatches(), equalTo(request.getMaxConcurrentReadBatches()));

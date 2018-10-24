@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 

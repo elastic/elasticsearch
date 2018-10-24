@@ -68,7 +68,7 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenFilterFactory getSynonymFilter(boolean lenient) {
         if (lenient) {
-            return this;
+            return IDENTITY_FILTER;
         }
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
             throw new IllegalArgumentException("Token filter [" + name() +

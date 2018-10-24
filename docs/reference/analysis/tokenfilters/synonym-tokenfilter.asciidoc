@@ -41,8 +41,6 @@ appear before it in the chain.
 Additional settings are:
 
 * `expand` (defaults to `true`).
-* `filters` (defaults to an empty list).  If set, then this set of filters will be
-used to parse the synonyms file
 * `lenient` (defaults to `false`). If `true` ignores exceptions while parsing the synonym configuration. It is important
 to note that only those synonym rules which cannot get parsed are ignored. For instance consider the following request:
 
@@ -166,40 +164,16 @@ PUT /test_index
 Using `synonyms_path` to define WordNet synonyms in a file is supported
 as well.
 
+
 === Parsing synonym files
 
-By default, elasticsearch will use the token filters preceding the synonym filter
+Elasticsearch will use the token filters preceding the synonym filter
 in a tokenizer chain to parse the entries in a synonym file.  So, for example, if a
 synonym filter is placed after a stemmer, then the stemmer will also be applied
 to the synonym entries.  Because entries in the synonym map cannot have stacked
 positions, some token filters may cause issues here.  Token filters that produce
 multiple versions of a token may choose which version of the token to emit when
 parsing synonyms, e.g. `asciifolding` will only produce the folded version of the
-token.  Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an error.  To avoid
-these errors, you may set an explicit set of filters to be used when parsing, like so:
-
-[source,js]
---------------------------------------------------
-PUT /test_index
-{
-    "settings": {
-        "index" : {
-            "analysis" : {
-                "filter" : {
-                    "synonym" : {
-                        "type" : "synonym",
-                        "filters" : [ "lowercase", "word_delimiter_graph" ],
-                        "synonyms" : [
-                            "i-pod, i pod => ipod",
-                            "universe, cosmos"
-                        ]
-                    }
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-Note that `lenient` is automatically set to `true` when `filters` are specified.
+token.  Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
+error, unless `lenient` has been set to `true`, in which case a best-effort attempt
+at applying the filter will be used.

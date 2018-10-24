@@ -67,6 +67,21 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         });
     }
 
+    public void testDoNotCreateFollowerIfLeaderDoesNotHaveSoftDeletes() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(2, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false"));
+        assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
+        ResumeFollowAction.Request followRequest = getResumeFollowRequest();
+        followRequest.setFollowerIndex("follower-index");
+        PutFollowAction.Request putFollowRequest = getPutFollowRequest();
+        putFollowRequest.setLeaderIndex("leader-index");
+        putFollowRequest.setFollowRequest(followRequest);
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
+        assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled"));
+        assertThat(client().admin().indices().prepareExists("follower-index").get().isExists(), equalTo(false));
+    }
+
     private String getIndexSettings(final int numberOfShards, final int numberOfReplicas,
                                     final Map<String, String> additionalIndexSettings) throws IOException {
         final String settings;

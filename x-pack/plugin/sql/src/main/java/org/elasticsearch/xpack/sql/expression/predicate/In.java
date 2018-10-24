@@ -84,7 +84,7 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public Boolean fold() {
-        if (value.dataType() == DataType.NULL || list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
+        if (value.dataType() == DataType.NULL || (list.size() == 1 && list.get(0).dataType() == DataType.NULL)) {
             return false;
         }
 

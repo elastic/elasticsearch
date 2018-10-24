@@ -48,6 +48,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     private static final ParseField NUMBER_OF_QUEUED_WRITES_FIELD = new ParseField("number_of_queued_writes");
     private static final ParseField MAPPING_VERSION_FIELD = new ParseField("mapping_version");
     private static final ParseField TOTAL_FETCH_TIME_MILLIS_FIELD = new ParseField("total_fetch_time_millis");
+    private static final ParseField TOTAL_FETCH_LEADER_TIME_MILLIS_FIELD = new ParseField("total_fetch_leader_time_millis");
     private static final ParseField NUMBER_OF_SUCCESSFUL_FETCHES_FIELD = new ParseField("number_of_successful_fetches");
     private static final ParseField NUMBER_OF_FAILED_FETCHES_FIELD = new ParseField("number_of_failed_fetches");
     private static final ParseField OPERATIONS_RECEIVED_FIELD = new ParseField("operations_received");
@@ -87,12 +88,13 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                             (long) args[19],
                             (long) args[20],
                             (long) args[21],
+                            (long) args[22],
                             new TreeMap<>(
-                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[22])
+                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[23])
                                             .stream()
                                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-                            (long) args[23],
-                            (ElasticsearchException) args[24]));
+                            (long) args[24],
+                            (ElasticsearchException) args[25]));
 
     public static final String FETCH_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-fetch-exceptions-entry";
 
@@ -116,6 +118,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_QUEUED_WRITES_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAPPING_VERSION_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_TIME_MILLIS_FIELD);
+        STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_LEADER_TIME_MILLIS_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_FETCHES_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_FETCHES_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), OPERATIONS_RECEIVED_FIELD);
@@ -228,6 +231,12 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         return totalFetchTimeMillis;
     }
 
+    private final long totalFetchLeaderTimeMillis;
+
+    public long totalFetchLeaderTimeMillis() {
+        return totalFetchLeaderTimeMillis;
+    }
+
     private final long numberOfSuccessfulFetches;
 
     public long numberOfSuccessfulFetches() {
@@ -309,6 +318,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             final int numberOfQueuedWrites,
             final long mappingVersion,
             final long totalFetchTimeMillis,
+            final long totalFetchLeaderTimeMillis,
             final long numberOfSuccessfulFetches,
             final long numberOfFailedFetches,
             final long operationsReceived,
@@ -334,6 +344,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.numberOfQueuedWrites = numberOfQueuedWrites;
         this.mappingVersion = mappingVersion;
         this.totalFetchTimeMillis = totalFetchTimeMillis;
+        this.totalFetchLeaderTimeMillis = totalFetchLeaderTimeMillis;
         this.numberOfSuccessfulFetches = numberOfSuccessfulFetches;
         this.numberOfFailedFetches = numberOfFailedFetches;
         this.operationsReceived = operationsReceived;
@@ -362,6 +373,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.numberOfQueuedWrites = in.readVInt();
         this.mappingVersion = in.readVLong();
         this.totalFetchTimeMillis = in.readVLong();
+        this.totalFetchLeaderTimeMillis = in.readVLong();
         this.numberOfSuccessfulFetches = in.readVLong();
         this.numberOfFailedFetches = in.readVLong();
         this.operationsReceived = in.readVLong();
@@ -397,6 +409,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeVInt(numberOfQueuedWrites);
         out.writeVLong(mappingVersion);
         out.writeVLong(totalFetchTimeMillis);
+        out.writeVLong(totalFetchLeaderTimeMillis);
         out.writeVLong(numberOfSuccessfulFetches);
         out.writeVLong(numberOfFailedFetches);
         out.writeVLong(operationsReceived);
@@ -444,6 +457,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 TOTAL_FETCH_TIME_MILLIS_FIELD.getPreferredName(),
                 "total_fetch_time",
                 new TimeValue(totalFetchTimeMillis, TimeUnit.MILLISECONDS));
+        builder.humanReadableField(
+                TOTAL_FETCH_LEADER_TIME_MILLIS_FIELD.getPreferredName(),
+                "total_fetch_leader_time",
+                new TimeValue(totalFetchLeaderTimeMillis, TimeUnit.MILLISECONDS));
         builder.field(NUMBER_OF_SUCCESSFUL_FETCHES_FIELD.getPreferredName(), numberOfSuccessfulFetches);
         builder.field(NUMBER_OF_FAILED_FETCHES_FIELD.getPreferredName(), numberOfFailedFetches);
         builder.field(OPERATIONS_RECEIVED_FIELD.getPreferredName(), operationsReceived);
@@ -516,6 +533,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 numberOfQueuedWrites == that.numberOfQueuedWrites &&
                 mappingVersion == that.mappingVersion &&
                 totalFetchTimeMillis == that.totalFetchTimeMillis &&
+                totalFetchLeaderTimeMillis == that.totalFetchLeaderTimeMillis &&
                 numberOfSuccessfulFetches == that.numberOfSuccessfulFetches &&
                 numberOfFailedFetches == that.numberOfFailedFetches &&
                 operationsReceived == that.operationsReceived &&
@@ -552,6 +570,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 numberOfQueuedWrites,
                 mappingVersion,
                 totalFetchTimeMillis,
+                totalFetchLeaderTimeMillis,
                 numberOfSuccessfulFetches,
                 numberOfFailedFetches,
                 operationsReceived,

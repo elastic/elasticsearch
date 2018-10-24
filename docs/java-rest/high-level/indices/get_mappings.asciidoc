@@ -77,4 +77,4 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[get-mapping-respon
 --------------------------------------------------
 <1> Returning all indices' mappings
 <2> Retrieving the mappings for a particular index and type
-<3> Getting the mappings for the "tweet" as a Java Map
+<3> Getting the mappings as a Java Map

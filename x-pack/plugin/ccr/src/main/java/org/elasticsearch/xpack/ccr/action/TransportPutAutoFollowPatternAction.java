@@ -135,14 +135,14 @@ public class TransportPutAutoFollowPatternAction extends
             headers = new HashMap<>();
         }
 
-        AutoFollowPattern previousPattern = patterns.get(request.getLeaderCluster());
+        AutoFollowPattern previousPattern = patterns.get(request.getName());
         final List<String> followedIndexUUIDs;
-        if (followedLeaderIndices.containsKey(request.getLeaderCluster())) {
-            followedIndexUUIDs = new ArrayList<>(followedLeaderIndices.get(request.getLeaderCluster()));
+        if (followedLeaderIndices.containsKey(request.getName())) {
+            followedIndexUUIDs = new ArrayList<>(followedLeaderIndices.get(request.getName()));
         } else {
             followedIndexUUIDs = new ArrayList<>();
         }
-        followedLeaderIndices.put(request.getLeaderCluster(), followedIndexUUIDs);
+        followedLeaderIndices.put(request.getName(), followedIndexUUIDs);
         // Mark existing leader indices as already auto followed:
         if (previousPattern != null) {
             markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), leaderClusterState.metaData(),
@@ -153,10 +153,11 @@ public class TransportPutAutoFollowPatternAction extends
         }
 
         if (filteredHeaders != null) {
-            headers.put(request.getLeaderCluster(), filteredHeaders);
+            headers.put(request.getName(), filteredHeaders);
         }
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+            request.getLeaderCluster(),
             request.getLeaderIndexPatterns(),
             request.getFollowIndexNamePattern(),
             request.getMaxBatchOperationCount(),
@@ -166,7 +167,7 @@ public class TransportPutAutoFollowPatternAction extends
             request.getMaxWriteBufferSize(),
             request.getMaxRetryDelay(),
             request.getPollTimeout());
-        patterns.put(request.getLeaderCluster(), autoFollowPattern);
+        patterns.put(request.getName(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
         newState.metaData(MetaData.builder(localState.getMetaData())
             .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, followedLeaderIndices, headers))

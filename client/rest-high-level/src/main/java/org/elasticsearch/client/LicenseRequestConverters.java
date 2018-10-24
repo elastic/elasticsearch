@@ -29,7 +29,10 @@ import org.elasticsearch.client.license.DeleteLicenseRequest;
 import org.elasticsearch.client.license.GetLicenseRequest;
 import org.elasticsearch.client.license.PutLicenseRequest;
 
-public class LicenseRequestConverters {
+final class LicenseRequestConverters {
+
+    private LicenseRequestConverters() {}
+
     static Request putLicense(PutLicenseRequest putLicenseRequest) {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "license").build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);

@@ -104,12 +104,8 @@ class ScriptedMetricAggregator extends MetricsAggregator {
 
     @Override
     protected void doPostCollection() throws IOException {
-        ensureNoSelfReferencesInAggState();
+        CollectionUtils.ensureNoSelfReferences(aggState, "Scripted metric aggs map script");
 
         super.doPostCollection();
-    }
-
-    void ensureNoSelfReferencesInAggState() {
-        CollectionUtils.ensureNoSelfReferences(aggState, "Scripted metric aggs map script");
     }
 }

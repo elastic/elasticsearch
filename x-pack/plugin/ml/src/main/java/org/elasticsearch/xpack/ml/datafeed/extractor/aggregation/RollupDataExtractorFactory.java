@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps.RollupFieldCaps;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -104,7 +103,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             );
             return;
         }
-        final List<AggregationBuilder> flattenedAggs = new ArrayList<>();
+        final List<ValuesSourceAggregationBuilder> flattenedAggs = new ArrayList<>();
         flattenAggregations(datafeed.getAggregations().getAggregatorFactories(), datafeedHistogramAggregation, flattenedAggs);
 
         if (validIntervalCaps.stream().noneMatch(rollupJobConfig -> hasAggregations(rollupJobConfig, flattenedAggs))) {
@@ -121,7 +120,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
         if (rollupJobGroupConfig.hasDatehistogram() == false) {
             return false;
         }
-        if (DateTimeZone.UTC.toString().equalsIgnoreCase(rollupJobGroupConfig.getTimezone()) == false) {
+        if ("UTC".equalsIgnoreCase(rollupJobGroupConfig.getTimezone()) == false) {
             return false;
         }
         try {
@@ -134,19 +133,19 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
 
     private static void flattenAggregations(final Collection<AggregationBuilder> datafeedAggregations,
                                             final AggregationBuilder datafeedHistogramAggregation,
-                                            final List<AggregationBuilder> flattenedAggregations) {
+                                            final List<ValuesSourceAggregationBuilder> flattenedAggregations) {
         for (AggregationBuilder aggregationBuilder : datafeedAggregations) {
             if (aggregationBuilder.equals(datafeedHistogramAggregation) == false) {
-                flattenedAggregations.add(aggregationBuilder);
+                flattenedAggregations.add((ValuesSourceAggregationBuilder)aggregationBuilder);
             }
             flattenAggregations(aggregationBuilder.getSubAggregations(), datafeedHistogramAggregation, flattenedAggregations);
         }
     }
 
-    private static boolean hasAggregations(ParsedRollupCaps rollupCaps, List<AggregationBuilder> datafeedAggregations) {
-        for (AggregationBuilder aggregationBuilder : datafeedAggregations) {
+    private static boolean hasAggregations(ParsedRollupCaps rollupCaps, List<ValuesSourceAggregationBuilder> datafeedAggregations) {
+        for (ValuesSourceAggregationBuilder aggregationBuilder : datafeedAggregations) {
             String type = aggregationBuilder.getType();
-            String field = ((ValuesSourceAggregationBuilder) aggregationBuilder).field();
+            String field = aggregationBuilder.field();
             if (aggregationBuilder instanceof TermsAggregationBuilder) {
                 if (rollupCaps.supportedTerms.contains(field) == false) {
                     return false;

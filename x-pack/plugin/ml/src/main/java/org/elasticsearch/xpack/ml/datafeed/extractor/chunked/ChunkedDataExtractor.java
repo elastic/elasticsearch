@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtractorFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -187,8 +188,9 @@ public class ChunkedDataExtractor implements DataExtractor {
          */
         private DataSummary buildDataSummary() throws IOException {
             if (context.hasAggregations) {
-                // It is fine to use the rollup search as it acts just like regular search even when the index is not a rollup index
-                ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = rollupRangeSearchRequest();
+                // TODO: once RollupSearchAction is changed from indices:admin* to indices:data/read/* this branch is not needed
+                ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder =
+                    dataExtractorFactory instanceof RollupDataExtractorFactory ? rollupRangeSearchRequest() : rangeSearchRequest();
                 SearchResponse response = executeSearchRequest(searchRequestBuilder);
                 LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
 

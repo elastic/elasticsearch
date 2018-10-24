@@ -49,7 +49,7 @@ public interface DataExtractorFactory {
                     if (datafeed.hasAggregations()) { // Rollup indexes require aggregations
                         RollupDataExtractorFactory.create(client, datafeed, job, response.getJobs(), factoryHandler);
                     } else {
-                        throw new IllegalArgumentException("Aggregations are required when using Rollup indices");
+                        listener.onFailure(new IllegalArgumentException("Aggregations are required when using Rollup indices"));
                     }
                 }
             },

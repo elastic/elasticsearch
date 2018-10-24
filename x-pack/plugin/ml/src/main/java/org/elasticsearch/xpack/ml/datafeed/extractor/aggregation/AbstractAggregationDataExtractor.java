@@ -74,7 +74,7 @@ public abstract class AbstractAggregationDataExtractor<T extends ActionRequestBu
 
     @Override
     public void cancel() {
-        LOGGER.trace("[{}] Data extractor received cancel request", context.jobId);
+        LOGGER.debug("[{}] Data extractor received cancel request", context.jobId);
         isCancelled = true;
         hasNext = false;
     }

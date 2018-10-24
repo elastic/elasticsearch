@@ -10,8 +10,8 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -59,8 +59,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public static void updatePolicy(String indexName, String policy) throws IOException {
-        Request request = new Request("PUT", "/" + indexName + "/_ilm/" + policy);
-        assertOK(client().performRequest(request));
+
+        Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
+        final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"" + policy + "\" }",
+                ContentType.APPLICATION_JSON);
+        changePolicyRequest.setEntity(changePolicyEntity);
+        assertOK(client().performRequest(changePolicyRequest));
     }
 
     public void testFullPolicy() throws Exception {

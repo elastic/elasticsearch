@@ -22,18 +22,16 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
+import org.elasticsearch.client.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusResponse;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleResponse;
 import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyResponse;
-import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyResponse;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 
@@ -133,35 +131,6 @@ public class IndexLifecycleClient {
                                            ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::deleteLifecyclePolicy, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
-    }
-
-    /**
-     * Set the index lifecycle policy for an index
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public SetIndexLifecyclePolicyResponse setIndexLifecyclePolicy(SetIndexLifecyclePolicyRequest request,
-                                                                   RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::setIndexLifecyclePolicy, options,
-            SetIndexLifecyclePolicyResponse::fromXContent, emptySet());
-    }
-
-    /**
-     * Asynchronously set the index lifecycle policy for an index
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
-     * @param request the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener the listener to be notified upon request completion
-     */
-    public void setIndexLifecyclePolicyAsync(SetIndexLifecyclePolicyRequest request, RequestOptions options,
-                                             ActionListener<SetIndexLifecyclePolicyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RequestConverters::setIndexLifecyclePolicy, options,
-            SetIndexLifecyclePolicyResponse::fromXContent, listener, emptySet());
     }
 
     /**

@@ -476,56 +476,6 @@ public class IndexLifecycleRunner {
         clusterService.submitStateUpdateTask("ilm-set-step-info", new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
     }
 
-    public static ClusterState setPolicyForIndexes(final String newPolicyName, final Index[] indices, ClusterState currentState,
-                                                   LifecyclePolicyMetadata newPolicyMetadata, List<String> failedIndexes,
-                                                   LongSupplier nowSupplier) {
-        MetaData.Builder newMetadata = MetaData.builder(currentState.getMetaData());
-        boolean clusterStateChanged = false;
-        for (Index index : indices) {
-            IndexMetaData indexMetadata = currentState.getMetaData().index(index);
-            if (indexMetadata == null) {
-                // Index doesn't exist so fail it
-                failedIndexes.add(index.getName());
-            } else {
-                IndexMetaData.Builder newIdxMetadata = IndexLifecycleRunner.setPolicyForIndex(newPolicyName,
-                    newPolicyMetadata, indexMetadata, nowSupplier);
-                if (newIdxMetadata != null) {
-                    newMetadata.put(newIdxMetadata);
-                    clusterStateChanged = true;
-                }
-            }
-        }
-        if (clusterStateChanged) {
-            ClusterState.Builder newClusterState = ClusterState.builder(currentState);
-            newClusterState.metaData(newMetadata);
-            return newClusterState.build();
-        } else {
-            return currentState;
-        }
-    }
-
-    private static IndexMetaData.Builder setPolicyForIndex(final String newPolicyName, LifecyclePolicyMetadata newPolicyMetadata,
-                                                           IndexMetaData indexMetadata, LongSupplier nowSupplier) {
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
-
-        LifecycleExecutionState newState = LifecycleExecutionState.builder(lifecycleState).build();
-        if (currentStepKey != null) {
-            // Check if current step exists in new policy and if not move to
-            // next available step
-            StepKey nextValidStepKey = newPolicyMetadata.getPolicy().getNextValidStep(currentStepKey);
-            if (nextValidStepKey.equals(currentStepKey) == false) {
-                newState = moveExecutionStateToNextStep(newPolicyMetadata, lifecycleState, currentStepKey, nextValidStepKey, nowSupplier);
-            }
-        }
-
-        Settings.Builder newSettings = Settings.builder().put(indexMetadata.getSettings());
-        newSettings.put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), newPolicyName);
-        return IndexMetaData.builder(indexMetadata)
-            .settings(newSettings).putCustom(ILM_CUSTOM_METADATA_KEY, newState.asMap())
-            .settingsVersion(1 + indexMetadata.getSettingsVersion());
-    }
-
     public static ClusterState removePolicyForIndexes(final Index[] indices, ClusterState currentState, List<String> failedIndexes) {
         MetaData.Builder newMetadata = MetaData.builder(currentState.getMetaData());
         boolean clusterStateChanged = false;

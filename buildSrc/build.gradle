@@ -95,7 +95,7 @@ sourceSets {
     }
   }
 }
-compileMinimumRuntimeJava {
+compileMinimumRuntimeGroovy {
   // We can't use BuildPlugin here, so read from file
   String minimumRuntimeVersion = file('src/main/resources/minimumRuntimeVersion').text.trim()
   targetCompatibility = minimumRuntimeVersion

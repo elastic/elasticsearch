@@ -158,7 +158,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         final long globalCheckpoint = tracker.getCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
                         handler.accept(new ShardChangesAction.Response(
-                            0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(), new Translog.Operation[0]));
+                            0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(), new Translog.Operation[0], 1L));
                     }
                 };
                 threadPool.generic().execute(task);
@@ -233,7 +233,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         nextGlobalCheckPoint,
                         nextGlobalCheckPoint,
                         randomNonNegativeLong(),
-                        ops.toArray(EMPTY))
+                        ops.toArray(EMPTY),
+                        randomNonNegativeLong())
                     )
                 );
                 responses.put(prevGlobalCheckpoint, item);
@@ -256,7 +257,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             prevGlobalCheckpoint,
                             prevGlobalCheckpoint,
                             randomNonNegativeLong(),
-                            EMPTY
+                            EMPTY,
+                            randomNonNegativeLong()
                         );
                         item.add(new TestResponse(null, mappingVersion, response));
                     }
@@ -273,7 +275,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         localLeaderGCP,
                         localLeaderGCP,
                         randomNonNegativeLong(),
-                        ops.toArray(EMPTY)
+                        ops.toArray(EMPTY),
+                        randomNonNegativeLong()
                     );
                     item.add(new TestResponse(null, mappingVersion, response));
                     responses.put(fromSeqNo, Collections.unmodifiableList(item));

@@ -138,6 +138,9 @@ public class AutoFollowIT extends CcrIntegTestCase {
             request.setMaxBatchOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
+            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
             request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
@@ -159,6 +162,9 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(shardFollowTask.getFollowShardId().getIndexName(), equalTo("copy-logs-201901"));
             if (request.getMaxWriteBufferCount() != null) {
                 assertThat(shardFollowTask.getMaxWriteBufferCount(), equalTo(request.getMaxWriteBufferCount()));
+            }
+            if (request.getMaxWriteBufferSize() != null) {
+                assertThat(shardFollowTask.getMaxConcurrentWriteBatches(), equalTo(request.getMaxConcurrentWriteBatches()));
             }
             if (request.getMaxConcurrentReadBatches() != null) {
                 assertThat(shardFollowTask.getMaxConcurrentReadBatches(), equalTo(request.getMaxConcurrentReadBatches()));

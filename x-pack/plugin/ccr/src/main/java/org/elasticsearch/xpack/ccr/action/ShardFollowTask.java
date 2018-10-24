@@ -36,7 +36,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     public static final Set<String> HEADER_FILTERS =
         Collections.unmodifiableSet(new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication")));
 
-    static final ParseField LEADER_CLUSTER_FIELD = new ParseField("leader_cluster");
+    static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
     static final ParseField FOLLOW_SHARD_INDEX_FIELD = new ParseField("follow_shard_index");
     static final ParseField FOLLOW_SHARD_INDEX_UUID_FIELD = new ParseField("follow_shard_index_uuid");
     static final ParseField FOLLOW_SHARD_SHARDID_FIELD = new ParseField("follow_shard_shard");
@@ -59,7 +59,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
                 (int) a[10], (int) a[11], (TimeValue) a[12], (TimeValue) a[13], (Map<String, String>) a[14]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LEADER_CLUSTER_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REMOTE_CLUSTER_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_INDEX_UUID_FIELD);
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), FOLLOW_SHARD_SHARDID_FIELD);
@@ -84,7 +84,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), HEADERS);
     }
 
-    private final String leaderCluster;
+    private final String remoteCluster;
     private final ShardId followShardId;
     private final ShardId leaderShardId;
     private final int maxBatchOperationCount;
@@ -97,7 +97,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     private final Map<String, String> headers;
 
     ShardFollowTask(
-            final String leaderCluster,
+            final String remoteCluster,
             final ShardId followShardId,
             final ShardId leaderShardId,
             final int maxBatchOperationCount,
@@ -108,7 +108,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
             final TimeValue maxRetryDelay,
             final TimeValue pollTimeout,
             final Map<String, String> headers) {
-        this.leaderCluster = leaderCluster;
+        this.remoteCluster = remoteCluster;
         this.followShardId = followShardId;
         this.leaderShardId = leaderShardId;
         this.maxBatchOperationCount = maxBatchOperationCount;
@@ -122,7 +122,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     }
 
     public ShardFollowTask(StreamInput in) throws IOException {
-        this.leaderCluster = in.readString();
+        this.remoteCluster = in.readString();
         this.followShardId = ShardId.readShardId(in);
         this.leaderShardId = ShardId.readShardId(in);
         this.maxBatchOperationCount = in.readVInt();
@@ -135,8 +135,8 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
     }
 
-    public String getLeaderCluster() {
-        return leaderCluster;
+    public String getRemoteCluster() {
+        return remoteCluster;
     }
 
     public ShardId getFollowShardId() {
@@ -190,7 +190,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(leaderCluster);
+        out.writeString(remoteCluster);
         followShardId.writeTo(out);
         leaderShardId.writeTo(out);
         out.writeVLong(maxBatchOperationCount);
@@ -210,7 +210,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(LEADER_CLUSTER_FIELD.getPreferredName(), leaderCluster);
+        builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
         builder.field(FOLLOW_SHARD_INDEX_FIELD.getPreferredName(), followShardId.getIndex().getName());
         builder.field(FOLLOW_SHARD_INDEX_UUID_FIELD.getPreferredName(), followShardId.getIndex().getUUID());
         builder.field(FOLLOW_SHARD_SHARDID_FIELD.getPreferredName(), followShardId.id());
@@ -233,7 +233,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShardFollowTask that = (ShardFollowTask) o;
-        return Objects.equals(leaderCluster, that.leaderCluster) &&
+        return Objects.equals(remoteCluster, that.remoteCluster) &&
                 Objects.equals(followShardId, that.followShardId) &&
                 Objects.equals(leaderShardId, that.leaderShardId) &&
                 maxBatchOperationCount == that.maxBatchOperationCount &&
@@ -249,7 +249,7 @@ public class ShardFollowTask implements XPackPlugin.XPackPersistentTaskParams {
     @Override
     public int hashCode() {
         return Objects.hash(
-            leaderCluster,
+                remoteCluster,
                 followShardId,
                 leaderShardId,
                 maxBatchOperationCount,

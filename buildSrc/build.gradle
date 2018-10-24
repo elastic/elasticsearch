@@ -88,26 +88,26 @@ sourceCompatibility = "10"
 // We have a few classes that need to be compiled for older java versions because these are used to run checks against
 // those
 sourceSets {
-  javaMin {
+  minimumRuntime {
     // We only want Java here, but the Groovy doesn't configure javadoc correctly if we don't define this as groovy
     groovy {
-      srcDirs = ['src/main/javaMin']
+      srcDirs = ['src/main/minimumRuntime']
     }
   }
 }
-compileJavaMinJava {
+compileMinimumRuntimeJava {
   // We can't use BuildPlugin here, so read from file
   String minimumRuntimeVersion = file('src/main/resources/minimumRuntimeVersion').text.trim()
   targetCompatibility = minimumRuntimeVersion
   sourceCompatibility = minimumRuntimeVersion
 }
 dependencies {
-  compile sourceSets.javaMin.output
-  javaMinCompile "junit:junit:${props.getProperty('junit')}"
-  javaMinCompile localGroovy()
+  compile sourceSets.minimumRuntime.output
+  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
+  minimumRuntimeCompile localGroovy()
 }
 jar {
-  from sourceSets.javaMin.output
+  from sourceSets.minimumRuntime.output
 }
 
 
@@ -182,7 +182,7 @@ if (project != rootProject) {
   dependenciesInfo.enabled = false
   forbiddenApisMain.enabled = false
   forbiddenApisTest.enabled = false
-  forbiddenApisJavaMin.enabled = false
+  forbiddenApisMinimumRuntime.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
 

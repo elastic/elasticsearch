@@ -258,13 +258,19 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testClearRolesCache() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            //tag::clear-roles-cache-execute
+            //tag::clear-roles-cache-request
             ClearRolesCacheRequest request = new ClearRolesCacheRequest("my_role");
+            //end::clear-roles-cache-request
+            //tag::clear-roles-cache-execute
             ClearRolesCacheResponse response = client.security().clearRolesCache(request, RequestOptions.DEFAULT);
             //end::clear-roles-cache-execute
 
             assertNotNull(response);
             assertThat(response.getNodes(), not(empty()));
+
+            //tag::clear-roles-cache-response
+            List<ClearRolesCacheResponse.Node> nodes = response.getNodes(); // <1>
+            //end::clear-roles-cache-response
         }
 
         {
@@ -281,7 +287,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-            //end::clear-roles-cache-execute--listener
+            //end::clear-roles-cache-execute-listener
 
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);

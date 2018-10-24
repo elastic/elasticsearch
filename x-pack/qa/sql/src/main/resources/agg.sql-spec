@@ -36,7 +36,7 @@ SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY emp_no ORDER BY em
 groupByOnNumberOnAlias
 SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY e ORDER BY emp_no DESC;
 groupByOnNumberWithAliasInSelect
-SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY e ORDER BY e DESC;
+SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY emp_no ORDER BY e DESC;
 
 // group by scalar
 groupByAddScalar

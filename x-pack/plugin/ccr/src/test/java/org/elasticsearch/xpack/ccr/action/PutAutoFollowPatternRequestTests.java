@@ -66,7 +66,10 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
             request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(randomIntBetween(0, Integer.MAX_VALUE));
+            request.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
         }
         return request;
     }

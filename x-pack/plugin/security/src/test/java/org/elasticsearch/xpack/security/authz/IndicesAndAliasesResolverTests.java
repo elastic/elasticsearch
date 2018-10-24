@@ -1143,7 +1143,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testNonRemotableRequestDoesNotAllowRemoteIndices() {
         IndicesOptions options = IndicesOptions.fromOptions(true, false, false, false);
         Tuple<TransportRequest, String> tuple = randomFrom(
-                new Tuple<>(new CloseIndexRequest("remote:foo").indicesOptions(options), CloseIndexAction.NAME),
+                new Tuple<TransportRequest, String>(new CloseIndexRequest("remote:foo").indicesOptions(options), CloseIndexAction.NAME),
                 new Tuple<>(new DeleteIndexRequest("remote:foo").indicesOptions(options), DeleteIndexAction.NAME),
                 new Tuple<>(new PutMappingRequest("remote:foo").indicesOptions(options), PutMappingAction.NAME)
         );
@@ -1155,7 +1155,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testNonRemotableRequestDoesNotAllowRemoteWildcardIndices() {
         IndicesOptions options = IndicesOptions.fromOptions(randomBoolean(), true, true, true);
         Tuple<TransportRequest, String> tuple = randomFrom(
-                new Tuple<>(new CloseIndexRequest("*:*").indicesOptions(options), CloseIndexAction.NAME),
+                new Tuple<TransportRequest, String>(new CloseIndexRequest("*:*").indicesOptions(options), CloseIndexAction.NAME),
                 new Tuple<>(new DeleteIndexRequest("*:*").indicesOptions(options), DeleteIndexAction.NAME),
                 new Tuple<>(new PutMappingRequest("*:*").indicesOptions(options), PutMappingAction.NAME)
         );

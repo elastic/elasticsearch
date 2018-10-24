@@ -29,7 +29,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ElasticsearchNode implements ElasticsearchConfiguration {
+public class ElasticsearchNode {
 
     private final String name;
     private final GradleServicesAdapter services;
@@ -45,34 +45,28 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
         this.services = services;
     }
 
-    @Override
     public String getName() {
         return name;
     }
 
-    @Override
     public Version getVersion() {
         return version;
     }
 
-    @Override
     public void setVersion(Version version) {
         checkNotRunning();
         this.version = version;
     }
 
-    @Override
     public Distribution getDistribution() {
         return distribution;
     }
 
-    @Override
     public void setDistribution(Distribution distribution) {
         checkNotRunning();
         this.distribution = distribution;
     }
 
-    @Override
     public void claim() {
         noOfClaims.incrementAndGet();
     }
@@ -82,7 +76,6 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
      *
      * @return future of thread running in the background
      */
-    @Override
     public Future<Void> start() {
         if (started.getAndSet(true)) {
             logger.lifecycle("Already started cluster: {}", name);
@@ -95,7 +88,6 @@ public class ElasticsearchNode implements ElasticsearchConfiguration {
     /**
      * Stops a running cluster if it's not claimed. Does nothing otherwise.
      */
-    @Override
     public void unClaimAndStop() {
         int decrementedClaims = noOfClaims.decrementAndGet();
         if (decrementedClaims > 0) {

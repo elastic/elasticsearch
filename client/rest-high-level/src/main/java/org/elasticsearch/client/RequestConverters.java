@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client;
 
+import java.util.List;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -54,8 +55,8 @@ import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -639,20 +640,6 @@ final class RequestConverters {
         return request;
     }
 
-    static Request setIndexLifecyclePolicy(SetIndexLifecyclePolicyRequest setPolicyRequest) {
-        String[] indices = setPolicyRequest.indices() == null ? Strings.EMPTY_ARRAY : setPolicyRequest.indices();
-        Request request = new Request(HttpPut.METHOD_NAME,
-            new EndpointBuilder()
-                .addCommaSeparatedPathParts(indices)
-                .addPathPartAsIs("_ilm")
-                .addPathPart(setPolicyRequest.policy())
-            .build());
-        Params params = new Params(request);
-        params.withIndicesOptions(setPolicyRequest.indicesOptions());
-        params.withMasterTimeout(setPolicyRequest.masterNodeTimeout());
-        return request;
-    }
-
     static Request removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyRequest removePolicyRequest) {
         String[] indices = removePolicyRequest.indices() == null ?
                 Strings.EMPTY_ARRAY : removePolicyRequest.indices().toArray(new String[] {});
@@ -714,6 +701,19 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withIndicesOptions(explainLifecycleRequest.indicesOptions());
         params.withMasterTimeout(explainLifecycleRequest.masterNodeTimeout());
+        return request;
+    }
+
+    static Request retryLifecycle(RetryLifecyclePolicyRequest retryLifecyclePolicyRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME,
+            new EndpointBuilder()
+                .addCommaSeparatedPathParts(retryLifecyclePolicyRequest.getIndices())
+                .addPathPartAsIs("_ilm")
+                .addPathPartAsIs("retry")
+                .build());
+        Params params = new Params(request);
+        params.withMasterTimeout(retryLifecyclePolicyRequest.masterNodeTimeout());
+        params.withTimeout(retryLifecyclePolicyRequest.timeout());
         return request;
     }
 
@@ -1102,7 +1102,12 @@ final class RequestConverters {
             return this;
         }
 
-        EndpointBuilder addPathPartAsIs(String... parts) {
+        EndpointBuilder addCommaSeparatedPathParts(List<String> parts) {
+            addPathPart(String.join(",", parts));
+            return this;
+        }
+
+        EndpointBuilder addPathPartAsIs(String ... parts) {
             for (String part : parts) {
                 if (Strings.hasLength(part)) {
                     joiner.add(part);
@@ -1129,3 +1134,4 @@ final class RequestConverters {
         }
     }
 }
+

@@ -55,12 +55,16 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
+import org.elasticsearch.client.indexlifecycle.StartILMRequest;
+import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -87,10 +91,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.client.indexlifecycle.SetIndexLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.StartILMRequest;
-import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -1509,25 +1509,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(request.getParameters(), expectedParams);
     }
 
-    public void testSetIndexLifecyclePolicy() throws Exception {
-        SetIndexLifecyclePolicyRequest req = new SetIndexLifecyclePolicyRequest();
-        String policyName = randomAlphaOfLength(10);
-        String[] indices = rarely() ? null : randomIndicesNames(0, 10);
-        req.policy(policyName);
-        req.indices(indices);
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req, expectedParams);
-        setRandomIndicesOptions(req::indicesOptions, req::indicesOptions, expectedParams);
-
-        Request request = RequestConverters.setIndexLifecyclePolicy(req);
-        assertThat(request.getMethod(), equalTo(HttpPut.METHOD_NAME));
-        String idxString = Strings.arrayToCommaDelimitedString(indices);
-        assertThat(request.getEndpoint(),
-            equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) +
-                "_ilm/" + policyName));
-        assertThat(request.getParameters(), equalTo(expectedParams));
-    }
-
     public void testRemoveIndexLifecyclePolicy() {
         Map<String, String> expectedParams = new HashMap<>();
         String[] indices = randomIndicesNames(0, 10);
@@ -1590,6 +1571,19 @@ public class RequestConvertersTests extends ESTestCase {
         assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
         String idxString = Strings.arrayToCommaDelimitedString(indices);
         assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm/explain"));
+        assertThat(request.getParameters(), equalTo(expectedParams));
+    }
+
+    public void testRetryLifecycle() throws Exception {
+        String[] indices = randomIndicesNames(1, 10);
+        RetryLifecyclePolicyRequest req = new RetryLifecyclePolicyRequest(indices);
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
+        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
+        Request request = RequestConverters.retryLifecycle(req);
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        String idxString = Strings.arrayToCommaDelimitedString(indices);
+        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm/retry"));
         assertThat(request.getParameters(), equalTo(expectedParams));
     }
 

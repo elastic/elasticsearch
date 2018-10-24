@@ -4,7 +4,7 @@
       acknowledged: true
       ilm.get_lifecycle:
         policy: "my_lifecycle"
-  - match: { my_timeseries_lifecycle.phases.warm.minimum_age: "1000d" }
+  - match: { my_lifecycle.policy.phases.warm.minimum_age: "1000d" }
 
   - do:
       indices.create:

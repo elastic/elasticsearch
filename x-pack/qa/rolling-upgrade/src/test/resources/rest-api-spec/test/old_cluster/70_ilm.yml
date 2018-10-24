@@ -11,7 +11,7 @@
         policy: "my_lifecycle"
 
   - do:
-      acknowlege: true
+      acknowledged: true
       ilm.put_lifecycle:
         policy: "my_lifecycle"
         body: |
@@ -31,7 +31,7 @@
            }
 
   - do:
-      acknowledge: true
+      acknowledged: true
       ilm.get_lifecycle:
         policy: "my_lifecycle"
-  - match: { my_timeseries_lifecycle.phases.warm.minimum_age: "1000d" }
+  - match: { my_lifecycle.policy.phases.warm.minimum_age: "1000d" }

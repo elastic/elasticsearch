@@ -43,7 +43,7 @@ public class DataLoader {
 
     protected static void loadEmpDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "test_emp", "employees");
-        loadEmpDatasetIntoEs(client, "test_emp_copy", "employees");
+        loadEmpDatasetWithExtraIntoEs(client, "test_emp_copy", "employees");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
     }
@@ -63,6 +63,14 @@ public class DataLoader {
     }
 
     protected static void loadEmpDatasetIntoEs(RestClient client, String index, String fileName) throws Exception {
+        loadEmpDatasetIntoEs(client, index, fileName, false);
+    }
+
+    protected static void loadEmpDatasetWithExtraIntoEs(RestClient client, String index, String fileName) throws Exception {
+        loadEmpDatasetIntoEs(client, index, fileName, true);
+    }
+
+    private static void loadEmpDatasetIntoEs(RestClient client, String index, String fileName, boolean extraFields) throws Exception {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
@@ -76,10 +84,26 @@ public class DataLoader {
             {
                 createIndex.startObject("properties");
                 {
-                    createIndex.startObject("emp_no").field("type", "integer").endObject();
+                    createIndex.startObject("emp_no").field("type", "integer");
+                    if (extraFields) {
+                        createIndex.field("copy_to", "extra_no");
+                    }
+                    createIndex.endObject();
+                    if (extraFields) {
+                        createIndex.startObject("extra_no").field("type", "integer").endObject();
+                    }
                     createString("first_name", createIndex);
                     createString("last_name", createIndex);
-                    createIndex.startObject("gender").field("type", "keyword").endObject();
+                    createIndex.startObject("gender").field("type", "keyword");
+                    if (extraFields) {
+                        createIndex.field("copy_to", "extra_gender");
+                    }
+                    createIndex.endObject();
+
+                    if (extraFields) {
+                        createIndex.startObject("extra_gender").field("type", "keyword").endObject();
+                    }
+
                     createIndex.startObject("birth_date").field("type", "date").endObject();
                     createIndex.startObject("hire_date").field("type", "date").endObject();
                     createIndex.startObject("salary").field("type", "integer").endObject();

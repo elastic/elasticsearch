@@ -113,14 +113,14 @@ public class TransportMultiTermVectorsActionTests extends ESSingleNodeTestCase {
                     assertThat(responses[1].getResponse().getId(), equalTo("2"));
                     assertTrue(responses[1].getResponse().isExists());
                     assertThat(responses[1].getFailure(), nullValue());
-                } catch (Exception e) {
+                } catch (final Exception e) {
                     logger.error(e.getMessage(), e);
                     fail(e.getMessage());
                 }
             }
 
             @Override
-            public void onFailure(Exception e) {
+            public void onFailure(final Exception e) {
                 logger.error(e.getMessage(), e);
                 fail(e.getMessage());
             }
@@ -159,7 +159,7 @@ public class TransportMultiTermVectorsActionTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onFailure(Exception e) {
+            public void onFailure(final Exception e) {
                 logger.error(e.getMessage(), e);
                 fail(e.getMessage());
             }

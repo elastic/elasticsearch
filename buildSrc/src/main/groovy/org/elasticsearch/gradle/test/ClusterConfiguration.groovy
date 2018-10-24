@@ -69,11 +69,7 @@ class ClusterConfiguration {
      */
     @Input
     Closure<Integer> minimumMasterNodes = {
-        if (bwcVersion != null && bwcVersion.before("6.5.0-SNAPSHOT")) {
-            return getNumNodes() > 1 ? getNumNodes() : -1
-        } else {
-            return getNumNodes() > 1 ? getNumNodes().intdiv(2) + 1 : -1
-        }
+        return getNumNodes() > 1 ? getNumNodes() : -1
     }
 
     @Input

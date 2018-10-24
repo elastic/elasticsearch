@@ -1126,9 +1126,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testRemotableRequestsAllowRemoteIndices() {
         IndicesOptions options = IndicesOptions.fromOptions(true, false, false, false);
         Tuple<TransportRequest, String> tuple = randomFrom(
-                new Tuple<>(new SearchRequest("remote:foo").indicesOptions(options), SearchAction.NAME),
-                new Tuple<>(new FieldCapabilitiesRequest().indices("remote:foo").indicesOptions(options), FieldCapabilitiesAction.NAME),
-                new Tuple<>(new GraphExploreRequest().indices("remote:foo").indicesOptions(options), GraphExploreAction.NAME)
+                new Tuple<TransportRequest, String>(new SearchRequest("remote:foo").indicesOptions(options), SearchAction.NAME),
+                new Tuple<TransportRequest, String>(new FieldCapabilitiesRequest().indices("remote:foo").indicesOptions(options),
+                        FieldCapabilitiesAction.NAME),
+                new Tuple<TransportRequest, String>(new GraphExploreRequest().indices("remote:foo").indicesOptions(options),
+                        GraphExploreAction.NAME)
         );
         final TransportRequest request = tuple.v1();
         ResolvedIndices resolved = resolveIndices(request, buildAuthorizedIndices(user, tuple.v2()));
@@ -1144,8 +1146,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesOptions options = IndicesOptions.fromOptions(true, false, false, false);
         Tuple<TransportRequest, String> tuple = randomFrom(
                 new Tuple<TransportRequest, String>(new CloseIndexRequest("remote:foo").indicesOptions(options), CloseIndexAction.NAME),
-                new Tuple<>(new DeleteIndexRequest("remote:foo").indicesOptions(options), DeleteIndexAction.NAME),
-                new Tuple<>(new PutMappingRequest("remote:foo").indicesOptions(options), PutMappingAction.NAME)
+                new Tuple<TransportRequest, String>(new DeleteIndexRequest("remote:foo").indicesOptions(options), DeleteIndexAction.NAME),
+                new Tuple<TransportRequest, String>(new PutMappingRequest("remote:foo").indicesOptions(options), PutMappingAction.NAME)
         );
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(tuple.v1(), buildAuthorizedIndices(user, tuple.v2())).getLocal());
@@ -1156,8 +1158,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndicesOptions options = IndicesOptions.fromOptions(randomBoolean(), true, true, true);
         Tuple<TransportRequest, String> tuple = randomFrom(
                 new Tuple<TransportRequest, String>(new CloseIndexRequest("*:*").indicesOptions(options), CloseIndexAction.NAME),
-                new Tuple<>(new DeleteIndexRequest("*:*").indicesOptions(options), DeleteIndexAction.NAME),
-                new Tuple<>(new PutMappingRequest("*:*").indicesOptions(options), PutMappingAction.NAME)
+                new Tuple<TransportRequest, String>(new DeleteIndexRequest("*:*").indicesOptions(options), DeleteIndexAction.NAME),
+                new Tuple<TransportRequest, String>(new PutMappingRequest("*:*").indicesOptions(options), PutMappingAction.NAME)
         );
         final ResolvedIndices resolved = resolveIndices(tuple.v1(), buildAuthorizedIndices(user, tuple.v2()));
         assertNoIndices((IndicesRequest.Replaceable) tuple.v1(), resolved);

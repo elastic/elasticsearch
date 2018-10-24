@@ -60,6 +60,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
+import static org.elasticsearch.common.settings.Setting.timeSetting;
 
 /**
  * Basic service for accessing remote clusters via gateway nodes
@@ -70,10 +71,6 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         // remove search.remote.* settings in 8.0.0
         assert Version.CURRENT.major < 8;
     }
-
-    //the default here (5s) differs from the default in TcpTransport.PING_SCHEDULE (which is -1, hence disabled)
-    public static final Setting<TimeValue> REMOTE_PING_SCHEDULE =
-        Setting.timeSetting("cluster.remote.ping_schedule", TimeValue.timeValueSeconds(5), Setting.Property.NodeScope);
 
     public static final Setting<Integer> SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER =
             Setting.intSetting("search.remote.connections_per_cluster", 3, 1, Setting.Property.NodeScope, Setting.Property.Deprecated);
@@ -170,6 +167,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                             Setting.Property.NodeScope),
                     REMOTE_CLUSTERS_SEEDS);
 
+    public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
+            "cluster.remote.",
+            "transport.ping_schedule",
+            key -> timeSetting(key, TcpTransport.PING_SCHEDULE, Setting.Property.NodeScope),
+            REMOTE_CLUSTERS_SEEDS);
+
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
             && (node.isMasterNode() == false  || node.isDataNode() || node.isIngestNode());
 
@@ -215,11 +218,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                 }
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
+                    String clusterAlias = entry.getKey();
+                    TimeValue pingSchedule = REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings);
                     ConnectionManager connectionManager = new ConnectionManager(settings, transportService.transport,
-                        transportService.threadPool, REMOTE_PING_SCHEDULE.get(settings));
-                    remote = new RemoteClusterConnection(settings, entry.getKey(), seedList, transportService, connectionManager,
+                        transportService.threadPool, pingSchedule);
+                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, connectionManager,
                         numRemoteConnections, getNodePredicate(settings), proxyAddress);
-                    remoteClusters.put(entry.getKey(), remote);
+                    remoteClusters.put(clusterAlias, remote);
                 }
 
                 // now update the seed nodes no matter if it's new or already existing

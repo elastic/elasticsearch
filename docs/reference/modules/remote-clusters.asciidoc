@@ -129,12 +129,6 @@ PUT _cluster/settings
   The time to wait for remote connections to be established when the node
   starts. The default is `30s`.
 
-`cluster.remote.ping_schedule`::
-
-  Schedule a regular application-level ping message to ensure that transport
-  connections to nodes belonging to remote clusters are kept alive. Defaults
-  to `5s`, it can be set to `-1` to disable pings.
-
 `cluster.remote.node.attr`::
 
   A node attribute to filter out nodes that are eligible as a gateway node in
@@ -157,6 +151,14 @@ PUT _cluster/settings
   cluster request. Default is `false`, meaning that all clusters are mandatory
   by default, but they can selectively be made optional by setting this setting
   to `true`.
+
+`cluster.remote.${cluster_alias}.transport.ping_schedule`::
+
+  Schedule a regular application-level ping message to ensure that transport
+  connections to nodes belonging to remote clusters are kept alive. Defaults
+  to the value that the global `transport.ping_schedule` setting is set to
+  (which defaults to `-1`, meaning pings are disabled).
+
 
 [float]
 [[retrieve-remote-clusters-info]]

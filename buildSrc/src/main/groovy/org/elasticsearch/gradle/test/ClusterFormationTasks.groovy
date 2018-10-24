@@ -133,9 +133,11 @@ class ClusterFormationTasks {
                     esConfig['discovery.zen.ping.unicast.hosts'] = []
                     esConfig
                 }
+                dependsOn = startDependencies
             } else {
+                dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
                 writeConfigSetup = { Map esConfig ->
-                    String unicastTransportUri = node.config.unicastTransportUri(nodes[0], node, project.ant)
+                    String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.ant)
                     if (unicastTransportUri == null) {
                         esConfig['discovery.zen.ping.unicast.hosts'] = []
                     } else {
@@ -144,7 +146,6 @@ class ClusterFormationTasks {
                     esConfig
                 }
             }
-            dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
             startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, writeConfigSetup))
         }
 
@@ -204,7 +205,7 @@ class ClusterFormationTasks {
      * @return a task which starts the node.
      */
     static Task configureNode(Project project, String prefix, Task runner, Object dependsOn, NodeInfo node, ClusterConfiguration config,
-                                      Configuration distribution, Closure<Map> writeConfig) {
+                              Configuration distribution, Closure<Map> writeConfig) {
 
         // tasks are chained so their execution order is maintained
         Task setup = project.tasks.create(name: taskName(prefix, node, 'clean'), type: Delete, dependsOn: dependsOn) {

@@ -19,21 +19,20 @@
 
 package org.elasticsearch.painless.lookup;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Objects;
 
-public class PainlessClassBinding {
+public class PainlessInstanceBinding {
 
-    public final Constructor<?> javaConstructor;
+    public final Object targetInstance;
     public final Method javaMethod;
 
     public final Class<?> returnType;
     public final List<Class<?>> typeParameters;
 
-    PainlessClassBinding(Constructor<?> javaConstructor, Method javaMethod, Class<?> returnType, List<Class<?>> typeParameters) {
-        this.javaConstructor = javaConstructor;
+    PainlessInstanceBinding(Object targetInstance, Method javaMethod, Class<?> returnType, List<Class<?>> typeParameters) {
+        this.targetInstance = targetInstance;
         this.javaMethod = javaMethod;
 
         this.returnType = returnType;
@@ -50,9 +49,9 @@ public class PainlessClassBinding {
             return false;
         }
 
-        PainlessClassBinding that = (PainlessClassBinding)object;
+        PainlessInstanceBinding that = (PainlessInstanceBinding)object;
 
-        return Objects.equals(javaConstructor, that.javaConstructor) &&
+        return targetInstance == that.targetInstance &&
                 Objects.equals(javaMethod, that.javaMethod) &&
                 Objects.equals(returnType, that.returnType) &&
                 Objects.equals(typeParameters, that.typeParameters);
@@ -60,6 +59,6 @@ public class PainlessClassBinding {
 
     @Override
     public int hashCode() {
-        return Objects.hash(javaConstructor, javaMethod, returnType, typeParameters);
+        return Objects.hash(targetInstance, javaMethod, returnType, typeParameters);
     }
 }

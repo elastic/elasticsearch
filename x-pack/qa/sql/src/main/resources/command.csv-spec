@@ -152,6 +152,7 @@ showTables
 SHOW TABLES;
 
        name        |     type      
+logs               |BASE TABLE
 test_alias         |ALIAS          
 test_alias_emp     |ALIAS          
 test_emp           |BASE TABLE     

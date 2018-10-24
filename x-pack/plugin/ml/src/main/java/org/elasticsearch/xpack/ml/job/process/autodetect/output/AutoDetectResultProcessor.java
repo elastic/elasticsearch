@@ -10,6 +10,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -121,9 +122,9 @@ public class AutoDetectResultProcessor {
                 restoredSnapshot, new FlushListener());
     }
 
-    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
-                              JobResultsProvider jobResultsProvider, ModelSizeStats latestModelSizeStats, boolean restoredSnapshot,
-                              FlushListener flushListener) {
+    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+                              JobResultsPersister persister, JobResultsProvider jobResultsProvider, ModelSizeStats latestModelSizeStats,
+                              boolean restoredSnapshot, FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
@@ -427,9 +428,15 @@ public class AutoDetectResultProcessor {
     }
 
     private void onAutodetectClose() {
-        updateJob(jobId, Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date()), ActionListener.wrap(
-                r -> runEstablishedModelMemoryUpdate(true),
-                e -> LOGGER.error("[" + jobId + "] Failed to finalize job on autodetect close", e))
+
+        ActionListener<UpdateResponse> updateListener = ActionListener.wrap(
+                updateResponse -> runEstablishedModelMemoryUpdate(true),
+                e -> LOGGER.error("[" + jobId + "] Failed to finalize job on autodetect close", e)
+        );
+
+        updateJob(jobId, Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date()),
+                new ThreadedActionListener<>(LOGGER, client.threadPool(),
+                        MachineLearning.UTILITY_THREAD_POOL_NAME, updateListener, false)
         );
     }
 

@@ -1576,27 +1576,27 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::term-vectors-term-vectors
         if (response.getTermVectorsList() != null) {
-            List<TermVectorsResponse.TermVector> tvList = response.getTermVectorsList(); // <1>
+            List<TermVectorsResponse.TermVector> tvList = response.getTermVectorsList();
             for (TermVectorsResponse.TermVector tv : tvList) {
-                String fieldname = tv.getFieldName(); // <2>
-                int docCount = tv.getFieldStatistics().getDocCount(); // <3>
-                long sumTotalTermFreq = tv.getFieldStatistics().getSumTotalTermFreq(); // <4>
-                long sumDocFreq = tv.getFieldStatistics().getSumDocFreq(); // <5>
+                String fieldname = tv.getFieldName(); // <1>
+                int docCount = tv.getFieldStatistics().getDocCount(); // <2>
+                long sumTotalTermFreq = tv.getFieldStatistics().getSumTotalTermFreq(); // <3>
+                long sumDocFreq = tv.getFieldStatistics().getSumDocFreq(); // <4>
                 if (tv.getTerms() != null) {
-                    List<TermVectorsResponse.TermVector.Term> terms = tv.getTerms(); // <6>
+                    List<TermVectorsResponse.TermVector.Term> terms = tv.getTerms(); // <5>
                     for (TermVectorsResponse.TermVector.Term term : terms) {
-                        String termStr = term.getTerm(); // <7>
-                        int termFreq = term.getTermFreq(); // <8>
-                        int docFreq = term.getDocFreq(); // <9>
-                        long totalTermFreq = term.getTotalTermFreq(); // <10>
-                        float score = term.getScore(); // <11>
+                        String termStr = term.getTerm(); // <6>
+                        int termFreq = term.getTermFreq(); // <7>
+                        int docFreq = term.getDocFreq(); // <8>
+                        long totalTermFreq = term.getTotalTermFreq(); // <9>
+                        float score = term.getScore(); // <10>
                         if (term.getTokens() != null) {
-                            List<TermVectorsResponse.TermVector.Token> tokens = term.getTokens(); // <12>
+                            List<TermVectorsResponse.TermVector.Token> tokens = term.getTokens(); // <11>
                             for (TermVectorsResponse.TermVector.Token token : tokens) {
-                                int position = token.getPosition(); // <13>
-                                int startOffset = token.getStartOffset(); // <14>
-                                int endOffset = token.getEndOffset(); // <15>
-                                String payload = token.getPayload(); // <16>
+                                int position = token.getPosition(); // <12>
+                                int startOffset = token.getStartOffset(); // <13>
+                                int endOffset = token.getEndOffset(); // <14>
+                                String payload = token.getPayload(); // <15>
                             }
                         }
                     }

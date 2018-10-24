@@ -1457,7 +1457,6 @@ public class RequestConvertersTests extends ESTestCase {
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
     }
 
-
     /**
      * Randomize the {@link FetchSourceContext} request parameters.
      */

@@ -51,7 +51,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class IndexLifecycleRequestConvertersTests extends ESTestCase {
 
-
     public void testGetLifecyclePolicy() {
         String[] policies = rarely() ? null : randomIndicesNames(0, 10);
         GetLifecyclePolicyRequest req = new GetLifecyclePolicyRequest(policies);

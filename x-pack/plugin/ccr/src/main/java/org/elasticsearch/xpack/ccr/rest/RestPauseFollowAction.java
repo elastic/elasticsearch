@@ -31,8 +31,7 @@ public class RestPauseFollowAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        Request request = new Request();
-        request.setFollowIndex(restRequest.param("index"));
+        Request request = new Request(restRequest.param("index"));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

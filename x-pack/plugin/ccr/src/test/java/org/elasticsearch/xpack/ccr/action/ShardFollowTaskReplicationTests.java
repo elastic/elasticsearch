@@ -370,7 +370,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             between(1, 64),
             between(1, 8),
             new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-            between(1, 4), 10240,
+            between(1, 4),
+            10240,
+            new ByteSizeValue(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()

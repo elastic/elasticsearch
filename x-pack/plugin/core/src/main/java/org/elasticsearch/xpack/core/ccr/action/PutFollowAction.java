@@ -32,6 +32,7 @@ import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_CONCURRENT_READ_BATCHES;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_CONCURRENT_WRITE_BATCHES;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_RETRY_DELAY_FIELD;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_COUNT;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_SIZE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.POLL_TIMEOUT;
 
@@ -72,7 +73,12 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
                 MAX_BATCH_SIZE,
                 ObjectParser.ValueType.STRING);
             PARSER.declareInt((request, value) -> request.followRequest.setMaxConcurrentWriteBatches(value), MAX_CONCURRENT_WRITE_BATCHES);
-            PARSER.declareInt((request, value) -> request.followRequest.setMaxWriteBufferSize(value), MAX_WRITE_BUFFER_SIZE);
+            PARSER.declareInt((request, value) -> request.followRequest.setMaxWriteBufferCount(value), MAX_WRITE_BUFFER_COUNT);
+            PARSER.declareField(
+                (request, value) -> request.followRequest.setMaxWriteBufferSize(value),
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
+                MAX_WRITE_BUFFER_SIZE,
+                ObjectParser.ValueType.STRING);
             PARSER.declareField(
                 (request, value) -> request.followRequest.setMaxRetryDelay(value),
                 (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY_FIELD.getPreferredName()),

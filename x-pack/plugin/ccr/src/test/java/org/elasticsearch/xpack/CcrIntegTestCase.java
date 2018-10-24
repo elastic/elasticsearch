@@ -46,6 +46,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -65,6 +67,7 @@ import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVID
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class CcrIntegTestCase extends ESTestCase {
@@ -103,6 +106,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     @After
     public void afterTest() throws Exception {
+        ensureEmptyWriteBuffers();
         String masterNode = clusterGroup.followerCluster.getMasterName();
         ClusterService clusterService = clusterGroup.followerCluster.getInstance(ClusterService.class, masterNode);
         removeCCRRelatedMetadataFromClusterState(clusterService);
@@ -261,6 +265,18 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         RefreshResponse actionGet = client.admin().indices().prepareRefresh(indices).execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
+    }
+
+    protected void ensureEmptyWriteBuffers() throws Exception {
+        assertBusy(() -> {
+            FollowStatsAction.StatsResponses statsResponses =
+                leaderClient().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
+            for (FollowStatsAction.StatsResponse statsResponse : statsResponses.getStatsResponses()) {
+                ShardFollowNodeTaskStatus status = statsResponse.status();
+                assertThat(status.numberOfQueuedWrites(), equalTo(0));
+                assertThat(status.bufferSize(), equalTo(0L));
+            }
+        });
     }
 
     static void removeCCRRelatedMetadataFromClusterState(ClusterService clusterService) throws Exception {

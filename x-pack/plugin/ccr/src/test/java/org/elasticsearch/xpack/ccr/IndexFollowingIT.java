@@ -357,8 +357,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
     }
 
     public void testUnfollowNonExistingIndex() {
-        PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request();
-        unfollowRequest.setFollowIndex("non-existing-index");
+        PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request("non-existing-index");
         expectThrows(IllegalArgumentException.class,
             () -> followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).actionGet());
     }
@@ -750,8 +749,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     private void pauseFollow(String... indices) throws Exception {
         for (String index : indices) {
-            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request();
-            unfollowRequest.setFollowIndex(index);
+            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(index);
             followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).get();
         }
         ensureNoCcrTasks();

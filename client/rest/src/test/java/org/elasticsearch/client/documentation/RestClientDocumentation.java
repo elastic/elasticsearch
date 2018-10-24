@@ -84,8 +84,8 @@ public class RestClientDocumentation {
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.addHeader("Authorization", "Bearer " + TOKEN); // <1>
         builder.setHttpAsyncResponseConsumerFactory(           // <2>
-            new HttpAsyncResponseConsumerFactory.
-                HeapBufferedResponseConsumerFactory(30 * 1024 * 1024 * 1024));
+            new HttpAsyncResponseConsumerFactory
+                .HeapBufferedResponseConsumerFactory(30 * 1024 * 1024 * 1024));
         COMMON_OPTIONS = builder.build();
     }
     // end::rest-client-options-singleton

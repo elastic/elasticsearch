@@ -36,14 +36,10 @@ public class InternalMedianAbsoluteDeviation extends InternalNumericMetricsAggre
     static double computeMedianAbsoluteDeviation(TDigestState valuesSketch) {
 
         if (valuesSketch.size() == 0) {
-
             return Double.NaN;
-
         } else {
-
             final double approximateMedian = valuesSketch.quantile(0.5);
             final TDigestState approximatedDeviationsSketch = new TDigestState(valuesSketch.compression());
-
             valuesSketch.centroids().forEach(centroid -> {
                 final double deviation = Math.abs(approximateMedian - centroid.mean());
                 approximatedDeviationsSketch.add(deviation, centroid.count());

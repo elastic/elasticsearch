@@ -1564,7 +1564,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::term-vectors-execute
         TermVectorsResponse response = client.termvectors(request, RequestOptions.DEFAULT);
-        // end:::term-vectors-execute
+        // end::term-vectors-execute
 
 
         // tag::term-vectors-response
@@ -1572,7 +1572,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         String type = response.getType(); // <2>
         String id = response.getId(); // <3>
         boolean found = response.getFound(); // <4>
-        // end:::term-vectors-response
+        // end::term-vectors-response
 
         // tag::term-vectors-term-vectors
         if (response.getTermVectorsList() != null) {
@@ -1603,7 +1603,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
         }
-        // end:::term-vectors-term-vectors
+        // end::term-vectors-term-vectors
 
         // tag::term-vectors-execute-listener
         ActionListener<TermVectorsResponse> listener = new ActionListener<TermVectorsResponse>() {

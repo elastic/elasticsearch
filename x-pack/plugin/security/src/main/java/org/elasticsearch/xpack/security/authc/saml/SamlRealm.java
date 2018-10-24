@@ -426,7 +426,10 @@ public final class SamlRealm extends Realm implements Releasable {
         final Map<String, Object> tokenMetadata = createTokenMetadata(attributes.name(), attributes.session());
         ActionListener<AuthenticationResult> wrappedListener = ActionListener.wrap(auth -> {
             if (auth.isAuthenticated()) {
-                config.threadContext().putTransient(CONTEXT_TOKEN_DATA, tokenMetadata);
+                // Add the SAML token details as metadata on the authentication
+                Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
+                metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
+                auth = AuthenticationResult.success(auth.getUser(), metadata);
             }
             baseListener.onResponse(auth);
         }, baseListener::onFailure);

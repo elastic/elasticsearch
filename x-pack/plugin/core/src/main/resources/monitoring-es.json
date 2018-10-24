@@ -797,7 +797,7 @@
                     }
                   }
                 },
-                "maanagement": {
+                "management": {
                   "properties": {
                     "threads": {
                       "type": "integer"
@@ -828,6 +828,16 @@
                     "threads": {
                       "type": "integer"
                     },
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "write": {
+                  "properties": {
                     "queue": {
                       "type": "integer"
                     },
@@ -919,6 +929,9 @@
         },
         "ccr_stats": {
           "properties": {
+            "remote_cluster": {
+              "type": "keyword"
+            },
             "leader_index": {
               "type": "keyword"
             },
@@ -956,6 +969,9 @@
               "type": "long"
             },
             "total_fetch_time_millis": {
+              "type": "long"
+            },
+            "total_fetch_remote_time_millis": {
               "type": "long"
             },
             "number_of_successful_fetches": {

@@ -347,8 +347,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         if (!testCandidate.getSetupSection().isEmpty()) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
-            for (DoSection doSection : testCandidate.getSetupSection().getDoSections()) {
-                executeSection(doSection);
+            for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
+                executeSection(executableSection);
             }
             logger.debug("end setup test [{}]", testCandidate.getTestPath());
         }
@@ -407,5 +407,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         RestClientBuilder builder = RestClient.builder(sniffer.sniff().toArray(new Node[0]));
         configureClient(builder, restClientSettings());
         return builder;
+    }
+
+    @Override
+    protected boolean getStrictDeprecationMode() {
+        return false;
     }
 }

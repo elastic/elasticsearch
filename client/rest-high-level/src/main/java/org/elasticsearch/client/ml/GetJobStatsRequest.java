@@ -93,7 +93,7 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
         return jobIds;
     }
 
-    public Boolean isAllowNoJobs() {
+    public Boolean getAllowNoJobs() {
         return this.allowNoJobs;
     }
 

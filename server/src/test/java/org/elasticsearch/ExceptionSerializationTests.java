@@ -133,11 +133,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Path next = pkgPrefix.resolve(dir.getFileName());
-                if (ignore.contains(next)) {
-                    return FileVisitResult.SKIP_SUBTREE;
-                }
-                pkgPrefix = next;
+                pkgPrefix = pkgPrefix.resolve(dir.getFileName());
                 return FileVisitResult.CONTINUE;
             }
 

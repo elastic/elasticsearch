@@ -179,6 +179,9 @@ subprojects {
     } else {
       executable new File(checkoutDir, 'gradlew').toString()
     }
+    if (gradle.startParameter.isOffline()) {
+      args "--offline"
+    }
     for (String dir : projectDirs) {
       args ":${dir.replace('/', ':')}:assemble"
     }

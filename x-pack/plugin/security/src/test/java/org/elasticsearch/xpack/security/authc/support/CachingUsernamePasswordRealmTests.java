@@ -469,7 +469,9 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         List<Thread> threads = new ArrayList<>(numberOfThreads);
         for (int i = 0; i < numberOfThreads; i++) {
             final boolean invalidPassword = randomBoolean();
+            final int threadNum = i;
             threads.add(new Thread(() -> {
+                threadPool.getThreadContext().putTransient("key", threadNum);
                 try {
                     latch.countDown();
                     latch.await();
@@ -477,6 +479,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                         UsernamePasswordToken token = new UsernamePasswordToken(username, invalidPassword ? randomPassword : password);
 
                         realm.authenticate(token, ActionListener.wrap((result) -> {
+                            assertThat(threadPool.getThreadContext().getTransient("key"), is(threadNum));
                             if (invalidPassword && result.isAuthenticated()) {
                                 throw new RuntimeException("invalid password led to an authenticated user: " + result);
                             } else if (invalidPassword == false && result.isAuthenticated() == false) {
@@ -529,12 +532,15 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
         List<Thread> threads = new ArrayList<>(numberOfThreads);
         for (int i = 0; i < numberOfThreads; i++) {
+            final int threadNum = i;
             threads.add(new Thread(() -> {
                 try {
+                    threadPool.getThreadContext().putTransient("key", threadNum);
                     latch.countDown();
                     latch.await();
                     for (int i1 = 0; i1 < numberOfIterations; i1++) {
                         realm.lookupUser(username, ActionListener.wrap((user) -> {
+                            assertThat(threadPool.getThreadContext().getTransient("key"), is(threadNum));
                             if (user == null) {
                                 throw new RuntimeException("failed to lookup user");
                             }

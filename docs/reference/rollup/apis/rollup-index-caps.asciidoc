@@ -1,4 +1,5 @@
 [role="xpack"]
+[testenv="basic"]
 [[rollup-get-rollup-index-caps]]
 === Get Rollup Index Capabilities
 ++++
@@ -119,6 +120,12 @@ This  will yield the following response:
               "time_zone" : "UTC",
               "interval" : "1h",
               "delay": "7d"
+            },
+            {
+              "agg" : "max"
+            },
+            {
+              "agg" : "min"
             }
           ],
           "voltage" : [

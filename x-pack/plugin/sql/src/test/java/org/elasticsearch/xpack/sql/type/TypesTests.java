@@ -59,10 +59,10 @@ public class TypesTests extends ESTestCase {
         assertThat(mapping.size(), is(1));
         EsField type = mapping.get("full_name");
         assertThat(type, instanceOf(TextEsField.class));
-        assertThat(type.hasDocValues(), is(false));
+        assertThat(type.isAggregatable(), is(false));
         TextEsField ttype = (TextEsField) type;
         assertThat(type.getPrecision(), is(Integer.MAX_VALUE));
-        assertThat(ttype.hasDocValues(), is(false));
+        assertThat(ttype.isAggregatable(), is(false));
     }
 
     public void testKeywordField() {
@@ -71,7 +71,7 @@ public class TypesTests extends ESTestCase {
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("full_name");
         assertThat(field, instanceOf(KeywordEsField.class));
-        assertThat(field.hasDocValues(), is(true));
+        assertThat(field.isAggregatable(), is(true));
         assertThat(field.getPrecision(), is(256));
     }
 
@@ -81,7 +81,7 @@ public class TypesTests extends ESTestCase {
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("date");
         assertThat(field.getDataType(), is(DATE));
-        assertThat(field.hasDocValues(), is(true));
+        assertThat(field.isAggregatable(), is(true));
         assertThat(field.getPrecision(), is(24));
 
         DateEsField dfield = (DateEsField) field;
@@ -95,7 +95,7 @@ public class TypesTests extends ESTestCase {
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("date");
         assertThat(field.getDataType(), is(DATE));
-        assertThat(field.hasDocValues(), is(true));
+        assertThat(field.isAggregatable(), is(true));
         DateEsField dfield = (DateEsField) field;
         // default types
         assertThat(dfield.getFormats(), hasSize(2));
@@ -107,7 +107,7 @@ public class TypesTests extends ESTestCase {
         assertThat(mapping.size(), is(1));
         EsField field = mapping.get("date");
         assertThat(field.getDataType(), is(DATE));
-        assertThat(field.hasDocValues(), is(true));
+        assertThat(field.isAggregatable(), is(true));
         DateEsField dfield = (DateEsField) field;
         // default types
         assertThat(dfield.getFormats(), hasSize(1));
@@ -120,7 +120,7 @@ public class TypesTests extends ESTestCase {
         EsField field = mapping.get("session_id");
         assertThat(field, instanceOf(KeywordEsField.class));
         assertThat(field.getPrecision(), is(15));
-        assertThat(field.hasDocValues(), is(false));
+        assertThat(field.isAggregatable(), is(false));
     }
 
     public void testDottedField() {

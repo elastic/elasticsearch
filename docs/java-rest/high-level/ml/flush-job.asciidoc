@@ -1,20 +1,25 @@
-[[java-rest-high-x-pack-ml-flush-job]]
+--
+:api: flush-job
+:request: FlushJobRequest
+:response: FlushJobResponse
+--
+[id="{upid}-{api}"]
 === Flush Job API
 
 The Flush Job API provides the ability to flush a {ml} job's 
 datafeed in the cluster.
-It accepts a `FlushJobRequest` object and responds
-with a `FlushJobResponse` object.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
 
-[[java-rest-high-x-pack-ml-flush-job-request]]
+[id="{upid}-{api}-request"]
 ==== Flush Job Request
 
-A `FlushJobRequest` object gets created with an existing non-null `jobId`.
+A +{request}+ object gets created with an existing non-null `jobId`.
 All other fields are optional for the request.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-flush-job-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing an existing `jobId`
 
@@ -24,7 +29,7 @@ The following arguments are optional.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-flush-job-request-options]
+include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
 <1> Set request to calculate the interim results
 <2> Set the advanced time to flush to the particular time value
@@ -34,50 +39,18 @@ to calculate the interim results (requires `calc_interim` to be `true`)
 to calculate interim results (requires `calc_interim` to be `true`)
 <5> Set the skip time to skip a particular time value
 
-[[java-rest-high-x-pack-ml-flush-job-execution]]
-==== Execution
-
-The request can be executed through the `MachineLearningClient` contained
-in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-flush-job-execute]
---------------------------------------------------
-
-[[java-rest-high-x-pack-ml-flush-job-execution-async]]
-==== Asynchronous Execution
-
-The request can also be executed asynchronously:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-flush-job-execute-async]
---------------------------------------------------
-<1> The `FlushJobRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The method does not block and returns immediately. The passed `ActionListener` is used
-to notify the caller of completion. A typical `ActionListener` for `FlushJobResponse` may
-look like
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-flush-job-listener]
---------------------------------------------------
-<1> `onResponse` is called back when the action is completed successfully
-<2> `onFailure` is called back when some unexpected error occurs
-
-[[java-rest-high-x-pack-ml-flush-job-response]]
+[id="{upid}-{api}-response"]
 ==== Flush Job Response
 
-A `FlushJobResponse` contains an acknowledgement and an optional end date for the
+A +{response}+ contains an acknowledgement and an optional end date for the
 last finalized bucket
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-ml-flush-job-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> `isFlushed()` indicates if the job was successfully flushed or not.
 <2> `getLastFinalizedBucketEnd()` provides the timestamp
 (in milliseconds-since-the-epoch) of the end of the last bucket that was processed.
+
+include::../execution.asciidoc[]

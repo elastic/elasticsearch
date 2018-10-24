@@ -54,7 +54,7 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         path = in.readOptionalString();
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
             maxChildren = in.readVInt();
         } else {
             maxChildren = Integer.MAX_VALUE;
@@ -98,10 +98,8 @@ public class NestedSortBuilder implements Writeable, ToXContentObject {
         out.writeOptionalString(path);
         out.writeOptionalNamedWriteable(filter);
         out.writeOptionalWriteable(nestedSort);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeVInt(maxChildren);
-        } else {
-            out.writeVInt(Integer.MAX_VALUE);
         }
     }
 

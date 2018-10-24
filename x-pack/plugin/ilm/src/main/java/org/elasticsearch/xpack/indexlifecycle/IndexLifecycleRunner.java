@@ -476,46 +476,6 @@ public class IndexLifecycleRunner {
         clusterService.submitStateUpdateTask("ilm-set-step-info", new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
     }
 
-    public static ClusterState removePolicyForIndexes(final Index[] indices, ClusterState currentState, List<String> failedIndexes) {
-        MetaData.Builder newMetadata = MetaData.builder(currentState.getMetaData());
-        boolean clusterStateChanged = false;
-        for (Index index : indices) {
-            IndexMetaData indexMetadata = currentState.getMetaData().index(index);
-            if (indexMetadata == null) {
-                // Index doesn't exist so fail it
-                failedIndexes.add(index.getName());
-            } else {
-                IndexMetaData.Builder newIdxMetadata = IndexLifecycleRunner.removePolicyForIndex(indexMetadata);
-                if (newIdxMetadata != null) {
-                    newMetadata.put(newIdxMetadata);
-                    clusterStateChanged = true;
-                }
-            }
-        }
-        if (clusterStateChanged) {
-            ClusterState.Builder newClusterState = ClusterState.builder(currentState);
-            newClusterState.metaData(newMetadata);
-            return newClusterState.build();
-        } else {
-            return currentState;
-        }
-    }
-
-    private static IndexMetaData.Builder removePolicyForIndex(IndexMetaData indexMetadata) {
-        Settings idxSettings = indexMetadata.getSettings();
-        Settings.Builder newSettings = Settings.builder().put(idxSettings);
-        boolean notChanged = true;
-
-        notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
-        notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_SKIP_SETTING.getKey()));
-        notChanged &= Strings.isNullOrEmpty(newSettings.remove(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey()));
-        long newSettingsVersion = notChanged ? indexMetadata.getSettingsVersion() : 1 + indexMetadata.getSettingsVersion();
-
-        IndexMetaData.Builder builder = IndexMetaData.builder(indexMetadata);
-        builder.removeCustom(ILM_CUSTOM_METADATA_KEY);
-        return builder.settings(newSettings).settingsVersion(newSettingsVersion);
-    }
-
     private void markPolicyDoesNotExist(String policyName, Index index, LifecycleExecutionState executionState) {
         logger.debug("policy [{}] for index [{}] does not exist, recording this in step_info for this index",
             policyName, index.getName());

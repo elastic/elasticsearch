@@ -217,8 +217,10 @@ setup:
   - match: { error.root_cause.0.reason: "Cannot delete policy [my_timeseries_lifecycle]. It is being used by at least one index [my_timeseries_index]" }
 
   - do:
-      ilm.remove_policy:
+      indices.put_settings:
         index: my_timeseries_index
+        body:
+          lifecycle.name: ""
 
   - do:
       acknowledge: true

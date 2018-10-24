@@ -59,7 +59,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.ExplainLifecycleAction
 import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
@@ -341,7 +340,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 GetLifecycleAction.INSTANCE,
                 PutLifecycleAction.INSTANCE,
                 ExplainLifecycleAction.INSTANCE,
-                RemoveIndexLifecyclePolicyAction.INSTANCE,
                 MoveToStepAction.INSTANCE,
                 RetryAction.INSTANCE
         );

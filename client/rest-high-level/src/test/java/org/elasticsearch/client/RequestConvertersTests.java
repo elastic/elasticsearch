@@ -62,7 +62,6 @@ import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
 import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -1507,20 +1506,6 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals(request.getMethod(), HttpDelete.METHOD_NAME);
         assertEquals(request.getEndpoint(), "/_ilm/" + lifecycleName);
         assertEquals(request.getParameters(), expectedParams);
-    }
-
-    public void testRemoveIndexLifecyclePolicy() {
-        Map<String, String> expectedParams = new HashMap<>();
-        String[] indices = randomIndicesNames(0, 10);
-        IndicesOptions indicesOptions = setRandomIndicesOptions(IndicesOptions.strictExpandOpen(), expectedParams);
-        RemoveIndexLifecyclePolicyRequest req = new RemoveIndexLifecyclePolicyRequest(Arrays.asList(indices), indicesOptions);
-        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
-
-        Request request = RequestConverters.removeIndexLifecyclePolicy(req);
-        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
-        String idxString = Strings.arrayToCommaDelimitedString(indices);
-        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm"));
-        assertThat(request.getParameters(), equalTo(expectedParams));
     }
 
     public void testStartILM() throws Exception {

@@ -58,6 +58,8 @@
 
 ---
 "empty action":
+  - skip:
+      features: headers
 
   - skip:
       features: headers

@@ -201,7 +201,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                     () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]", exception.getMessage());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         IndexRequest index = new IndexRequest("index", "type", "id");
@@ -288,7 +288,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id1", response.getResponses()[0].getFailure().getId());
             assertEquals("type", response.getResponses()[0].getFailure().getType());
             assertEquals("index", response.getResponses()[0].getFailure().getIndex());
-            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]",
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[0].getFailure().getFailure().getMessage());
 
             assertTrue(response.getResponses()[1].isFailed());
@@ -296,7 +296,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id2", response.getResponses()[1].getId());
             assertEquals("type", response.getResponses()[1].getType());
             assertEquals("index", response.getResponses()[1].getIndex());
-            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]",
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[1].getFailure().getFailure().getMessage());
         }
         BulkRequest bulk = new BulkRequest();

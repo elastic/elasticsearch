@@ -530,7 +530,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context, "testZZZ"));
-        assertThat(infe.getMessage(), is("no such index"));
+        assertThat(infe.getMessage(), is("no such index [testZZZ]"));
     }
 
     public void testConcreteIndicesIgnoreIndicesOneMissingIndexOtherFound() {
@@ -552,7 +552,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context, "testMo", "testMahdy"));
-        assertThat(infe.getMessage(), is("no such index"));
+        assertThat(infe.getMessage(), is("no such index [testMo]"));
     }
 
     public void testConcreteIndicesIgnoreIndicesEmptyRequest() {
@@ -1161,7 +1161,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
                     () -> indexNameExpressionResolver.concreteIndexNames(state, new DeleteIndexRequest("does_not_exist")));
             assertEquals("does_not_exist", infe.getIndex().getName());
-            assertEquals("no such index", infe.getMessage());
+            assertEquals("no such index [does_not_exist]", infe.getMessage());
         }
         {
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,

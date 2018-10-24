@@ -106,6 +106,8 @@ public class DoSection implements ExecutableSection {
             } else if (token.isValue()) {
                 if ("catch".equals(currentFieldName)) {
                     doSection.setCatch(parser.text());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "unsupported field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("warnings".equals(currentFieldName)) {

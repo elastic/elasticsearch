@@ -522,7 +522,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(response.getStatsResponses().get(0).status().numberOfFailedFetches(), greaterThanOrEqualTo(1L));
             ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
             assertThat(fatalException, notNullValue());
-            assertThat(fatalException.getRootCause().getMessage(), equalTo("no such index"));
+            assertThat(fatalException.getRootCause().getMessage(), equalTo("no such index [index1]"));
         });
         pauseFollow("index2");
         ensureNoCcrTasks();
@@ -552,7 +552,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(response.getStatsResponses().get(0).status().numberOfFailedBulkOperations(), greaterThanOrEqualTo(1L));
             ElasticsearchException fatalException = response.getStatsResponses().get(0).status().getFatalException();
             assertThat(fatalException, notNullValue());
-            assertThat(fatalException.getMessage(), equalTo("no such index"));
+            assertThat(fatalException.getMessage(), equalTo("no such index [index2]"));
         });
         pauseFollow("index2");
         ensureNoCcrTasks();
@@ -640,13 +640,13 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertAcked(leaderClient().admin().indices().prepareCreate("index1").setSource(leaderIndexSettings, XContentType.JSON));
         ensureLeaderGreen("index1");
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.setLeaderCluster("another_cluster");
+        followRequest.setRemoteCluster("another_cluster");
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
         assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
         PutAutoFollowPatternAction.Request putAutoFollowRequest = new PutAutoFollowPatternAction.Request();
         putAutoFollowRequest.setName("name");
-        putAutoFollowRequest.setLeaderCluster("another_cluster");
+        putAutoFollowRequest.setRemoteCluster("another_cluster");
         putAutoFollowRequest.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         e = expectThrows(IllegalArgumentException.class,
             () -> followerClient().execute(PutAutoFollowPatternAction.INSTANCE, putAutoFollowRequest).actionGet());
@@ -961,7 +961,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex) {
         PutFollowAction.Request request = new PutFollowAction.Request();
-        request.setLeaderCluster("leader_cluster");
+        request.setRemoteCluster("leader_cluster");
         request.setLeaderIndex(leaderIndex);
         request.setFollowRequest(resumeFollow(followerIndex));
         return request;

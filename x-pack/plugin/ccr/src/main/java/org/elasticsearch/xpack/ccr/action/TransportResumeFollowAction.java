@@ -54,10 +54,10 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
 
     static final ByteSizeValue DEFAULT_MAX_BATCH_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
-    private static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
+    private static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 9;
     private static final int DEFAULT_MAX_WRITE_BUFFER_SIZE = 10240;
-    private static final int DEFAULT_MAX_BATCH_OPERATION_COUNT = 1024;
-    private static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 1;
+    private static final int DEFAULT_MAX_BATCH_OPERATION_COUNT = 5120;
+    private static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 12;
     static final TimeValue DEFAULT_POLL_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final Client client;
@@ -107,7 +107,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         if (ccrMetadata == null) {
             throw new IllegalArgumentException("follow index ["+ request.getFollowerIndex() + "] does not have ccr metadata");
         }
-        final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_CLUSTER_NAME_KEY);
+        final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
         // Validates whether the leader cluster has been configured properly:
         client.getRemoteClusterClient(leaderCluster);
         final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);

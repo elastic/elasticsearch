@@ -25,6 +25,22 @@ false            |true
 ;
 
 
+inWithNullHandling
+SELECT 2 IN (1, null, 3), 3 IN (1, null, 3), null IN (1, null, 3), null IN (1, 2, 3);
+
+  2 IN (1, null, 3) |  3 IN (1, null, 3) |  null IN (1, null, 3) |  null IN (1, 2, 3)
+--------------------+--------------------+-----------------------+-------------------
+null                |true                |null                   | null
+;
+
+inWithNullHandlingAndNegation
+SELECT NOT 2 IN (1, null, 3), NOT 3 IN (1, null, 3), NOT null IN (1, null, 3), NOT null IN (1, 2, 3);
+
+  NOT 2 IN (1, null, 3) |  NOT 3 IN (1, null, 3) |  NOT null IN (1, null, 3) |  null IN (1, 2, 3)
+------------------------+------------------------+---------------------------+--------------------
+null                    |false                   |null                       | null
+;
+
 //
 // SELECT with IN and table columns
 //
@@ -65,3 +81,22 @@ SELECT 1 IN (1, abs(2 - 4), 3) OR emp_no NOT IN (10000, 10000 + 1, 10002) FROM t
 10004
 10005
 ;
+
+inWithTableColumnAndNullHandling
+SELECT emp_no, birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)), birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), null, CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)) FROM test_emp WHERE emp_no = 10038 OR emp_no = 10039 OR emp_no = 10040 ORDER BY 1;
+
+ emp_no |  birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)) |  birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), null, CAST('1959-10-01T00:00:00Z' AS TIMESTAMP))
+--------+-------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------
+10038   | true                                                                                                  | true
+10039   | null                                                                                                  | null
+10040   | false                                                                                                 | null
+
+
+inWithTableColumnAndNullHandlingAndNegation
+SELECT emp_no, NOT birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)), NOT birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), null, CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)) FROM test_emp WHERE emp_no = 10038 OR emp_no = 10039 OR emp_no = 10040 ORDER BY 1;
+
+ emp_no |  NOT birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)) |  NOT birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), null, CAST('1959-10-01T00:00:00Z' AS TIMESTAMP))
+--------+-----------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------
+10038   | false                                                                                                     | false
+10039   | null                                                                                                      | null
+10040   | true                                                                                                      | null

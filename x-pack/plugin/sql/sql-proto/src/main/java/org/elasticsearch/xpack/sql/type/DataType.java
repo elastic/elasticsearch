@@ -12,7 +12,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toMap;
 
 /**
  * Elasticsearch data types that supported by SQL interface
@@ -42,7 +43,13 @@ public enum DataType {
     // since ODBC and JDBC interpret precision for Date as display size,
     // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
-    DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        24,                24);
+    DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        24,                24),
+    //
+    // specialized types
+    //
+    // IP can be v4 or v6. The latter has 2^128 addresses or 340,282,366,920,938,463,463,374,607,431,768,211,456
+    // aka 39 chars
+    IP(          JDBCType.VARCHAR,   String.class,     39,               39,                0,false, false, true);
     // @formatter:on
 
     public static final String ODBC_DATATYPE_PREFIX = "SQL_";
@@ -52,8 +59,9 @@ public enum DataType {
 
     static {
         jdbcToEs = Arrays.stream(DataType.values())
-                .filter(dataType -> dataType != TEXT && dataType != NESTED && dataType != SCALED_FLOAT) // Remove duplicates
-                .collect(Collectors.toMap(dataType -> dataType.jdbcType, dataType -> dataType));
+                .filter(type -> type != TEXT && type != NESTED
+                                && type != SCALED_FLOAT && type != IP) // Remove duplicates
+                .collect(toMap(dataType -> dataType.jdbcType, dataType -> dataType));
 
         odbcToEs = new HashMap<>(36);
 
@@ -233,12 +241,9 @@ public enum DataType {
     public boolean isCompatibleWith(DataType other) {
         if (this == other) {
             return true;
-        } else if (isString() && other.isString()) {
-            return true;
-        } else if (isNumeric() && other.isNumeric()) {
-            return true;
-        } else {
-            return false;
-        }
+        } else return
+            (this == NULL || other == NULL) ||
+            (isString() && other.isString()) ||
+            (isNumeric() && other.isNumeric());
     }
 }

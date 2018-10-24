@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -75,6 +74,6 @@ public interface ScriptWeaver {
     }
 
     default String formatTemplate(String template) {
-        return template.replace("{sql}", InternalSqlScriptUtils.class.getSimpleName()).replace("{}", "params.%s");
+        return Scripts.formatTemplate(template);
     }
 }

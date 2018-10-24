@@ -36,14 +36,14 @@ public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternActio
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        private String leaderCluster;
+        private String name;
 
         public Request() {
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.leaderCluster = in.readOptionalString();
+            this.name = in.readOptionalString();
         }
 
         @Override
@@ -51,18 +51,18 @@ public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternActio
             return null;
         }
 
-        public String getLeaderCluster() {
-            return leaderCluster;
+        public String getName() {
+            return name;
         }
 
-        public void setLeaderCluster(String leaderCluster) {
-            this.leaderCluster = leaderCluster;
+        public void setName(String name) {
+            this.name = name;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalString(leaderCluster);
+            out.writeOptionalString(name);
         }
 
         @Override
@@ -70,12 +70,12 @@ public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(leaderCluster, request.leaderCluster);
+            return Objects.equals(name, request.name);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(leaderCluster);
+            return Objects.hash(name);
         }
     }
 

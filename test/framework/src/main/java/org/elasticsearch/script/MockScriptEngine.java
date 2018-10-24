@@ -25,8 +25,8 @@ import org.elasticsearch.index.similarity.ScriptedSimilarity.Doc;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Field;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Query;
 import org.elasticsearch.index.similarity.ScriptedSimilarity.Term;
-import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
-import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctions;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -92,6 +92,17 @@ public class MockScriptEngine implements ScriptEngine {
         MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script);
         if (context.instanceClazz.equals(SearchScript.class)) {
             SearchScript.Factory factory = mockCompiled::createSearchScript;
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(FieldScript.class)) {
+            FieldScript.Factory factory = (parameters, lookup) ->
+                ctx -> new FieldScript(parameters, lookup, ctx) {
+                    @Override
+                    public Object execute() {
+                        Map<String, Object> vars = createVars(parameters);
+                        vars.putAll(getLeafLookup().asMap());
+                        return script.apply(vars);
+                    }
+                };
             return context.factoryClazz.cast(factory);
         } else if(context.instanceClazz.equals(TermsSetQueryScript.class)) {
             TermsSetQueryScript.Factory factory = (parameters, lookup) -> (TermsSetQueryScript.LeafFactory) ctx
@@ -274,6 +285,12 @@ public class MockScriptEngine implements ScriptEngine {
             return context.factoryClazz.cast(compiler.compile(script, params));
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
+    }
+
+    private Map<String, Object> createVars(Map<String, Object> params) {
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("params", params);
+        return vars;
     }
 
     public class MockCompiledScript {

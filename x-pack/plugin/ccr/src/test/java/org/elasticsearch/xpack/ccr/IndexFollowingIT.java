@@ -295,8 +295,11 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
         followRequest.getFollowRequest().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
-        followRequest.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(2, 10));
-        followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(2, 10));
+        followRequest.getFollowRequest().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
+        followRequest.getFollowRequest().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
+        followRequest.getFollowRequest().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         long maxNumDocsReplicated = Math.min(1000, randomLongBetween(followRequest.getFollowRequest().getMaxReadRequestOperationCount(),
@@ -613,6 +616,12 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             threads[i].start();
         }
         PutFollowAction.Request follow = putFollow("leader-index", "follower-index");
+        follow.getFollowRequest().setMaxReadRequestOperationCount(randomIntBetween(32, 2048));
+        follow.getFollowRequest().setMaxReadRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
+        follow.getFollowRequest().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
+        follow.getFollowRequest().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
+        follow.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
         ensureFollowerGreen("follower-index");
         atLeastDocsIndexed(followerClient(), "follower-index", between(20, 60));

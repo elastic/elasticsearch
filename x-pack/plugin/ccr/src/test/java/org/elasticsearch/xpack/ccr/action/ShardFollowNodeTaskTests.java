@@ -63,8 +63,12 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     private Queue<Integer> responseSizes;
 
     public void testCoordinateReads() {
-        ShardFollowNodeTask task = createShardFollowTask(8, between(8, 20), between(1, 20), Integer.MAX_VALUE,
-            new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 8;
+        params.maxOutstandingReadRequests = between(8, 20);
+        params.maxOutstandingWriteRequests = between(1, 20);
+
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 3, -1);
         task.coordinateReads();
         assertThat(shardChangesRequests, contains(new long[]{0L, 8L})); // treat this a peak request
@@ -79,9 +83,12 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testMaxWriteBufferCount() {
-        // Need to set concurrentWrites to 0, other the write buffer gets flushed immediately:
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 0, 32, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 0; // need to set outstandingWrites to 0, other the write buffer gets flushed immediately
+        params.maxWriteBufferCount = 32;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         task.coordinateReads();
@@ -102,9 +109,12 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testMaxWriteBufferSize() {
-        // Need to set concurrentWrites to 0, other the write buffer gets flushed immediately:
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 0, Integer.MAX_VALUE, new ByteSizeValue(1, ByteSizeUnit.KB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 0; // need to set outstandingWrites to 0, other the write buffer gets flushed immediately
+        params.maxWriteBufferSize = new ByteSizeValue(1, ByteSizeUnit.KB);
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         task.coordinateReads();
@@ -124,9 +134,12 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.leaderGlobalCheckpoint(), equalTo(128L));
     }
 
-    public void testMaxConcurrentReads() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(8, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+    public void testMaxOutstandingReads() {
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 8;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 64, -1);
 
         task.coordinateReads();
@@ -140,8 +153,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testTaskCancelled() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 64, -1);
 
         task.coordinateReads();
@@ -158,8 +174,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testTaskCancelledAfterReadLimitHasBeenReached() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(16, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 16;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 31, -1);
 
         task.coordinateReads();
@@ -183,8 +202,13 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testTaskCancelledAfterWriteBufferLimitHasBeenReached() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, 32, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        params.maxWriteBufferCount = 32;
+
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 64, -1);
 
         task.coordinateReads();
@@ -208,8 +232,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testReceiveRetryableError() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         int max = randomIntBetween(1, 30);
@@ -259,8 +286,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testEmptyShardChangesResponseShouldClearFetchException() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, -1, -1);
 
         readFailures.add(new ShardNotFoundException(new ShardId("leader_index", "", 0)));
@@ -289,8 +319,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testReceiveTimeout() {
-        final ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        final ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         final int numberOfTimeouts = randomIntBetween(1, 32);
@@ -354,8 +387,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testReceiveNonRetryableError() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         Exception failure = new RuntimeException("replication failed");
@@ -395,8 +431,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testHandleReadResponse() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         task.coordinateReads();
@@ -417,8 +456,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testReceiveLessThanRequested() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         task.coordinateReads();
@@ -442,8 +484,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testCancelAndReceiveLessThanRequested() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         task.coordinateReads();
@@ -466,8 +511,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testReceiveNothingExpectedSomething() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         task.coordinateReads();
@@ -490,8 +538,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testMappingUpdate() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         mappingVersions.add(1L);
@@ -512,8 +563,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testMappingUpdateRetryableError() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         int max = randomIntBetween(1, 30);
@@ -538,8 +592,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testMappingUpdateNonRetryableError() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         mappingUpdateFailures.add(new RuntimeException());
@@ -558,14 +615,19 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testCoordinateWrites() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 128;
+        params.maxOutstandingReadRequests = 1;
+        params.maxWriteRequestOperationCount = 64;
+        params.maxOutstandingWriteRequests = 1;
+
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         task.coordinateReads();
         assertThat(shardChangesRequests.size(), equalTo(1));
         assertThat(shardChangesRequests.get(0)[0], equalTo(0L));
-        assertThat(shardChangesRequests.get(0)[1], equalTo(64L));
+        assertThat(shardChangesRequests.get(0)[1], equalTo(128L));
 
         ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 63L);
         // Also invokes coordinatesWrites()
@@ -582,9 +644,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
     }
 
-    public void testMaxConcurrentWrites() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 2, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+    public void testMaxOutstandingWrites() {
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxWriteRequestOperationCount = 64;
+        params.maxOutstandingWriteRequests = 2;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         ShardChangesAction.Response response = generateShardChangesResponse(0, 256, 0L, 256L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 64L, response);
@@ -596,7 +660,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         ShardFollowNodeTaskStatus status = task.getStatus();
         assertThat(status.outstandingWriteRequests(), equalTo(2));
 
-        task = createShardFollowTask(64, 1, 4, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        params.maxOutstandingWriteRequests = 4; // change to 4 outstanding writers
+        task = createShardFollowTask(params);
         response = generateShardChangesResponse(0, 256, 0L, 256L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 64L, response);
@@ -611,9 +676,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.outstandingWriteRequests(), equalTo(4));
     }
 
-    public void testMaxBatchOperationCount() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(8, 1, 32, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+    public void testMaxWriteRequestCount() {
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxWriteRequestOperationCount = 8;
+        params.maxOutstandingWriteRequests = 32;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         ShardChangesAction.Response response = generateShardChangesResponse(0, 256, 0L, 256L);
         // Also invokes coordinatesWrites()
         task.innerHandleReadResponse(0L, 64L, response);
@@ -629,8 +696,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testRetryableError() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         task.coordinateReads();
@@ -658,8 +728,11 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testNonRetryableError() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         task.coordinateReads();
@@ -680,9 +753,14 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
     }
 
-    public void testMaxBatchBytesLimit() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 128, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), 1L);
+    public void testMaxWriteRequestSize() {
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxWriteRequestSize = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+        params.maxOutstandingWriteRequests = 128;
+
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 64, -1);
 
         task.coordinateReads();
@@ -698,8 +776,12 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
     }
 
     public void testHandleWriteResponse() {
-        ShardFollowNodeTask task =
-            createShardFollowTask(64, 1, 1, Integer.MAX_VALUE, new ByteSizeValue(512, ByteSizeUnit.MB), Long.MAX_VALUE);
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxWriteRequestOperationCount = 64;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
         startTask(task, 63, -1);
 
         task.coordinateReads();
@@ -742,29 +824,40 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(ShardFollowNodeTask.computeDelay(1024, maxDelayInMillis), allOf(greaterThanOrEqualTo(0L), lessThanOrEqualTo(1000L)));
     }
 
-    private ShardFollowNodeTask createShardFollowTask(int maxBatchOperationCount,
-                                                      int maxConcurrentReadBatches,
-                                                      int maxConcurrentWriteBatches,
-                                                      int maxWriteBufferCount,
-                                                      ByteSizeValue maxWriteBufferSize,
-                                                      long maxBatchSizeInBytes) {
+    static final class ShardFollowTaskParams {
+        private String remoteCluster = null;
+        private ShardId followShardId = new ShardId("follow_index", "", 0);
+        private ShardId leaderShardId = new ShardId("leader_index", "", 0);
+        private int maxReadRequestOperationCount = Integer.MAX_VALUE;
+        private ByteSizeValue maxReadRequestSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        private int maxOutstandingReadRequests = Integer.MAX_VALUE;
+        private int maxWriteRequestOperationCount = Integer.MAX_VALUE;
+        private ByteSizeValue maxWriteRequestSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        private int maxOutstandingWriteRequests = Integer.MAX_VALUE;
+        private int maxWriteBufferCount = Integer.MAX_VALUE;
+        private ByteSizeValue maxWriteBufferSize = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+        private TimeValue maxRetryDelay = TimeValue.ZERO;
+        private TimeValue readPollTimeout = TimeValue.ZERO;
+        private Map<String, String> headers = Collections.emptyMap();
+    }
+
+    private ShardFollowNodeTask createShardFollowTask(ShardFollowTaskParams params) {
         AtomicBoolean stopped = new AtomicBoolean(false);
-        // TODO: Add write parameters;
-        ShardFollowTask params = new ShardFollowTask(
-            null,
-            new ShardId("follow_index", "", 0),
-            new ShardId("leader_index", "", 0),
-            maxBatchOperationCount,
-            new ByteSizeValue(maxBatchSizeInBytes, ByteSizeUnit.BYTES),
-            maxConcurrentReadBatches,
-            maxBatchOperationCount,
-            new ByteSizeValue(maxBatchSizeInBytes, ByteSizeUnit.BYTES),
-            maxConcurrentWriteBatches,
-            maxWriteBufferCount,
-            maxWriteBufferSize,
-            TimeValue.ZERO,
-            TimeValue.ZERO,
-            Collections.emptyMap()
+        ShardFollowTask followTask = new ShardFollowTask(
+            params.remoteCluster,
+            params.followShardId,
+            params.leaderShardId,
+            params.maxReadRequestOperationCount,
+            params.maxReadRequestSize,
+            params.maxOutstandingReadRequests,
+            params.maxWriteRequestOperationCount,
+            params.maxWriteRequestSize,
+            params.maxOutstandingWriteRequests,
+            params.maxWriteBufferCount,
+            params.maxWriteBufferSize,
+            params.maxRetryDelay,
+            params.readPollTimeout,
+            params.headers
         );
 
         shardChangesRequests = new ArrayList<>();
@@ -778,7 +871,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         maxSeqNos = new LinkedList<>();
         responseSizes = new LinkedList<>();
         return new ShardFollowNodeTask(
-                1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime) {
+                1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), followTask, scheduler, System::nanoTime) {
 
             @Override
             protected void innerUpdateMapping(LongConsumer handler, Consumer<Exception> errorHandler) {

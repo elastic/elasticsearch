@@ -1,0 +1,28 @@
+[[release-notes-5.6.13]]
+== 5.6.13 Release Notes
+
+coming[5.6.13]
+
+Also see <<breaking-changes-5.6>>.
+
+[[bug-5.6.13]]
+[float]
+=== Bug fixes
+
+Packaging::
+* Fix rpm install on Fedora 28 {pull}34111[#34111] (issue: {issue}34087[#34087])
+
+Search::
+* Add a limit for graph phrase query expansion {pull}34061[#34061] (issue: {issue}34031[#34031])
+
+ZenDiscovery::
+* Fix logging of cluster state update descriptions {pull}34243[#34243] (issues: {issue}28941[#28941], {issue}34182[#34182])
+
+
+
+[[upgrade-5.6.13]]
+[float]
+=== Upgrades
+
+Core::
+* Dependencies: Upgrade to joda time 2.10 {pull}34760[#34760] (issue: {issue}32160[#32160])

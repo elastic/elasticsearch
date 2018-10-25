@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.GetLifecycleAction.Res
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
@@ -53,7 +54,12 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
     protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
         IndexLifecycleMetadata metadata = clusterService.state().metaData().custom(IndexLifecycleMetadata.TYPE);
         if (metadata == null) {
-            listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}", Arrays.toString(request.getPolicyNames())));
+            if (request.getPolicyNames().length == 0) {
+                listener.onResponse(new Response(Collections.emptyList()));
+            } else {
+                listener.onFailure(new ResourceNotFoundException("Lifecycle policy not found: {}",
+                    Arrays.toString(request.getPolicyNames())));
+            }
         } else {
             List<LifecyclePolicyResponseItem> requestedPolicies;
             // if no policies explicitly provided, behave as if `*` was specified

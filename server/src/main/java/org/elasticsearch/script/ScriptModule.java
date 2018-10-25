@@ -22,7 +22,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,10 +40,11 @@ public class ScriptModule {
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {
         CORE_CONTEXTS = Stream.of(
-            SearchScript.CONTEXT,
+            FieldScript.CONTEXT,
             AggregationScript.CONTEXT,
             ScoreScript.CONTEXT,
-            SearchScript.SCRIPT_SORT_CONTEXT,
+            NumberSortScript.CONTEXT,
+            StringSortScript.CONTEXT,
             TermsSetQueryScript.CONTEXT,
             UpdateScript.CONTEXT,
             BucketAggregationScript.CONTEXT,

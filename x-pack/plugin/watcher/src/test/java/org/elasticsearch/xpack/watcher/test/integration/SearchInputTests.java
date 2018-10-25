@@ -76,7 +76,6 @@ public class SearchInputTests extends ESTestCase {
         engines.put(MockMustacheScriptEngine.NAME, new MockMustacheScriptEngine());
         Map<String, ScriptContext<?>> contexts = new HashMap<>();
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
-        contexts.put(Watcher.SCRIPT_SEARCH_CONTEXT.name, Watcher.SCRIPT_SEARCH_CONTEXT);
         contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
         scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
 

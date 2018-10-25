@@ -137,7 +137,7 @@ spaceFilter
 SELECT SPACE(languages) spaces, languages FROM "test_emp" WHERE SPACE(languages) = '   ';
 
 spaceFilterWithLengthFunctions
-SELECT SPACE(languages) spaces, languages, first_name FROM "test_emp" WHERE CHAR_LENGTH(SPACE(languages)) = 3 ORDER BY first_name;
+SELECT SPACE(languages) spaces, languages, first_name FROM "test_emp" WHERE CHAR_LENGTH(SPACE(languages)) = 3 ORDER BY first_name NULLS LAST;
 
 spaceInline1
 SELECT SPACE(5) space;
@@ -189,7 +189,7 @@ ltrimGroupByAndOrderBy
 SELECT LTRIM(first_name) lt FROM "test_emp" GROUP BY LTRIM(first_name) HAVING COUNT(*)>1;
 
 spaceGroupByWithCharLength
-SELECT CAST(CHAR_LENGTH(SPACE(languages)) AS INT) cls FROM "test_emp" GROUP BY CHAR_LENGTH(SPACE(languages));
+SELECT CAST(CHAR_LENGTH(SPACE(languages)) AS INT) cls FROM "test_emp" GROUP BY CHAR_LENGTH(SPACE(languages)) ORDER BY CHAR_LENGTH(SPACE(languages)) ASC;
 
 spaceGroupByAndOrderBy
 SELECT SPACE("languages") s, COUNT(*) count FROM "test_emp" GROUP BY SPACE("languages") ORDER BY SPACE(languages);
@@ -228,7 +228,7 @@ selectSubstringWithWhereAndGroupBy
 SELECT SUBSTRING("first_name",5,20) modified, COUNT(*) count FROM "test_emp" GROUP BY SUBSTRING("first_name",5,20) ORDER BY SUBSTRING("first_name",5,20) LIMIT 10;
 
 selectReplace
-SELECT REPLACE("first_name",'A','X') modified, "first_name" origFN FROM "test_emp" ORDER BY "first_name" LIMIT 10;
+SELECT REPLACE("first_name",'A','X') modified, "first_name" origFN FROM "test_emp" ORDER BY "first_name" NULLS LAST LIMIT 10;
 
 selectReplaceWithGroupBy
 SELECT REPLACE("first_name",'jan','_JAN_') modified, COUNT(*) count FROM "test_emp" GROUP BY REPLACE("first_name",'jan','_JAN_') ORDER BY REPLACE("first_name",'jan','_JAN_') LIMIT 10;
@@ -237,10 +237,10 @@ selectReplaceWithCastAndCondition
 SELECT REPLACE(CAST("languages" AS VARCHAR),'1','100') foo, "languages" FROM "test_emp" WHERE "languages"=1 OR "languages"=2 LIMIT 5;
 
 selectPositionWithConditionAndLcase
-SELECT POSITION('x',LCASE("first_name")) pos, "first_name" FROM "test_emp" WHERE POSITION('x',LCASE("first_name")) != 0;
+SELECT POSITION('x',LCASE("first_name")) pos, "first_name" FROM "test_emp" WHERE POSITION('x',LCASE("first_name")) > 0 ORDER BY "first_name" NULLS LAST;
 
 selectPositionWithLcaseAndConditionWithGroupByAndOrderBy
-SELECT POSITION('m',LCASE("first_name")) posOfM, COUNT(*) pos FROM "test_emp" WHERE POSITION('m',LCASE("first_name")) != 0 GROUP BY POSITION('m',LCASE("first_name")) ORDER BY POSITION('m',LCASE("first_name")) DESC;
+SELECT POSITION('m',LCASE("first_name")) posOfM, COUNT(*) pos FROM "test_emp" WHERE POSITION('m',LCASE("first_name")) > 0 GROUP BY POSITION('m',LCASE("first_name")) ORDER BY POSITION('m',LCASE("first_name")) NULLS LAST;
 
 selectInsertWithPositionAndCondition
 SELECT INSERT("first_name",POSITION('m',"first_name"),1,'M') modified, POSITION('m',"first_name") pos FROM "test_emp" WHERE POSITION('m',"first_name") > 1;
@@ -252,10 +252,10 @@ selectLocateAndInsertWithLocateWithConditionAndTwoParameters
 SELECT LOCATE('a',"first_name") pos, INSERT("first_name",LOCATE('a',"first_name"),1,'AAA') inserted FROM "test_emp" WHERE LOCATE('a',"first_name") > 0 ORDER BY "first_name" LIMIT 10;
 
 selectLeft
-SELECT LEFT("first_name",2) f FROM "test_emp" ORDER BY "first_name" LIMIT 10;
+SELECT LEFT("first_name",2) f FROM "test_emp" ORDER BY "first_name" NULLS LAST LIMIT 10;
 
 selectRight
-SELECT RIGHT("first_name",2) f FROM "test_emp" ORDER BY "first_name" LIMIT 10;
+SELECT RIGHT("first_name",2) f FROM "test_emp" ORDER BY "first_name" NULLS LAST LIMIT 10;
 
 selectRightWithGroupByAndOrderBy
 SELECT RIGHT("first_name",2) f, COUNT(*) count FROM "test_emp" GROUP BY RIGHT("first_name",2) ORDER BY RIGHT("first_name",2) LIMIT 10;

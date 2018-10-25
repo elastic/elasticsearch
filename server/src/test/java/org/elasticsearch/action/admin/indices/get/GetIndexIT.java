@@ -73,7 +73,7 @@ public class GetIndexIT extends ESIntegTestCase {
             client().admin().indices().prepareGetIndex().addIndices("missing_idx").get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
+            assertThat(e.getMessage(), is("no such index [missing_idx]"));
         }
     }
 

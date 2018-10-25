@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.HasAttributeNodeSelector;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -106,6 +106,8 @@ public class DoSection implements ExecutableSection {
             } else if (token.isValue()) {
                 if ("catch".equals(currentFieldName)) {
                     doSection.setCatch(parser.text());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "unsupported field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("warnings".equals(currentFieldName)) {
@@ -181,7 +183,7 @@ public class DoSection implements ExecutableSection {
     }
 
 
-    private static final Logger logger = Loggers.getLogger(DoSection.class);
+    private static final Logger logger = LogManager.getLogger(DoSection.class);
 
     private final XContentLocation location;
     private String catchParam;

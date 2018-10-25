@@ -16,6 +16,22 @@ import java.util.Properties;
 
 public class LocalH2 extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
 
+    /*
+     * The syntax on the connection string is fairly particular:
+     *      mem:; creates an anonymous database in memory. The `;` is
+     *              technically the separator that comes after the name.
+     *      DATABASE_TO_UPPER=false turns *off* H2's Oracle-like habit
+     *              of upper-casing everything that isn't quoted.
+     *      ALIAS_COLUMN_NAME=true turn *on* returning alias names in
+     *              result set metadata which is what most DBs do except
+     *              for MySQL and, by default, H2. Our jdbc driver does it.
+     */
+    // http://www.h2database.com/html/features.html#in_memory_databases
+    private static String memUrl(String name) {
+        String n = name == null ? "" : name;
+        return "jdbc:h2:mem:" + n + ";DATABASE_TO_UPPER=false;ALIAS_COLUMN_NAME=true";
+    }
+
     static {
         try {
             // Initialize h2 so we can use it for testing
@@ -30,7 +46,7 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
      * Closing the connection will remove the db.
      */
     public static Connection anonymousDb() throws SQLException {
-        return DriverManager.getConnection("jdbc:h2:mem:;DATABASE_TO_UPPER=false;ALIAS_COLUMN_NAME=true");
+        return DriverManager.getConnection(memUrl(null));
     }
 
     private static final Properties DEFAULTS = new Properties();
@@ -41,19 +57,8 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
 
     private CheckedConsumer<Connection, SQLException> initializer;
 
-    /*
-     * The syntax on the connection string is fairly particular:
-     *      mem:; creates an anonymous database in memory. The `;` is
-     *              technically the separator that comes after the name.
-     *      DATABASE_TO_UPPER=false turns *off* H2's Oracle-like habit
-     *              of upper-casing everything that isn't quoted.
-     *      ALIAS_COLUMN_NAME=true turn *on* returning alias names in
-     *              result set metadata which is what most DBs do except
-     *              for MySQL and, by default, H2. Our jdbc driver does it.
-     */
-    // http://www.h2database.com/html/features.html#in_memory_databases
     public LocalH2(CheckedConsumer<Connection, SQLException> initializer) {
-        this.url = "jdbc:h2:mem:essql;DATABASE_TO_UPPER=false;ALIAS_COLUMN_NAME=true";
+        this.url = memUrl("essql");
         this.initializer = initializer;
     }
 

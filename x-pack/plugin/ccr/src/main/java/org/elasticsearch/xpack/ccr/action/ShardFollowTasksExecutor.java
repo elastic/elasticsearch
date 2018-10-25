@@ -67,15 +67,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     @Override
     public void validate(ShardFollowTask params, ClusterState clusterState) {
-        if (params.getLeaderCluster() == null) {
-            // We can only validate IndexRoutingTable in local cluster,
-            // for remote cluster we would need to make a remote call and we cannot do this here.
-            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getLeaderShardId().getIndex());
-            if (routingTable.shard(params.getLeaderShardId().id()).primaryShard().started() == false) {
-                throw new IllegalArgumentException("Not all copies of leader shard are started");
-            }
-        }
-
         IndexRoutingTable routingTable = clusterState.getRoutingTable().index(params.getFollowShardId().getIndex());
         if (routingTable.shard(params.getFollowShardId().id()).primaryShard().started() == false) {
             throw new IllegalArgumentException("Not all copies of follow shard are started");
@@ -88,8 +79,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
         final Client leaderClient;
-        if (params.getLeaderCluster() != null) {
-            leaderClient = wrapClient(client.getRemoteClusterClient(params.getLeaderCluster()), params.getHeaders());
+        if (params.getRemoteCluster() != null) {
+            leaderClient = wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
         } else {
             leaderClient = wrapClient(client, params.getHeaders());
         }
@@ -162,8 +153,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     new ShardChangesAction.Request(params.getLeaderShardId(), recordedLeaderShardHistoryUUID);
                 request.setFromSeqNo(from);
                 request.setMaxOperationCount(maxOperationCount);
-                request.setMaxBatchSize(params.getMaxBatchSize());
-                request.setPollTimeout(params.getPollTimeout());
+                request.setMaxBatchSize(params.getMaxReadRequestSize());
+                request.setPollTimeout(params.getReadPollTimeout());
                 leaderClient.execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
             }
         };

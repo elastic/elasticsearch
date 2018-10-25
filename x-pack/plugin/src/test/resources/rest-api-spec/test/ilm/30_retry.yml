@@ -5,7 +5,6 @@ setup:
           wait_for_status: yellow
 
   - do:
-      acknowlege: true
       ilm.put_lifecycle:
         policy: "my_lifecycle"
         body: |
@@ -29,7 +28,6 @@ setup:
            }
 
   - do:
-      acknowledge: true
       ilm.get_lifecycle:
         policy: "my_lifecycle"
 
@@ -37,12 +35,10 @@ setup:
 teardown:
 
   - do:
-      acknowledge: true
       indices.delete:
         index: my_index
 
   - do:
-      acknowledge: true
       ilm.delete_lifecycle:
         policy: "my_lifecycle"
 
@@ -69,7 +65,6 @@ teardown:
   - match: { error.root_cause.0.reason: "cannot retry an action for an index [my_index] that has not encountered an error when running a Lifecycle Policy" }
 
   - do:
-      acknowledge: true
       ilm.explain_lifecycle:
         index: "my_index"
   - match: { indices.my_index.policy: "my_lifecycle" }

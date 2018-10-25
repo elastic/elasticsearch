@@ -203,16 +203,27 @@ GET /_cluster/state?filter_path=TODO
 
 It is possible to perform some cluster maintenance tasks without taking the
 whole cluster offline, such as a <<rolling-upgrades,rolling restart>>.  A
-rolling restart does not require any special handling for the master nodes or
-any use of the APIs described here. During a rolling restart the restarting
-node will be offline, and this reduces the cluster's ability to tolerate faults
-of its other nodes. If it is necessary to avoid this, you can temporarily add a
-new master node to the cluster as described above, perform the rolling restart,
-and then remove the extra master node again.
+rolling restart does not require any special handling for the master-eligible
+nodes or any use of the APIs described here. During a rolling restart the
+restarting node will be offline, and this reduces the cluster's ability to
+tolerate faults of its other nodes. If it is necessary to avoid this, you can
+temporarily add a new master node to the cluster as described above, perform
+the rolling restart, and then remove the extra master node again.
 
 It is also possible to perform a migration of a cluster onto entirely new nodes
 without taking the cluster offline. A _rolling migration_ is similar to a
-rolling restart, in that it is performed one node at a time.
+rolling restart, in that it is performed one node at a time, and also requires
+no special handling for the master-eligible nodes.
+
+Alternatively a migration can be performed by starting up all the new nodes at
+once, each configured to join the existing cluster, migrating all the data
+using <<shard-allocation-filtering,shard allocation filtering>>, and then
+shutting down the old nodes. Care must be taken not to shut the master-eligible
+nodes down too quickly since a majority of the voting configuration is always
+required to keep the cluster alive. This can be done with the `GET
+/_nodes/node_name/await_removal` API described above, or else the old
+master-eligible nodes may all be retired so that they do not form part of the
+voting configuration.
 
 [float]
 === Cluster bootstrapping

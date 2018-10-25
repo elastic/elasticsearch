@@ -101,14 +101,13 @@ When the index is first taken over by ILM you will see a response like the follo
       "index": "my_index",
       "managed": true, <1>
       "policy": "my_policy", <2>
-      "skip": false, <3>
-      "lifecycle_date": 1538475653281, <4>
-      "phase": "new", <5>
-      "phase_time": 1538475653317, <6>
-      "action": "complete", <7>
-      "action_time": 1538475653317, <8>
-      "step": "complete", <9>
-      "step_time": 1538475653317 <10>
+      "lifecycle_date": 1538475653281, <3>
+      "phase": "new", <4>
+      "phase_time": 1538475653317, <5>
+      "action": "complete", <6>
+      "action_time": 1538475653317, <7>
+      "step": "complete", <8>
+      "step_time": 1538475653317 <9>
     }
   }
 }
@@ -121,14 +120,13 @@ When the index is first taken over by ILM you will see a response like the follo
 <1> Shows if the index is being managed by ILM. If the index is not managed by
 ILM the other fields will not be shown
 <2> The name of the policy which ILM is using for this index
-<3> Shows whether ILM execution for the index is currently set to be skipped
-<4> The timestamp used for the `minimum_age`
-<5> The current phase
-<6> The timestamp for when the index entered the current phase
-<7> The current action
-<8> The timestamp for when the index entered the current action
-<9> The current step
-<10> The timestamp for when the index entered the current step
+<3> The timestamp used for the `minimum_age`
+<4> The current phase
+<5> The timestamp for when the index entered the current phase
+<6> The current action
+<7> The timestamp for when the index entered the current action
+<8> The current step
+<9> The timestamp for when the index entered the current step
 
 When the policy is running on the index the response will contain a
 `phase_execution` object that describes the exact phase that is being run.
@@ -143,7 +141,6 @@ phase definition has been completely executed.
       "index": "test-000069",
       "managed": true,
       "policy": "my_lifecycle3",
-      "skip": false,
       "lifecycle_date": "2018-10-15T13:45:21.981Z",
       "phase": "hot",
       "phase_time": "2018-10-15T13:45:22.577Z",
@@ -190,7 +187,6 @@ If the policy is waiting for a step to complete for the index, the response will
       "index": "test-000020",
       "managed": true,
       "policy": "my_lifecycle3",
-      "skip": false,
       "lifecycle_date": "2018-10-15T13:20:28.042Z",
       "phase": "warm",
       "phase_time": "2018-10-15T13:20:28.428Z",
@@ -249,7 +245,6 @@ that occurred in `step_info`.
       "index": "test-000056",
       "managed": true,
       "policy": "my_lifecycle3",
-      "skip": false,
       "lifecycle_date": "2018-10-15T13:38:26.209Z",
       "phase": "hot",
       "phase_time": "2018-10-15T13:38:26.706Z",

@@ -214,10 +214,6 @@ public final class ReservedFieldNames {
             AnalysisLimits.MODEL_MEMORY_LIMIT.getPreferredName(),
             AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT.getPreferredName(),
 
-            CategorizationAnalyzerConfig.CHAR_FILTERS.getPreferredName(),
-            CategorizationAnalyzerConfig.TOKENIZER.getPreferredName(),
-            CategorizationAnalyzerConfig.TOKEN_FILTERS.getPreferredName(),
-
             Detector.DETECTOR_DESCRIPTION_FIELD.getPreferredName(),
             Detector.FUNCTION_FIELD.getPreferredName(),
             Detector.FIELD_NAME_FIELD.getPreferredName(),

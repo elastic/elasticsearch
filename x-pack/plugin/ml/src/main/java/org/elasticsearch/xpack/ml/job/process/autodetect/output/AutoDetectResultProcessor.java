@@ -467,6 +467,7 @@ public class AutoDetectResultProcessor {
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
         updateRequest.retryOnConflict(3);
         updateRequest.doc(update);
+        updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest, listener);
     }
 

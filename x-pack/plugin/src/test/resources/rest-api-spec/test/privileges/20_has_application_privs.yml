@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      features: headers
+
   - do:
       cluster.health:
         wait_for_status: yellow
@@ -128,9 +131,6 @@ teardown:
         ignore: 404
 ---
 "Test has_privileges with application-privileges":
-  - skip:
-      features: headers
-
   - do:
       headers: { Authorization: "Basic ZW5nX3JlYWQ6cEBzc3cwcmQ=" } # eng_read
       xpack.security.has_privileges:

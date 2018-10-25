@@ -288,10 +288,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertNull(indexStatus.get("phase"));
             assertNull(indexStatus.get("action"));
             assertNull(indexStatus.get("step"));
-            assertEquals("policy [does_not_exist] does not exist",
-                ((Map<String, String>)indexStatus.get("step_info")).get("reason"));
-            assertEquals("illegal_argument_exception",
-                ((Map<String, String>)indexStatus.get("step_info")).get("type"));
+            Map<String, String> stepInfo = (Map<String, String>) indexStatus.get("step_info");
+            assertNotNull(stepInfo);
+            assertEquals("policy [does_not_exist] does not exist", stepInfo.get("reason"));
+            assertEquals("illegal_argument_exception", stepInfo.get("type"));
         });
 
     }

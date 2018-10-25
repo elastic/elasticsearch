@@ -14,12 +14,9 @@ import org.elasticsearch.common.unit.TimeValue;
 public class LifecycleSettings {
     public static final String LIFECYCLE_POLL_INTERVAL = "indices.lifecycle.poll_interval";
     public static final String LIFECYCLE_NAME = "index.lifecycle.name";
-    public static final String LIFECYCLE_SKIP = "index.lifecycle.skip";
 
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.positiveTimeSetting(LIFECYCLE_POLL_INTERVAL,
         TimeValue.timeValueMinutes(10), Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> LIFECYCLE_NAME_SETTING = Setting.simpleString(LIFECYCLE_NAME,
-        Setting.Property.Dynamic, Setting.Property.IndexScope);
-    public static final Setting<Boolean> LIFECYCLE_SKIP_SETTING = Setting.boolSetting(LIFECYCLE_SKIP, false,
         Setting.Property.Dynamic, Setting.Property.IndexScope);
 }

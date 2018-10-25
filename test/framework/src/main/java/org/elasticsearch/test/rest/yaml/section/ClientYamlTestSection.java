@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -54,7 +53,7 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
 
     private final XContentLocation location;
     private final String name;
-    private SkipSection skipSection;
+    private SkipSection skipSection = SkipSection.EMPTY;
     private final List<ExecutableSection> executableSections;
 
     public ClientYamlTestSection(XContentLocation location, String name) {
@@ -84,29 +83,6 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
     }
 
     public void addExecutableSection(ExecutableSection executableSection) {
-        if (executableSection instanceof DoSection) {
-            DoSection doSection = (DoSection) executableSection;
-            //TODO skip sections from setup and teardown sections should also be checked here, but they are not available at this time.
-            if (false == doSection.getExpectedWarningHeaders().isEmpty()
-                    && false == skipSection.getFeatures().contains("warnings")) {
-                throw new IllegalArgumentException("Attempted to add a [do] with a [warnings] section without a corresponding " +
-                    "[skip: \"features\": \"warnings\"] so runners that do not support the [warnings] section can skip the test at line ["
-                        + doSection.getLocation().lineNumber + "]");
-            }
-            if (NodeSelector.ANY != doSection.getApiCallSection().getNodeSelector()
-                    && false == skipSection.getFeatures().contains("node_selector")) {
-                throw new IllegalArgumentException("Attempted to add a [do] with a [node_selector] section without a corresponding "
-                    + "[skip: \"features\": \"node_selector\"] so runners that do not support the [node_selector] section can skip the " +
-                    "test at line ["
-                    + doSection.getLocation().lineNumber + "]");
-            }
-            if (false == doSection.getApiCallSection().getHeaders().isEmpty()
-                    && false == skipSection.getFeatures().contains("headers")) {
-                throw new IllegalArgumentException("Attempted to add a [do] with a [headers] section without a corresponding "
-                    + "[skip: \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at line ["
-                    + doSection.getLocation().lineNumber + "]");
-            }
-        }
         this.executableSections.add(executableSection);
     }
 

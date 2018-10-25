@@ -69,7 +69,7 @@ public class TeardownSection {
         EMPTY.setSkipSection(SkipSection.EMPTY);
     }
 
-    private SkipSection skipSection;
+    private SkipSection skipSection = SkipSection.EMPTY;
     private List<DoSection> doSections = new ArrayList<>();
 
     public SkipSection getSkipSection() {

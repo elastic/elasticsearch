@@ -20,11 +20,16 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
+import java.util.Collections;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -378,4 +383,127 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser));
         assertThat(e.getMessage(), containsString("duplicate test section"));
     }
+
+    public void testAddingDoWithoutSkips() {
+        int lineNumber = between(1, 10000);
+        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
+        section.setSkipSection(SkipSection.EMPTY);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setApiCallSection(new ApiCallSection("test"));
+        section.addExecutableSection(doSection);
+        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name");
+        clientYamlTestSuite.addTestSection(section);
+    }
+
+    public void testAddingDoWithWarningWithSkipButNotWarnings() {
+        int lineNumber = between(1, 10000);
+        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
+        if (randomBoolean()) {
+            section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
+        }
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setExpectedWarningHeaders(singletonList("foo"));
+        doSection.setApiCallSection(new ApiCallSection("test"));
+        section.addExecutableSection(doSection);
+        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> clientYamlTestSuite.addTestSection(section));
+        assertEquals("Attempted to add a [do] with a [warnings] section without a corresponding [skip: \"features\": \"warnings\"] so " +
+            "runners that do not support the [warnings] section can skip the test at line [" + lineNumber + "]", e.getMessage());
+    }
+
+    public void testAddingDoWithHeaderWithoutSkipHeaders() {
+        int lineNumber = between(1, 10000);
+        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
+        if (randomBoolean()) {
+            section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
+        }
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        ApiCallSection apiCallSection = new ApiCallSection("test");
+        apiCallSection.addHeaders(Collections.singletonMap("header", "value"));
+        doSection.setApiCallSection(apiCallSection);
+        section.addExecutableSection(doSection);
+        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> clientYamlTestSuite.addTestSection(section));
+        assertEquals("Attempted to add a [do] with a [headers] section without a corresponding [skip: \"features\": \"headers\"] so " +
+            "runners that do not support the [headers] section can skip the test at line [" + lineNumber + "]", e.getMessage());
+    }
+
+    public void testAddingDoWithWarningWithSkip() {
+        int lineNumber = between(1, 10000);
+        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name");
+        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
+        SkipSection skipSection = new SkipSection(null, singletonList("warnings"), null);
+        setSkipSection(skipSection, section, clientYamlTestSuite);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        doSection.setExpectedWarningHeaders(singletonList("foo"));
+        doSection.setApiCallSection(new ApiCallSection("test"));
+        section.addExecutableSection(doSection);
+        clientYamlTestSuite.addTestSection(section);
+    }
+
+    public void testAddingDoWithNodeSelectorWithSkip() {
+        int lineNumber = between(1, 10000);
+        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name");
+        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
+        SkipSection skipSection = new SkipSection(null, singletonList("node_selector"), null);
+        setSkipSection(skipSection, section, clientYamlTestSuite);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        ApiCallSection apiCall = new ApiCallSection("test");
+        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
+        doSection.setApiCallSection(apiCall);
+        section.addExecutableSection(doSection);
+        clientYamlTestSuite.addTestSection(section);
+    }
+
+    public void testAddingDoWithHeadersWithSkip() {
+        int lineNumber = between(1, 10000);
+        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name");
+        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
+        SkipSection skipSection = new SkipSection(null, singletonList("headers"), null);
+        setSkipSection(skipSection, section, clientYamlTestSuite);
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        ApiCallSection apiCallSection = new ApiCallSection("test");
+        apiCallSection.addHeaders(singletonMap("foo", "bar"));
+        doSection.setApiCallSection(apiCallSection);
+        section.addExecutableSection(doSection);
+        clientYamlTestSuite.addTestSection(section);
+    }
+
+    private static void setSkipSection(SkipSection skipSection, ClientYamlTestSection section, ClientYamlTestSuite clientYamlTestSuite) {
+        switch(randomIntBetween(0, 2)) {
+            case 0:
+                section.setSkipSection(skipSection);
+                break;
+            case 1:
+                SetupSection setupSection = new SetupSection();
+                setupSection.setSkipSection(skipSection);
+                clientYamlTestSuite.setSetupSection(setupSection);
+                break;
+            case 2:
+                TeardownSection teardownSection = new TeardownSection();
+                teardownSection.setSkipSection(skipSection);
+                clientYamlTestSuite.setTeardownSection(teardownSection);
+                break;
+        }
+    }
+
+
+    public void testAddingDoWithNodeSelectorWithSkipButNotWarnings() {
+        int lineNumber = between(1, 10000);
+        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
+        if (randomBoolean()) {
+            section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
+        }
+        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
+        ApiCallSection apiCall = new ApiCallSection("test");
+        apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
+        doSection.setApiCallSection(apiCall);
+        section.addExecutableSection(doSection);
+        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> clientYamlTestSuite.addTestSection(section));
+        assertEquals("Attempted to add a [do] with a [node_selector] section without a corresponding"
+            + " [skip: \"features\": \"node_selector\"] so runners that do not support the [node_selector] section can skip the test at"
+            + " line [" + lineNumber + "]", e.getMessage());
+    }
+
 }

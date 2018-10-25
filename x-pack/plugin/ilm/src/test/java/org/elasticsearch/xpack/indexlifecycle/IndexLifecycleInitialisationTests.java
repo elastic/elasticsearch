@@ -54,6 +54,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
@@ -64,6 +65,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyTestsUtils.newLockableLifecyclePolicy;
 import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -145,6 +147,15 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         logger.info("Starting server1");
         final String server_1 = internalCluster().startNode();
         final String node1 = getLocalNodeId(server_1);
+
+        // test get-lifecycle behavior when IndexLifecycleMetaData is null
+        GetLifecycleAction.Response getUninitializedLifecycleResponse = client().execute(GetLifecycleAction.INSTANCE,
+            new GetLifecycleAction.Request()).get();
+        assertThat(getUninitializedLifecycleResponse.getPolicies().size(), equalTo(0));
+        ExecutionException exception = expectThrows(ExecutionException.class,() -> client()
+            .execute(GetLifecycleAction.INSTANCE, new GetLifecycleAction.Request("non-existent-policy")).get());
+        assertThat(exception.getMessage(), containsString("Lifecycle policy not found: [non-existent-policy]"));
+
         logger.info("Creating lifecycle [test_lifecycle]");
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         long lowerBoundModifiedDate = Instant.now().toEpochMilli();

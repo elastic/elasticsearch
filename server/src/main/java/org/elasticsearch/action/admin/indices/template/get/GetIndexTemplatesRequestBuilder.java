@@ -34,4 +34,4 @@ public class GetIndexTemplatesRequestBuilder extends MasterNodeReadOperationRequ
         super(client, action, new GetIndexTemplatesRequest(names));
     }
 }
-D
+

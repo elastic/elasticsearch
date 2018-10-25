@@ -278,12 +278,8 @@ final class Verifier {
                     // e.g.: if "GROUP BY f2(f1(field))" you can "ORDER BY f4(f3(f2(f1(field))))"
                     //
                     // Also, make sure to compare attributes directly
-                    final boolean[] matched = {false};
-                    e.forEachDown(expression ->
-                            matched[0] |= Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
-                                g -> expression.semanticEquals(expression instanceof Attribute ? Expressions.attribute(g) : g))
-                    );
-                    if (matched[0]) {
+                    if (e.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
+                        g -> expression.semanticEquals(expression instanceof Attribute ? Expressions.attribute(g) : g)))) {
                         return;
                     }
 
@@ -304,6 +300,11 @@ final class Verifier {
             }
         }
         return true;
+    }
+
+    private static boolean lala(Expression e, List<Expression> groupingAndMatchingAggregatesAliases) {
+        return e.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
+            g -> expression.semanticEquals(expression instanceof Attribute ? Expressions.attribute(g) : g)));
     }
 
 

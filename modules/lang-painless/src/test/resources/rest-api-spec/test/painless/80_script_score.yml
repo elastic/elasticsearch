@@ -35,6 +35,7 @@
             body:
                 query:
                     script_score:
+                        query: {match_all: {} }
                         script:
                             source: "decayGeoLinear(params.origin, params.scale, params.offset, params.decay, doc['location'].value)"
                             params:
@@ -53,6 +54,7 @@
             body:
                 query:
                     script_score:
+                        query: {match_all: {} }
                         script:
                             source: "decayGeoExp(params.origin, params.scale, params.offset, params.decay, doc['location'].value)"
                             params:
@@ -70,6 +72,7 @@
             body:
                 query:
                     script_score:
+                        query: {match_all: {} }
                         script:
                             source: "decayGeoGauss(params.origin, params.scale, params.offset, params.decay, doc['location'].value)"
                             params:
@@ -115,6 +118,7 @@
             body:
                 query:
                     script_score:
+                        query: {match_all: {} }
                         script:
                             source: "decayDateLinear(params.origin, params.scale, params.offset, params.decay, doc['date'].value)"
                             params:
@@ -133,6 +137,7 @@
             body:
                 query:
                     script_score:
+                        query: {match_all: {} }
                         script:
                             source: "decayDateExp(params.origin, params.scale, params.offset, params.decay, doc['date'].value)"
                             params:
@@ -150,6 +155,7 @@
             body:
                 query:
                     script_score:
+                        query: {match_all: {} }
                         script:
                             source: "decayDateGauss(params.origin, params.scale, params.offset, params.decay, doc['date'].value)"
                             params:
@@ -204,12 +210,13 @@
             body:
                 query:
                     script_score:
+                        query: {match_all: {} }
                         script:
                             source: "decayNumericLinear(params.origin, params.scale, params.offset, params.decay, doc['ival'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
@@ -221,12 +228,13 @@
             body:
                 query:
                     script_score:
+                        query: {match_all: {} }
                         script:
                             source: "decayNumericLinear(params.origin, params.scale, params.offset, params.decay, doc['lval'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
@@ -238,12 +246,13 @@
             body:
                 query:
                     script_score:
+                        query: {match_all: {} }
                         script:
                             source: "decayNumericLinear(params.origin, params.scale, params.offset, params.decay, doc['fval'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
@@ -255,12 +264,13 @@
             body:
                 query:
                     script_score:
+                        query: {match_all: {} }
                         script:
                             source: "decayNumericLinear(params.origin, params.scale, params.offset, params.decay, doc['dval'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
@@ -272,12 +282,13 @@
             body:
                 query:
                     script_score:
+                        query: {match_all: {} }
                         script:
                             source: "decayNumericExp(params.origin, params.scale, params.offset, params.decay, doc['ival'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
@@ -289,12 +300,13 @@
             body:
                 query:
                     script_score:
-                        script:
+                      query: {match_all: {} }
+                      script:
                             source: "decayNumericExp(params.origin, params.scale, params.offset, params.decay, doc['lval'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
@@ -306,12 +318,13 @@
             body:
                 query:
                     script_score:
-                        script:
+                      query: {match_all: {} }
+                      script:
                             source: "decayNumericExp(params.origin, params.scale, params.offset, params.decay, doc['fval'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
@@ -323,12 +336,13 @@
             body:
                 query:
                     script_score:
-                        script:
+                      query: {match_all: {} }
+                      script:
                             source: "decayNumericExp(params.origin, params.scale, params.offset, params.decay, doc['dval'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
@@ -340,12 +354,13 @@
             body:
                 query:
                     script_score:
-                        script:
+                      query: {match_all: {} }
+                      script:
                             source: "decayNumericGauss(params.origin, params.scale, params.offset, params.decay, doc['ival'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
@@ -357,12 +372,13 @@
             body:
                 query:
                     script_score:
-                        script:
+                      query: {match_all: {} }
+                      script:
                             source: "decayNumericGauss(params.origin, params.scale, params.offset, params.decay, doc['lval'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
@@ -374,12 +390,13 @@
             body:
                 query:
                     script_score:
-                        script:
+                      query: {match_all: {} }
+                      script:
                             source: "decayNumericGauss(params.origin, params.scale, params.offset, params.decay, doc['fval'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }
@@ -391,12 +408,13 @@
             body:
                 query:
                     script_score:
-                        script:
+                      query: {match_all: {} }
+                      script:
                             source: "decayNumericGauss(params.origin, params.scale, params.offset, params.decay, doc['dval'].value)"
                             params:
-                                origin: "20"
-                                scale: "10"
-                                offset: "0"
+                                origin: 20
+                                scale: 10
+                                offset: 0
                                 decay: 0.9
     - match: { hits.total: 2 }
     - match: { hits.hits.0._id : "2" }

@@ -19,12 +19,11 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -33,13 +32,15 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A query that computes a document score based on the provided script
@@ -62,6 +63,7 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
      * @param scriptScoreFunctionBuilder defines script function
      */
     public ScriptScoreQueryBuilder(QueryBuilder query, ScriptScoreFunctionBuilder scriptScoreFunctionBuilder) {
+        // require the supply of the query, even the explicit supply of "match_all" query
         if (query == null) {
             throw new IllegalArgumentException("script_score: query must not be null");
         }
@@ -96,21 +98,11 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         return this.query;
     }
 
-    /**
-     * Returns the script function builder
-     */
-    public ScriptScoreFunctionBuilder scriptScoreFunctionBuilder() {
-        return this.scriptScoreFunctionBuilder;
-    }
-
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (query != null) {
-            builder.field(QUERY_FIELD.getPreferredName());
-            query.toXContent(builder, params);
-        }
+        builder.field(QUERY_FIELD.getPreferredName());
+        query.toXContent(builder, params);
         builder.field(SCRIPT_FIELD.getPreferredName(), scriptScoreFunctionBuilder.getScript());
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
@@ -149,9 +141,6 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     protected Query doToQuery(QueryShardContext context) throws IOException {
         ScriptScoreFunction function = (ScriptScoreFunction) scriptScoreFunctionBuilder.toFunction(context);
         Query query = this.query.toQuery(context);
-        if (query == null) {
-            query = new MatchAllDocsQuery();
-        }
         return new ScriptScoreQuery(query, function, minScore);
     }
 
@@ -172,59 +161,25 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         InnerHitContextBuilder.extractInnerHits(query(), innerHits);
     }
 
-    public static ScriptScoreQueryBuilder fromXContent(XContentParser parser) throws IOException {
-        QueryBuilder query = null;
-        ScriptScoreFunctionBuilder functionBuilder = null;
-        String queryName = null;
-        Float minScore = null;
-        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+    private static ConstructingObjectParser<ScriptScoreQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, false,
+        args -> {
+            ScriptScoreFunctionBuilder ssFunctionBuilder = new ScriptScoreFunctionBuilder((Script) args[1]);
+            ScriptScoreQueryBuilder ssQueryBuilder = new ScriptScoreQueryBuilder((QueryBuilder) args[0], ssFunctionBuilder);
+            if (args[2] != null) ssQueryBuilder.setMinScore((Float) args[2]);
+            if (args[3] != null) ssQueryBuilder.boost((Float) args[3]);
+            if (args[4] != null) ssQueryBuilder.queryName((String) args[4]);
+            return ssQueryBuilder;
+        });
 
-        String currentFieldName = null;
-        XContentParser.Token token;
+    static {
+        PARSER.declareObject(constructorArg(), (p,c) -> parseInnerQueryBuilder(p), QUERY_FIELD);
+        PARSER.declareObject(constructorArg(), (p,c) -> Script.parse(p), SCRIPT_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), AbstractQueryBuilder.BOOST_FIELD);
+        PARSER.declareString(optionalConstructorArg(), AbstractQueryBuilder.NAME_FIELD);
+    }
 
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    if (query != null) {
-                        throw new ParsingException(
-                            parser.getTokenLocation(), "failed to parse [{}] query. [query] is already defined.", NAME);
-                    }
-                    query = parseInnerQueryBuilder(parser);
-                } else if (SCRIPT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    Script script = Script.parse(parser);
-                    functionBuilder = new ScriptScoreFunctionBuilder(script);
-                } else {
-                    throw new ParsingException(
-                        parser.getTokenLocation(), "failed to parse [{}] query. field [{}] is not supported", NAME, currentFieldName);
-                }
-            } else if (token.isValue()) {
-                if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    boost = parser.floatValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    queryName = parser.text();
-                } else if (MIN_SCORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    minScore = parser.floatValue();
-                } else {
-                    throw new ParsingException(
-                        parser.getTokenLocation(), "failed to parse [{}] query. field [{}] is not supported", NAME, currentFieldName);
-                }
-            } else {
-                throw new ParsingException(
-                    parser.getTokenLocation(), "failed to parse [{}] query. field [{}] is not supported", NAME, currentFieldName);
-            }
-        }
-
-        if (query == null) {
-            query = new MatchAllQueryBuilder();
-        }
-        ScriptScoreQueryBuilder scriptScoreQueryBuilder = new ScriptScoreQueryBuilder(query, functionBuilder);
-        if (minScore != null) {
-            scriptScoreQueryBuilder.setMinScore(minScore);
-        }
-        scriptScoreQueryBuilder.boost(boost);
-        scriptScoreQueryBuilder.queryName(queryName);
-        return scriptScoreQueryBuilder;
+    public static ScriptScoreQueryBuilder fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

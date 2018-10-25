@@ -8,9 +8,8 @@ the score on a filtered set of documents.
 
 To use `script_score`, you have to define a query and a script -
 a function to be used to compute a new score for each document returned
-by the query. A script can be written  using either
-<<modules-scripting-painless, painless>> (default)  or
-<<modules-scripting-expression, expression>> languages.
+by the query. For more information on scripting see
+<<modules-scripting, scripting documentation>>.
 
 
 Here is an example of using `script_score` to assign each matched document
@@ -49,7 +48,7 @@ You can use any of the available
 Besides these functions, there are a number of predefined functions
 that can help you with scoring. We suggest you to use them instead of
 rewriting equivalent functions of your own, as these functions try
-to be the most efficient by using the internal painless caching mechanism.
+to be the most efficient by using the internal mechanisms.
 
 ===== rational
 latexmath:[rational(value,k) = value/(k + value)]
@@ -78,19 +77,19 @@ latexmath:[sigmoid(value, k, a) = value^a/ (k^a + value^a)]
 You can read more about decay functions
 <<query-dsl-function-score-query#function-decay, here>>.
 
-* `double decayNumericLinear(String originStr, String scaleStr, String offsetStr, double decay)`
-* `double decayNumericExp(String originStr, String scaleStr, String offsetStr, double decay, double docValue)`
-* `double decayNumericGauss(String originStr, String scaleStr, String offsetStr, double decay, double docValue)`
+* `double decayNumericLinear(double origin, double scale, double offset, double decay, double docValue)`
+* `double decayNumericExp(double origin, double scale, double offset, double decay, double docValue)`
+* `double decayNumericGauss(double origin, double scale, double offset, double decay, double docValue)`
 
 [source,js]
 --------------------------------------------------
 "script" : {
     "source" : "decayNumericLinear(params.origin, params.scale, params.offset, params.decay, doc['dval'].value)",
     "params": { <1>
-        "origin": "20",
-        "scale": "10",
+        "origin": 20,
+        "scale": 10,
         "decay" : 0.5,
-        "offset" : "0"
+        "offset" : 0
     }
 }
 --------------------------------------------------

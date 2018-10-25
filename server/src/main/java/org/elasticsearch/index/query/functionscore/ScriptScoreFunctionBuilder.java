@@ -80,11 +80,6 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     }
 
     @Override
-    public final String getWriteableName() {
-        return getName();
-    }
-
-    @Override
     protected boolean doEquals(ScriptScoreFunctionBuilder functionBuilder) {
         return Objects.equals(this.script, functionBuilder.script);
     }

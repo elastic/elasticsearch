@@ -191,10 +191,9 @@ public final class ScoreScriptImpl extends ScoreScript {
         double offset;
         double scaling;
 
-        public DecayNumericLinear(String originStr, String scaleStr, String offsetStr, double decay) {
-            double scale = Double.parseDouble(scaleStr);
-            this.origin = Double.parseDouble(originStr);
-            this.offset = Double.parseDouble(offsetStr);
+        public DecayNumericLinear(double origin, double scale, double offset, double decay) {
+            this.origin = origin;
+            this.offset = offset;
             this.scaling = scale / (1.0 - decay);
         }
 
@@ -209,10 +208,9 @@ public final class ScoreScriptImpl extends ScoreScript {
         double offset;
         double scaling;
 
-        public DecayNumericExp(String originStr, String scaleStr, String offsetStr, double decay) {
-            double scale = Double.parseDouble(scaleStr);
-            this.origin = Double.parseDouble(originStr);
-            this.offset = Double.parseDouble(offsetStr);
+        public DecayNumericExp(double origin, double scale, double offset, double decay) {
+            this.origin = origin;
+            this.offset = offset;
             this.scaling = Math.log(decay) / scale;
         }
 
@@ -227,10 +225,9 @@ public final class ScoreScriptImpl extends ScoreScript {
         double offset;
         double scaling;
 
-        public DecayNumericGauss(String originStr, String scaleStr, String offsetStr, double decay) {
-            double scale = Double.parseDouble(scaleStr);
-            this.origin = Double.parseDouble(originStr);
-            this.offset = Double.parseDouble(offsetStr);
+        public DecayNumericGauss(double origin, double scale, double offset, double decay) {
+            this.origin = origin;
+            this.offset = offset;
             this.scaling = 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
         }
 

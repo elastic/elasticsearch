@@ -110,7 +110,7 @@ necessary for {metricbeat} to monitor {stack} products. See
 {stack-ov}/built-in-users.html[Built-in users].
 
 Alternatively, you can choose a different user and give them the 
-`remote_monitoring_collector` {ref}/built-in-roles.html[built-in role]. 
+`remote_monitoring_collector` {stack-ov}/built-in-roles.html[built-in role]. 
 --
 
 ... Add the `username` and `password` settings to the {es} module configuration 
@@ -167,7 +167,7 @@ necessary for {metricbeat} to monitor {stack} products. See
 {stack-ov}/built-in-users.html[Built-in users].
 
 Alternatively, you can choose a different user and give them the 
-`remote_monitoring_agent` {ref}/built-in-roles.html[built-in role]. 
+`remote_monitoring_agent` {stack-ov}/built-in-roles.html[built-in role]. 
 --
 
 ... Add the `username` and `password` settings to the {es} output information in 

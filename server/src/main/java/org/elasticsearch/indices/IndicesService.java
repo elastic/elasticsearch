@@ -38,6 +38,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedFunction;
@@ -52,6 +53,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -156,6 +158,21 @@ public class IndicesService extends AbstractLifecycleComponent
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
     public static final Setting<TimeValue> INDICES_CACHE_CLEAN_INTERVAL_SETTING =
         Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), Property.NodeScope);
+    private static final boolean ENFORCE_MAX_SHARDS_PER_NODE;
+
+    static {
+        final String ENFORCE_SHARD_LIMIT_KEY = "es.enforce_max_shards_per_node";
+        final String enforceMaxShardsPerNode = System.getProperty(ENFORCE_SHARD_LIMIT_KEY);
+        if (enforceMaxShardsPerNode == null) {
+            ENFORCE_MAX_SHARDS_PER_NODE = false;
+        } else if ("true".equals(enforceMaxShardsPerNode)) {
+            ENFORCE_MAX_SHARDS_PER_NODE = true;
+        } else {
+            throw new IllegalArgumentException(ENFORCE_SHARD_LIMIT_KEY + " may only be unset or set to [true] but was [" +
+                enforceMaxShardsPerNode + "]");
+        }
+    }
+
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry xContentRegistry;
@@ -1351,5 +1368,42 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public boolean isMetaDataField(String field) {
         return mapperRegistry.isMetaDataField(field);
+    }
+
+    /**
+     * Checks to see if an operation can be performed without taking the cluster over the cluster-wide shard limit. Adds a deprecation
+     * warning or returns an error message as appropriate
+     *
+     * @param newShards         The number of shards to be added by this operation
+     * @param state             The current cluster state
+     * @param deprecationLogger The logger to use for deprecation warnings
+     * @return If present, an error message to be given as the reason for failing
+     * an operation. If empty, a sign that the operation is valid.
+     */
+    public static Optional<String> checkShardLimit(int newShards, ClusterState state, DeprecationLogger deprecationLogger) {
+        Settings theseSettings = state.metaData().settings();
+        int nodeCount = state.getNodes().getDataNodes().size();
+
+        // Only enforce the shard limit if we have at least one data node, so that we don't block
+        // index creation during cluster setup
+        if (nodeCount == 0 || newShards < 0) {
+            return Optional.empty();
+        }
+        int maxShardsPerNode = MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.get(theseSettings);
+        int maxShardsInCluster = maxShardsPerNode * nodeCount;
+        int currentOpenShards = state.getMetaData().getTotalOpenIndexShards();
+
+        if ((currentOpenShards + newShards) > maxShardsInCluster) {
+            String errorMessage = "this action would add [" + newShards + "] total shards, but this cluster currently has [" +
+                currentOpenShards + "]/[" + maxShardsInCluster + "] maximum shards open";
+            if (ENFORCE_MAX_SHARDS_PER_NODE) {
+                return Optional.of(errorMessage);
+            } else {
+                deprecationLogger.deprecated("In a future major version, this request will fail because {}. Before upgrading, " +
+                        "reduce the number of shards in your cluster or adjust the cluster setting [{}].",
+                    errorMessage, MetaData.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey());
+            }
+        }
+        return Optional.empty();
     }
 }

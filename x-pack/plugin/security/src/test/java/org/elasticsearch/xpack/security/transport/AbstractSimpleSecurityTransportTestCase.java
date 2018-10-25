@@ -26,7 +26,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionManager;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.TcpTransport;
@@ -135,7 +134,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
 
-        ConnectionProfile connectionProfile = ConnectionManager.buildDefaultConnectionProfile(Settings.EMPTY);
+        ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
              TcpTransport.NodeChannels connection = originalTransport.openConnection(
                  new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),

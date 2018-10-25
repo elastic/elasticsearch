@@ -10,14 +10,13 @@ managing changes to the cluster state.
 Electing a master node and changing the cluster state are the two fundamental
 tasks that master-eligible nodes must work together to perform. It is important
 that these activities work robustly even if some nodes have failed, and
-Elasticsearch achieves this robustness by involving multiple nodes and only
-considering each action to have succeeded on receipt of responses from a
-majority of the master-eligible nodes in the cluster. The advantage of
-requiring a majority of nodes to respond is that it allows for nearly half of
-the master-eligible nodes to fail without preventing the cluster from making
-progress, but also does not allow the cluster to "split brain", i.e. to be
-partitioned into two pieces each of which may make decisions that are
-inconsistent with those of the other piece.
+Elasticsearch achieves this robustness by only considering each action to have
+succeeded on receipt of responses from a majority of the master-eligible nodes
+in the cluster. The advantage of requiring a majority of nodes to respond is
+that it allows for nearly half of the master-eligible nodes to fail without
+preventing the cluster from making progress, but also does not allow the
+cluster to "split brain", i.e. to be partitioned into two pieces each of which
+may make decisions that are inconsistent with those of the other piece.
 
 Elasticsearch allows you to add and remove master-eligible nodes to a running
 cluster. In many cases you can do this simply by starting or stopping the nodes
@@ -198,6 +197,22 @@ inspected as follows:
 GET /_cluster/state?filter_path=TODO
 --------------------------------------------------
 // CONSOLE
+
+[float]
+=== Rolling restarts and migrations
+
+It is possible to perform some cluster maintenance tasks without taking the
+whole cluster offline, such as a <<rolling-upgrades,rolling restart>>.  A
+rolling restart does not require any special handling for the master nodes or
+any use of the APIs described here. During a rolling restart the restarting
+node will be offline, and this reduces the cluster's ability to tolerate faults
+of its other nodes. If it is necessary to avoid this, you can temporarily add a
+new master node to the cluster as described above, perform the rolling restart,
+and then remove the extra master node again.
+
+It is also possible to perform a migration of a cluster onto entirely new nodes
+without taking the cluster offline. A _rolling migration_ is similar to a
+rolling restart, in that it is performed one node at a time.
 
 [float]
 === Cluster bootstrapping

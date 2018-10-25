@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -34,6 +36,9 @@ import java.util.Map;
  * Helpers to extract and expand field names and boosts
  */
 public final class QueryParserHelper {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(QueryParserHelper.class));
+
     private QueryParserHelper() {}
 
     /**
@@ -85,6 +90,7 @@ public final class QueryParserHelper {
                 !multiField, !allField, fieldSuffix);
             resolvedFields.putAll(fieldMap);
         }
+        checkForTooManyFields(resolvedFields);
         return resolvedFields;
     }
 
@@ -149,6 +155,16 @@ public final class QueryParserHelper {
             }
             fields.put(fieldName, weight);
         }
+        checkForTooManyFields(fields);
         return fields;
+    }
+
+    private static void checkForTooManyFields(Map<String, Float> fields) {
+        if (fields.size() > 1024) {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("field_expansion_limit",
+                    "Field expansion matches too many fields, got: {}. A limit of 1024 will be enforced starting "
+                            + "with version 7.0 of Elasticsearch. Lowering the number of fields will be necessary before upgrading.",
+                    fields.size());
+        }
     }
 }

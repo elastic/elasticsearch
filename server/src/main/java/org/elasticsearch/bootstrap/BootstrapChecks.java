@@ -19,12 +19,12 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -90,7 +90,7 @@ final class BootstrapChecks {
         final BootstrapContext context,
         final boolean enforceLimits,
         final List<BootstrapCheck> checks) throws NodeValidationException {
-        check(context, enforceLimits, checks, Loggers.getLogger(BootstrapChecks.class));
+        check(context, enforceLimits, checks, LogManager.getLogger(BootstrapChecks.class));
     }
 
     /**
@@ -417,7 +417,7 @@ final class BootstrapChecks {
 
         // visible for testing
         long getMaxMapCount() {
-            return getMaxMapCount(Loggers.getLogger(BootstrapChecks.class));
+            return getMaxMapCount(LogManager.getLogger(BootstrapChecks.class));
         }
 
         // visible for testing

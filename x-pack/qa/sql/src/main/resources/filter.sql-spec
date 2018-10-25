@@ -79,6 +79,9 @@ SELECT last_name l FROM "test_emp" WHERE emp_no BETWEEN 9990 AND 10003 ORDER BY 
 whereNotBetween
 SELECT last_name l FROM "test_emp" WHERE emp_no NOT BETWEEN 10010 AND 10020 ORDER BY emp_no LIMIT 5;
 
+whereNoMatch
+SELECT last_name l FROM "test_emp" WHERE 1 = 2 ORDER BY 1 LIMIT 10;
+
 //
 // IN expression
 //

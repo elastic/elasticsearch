@@ -11,23 +11,28 @@ import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 
 public class TermsQuery extends LeafQuery {
 
     private final String term;
-    private final LinkedHashSet<Object> values;
+    private final Set<Object> values;
 
     public TermsQuery(Location location, String term, List<Expression> values) {
         super(location);
         this.term = term;
         values.removeIf(e -> e.dataType() == DataType.NULL);
-        this.values = new LinkedHashSet<>(Foldables.valuesOf(values, values.get(0).dataType()));
-        this.values.removeIf(Objects::isNull);
+        if (values.isEmpty()) {
+            this.values = Collections.emptySet();
+        } else {
+            this.values = new LinkedHashSet<>(Foldables.valuesOf(values, values.get(0).dataType()));
+        }
     }
 
     @Override

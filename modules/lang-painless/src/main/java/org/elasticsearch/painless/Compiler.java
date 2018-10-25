@@ -20,7 +20,6 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.painless.Locals.LocalMethod;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SSource;
@@ -222,8 +221,8 @@ final class Compiler {
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, painlessLookup,
                 null);
-        Map<String, LocalMethod> localMethods = root.analyze(painlessLookup);
-        root.write();
+        root.analyze(painlessLookup);
+        Map<String, Object> statics = root.write();
 
         try {
             Class<? extends PainlessScript> clazz = loader.defineScript(CLASS_NAME, root.getBytes());
@@ -231,7 +230,10 @@ final class Compiler {
             clazz.getField("$SOURCE").set(null, source);
             clazz.getField("$STATEMENTS").set(null, root.getStatements());
             clazz.getField("$DEFINITION").set(null, painlessLookup);
-            clazz.getField("$LOCALS").set(null, localMethods);
+
+            for (Map.Entry<String, Object> statik : statics.entrySet()) {
+                clazz.getField(statik.getKey()).set(null, statik.getValue());
+            }
 
             return clazz.getConstructors()[0];
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.

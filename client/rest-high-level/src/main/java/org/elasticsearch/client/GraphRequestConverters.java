@@ -24,7 +24,9 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 
 import java.io.IOException;
 
-public class GraphRequestConverters {
+final class GraphRequestConverters {
+
+    private GraphRequestConverters() {}
 
     static Request explore(GraphExploreRequest exploreRequest) throws IOException {
         String endpoint = RequestConverters.endpoint(exploreRequest.indices(), exploreRequest.types(), "_xpack/graph/_explore");

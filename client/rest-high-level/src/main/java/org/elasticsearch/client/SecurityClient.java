@@ -237,7 +237,7 @@ public final class SecurityClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public DeleteRoleMappingResponse deleteRoleMapping(DeleteRoleMappingRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::deleteRoleMapping, options,
+        return requestActions.performRequestAndParseEntity(request, SecurityRequestConverters::deleteRoleMapping, options,
                 DeleteRoleMappingResponse::fromXContent, emptySet());
     }
 
@@ -251,7 +251,7 @@ public final class SecurityClient {
      */
     public void deleteRoleMappingAsync(DeleteRoleMappingRequest request, RequestOptions options,
             ActionListener<DeleteRoleMappingResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteRoleMapping, options,
+        requestActions.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteRoleMapping, options,
                 DeleteRoleMappingResponse::fromXContent, listener, emptySet());
     }
 
@@ -265,7 +265,7 @@ public final class SecurityClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public DeleteRoleResponse deleteRole(DeleteRoleRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::deleteRole, options,
+        return requestActions.performRequestAndParseEntity(request, SecurityRequestConverters::deleteRole, options,
             DeleteRoleResponse::fromXContent, singleton(404));
     }
 
@@ -278,7 +278,7 @@ public final class SecurityClient {
      * @param listener the listener to be notified upon request completion
      */
     public void deleteRoleAsync(DeleteRoleRequest request, RequestOptions options, ActionListener<DeleteRoleResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteRole, options,
+        requestActions.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteRole, options,
             DeleteRoleResponse::fromXContent, listener, singleton(404));
     }
 

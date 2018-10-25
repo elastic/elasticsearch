@@ -54,7 +54,7 @@ public final class WatcherClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse startWatchService(StartWatchServiceRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
+        return requestActions.performRequestAndParseEntity(
                 request, WatcherRequestConverters::startWatchService, options, AcknowledgedResponse::fromXContent, emptySet());
     }
 
@@ -66,7 +66,7 @@ public final class WatcherClient {
      */
     public void startWatchServiceAsync(StartWatchServiceRequest request, RequestOptions options,
             ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(
+        requestActions.performRequestAsyncAndParseEntity(
                 request, WatcherRequestConverters::startWatchService, options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -80,7 +80,7 @@ public final class WatcherClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse stopWatchService(StopWatchServiceRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
+        return requestActions.performRequestAndParseEntity(
                 request, WatcherRequestConverters::stopWatchService, options, AcknowledgedResponse::fromXContent, emptySet());
     }
 
@@ -93,7 +93,7 @@ public final class WatcherClient {
      */
     public void stopWatchServiceAsync(StopWatchServiceRequest request, RequestOptions options,
             ActionListener<AcknowledgedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(
+        requestActions.performRequestAsyncAndParseEntity(
                 request, WatcherRequestConverters::stopWatchService, options, AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 

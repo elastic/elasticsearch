@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.xpack.qa.sql.jdbc;
 
+import org.elasticsearch.client.Request;
+
 import java.sql.Connection;
 import java.sql.SQLException;
-import org.elasticsearch.client.Request;
 
 import static org.hamcrest.Matchers.startsWith;
 
@@ -40,7 +41,9 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
 
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM test").executeQuery());
-            assertEquals("Found 1 problem(s)\nline 1:15: [test] doesn't have any types so it is incompatible with sql", e.getMessage());
+            // see https://github.com/elastic/elasticsearch/issues/34719
+            //assertEquals("Found 1 problem(s)\nline 1:15: [test] doesn't have any types so it is incompatible with sql", e.getMessage());
+            assertEquals("Found 1 problem(s)\nline 1:15: Unknown index [test]", e.getMessage());
         }
     }
 

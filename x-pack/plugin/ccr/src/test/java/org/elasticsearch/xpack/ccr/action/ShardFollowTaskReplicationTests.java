@@ -429,7 +429,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                             if (from > seqNoStats.getGlobalCheckpoint()) {
                                 handler.accept(ShardChangesAction.getResponse(1L, seqNoStats,
-                                    maxSeqNoOfUpdatesOrDeletes, ShardChangesAction.EMPTY_OPERATIONS_ARRAY));
+                                    maxSeqNoOfUpdatesOrDeletes, ShardChangesAction.EMPTY_OPERATIONS_ARRAY, 1L));
                                 return;
                             }
                             Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
@@ -440,7 +440,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                 seqNoStats.getGlobalCheckpoint(),
                                 seqNoStats.getMaxSeqNo(),
                                 maxSeqNoOfUpdatesOrDeletes,
-                                ops
+                                ops,
+                                1L
                             );
                             handler.accept(response);
                             return;

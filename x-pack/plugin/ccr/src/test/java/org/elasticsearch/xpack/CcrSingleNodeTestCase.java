@@ -71,7 +71,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
         request.setFollowerIndex("follower");
         request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
-        request.setPollTimeout(TimeValue.timeValueMillis(10));
+        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
         return request;
     }
 
@@ -89,8 +89,8 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
                 client().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
             for (FollowStatsAction.StatsResponse statsResponse : statsResponses.getStatsResponses()) {
                 ShardFollowNodeTaskStatus status = statsResponse.status();
-                assertThat(status.numberOfQueuedWrites(), equalTo(0));
-                assertThat(status.bufferSize(), equalTo(0L));
+                assertThat(status.writeBufferOperationCount(), equalTo(0));
+                assertThat(status.writeBufferSizeInBytes(), equalTo(0L));
             }
         });
     }

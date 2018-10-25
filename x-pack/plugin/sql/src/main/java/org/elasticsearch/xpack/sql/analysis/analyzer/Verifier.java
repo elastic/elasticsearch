@@ -245,8 +245,7 @@ final class Verifier {
                 child = ((Project) child).child();
             }
             if (child instanceof Filter) {
-                Filter f = (Filter) child;
-                child = f.child();
+                child = ((Filter) child).child();
             }
 
             if (child instanceof Aggregate) {

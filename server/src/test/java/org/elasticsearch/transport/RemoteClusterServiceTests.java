@@ -387,8 +387,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
             }
             Settings transportSettings = settingsBuilder.build();
 
-            try (MockTransportService transportService = MockTransportService.createNewService(transportSettings, Version.CURRENT, threadPool,
-                null)) {
+            try (MockTransportService transportService = MockTransportService.createNewService(transportSettings, Version.CURRENT,
+                threadPool, null)) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();

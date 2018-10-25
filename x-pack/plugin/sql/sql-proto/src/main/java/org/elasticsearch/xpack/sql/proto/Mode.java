@@ -13,7 +13,8 @@ import java.util.Locale;
  */
 public enum Mode {
     PLAIN,
-    JDBC;
+    JDBC, 
+    ODBC;
 
     public static Mode fromString(String mode) {
         if (mode == null) {
@@ -26,5 +27,9 @@ public enum Mode {
     @Override
     public String toString() {
         return this.name().toLowerCase(Locale.ROOT);
+    }
+
+    public static boolean isDriver(Mode mode) {
+        return mode == JDBC || mode == ODBC;
     }
 }

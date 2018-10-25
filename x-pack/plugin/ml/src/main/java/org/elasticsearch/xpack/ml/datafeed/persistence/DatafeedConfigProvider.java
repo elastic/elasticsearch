@@ -190,15 +190,16 @@ public class DatafeedConfigProvider extends AbstractComponent {
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSize(jobIds.size())
                 .setSource(sourceBuilder).request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         response -> {
                             Set<String> datafeedIds = new HashSet<>();
-                            SearchHit[] hits = response.getHits().getHits();
                             // There cannot be more than one datafeed per job
-                            assert hits.length <= jobIds.size();
+                            assert response.getHits().totalHits <= jobIds.size();
+                            SearchHit[] hits = response.getHits().getHits();
 
                             for (SearchHit hit : hits) {
                                 datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());

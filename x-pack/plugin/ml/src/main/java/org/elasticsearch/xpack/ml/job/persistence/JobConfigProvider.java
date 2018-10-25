@@ -460,6 +460,7 @@ public class JobConfigProvider extends AbstractComponent {
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSize(ids.size())
                 .setSource(sourceBuilder).request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,

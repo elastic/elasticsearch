@@ -60,17 +60,17 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             assertThat(status.followerGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
             final long numberOfFailedFetches =
                     testRun.responses.values().stream().flatMap(List::stream).filter(f -> f.exception != null).count();
-            assertThat(status.numberOfFailedFetches(), equalTo(numberOfFailedFetches));
+            assertThat(status.failedReadRequests(), equalTo(numberOfFailedFetches));
             // the failures were able to be retried so fetch failures should have cleared
-            assertThat(status.fetchExceptions().entrySet(), hasSize(0));
-            assertThat(status.mappingVersion(), equalTo(testRun.finalMappingVersion));
+            assertThat(status.readExceptions().entrySet(), hasSize(0));
+            assertThat(status.followerMappingVersion(), equalTo(testRun.finalMappingVersion));
         });
 
         task.markAsCompleted();
         assertBusy(() -> {
             ShardFollowNodeTaskStatus status = task.getStatus();
-            assertThat(status.numberOfConcurrentReads(), equalTo(0));
-            assertThat(status.numberOfConcurrentWrites(), equalTo(0));
+            assertThat(status.outstandingReadRequests(), equalTo(0));
+            assertThat(status.outstandingWriteRequests(), equalTo(0));
         });
     }
 
@@ -81,8 +81,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             new ShardId("follow_index", "", 0),
             new ShardId("leader_index", "", 0),
             testRun.maxOperationCount,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             concurrency,
-            TransportResumeFollowAction.DEFAULT_MAX_BATCH_SIZE,
+            testRun.maxOperationCount,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             concurrency,
             10240,
             new ByteSizeValue(512, ByteSizeUnit.MB),

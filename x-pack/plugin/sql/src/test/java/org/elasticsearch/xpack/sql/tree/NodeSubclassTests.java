@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -16,12 +17,17 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
 import org.elasticsearch.xpack.sql.tree.NodeTests.Dummy;
@@ -77,6 +83,7 @@ import static org.mockito.Mockito.mock;
  * node of that type is called for.
  * </ul>
  */
+@Seed("9466D333CABEC8C4")
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
     private final Class<T> subclass;
 
@@ -147,7 +154,6 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     /**
      * Test {@link Node#replaceChildren} implementation on {@link #subclass}.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34775")
     public void testReplaceChildren() throws Exception {
         Constructor<T> ctor = longestCtor(subclass);
         Object[] nodeCtorArgs = ctorArgs(ctor);
@@ -343,20 +349,14 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      */
     @SuppressWarnings("unchecked")
     private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
+
         if (argType instanceof ParameterizedType) {
             ParameterizedType pt = (ParameterizedType) argType;
             if (pt.getRawType() == Map.class) {
-                Map<Object, Object> map = new HashMap<>();
-                int size = between(0, 10);
-                while (map.size() < size) {
-                    Object key = makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
-                    Object value = makeArg(toBuildClass, pt.getActualTypeArguments()[1]);
-                    map.put(key, value);
-                }
-                return map;
+                return makeMap(toBuildClass, pt);
             }
             if (pt.getRawType() == List.class) {
-                return makeList(toBuildClass, pt, between(1, 10));
+                return makeList(toBuildClass, pt);
             }
             if (pt.getRawType() == EnumSet.class) {
                 @SuppressWarnings("rawtypes")
@@ -512,12 +512,37 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
     }
 
+    private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+        return makeList(toBuildClass, listType, randomSizeForCollection(toBuildClass));
+    }
+
     private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         List<Object> list = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
         }
         return list;
+    }
+
+    private static Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
+        Map<Object, Object> map = new HashMap<>();
+        int size = randomSizeForCollection(toBuildClass);
+        while (map.size() < size) {
+            Object key = makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
+            Object value = makeArg(toBuildClass, pt.getActualTypeArguments()[1]);
+            map.put(key, value);
+        }
+        return map;
+    }
+
+    private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
+        int minCollectionLength = 0;
+        int maxCollectionLength = 10;
+        if (toBuildClass == In.class || toBuildClass == InPipe.class || toBuildClass == Percentile.class ||
+            toBuildClass == Percentiles.class || toBuildClass == PercentileRanks.class) {
+            minCollectionLength = 2;
+        }
+        return between(minCollectionLength, maxCollectionLength);
     }
 
     private List<?> makeListOfSameSizeOtherThan(Type listType, List<?> original) throws Exception {

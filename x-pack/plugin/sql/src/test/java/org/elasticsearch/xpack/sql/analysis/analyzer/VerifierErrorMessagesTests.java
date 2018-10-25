@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
+import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
@@ -32,6 +33,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
         return e.getMessage().substring(header.length());
+    }
+
+    private LogicalPlan accepted(String sql) {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
+        EsIndex test = new EsIndex("test", mapping);
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"));
+        return analyzer.analyze(parser.createStatement(sql), true);
     }
 
     public void testMissingIndex() {
@@ -110,6 +118,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY bool"));
     }
 
+    public void testGroupByOrderByAliasedInSelectAllowed() {
+        LogicalPlan lp = accepted("SELECT text t FROM test GROUP BY text ORDER BY t");
+        assertNotNull(lp);
+    }
+
     public void testGroupByOrderByScalarOverNonGrouped() {
         assertEquals("1:50: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
                 verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
@@ -126,7 +139,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testNotSupportedAggregateOnDate() {
-        assertEquals("1:8: Argument required to be numeric ('date' of type 'date')",
+        assertEquals("1:8: Argument required to be numeric ('date' type is 'date')",
             verify("SELECT AVG(date) FROM test"));
     }
 

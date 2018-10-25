@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
+import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Exists;
@@ -249,8 +250,21 @@ final class Verifier {
                         return;
                     }
 
+                    // take aliases declared inside the aggregates which point to the grouping (but are not included in there)
+                    // to correlate them to the order
+                    List<Expression> groupingAndMatchingAggregatesAliases = new ArrayList<>(a.groupings());
+                    
+                    a.aggregates().forEach(as -> {
+                        if (as instanceof Alias) {
+                            Alias al = (Alias) as;
+                            if (Expressions.anyMatch(a.groupings(), g -> Expressions.equalsAsAttribute(al.child(), g))) {
+                                groupingAndMatchingAggregatesAliases.add(al);
+                            }
+                        }
+                    });
+                    
                     // make sure to compare attributes directly
-                    if (Expressions.anyMatch(a.groupings(),
+                    if (Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
                             g -> e.semanticEquals(e instanceof Attribute ? Expressions.attribute(g) : g))) {
                         return;
                     }

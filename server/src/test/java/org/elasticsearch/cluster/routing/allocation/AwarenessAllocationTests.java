@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationComm
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashMap;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AwarenessAllocationTests extends ESAllocationTestCase {
 
-    private final Logger logger = Loggers.getLogger(AwarenessAllocationTests.class);
+    private final Logger logger = LogManager.getLogger(AwarenessAllocationTests.class);
 
     public void testMoveShardOnceNewNodeWithAttributeAdded1() {
         AllocationService strategy = createAllocationService(Settings.builder()

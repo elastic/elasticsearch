@@ -38,7 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
-
     public void testHeadRoot() throws IOException {
         headTestCase("/", emptyMap(), greaterThan(0));
         headTestCase("/", singletonMap("pretty", ""), greaterThan(0));
@@ -73,6 +72,12 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         createTestDoc();
         headTestCase("/test", emptyMap(), greaterThan(0));
         headTestCase("/test", singletonMap("pretty", "true"), greaterThan(0));
+    }
+
+    @Override
+    protected boolean getStrictDeprecationMode() {
+        // Remove this override when we remove the reference to types below
+        return false;
     }
 
     public void testTypeExists() throws IOException {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,7 +32,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
-    private final Logger logger = Loggers.getLogger(IndexBalanceTests.class);
+    private final Logger logger = LogManager.getLogger(IndexBalanceTests.class);
 
     public void testBalanceAllNodesStarted() {
         AllocationService strategy = createAllocationService(Settings.builder()

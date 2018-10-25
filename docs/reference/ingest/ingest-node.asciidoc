@@ -776,16 +776,16 @@ Accepts a single value or an array of values.
 [options="header"]
 |======
 | Name      | Required  | Default  | Description
-| `field`   | yes       | -        | The field to be appended to
-| `value`   | yes       | -        | The value to be appended
+| `field`  | yes       | -        | The field to be appended to. Supports <<accessing-template-fields,template snippets>>.
+| `value`  | yes       | -        | The value to be appended. Supports <<accessing-template-fields,template snippets>>.
 |======
 
 [source,js]
 --------------------------------------------------
 {
   "append": {
-    "field": "field1",
-    "value": ["item2", "item3", "item4"]
+    "field": "tags",
+    "value": ["production", "{{app}}", "{{owner}}"]
   }
 }
 --------------------------------------------------
@@ -812,7 +812,7 @@ the field is not a supported format or resultant value exceeds 2^63.
 --------------------------------------------------
 {
   "bytes": {
-    "field": "foo"
+    "field": "file.size"
   }
 }
 --------------------------------------------------
@@ -850,7 +850,7 @@ still be updated with the unconverted field value.
 --------------------------------------------------
 {
   "convert": {
-    "field" : "foo",
+    "field" : "url.port",
     "type": "integer"
   }
 }
@@ -874,8 +874,8 @@ in the same order they were defined as part of the processor definition.
 | `field`                | yes       | -                   | The field to get the date from.
 | `target_field`         | no        | @timestamp          | The field that will hold the parsed date.
 | `formats`              | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
-| `timezone`             | no        | UTC                 | The timezone to use when parsing the date.
-| `locale`               | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days.
+| `timezone`        | no        | UTC                 | The timezone to use when parsing the date. Supports <<accessing-template-fields,template snippets>>.
+| `locale`          | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days. Supports <<accessing-template-fields,template snippets>>.
 |======
 
 Here is an example that adds the parsed date to the `timestamp` field based on the `initial_date` field:
@@ -913,8 +913,8 @@ the timezone and locale values.
         "field" : "initial_date",
         "target_field" : "timestamp",
         "formats" : ["ISO8601"],
-        "timezone" : "{{ my_timezone }}",
-        "locale" : "{{ my_locale }}"
+        "timezone" : "{{my_timezone}}",
+        "locale" : "{{my_locale}}"
       }
     }
   ]
@@ -1059,12 +1059,12 @@ understands this to mean `2016-04-01` as is explained in the <<date-math-index-n
 |======
 | Name                   | Required  | Default                      | Description
 | `field`                | yes       | -                            | The field to get the date or timestamp from.
-| `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date.
-| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
+| `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date. Supports <<accessing-template-fields,template snippets>>.
+| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second). Supports <<accessing-template-fields,template snippets>>.
 | `date_formats`         | no        | yyyy-MM-dd'T'HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
 | `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
-| `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. An valid Joda pattern is expected here.
+| `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. An valid Joda pattern is expected here. Supports <<accessing-template-fields,template snippets>>.
 |======
 
 [[dissect-processor]]
@@ -1260,6 +1260,21 @@ Reference key modifier example
 * error = REFUSED
 |====== 
 
+[[drop-processor]]
+=== Drop Processor
+Drops the document without raising any errors. This is useful to prevent the document from
+getting indexed based on some condition.
+
+[source,js]
+--------------------------------------------------
+{
+  "drop": {
+    "if" : "ctx.network_name == 'Guest'"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 [[dot-expand-processor]]
 === Dot Expander Processor
 
@@ -1390,14 +1405,15 @@ to the requester.
 [options="header"]
 |======
 | Name       | Required  | Default  | Description
-| `message`  | yes       | -        | The error message of the `FailException` thrown by the processor
+| `message`  | yes       | -        | The error message thrown by the processor. Supports <<accessing-template-fields,template snippets>>.
 |======
 
 [source,js]
 --------------------------------------------------
 {
   "fail": {
-    "message": "an error message"
+    "if" : "ctx.tags.contains('production') != true",
+    "message": "The production tag is not present, found tags: {{tags}}"
   }
 }
 --------------------------------------------------
@@ -2093,6 +2109,120 @@ Converts a string to its lowercase equivalent.
 --------------------------------------------------
 // NOTCONSOLE
 
+[[pipeline-processor]]
+=== Pipeline Processor
+Executes another pipeline.
+
+[[pipeline-options]]
+.Pipeline Options
+[options="header"]
+|======
+| Name             | Required  | Default  | Description
+| `name`           | yes       | -        | The name of the pipeline to execute
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "pipeline": {
+    "name": "inner-pipeline"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+An example of using this processor for nesting pipelines would be:
+
+Define an inner pipeline:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/pipelineA
+{
+  "description" : "inner pipeline",
+  "processors" : [
+    {
+      "set" : {
+        "field": "inner_pipeline_set",
+        "value": "inner"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+Define another pipeline that uses the previously defined inner pipeline:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/pipelineB
+{
+  "description" : "outer pipeline",
+  "processors" : [
+    {
+      "pipeline" : {
+        "name": "pipelineA"
+      }
+    },
+    {
+      "set" : {
+        "field": "outer_pipeline_set",
+        "value": "outer"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Now indexing a document while applying the outer pipeline will see the inner pipeline executed
+from the outer pipeline:
+
+[source,js]
+--------------------------------------------------
+PUT /myindex/_doc/1?pipeline=pipelineB
+{
+  "field": "value"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Response from the index request:
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "myindex",
+  "_type": "_doc",
+  "_id": "1",
+  "_version": 1,
+  "result": "created",
+  "_shards": {
+    "total": 2,
+    "successful": 1,
+    "failed": 0
+  },
+  "_seq_no": 0,
+  "_primary_term": 1,
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+Indexed document:
+
+[source,js]
+--------------------------------------------------
+{
+  "field": "value",
+  "inner_pipeline_set": "inner",
+  "outer_pipeline_set": "outer"
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 [[remove-processor]]
 === Remove Processor
 Removes existing fields. If one field doesn't exist, an exception will be thrown.
@@ -2102,7 +2232,7 @@ Removes existing fields. If one field doesn't exist, an exception will be thrown
 [options="header"]
 |======
 | Name             | Required  | Default  | Description
-| `field`          | yes       | -        | Fields to be removed
+| `field`          | yes       | -        | Fields to be removed. Supports <<accessing-template-fields,template snippets>>.
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
@@ -2112,7 +2242,7 @@ Here is an example to remove a single field:
 --------------------------------------------------
 {
   "remove": {
-    "field": "foo"
+    "field": "user_agent"
   }
 }
 --------------------------------------------------
@@ -2124,7 +2254,7 @@ To remove multiple fields, you can use the following query:
 --------------------------------------------------
 {
   "remove": {
-    "field": ["foo", "bar"]
+    "field": ["user_agent", "url"]
   }
 }
 --------------------------------------------------
@@ -2138,18 +2268,18 @@ Renames an existing field. If the field doesn't exist or the new name is already
 .Rename Options
 [options="header"]
 |======
-| Name             | Required  | Default  | Description
-| `field`          | yes       | -        | The field to be renamed
-| `target_field`   | yes       | -        | The new name of the field
-| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to be renamed. Supports <<accessing-template-fields,template snippets>>.
+| `target_field`    | yes       | -        | The new name of the field. Supports <<accessing-template-fields,template snippets>>.
+| `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
 [source,js]
 --------------------------------------------------
 {
   "rename": {
-    "field": "foo",
-    "target_field": "foobar"
+    "field": "provider",
+    "target_field": "cloud.provider"
   }
 }
 --------------------------------------------------
@@ -2267,18 +2397,18 @@ its value will be replaced with the provided one.
 .Set Options
 [options="header"]
 |======
-| Name      | Required  | Default  | Description
-| `field`   | yes       | -        | The field to insert, upsert, or update
-| `value`   | yes       | -        | The value to be set for the field
-| `override`| no        | true     | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
+| Name       | Required  | Default  | Description
+| `field` | yes       | -        | The field to insert, upsert, or update. Supports <<accessing-template-fields,template snippets>>.
+| `value` | yes       | -        | The value to be set for the field. Supports <<accessing-template-fields,template snippets>>.
+| `override` | no        | true     | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
 |======
 
 [source,js]
 --------------------------------------------------
 {
   "set": {
-    "field": "field1",
-    "value": 582.1
+    "field": "host.os.name",
+    "value": "{{os}}"
   }
 }
 --------------------------------------------------
@@ -2331,7 +2461,7 @@ Throws an error when the field is not an array.
 --------------------------------------------------
 {
   "sort": {
-    "field": "field_to_sort",
+    "field": "array_field_to_sort",
     "order": "desc"
   }
 }

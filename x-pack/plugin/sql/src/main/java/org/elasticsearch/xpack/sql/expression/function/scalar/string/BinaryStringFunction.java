@@ -16,7 +16,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
@@ -59,17 +58,10 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
     }
 
     @Override
-    public ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
-        // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
-                operation().toString().toLowerCase(Locale.ROOT),
-                leftScript.template(),
-                rightScript.template()),
-                paramsBuilder()
-                    .script(leftScript.params()).script(rightScript.params())
-                    .build(), dataType());
+    protected String scriptMethodName() {
+        return operation().toString().toLowerCase(Locale.ROOT);
     }
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript("doc[{}].value"),

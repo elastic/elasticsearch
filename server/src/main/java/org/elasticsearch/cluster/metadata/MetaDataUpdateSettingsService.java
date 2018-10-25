@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -45,12 +46,15 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+import static org.elasticsearch.index.IndexSettings.same;
 
 /**
  * Service responsible for submitting update index settings requests
@@ -114,6 +118,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
+
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
                 MetaData.Builder metaDataBuilder = MetaData.builder(currentState.metaData());
 
@@ -140,6 +145,18 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
 
                 int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
                 if (updatedNumberOfReplicas != -1 && preserveExisting == false) {
+
+                    // Verify that this won't take us over the cluster shard limit.
+                    int totalNewShards = Arrays.stream(request.indices())
+                        .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
+                        .sum();
+                    Optional<String> error = IndicesService.checkShardLimit(totalNewShards, currentState, deprecationLogger);
+                    if (error.isPresent()) {
+                        ValidationException ex = new ValidationException();
+                        ex.addValidationError(error.get());
+                        throw ex;
+                    }
+
                     // we do *not* update the in sync allocation ids as they will be removed upon the first index
                     // operation which make these copies stale
                     // TODO: update the list once the data is deleted by the node?
@@ -187,6 +204,14 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
                     }
                 }
 
+                // increment settings versions
+                for (final String index : actualIndices) {
+                    if (same(currentState.metaData().index(index).getSettings(), metaDataBuilder.get(index).getSettings()) == false) {
+                        final IndexMetaData.Builder builder = IndexMetaData.builder(metaDataBuilder.get(index));
+                        builder.settingsVersion(1 + builder.settingsVersion());
+                        metaDataBuilder.put(builder);
+                    }
+                }
 
                 ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder.build()).blocks(blocks).build();
 
@@ -215,14 +240,22 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
         });
     }
 
+    private int getTotalNewShards(Index index, ClusterState currentState, int updatedNumberOfReplicas) {
+        IndexMetaData indexMetaData = currentState.metaData().index(index);
+        int shardsInIndex = indexMetaData.getNumberOfShards();
+        int oldNumberOfReplicas = indexMetaData.getNumberOfReplicas();
+        int replicaIncrease = updatedNumberOfReplicas - oldNumberOfReplicas;
+        return replicaIncrease * shardsInIndex;
+    }
+
     /**
      * Updates the cluster block only iff the setting exists in the given settings
      */
     private static void maybeUpdateClusterBlock(String[] actualIndices, ClusterBlocks.Builder blocks, ClusterBlock block, Setting<Boolean> setting, Settings openSettings) {
         if (setting.exists(openSettings)) {
-            final boolean updateReadBlock = setting.get(openSettings);
+            final boolean updateBlock = setting.get(openSettings);
             for (String index : actualIndices) {
-                if (updateReadBlock) {
+                if (updateBlock) {
                     blocks.addIndexBlock(index, block);
                 } else {
                     blocks.removeIndexBlock(index, block);
@@ -250,12 +283,16 @@ public class MetaDataUpdateSettingsService extends AbstractComponent {
                     IndexMetaData indexMetaData = metaDataBuilder.get(index);
                     if (indexMetaData != null) {
                         if (Version.CURRENT.equals(indexMetaData.getCreationVersion()) == false) {
-                            // No reason to pollute the settings, we didn't really upgrade anything
-                            metaDataBuilder.put(IndexMetaData.builder(indexMetaData)
-                                            .settings(Settings.builder().put(indexMetaData.getSettings())
-                                                            .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1())
-                                            )
-                            );
+                            // no reason to pollute the settings, we didn't really upgrade anything
+                            metaDataBuilder.put(
+                                    IndexMetaData
+                                            .builder(indexMetaData)
+                                            .settings(
+                                                    Settings
+                                                            .builder()
+                                                            .put(indexMetaData.getSettings())
+                                                            .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1()))
+                                            .settingsVersion(1 + indexMetaData.getSettingsVersion()));
                         }
                     }
                 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,7 +29,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
-    private final Logger logger = Loggers.getLogger(UpdateNumberOfReplicasTests.class);
+    private final Logger logger = LogManager.getLogger(UpdateNumberOfReplicasTests.class);
 
     public void testUpdateNumberOfReplicas() {
         AllocationService strategy = createAllocationService(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
@@ -96,8 +96,10 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
 
         logger.info("add another replica");
         routingNodes = clusterState.getRoutingNodes();
-        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(2).build();
-        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(2).build();
+        final String[] indices = {"test"};
+        RoutingTable updatedRoutingTable =
+                RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(2, indices).build();
+        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(2, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metaData(metaData).build();
 
         assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(2));
@@ -143,8 +145,8 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
 
         logger.info("now remove a replica");
         routingNodes = clusterState.getRoutingNodes();
-        updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(1).build();
-        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
+        updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(1, indices).build();
+        metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metaData(metaData).build();
 
         assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(1));

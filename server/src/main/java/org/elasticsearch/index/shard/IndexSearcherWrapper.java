@@ -99,8 +99,9 @@ public class IndexSearcherWrapper {
         } else {
             // we close the reader to make sure wrappers can release resources if needed....
             // our NonClosingReaderWrapper makes sure that our reader is not closed
-            return new Engine.Searcher(engineSearcher.source(), indexSearcher, s -> IOUtils.close(s.getIndexReader(), engineSearcher),
-                engineSearcher.getLogger());
+            return new Engine.Searcher(engineSearcher.source(), indexSearcher, () ->
+                IOUtils.close(indexSearcher.getIndexReader(), // this will close the wrappers excluding the NonClosingReaderWrapper
+                engineSearcher)); // this will run the closeable on the wrapped engine searcher
         }
     }
 

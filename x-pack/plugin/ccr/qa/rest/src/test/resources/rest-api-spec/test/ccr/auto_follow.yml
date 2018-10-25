@@ -25,7 +25,7 @@
         body:
           remote_cluster: local
           leader_index_patterns: ['logs-*']
-          max_concurrent_read_batches: 2
+          max_outstanding_read_requests: 2
   - is_true: acknowledged
 
   - do:
@@ -33,13 +33,13 @@
         name: my_pattern
   - match: { my_pattern.remote_cluster: 'local' }
   - match: { my_pattern.leader_index_patterns: ['logs-*'] }
-  - match: { my_pattern.max_concurrent_read_batches: 2 }
+  - match: { my_pattern.max_outstanding_read_requests: 2 }
 
   - do:
       ccr.get_auto_follow_pattern: {}
   - match: { my_pattern.remote_cluster: 'local' }
   - match: { my_pattern.leader_index_patterns: ['logs-*'] }
-  - match: { my_pattern.max_concurrent_read_batches: 2 }
+  - match: { my_pattern.max_outstanding_read_requests: 2 }
 
   - do:
       ccr.delete_auto_follow_pattern:

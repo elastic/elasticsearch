@@ -31,21 +31,11 @@ if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion)) {
     throw new GradleException("Gradle ${minimumGradleVersion}+ is required to build elasticsearch")
 }
 
-if (JavaVersion.current() < JavaVersion.VERSION_1_8) {
-  throw new GradleException('Java 1.8 is required to build elasticsearch gradle tools')
-}
-
 if (project == rootProject) {
   // change the build dir used during build init, so that doing a clean
   // won't wipe out the buildscript jar
   buildDir = 'build-bootstrap'
 }
-
-// Make sure :buildSrc: doesn't generate classes incompatible with RUNTIME_JAVA_HOME
-// We can't use BuildPlugin here, so read from file
-String minimumRuntimeVersion = file('src/main/resources/minimumRuntimeVersion').text.trim()
-targetCompatibility = minimumRuntimeVersion
-sourceCompatibility = minimumRuntimeVersion
 
 /*****************************************************************************
  *         Propagating version.properties to the rest of the build           *
@@ -82,6 +72,45 @@ processResources {
   from tempPropertiesFile
 }
 
+
+if (JavaVersion.current() < JavaVersion.VERSION_1_10) {
+  throw new GradleException('At least Java 10 is required to build elasticsearch gradle tools')
+}
+
+/*****************************************************************************
+ *         Java version                                                      *
+ *****************************************************************************/
+
+// Gradle 4.10 does not support setting this to 11 yet
+targetCompatibility = "10"
+sourceCompatibility = "10"
+
+// We have a few classes that need to be compiled for older java versions because these are used to run checks against
+// those
+sourceSets {
+  minimumRuntime {
+    // We only want Java here, but the Groovy doesn't configure javadoc correctly if we don't define this as groovy
+    groovy {
+      srcDirs = ['src/main/minimumRuntime']
+    }
+  }
+}
+compileMinimumRuntimeGroovy {
+  // We can't use BuildPlugin here, so read from file
+  String minimumRuntimeVersion = file('src/main/resources/minimumRuntimeVersion').text.trim()
+  targetCompatibility = minimumRuntimeVersion
+  sourceCompatibility = minimumRuntimeVersion
+}
+dependencies {
+  compile sourceSets.minimumRuntime.output
+  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
+  minimumRuntimeCompile localGroovy()
+}
+jar {
+  from sourceSets.minimumRuntime.output
+}
+
+
 /*****************************************************************************
  *                    Dependencies used by the entire build                  *
  *****************************************************************************/
@@ -94,10 +123,7 @@ dependencies {
   compile localGroovy()
   compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
-
-  compile("junit:junit:${props.getProperty('junit')}") {
-    transitive = false
-  }
+  
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
@@ -156,6 +182,7 @@ if (project != rootProject) {
   dependenciesInfo.enabled = false
   forbiddenApisMain.enabled = false
   forbiddenApisTest.enabled = false
+  forbiddenApisMinimumRuntime.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
 

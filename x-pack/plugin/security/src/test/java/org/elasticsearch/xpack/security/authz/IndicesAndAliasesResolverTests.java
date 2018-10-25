@@ -68,6 +68,9 @@ import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.Resolved
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -469,7 +472,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [missing*]", e.getMessage());
     }
 
     public void testResolveExplicitIndicesStrict() {
@@ -506,7 +509,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(userNoIndices, SearchAction.NAME)));
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [[]]", e.getMessage());
     }
 
     public void testResolveMissingIndexStrict() {
@@ -848,7 +851,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.aliases("alias2");
         IndexNotFoundException exception = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)).getLocal());
-        assertEquals("no such index", exception.getMessage());
+        assertEquals("no such index [[missing]]", exception.getMessage());
     }
 
     public void testGetAliasesRequestMissingIndexIgnoreUnavailableAllowNoIndices() {
@@ -928,7 +931,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indices("non_matching_*");
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, GetAliasesAction.NAME)).getLocal());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [non_matching_*]", e.getMessage());
     }
 
     public void testWildcardsGetAliasesRequestNoMatchingIndicesAllowNoIndices() {
@@ -995,7 +998,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indices("_all");
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME)));
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [[_all]]", e.getMessage());
     }
 
     public void testWildcardsGetAliasesRequestNoAuthorizedIndicesAllowNoIndices() {
@@ -1015,7 +1018,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         //current user is not authorized for any index, foo* resolves to no indices, the request fails
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(userNoIndices, GetAliasesAction.NAME)));
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [foo*]", e.getMessage());
     }
 
     public void testResolveAllAliasesGetAliasesRequest() {
@@ -1151,7 +1154,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(tuple.v1(), buildAuthorizedIndices(user, tuple.v2())).getLocal());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [[remote:foo]]", e.getMessage());
     }
 
     public void testNonRemotableRequestDoesNotAllowRemoteWildcardIndices() {
@@ -1269,15 +1272,17 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(true, false, randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
-        assertEquals("no such index" , e.getMessage());
+        assertEquals("no such index [[<datetime-{now/M}>]]" , e.getMessage());
     }
 
     public void testUnauthorizedDateMathExpressionStrict() {
+        String expectedIndex = "datetime-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(
+            new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
-        assertEquals("no such index" , e.getMessage());
+        assertEquals("no such index [" + expectedIndex + "]" , e.getMessage());
     }
 
     public void testResolveDateMathExpression() {
@@ -1309,15 +1314,17 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request.indicesOptions(IndicesOptions.fromOptions(true, false, randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
-        assertEquals("no such index" , e.getMessage());
+        assertEquals("no such index [[<foobar-{now/M}>]]" , e.getMessage());
     }
 
     public void testMissingDateMathExpressionStrict() {
+        String expectedIndex = "foobar-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(
+            new DateTime(DateTimeZone.UTC).monthOfYear().roundFloorCopy());
         SearchRequest request = new SearchRequest("<foobar-{now/M}>");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)));
-        assertEquals("no such index" , e.getMessage());
+        assertEquals("no such index [" + expectedIndex + "]" , e.getMessage());
     }
 
     public void testAliasDateMathExpressionNotSupported() {

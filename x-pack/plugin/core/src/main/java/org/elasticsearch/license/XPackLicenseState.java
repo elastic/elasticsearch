@@ -239,7 +239,8 @@ public class XPackLicenseState {
                 switch (currentMode) {
                     case TRIAL:
                     case PLATINUM:
-                        return new String[] { "JDBC support will be disabled, but you can continue to use SQL CLI and REST endpoint" };
+                        return new String[] {
+                                "JDBC and ODBC support will be disabled, but you can continue to use SQL CLI and REST endpoint" };
                 }
                 break;
         }

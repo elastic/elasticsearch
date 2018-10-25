@@ -1,0 +1,95 @@
+--
+:api: update-datafeed
+:request: UpdateDatafeedRequest
+:response: PutDatafeedResponse
+--
+[id="{upid}-{api}"]
+=== Update Datafeed API
+
+The Update Datafeed API can be used to update a {ml} datafeed
+in the cluster. The API accepts a +{request}+ object
+as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Update Datafeed Request
+
+A +{request}+ requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The updated configuration of the {ml} datafeed
+
+[id="{upid}-{api}-config"]
+==== Updated Datafeed Configuration
+
+The `DatafeedUpdate` object contains the updated
+settings for the {ml} datafeed configuration.
+
+A `DatafeedUpdate` requires the following argument(s):
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config]
+--------------------------------------------------
+<1> The datafeed ID
+
+==== Optional Arguments
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-indices]
+--------------------------------------------------
+<1> The indices that contain the data to retrieve and feed into the job
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-chunking-config]
+--------------------------------------------------
+<1> Specifies how data searches are split into time chunks.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-frequency]
+--------------------------------------------------
+<1> The interval at which scheduled queries are made while the datafeed runs in real time.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-query]
+--------------------------------------------------
+<1> A query to filter the search results by. Defaults to the `match_all` query.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-query-delay]
+--------------------------------------------------
+<1> The time interval behind real time that data is queried.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-script-fields]
+--------------------------------------------------
+<1> Allows the use of script fields.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-scroll-size]
+--------------------------------------------------
+<1> The `size` parameter used in the searches.
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ returns the full representation of
+the updated {ml} datafeed if it has been successfully updated.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The updated datafeed

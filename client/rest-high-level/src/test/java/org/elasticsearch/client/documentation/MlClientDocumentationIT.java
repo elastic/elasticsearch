@@ -80,11 +80,13 @@ import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
+import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
+import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
 import org.elasticsearch.client.ml.job.config.DataDescription;
@@ -625,6 +627,101 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-datafeed-execute-async
             client.machineLearning().putDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::put-datafeed-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testUpdateDatafeed() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        Job job = MachineLearningIT.buildJob("update-datafeed-job");
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+        String datafeedId = job.getId() + "-feed";
+        DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId()).setIndices("foo").build();
+        client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
+
+        {
+            // tag::update-datafeed-config
+            DatafeedUpdate.Builder datafeedUpdateBuilder = new DatafeedUpdate.Builder(datafeedId); // <1>
+            // end::update-datafeed-config
+
+            AggregatorFactories.Builder aggs = AggregatorFactories.builder();
+
+            // tag::update-datafeed-config-set-aggregations
+            datafeedUpdateBuilder.setAggregations(aggs); // <1>
+            // end::update-datafeed-config-set-aggregations
+
+            // tag::update-datafeed-config-set-indices
+            datafeedUpdateBuilder.setIndices("index_1", "index_2"); // <1>
+            // end::update-datafeed-config-set-indices
+
+            // Clearing aggregation to avoid complex validation rules
+            datafeedUpdateBuilder.setAggregations((String) null);
+
+            // tag::update-datafeed-config-set-chunking-config
+            datafeedUpdateBuilder.setChunkingConfig(ChunkingConfig.newAuto()); // <1>
+            // end::update-datafeed-config-set-chunking-config
+
+            // tag::update-datafeed-config-set-frequency
+            datafeedUpdateBuilder.setFrequency(TimeValue.timeValueSeconds(30)); // <1>
+            // end::update-datafeed-config-set-frequency
+
+            // tag::update-datafeed-config-set-query
+            datafeedUpdateBuilder.setQuery(QueryBuilders.matchAllQuery()); // <1>
+            // end::update-datafeed-config-set-query
+
+            // tag::update-datafeed-config-set-query-delay
+            datafeedUpdateBuilder.setQueryDelay(TimeValue.timeValueMinutes(1)); // <1>
+            // end::update-datafeed-config-set-query-delay
+
+            List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
+            // tag::update-datafeed-config-set-script-fields
+            datafeedUpdateBuilder.setScriptFields(scriptFields); // <1>
+            // end::update-datafeed-config-set-script-fields
+
+            // tag::update-datafeed-config-set-scroll-size
+            datafeedUpdateBuilder.setScrollSize(1000); // <1>
+            // end::update-datafeed-config-set-scroll-size
+
+            // tag::update-datafeed-request
+            UpdateDatafeedRequest request = new UpdateDatafeedRequest(datafeedUpdateBuilder.build()); // <1>
+            // end::update-datafeed-request
+
+            // tag::update-datafeed-execute
+            PutDatafeedResponse response = client.machineLearning().updateDatafeed(request, RequestOptions.DEFAULT);
+            // end::update-datafeed-execute
+
+            // tag::update-datafeed-response
+            DatafeedConfig updatedDatafeed = response.getResponse(); // <1>
+            // end::update-datafeed-response
+            assertThat(updatedDatafeed.getId(), equalTo(datafeedId));
+        }
+        {
+            DatafeedUpdate datafeedUpdate = new DatafeedUpdate.Builder(datafeedId).setIndices("index_1", "index_2").build();
+
+            UpdateDatafeedRequest request = new UpdateDatafeedRequest(datafeedUpdate);
+            // tag::update-datafeed-execute-listener
+            ActionListener<PutDatafeedResponse> listener = new ActionListener<PutDatafeedResponse>() {
+                @Override
+                public void onResponse(PutDatafeedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::update-datafeed-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::update-datafeed-execute-async
+            client.machineLearning().updateDatafeedAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::update-datafeed-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

@@ -240,6 +240,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-update-job>>
 * <<{upid}-get-job-stats>>
 * <<{upid}-put-datafeed>>
+* <<{upid}-update-datafeed>>
 * <<{upid}-get-datafeed>>
 * <<{upid}-delete-datafeed>>
 * <<{upid}-preview-datafeed>>
@@ -266,6 +267,7 @@ include::ml/close-job.asciidoc[]
 include::ml/update-job.asciidoc[]
 include::ml/flush-job.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
+include::ml/update-datafeed.asciidoc[]
 include::ml/get-datafeed.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
 include::ml/preview-datafeed.asciidoc[]

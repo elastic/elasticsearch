@@ -33,12 +33,14 @@ public class JobValidator {
     private static final Logger logger = Logger.getLogger(JobValidator.class.getName());
 
     private final Client client;
+    private final FeatureIndexBuilderJobConfig config;
 
-    public JobValidator(Client client) {
+    public JobValidator(FeatureIndexBuilderJobConfig config, Client client) {
         this.client = Objects.requireNonNull(client);
+        this.config = Objects.requireNonNull(config);
     }
 
-    public void validate(FeatureIndexBuilderJobConfig config, final ActionListener<Boolean> listener) {
+    public void validate(final ActionListener<Boolean> listener) {
         // step 1: check if used aggregations are supported
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (Aggregations.isSupportedByDataframe(agg.getType()) == false) {
@@ -48,18 +50,19 @@ public class JobValidator {
         }
 
         // step 2: run a query to validate that config is valid
-        runTestQuery(config, ActionListener.wrap((r) -> {
-            listener.onResponse(true);
-        }, e -> {
-            listener.onFailure(e);
-        }));
+        runTestQuery(listener);
     }
 
-    public void deduceMappings(FeatureIndexBuilderJobConfig config, final ActionListener<Map<String, String>> listener) {
-        // collects the fieldnames used as source
+    public void deduceMappings(final ActionListener<Map<String, String>> listener) {
+        // collects the fieldnames used as source for aggregations
         Map<String, String> aggregationSourceFieldNames = new HashMap<>();
         // collects the aggregation types by source name
         Map<String, String> aggregationTypes = new HashMap<>();
+        // collects the fieldnames and target fieldnames used for grouping
+        Map<String, String> fieldNamesForGrouping = new HashMap<>();
+        config.getSourceConfig().getSources().forEach(source -> {
+            fieldNamesForGrouping.put(source.name(), source.field());
+        });
 
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (agg instanceof ValuesSourceAggregationBuilder) {
@@ -73,8 +76,11 @@ public class JobValidator {
             }
         }
 
-        getSourceFieldMappings(config.getIndexPattern(),
-                aggregationSourceFieldNames.values().toArray(new String[aggregationSourceFieldNames.size()]),
+        Map<String, String> allFieldNames = new HashMap<>();
+        allFieldNames.putAll(aggregationSourceFieldNames);
+        allFieldNames.putAll(fieldNamesForGrouping);
+
+        getSourceFieldMappings(config.getIndexPattern(), allFieldNames.values().toArray(new String[allFieldNames.size()]),
                 ActionListener.wrap(sourceMappings -> {
                     Map<String, String> targetMapping = new HashMap<>();
 
@@ -82,12 +88,28 @@ public class JobValidator {
                         String sourceFieldName = aggregationSourceFieldNames.get(targetFieldName);
                         String destinationMapping = Aggregations.resolveTargetMapping(aggregationName, sourceMappings.get(sourceFieldName));
 
-                        logger.debug("Deduced mapping for: [" + targetFieldName + "], agg type [" + aggregationName + "] to ["
-                                + destinationMapping + "]");
+                        logger.debug("[" + config.getId() + "] Deduced mapping for: [" + targetFieldName + "], agg type [" + aggregationName
+                                + "] to [" + destinationMapping + "]");
                         if (destinationMapping != null) {
                             targetMapping.put(targetFieldName, destinationMapping);
+                        } else {
+                            logger.warn("[" + config.getId() + "] Failed to deduce mapping for [" + targetFieldName
+                                    + "], fall back to double.");
+                            targetMapping.put(targetFieldName, "double");
                         }
-                        // TODO: else?
+                    });
+
+                    fieldNamesForGrouping.forEach((targetFieldName, sourceFieldName) -> {
+                        String destinationMapping = sourceMappings.get(sourceFieldName);
+                        logger.debug(
+                                "[" + config.getId() + "] Deduced mapping for: [" + targetFieldName + "] to [" + destinationMapping + "]");
+                        if (destinationMapping != null) {
+                            targetMapping.put(targetFieldName, destinationMapping);
+                        } else {
+                            logger.warn("[" + config.getId() + "] Failed to deduce mapping for [" + targetFieldName
+                                    + "], fall back to keyword.");
+                            targetMapping.put(targetFieldName, "keyword");
+                        }
                     });
 
                     listener.onResponse(targetMapping);
@@ -96,7 +118,7 @@ public class JobValidator {
                 }));
     }
 
-    private void runTestQuery(FeatureIndexBuilderJobConfig config, final ActionListener<Boolean> listener) {
+    private void runTestQuery(final ActionListener<Boolean> listener) {
         QueryBuilder queryBuilder = new MatchAllQueryBuilder();
         SearchRequest searchRequest = new SearchRequest(config.getIndexPattern());
 
@@ -145,8 +167,10 @@ public class JobValidator {
                             if (typeMap instanceof Map) {
                                 final Map<?,?> map = (Map<?, ?>) typeMap;
                                 if (map.containsKey("type")) {
+                                    String type = map.get("type").toString();
+                                    logger.debug("[" + config.getId() + "] Extracted type for [" + fieldName + "] : [" + type + "]");
                                     // TODO: overwrites types, requires resolve if types are mixed
-                                    extractedTypes.put(fieldName, map.get("type").toString());
+                                    extractedTypes.put(fieldName, type);
                                 }
                             }
                         });

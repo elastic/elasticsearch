@@ -69,10 +69,10 @@ public class TransportPutFeatureIndexBuilderJobAction
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        JobValidator jobCreator = new JobValidator(client);
+        JobValidator jobCreator = new JobValidator(request.getConfig(), client);
 
-        jobCreator.validate(request.getConfig(), ActionListener.wrap(validationResult -> {
-            jobCreator.deduceMappings(request.getConfig(), ActionListener.wrap(mappings -> {
+        jobCreator.validate(ActionListener.wrap(validationResult -> {
+            jobCreator.deduceMappings(ActionListener.wrap(mappings -> {
                 FeatureIndexBuilderJob job = createFeatureIndexBuilderJob(request.getConfig(), threadPool);
                 DataframeIndex.createDestinationIndex(client, job, mappings, ActionListener.wrap(createIndexResult -> {
                     startPersistentTask(job, listener, persistentTasksService);

@@ -325,7 +325,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/34853")
     public void testShrink() throws IOException {
         String shrunkenIndex = index + "_shrunk";
         int numDocs;

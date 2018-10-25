@@ -100,7 +100,7 @@ public class AutoDetectResultProcessor {
     private final boolean restoredSnapshot;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
-    CountDownLatch onCloseActionsLatch;
+    volatile CountDownLatch onCloseActionsLatch;
     final Semaphore updateModelSnapshotIdSemaphore = new Semaphore(1);
     private final FlushListener flushListener;
     private volatile boolean processKilled;
@@ -497,6 +497,8 @@ public class AutoDetectResultProcessor {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
             }
 
+            // Once completionLatch has passed then onCloseActionsLatch must either
+            // be set or null, it will not be set later.
             if (onCloseActionsLatch != null && onCloseActionsLatch.await(
                     MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
                 throw new TimeoutException("Timed out waiting for results processor run post close actions " + jobId);

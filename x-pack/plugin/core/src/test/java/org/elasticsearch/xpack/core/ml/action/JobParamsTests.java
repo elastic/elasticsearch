@@ -13,6 +13,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class JobParamsTests extends AbstractSerializingTestCase<OpenJobAction.JobParams> {
 
@@ -45,5 +46,13 @@ public class JobParamsTests extends AbstractSerializingTestCase<OpenJobAction.Jo
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        // Don't insert random fields into the job object as the
+        // custom_fields member accepts arbitrary fields and new
+        // fields inserted there will result in object inequality
+        return path -> path.startsWith(OpenJobAction.JobParams.JOB.getPreferredName());
     }
 }

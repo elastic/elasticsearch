@@ -5,7 +5,7 @@ Updating existing ILM policies is useful to fix mistakes or change
 strategies for newly created indices. It is possible to update policy definitions
 and an index's `index.lifecycle.name` settings independently. To prevent the situation
 that phase definitions are modified while currently being executed on an index, each index
-will keep the version of the phase definition it began execution with until it completes.
+will keep the version of the current phase definition it began execution with until it completes.
 
 There are three scenarios for examining the behavior updating policies and
 their effects on policy execution on indices.
@@ -189,7 +189,6 @@ GET my_index/_ilm/explain
       "index": "my_index",
       "managed": true,
       "policy": "my_executing_policy",
-      "skip": false,
       "lifecycle_date": 1538475653281,
       "phase": "hot",
       "phase_time": 1538475653317,
@@ -270,7 +269,6 @@ GET my_index/_ilm/explain
       "index": "my_index",
       "managed": true,
       "policy": "my_executing_policy",
-      "skip": false,
       "lifecycle_date": 1538475653281,
       "phase": "hot",
       "phase_time": 1538475653317,
@@ -302,7 +300,8 @@ GET my_index/_ilm/explain
 // TESTRESPONSE[s/"step_time": 1538475653317/"step_time": $body.indices.my_index.step_time/]
 // TESTRESPONSE[s/"modified_date_in_millis": 1538475653317/"modified_date_in_millis": $body.indices.my_index.phase_execution.modified_date_in_millis/]
 
-After indexing one document into `my_index` so that rollover succeeds and moves onto the next phase, we will notice something new.
+After indexing one document into `my_index` so that rollover succeeds and moves onto the next phase, we will notice something new. The
+index will move into the next phase in the updated version 2 of its policy.
 
 ////
 [source,js]
@@ -326,7 +325,6 @@ GET my_index/_ilm/explain
       "index": "my_index",
       "managed": true,
       "policy": "my_executing_policy",
-      "skip": false,
       "lifecycle_date": 1538475653281,
       "phase": "warm",
       "phase_time": 1538475653317,
@@ -337,7 +335,7 @@ GET my_index/_ilm/explain
       "phase_execution": {
         "policy": "my_executing_policy",
         "modified_date_in_millis": 1538475653317,
-        "version": 2,
+        "version": 2, <1>
         "phase_definition": {
           "minimum_age": "1d",
           "actions": {
@@ -353,6 +351,7 @@ GET my_index/_ilm/explain
 --------------------------------------------------
 // CONSOLE
 // TESTRESPONSE[skip:There is no way to force the index to move to the next step in a timely manner]
+<1> The index has moved to using version 2 of the policy
 
 `my_index` will move to the next phase in the latest policy definition, which is the newly added `warm` phase.
 
@@ -382,7 +381,7 @@ PUT _ilm/my_policy
         }
       },
       "delete": {
-        "minimum_age": "10d", <1>
+        "minimum_age": "10d",
         "actions": {
           "delete": {}
         }

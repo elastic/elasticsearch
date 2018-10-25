@@ -183,6 +183,13 @@ public class TypesTests extends ESTestCase {
         assertThat(dt.getDataType().esType, is("unsupported"));
     }
 
+    public void testIpField() {
+        Map<String, EsField> mapping = loadMapping("mapping-ip.json");
+        assertThat(mapping.size(), is(1));
+        EsField dt = mapping.get("ip_addr");
+        assertThat(dt.getDataType().esType, is("ip"));
+    }
+
     public void testUnsupportedTypes() {
         Map<String, EsField> mapping = loadMapping("mapping-unsupported.json");
         EsField dt = mapping.get("range");

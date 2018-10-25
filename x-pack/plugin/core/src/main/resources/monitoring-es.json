@@ -965,6 +965,9 @@
             "number_of_queued_writes": {
               "type": "long"
             },
+            "buffer_size_in_bytes": {
+              "type": "long"
+            },
             "mapping_version": {
               "type": "long"
             },

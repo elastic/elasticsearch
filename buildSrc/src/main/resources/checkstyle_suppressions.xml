@@ -379,9 +379,6 @@
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]get[/\\]GetIndexIT.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]shards[/\\]IndicesShardStoreRequestIT.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]shards[/\\]IndicesShardStoreResponseTests.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]BulkRequestTests.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]RetryTests.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]get[/\\]MultiGetShardRequestTests.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]ingest[/\\]SimulateExecutionServiceTests.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]ingest[/\\]SimulatePipelineRequestParsingTests.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]ingest[/\\]SimulatePipelineResponseTests.java" checks="LineLength" />

@@ -41,7 +41,7 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
     }
 
     private static IndexLifecycleExplainResponse randomManagedIndexExplainResponse() {
-        return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean(),
+        return IndexLifecycleExplainResponse.newManagedIndexResponse(randomAlphaOfLength(10), randomAlphaOfLength(10),
             randomNonNegativeLong(), randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(10), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
@@ -76,11 +76,10 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
         Long actionTime = instance.getActionTime();
         Long stepTime = instance.getStepTime();
         boolean managed = instance.managedByILM();
-        boolean skip = instance.skip();
         BytesReference stepInfo = instance.getStepInfo();
         PhaseExecutionInfo phaseExecutionInfo = instance.getPhaseExecutionInfo();
         if (managed) {
-            switch (between(0, 13)) {
+            switch (between(0, 12)) {
             case 0:
                 index = index + randomAlphaOfLengthBetween(1, 5);
                 break;
@@ -128,17 +127,14 @@ public class IndexExplainResponseTests extends AbstractSerializingTestCase<Index
                 }
                 break;
             case 11:
-                skip = skip == false;
-                break;
-            case 12:
                 phaseExecutionInfo = randomValueOtherThan(phaseExecutionInfo, () -> PhaseExecutionInfoTests.randomPhaseExecutionInfo(""));
                 break;
-            case 13:
+            case 12:
                 return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
             default:
                 throw new AssertionError("Illegal randomisation branch");
             }
-            return IndexLifecycleExplainResponse.newManagedIndexResponse(index, policy, skip, policyTime, phase, action, step, failedStep,
+            return IndexLifecycleExplainResponse.newManagedIndexResponse(index, policy, policyTime, phase, action, step, failedStep,
                     phaseTime, actionTime, stepTime, stepInfo, phaseExecutionInfo);
         } else {
             switch (between(0, 1)) {

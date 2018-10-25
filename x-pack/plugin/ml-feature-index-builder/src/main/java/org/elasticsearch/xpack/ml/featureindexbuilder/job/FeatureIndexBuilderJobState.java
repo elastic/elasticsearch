@@ -65,7 +65,7 @@ public class FeatureIndexBuilderJobState implements Task.Status, PersistentTaskS
 
     public FeatureIndexBuilderJobState(IndexerState state, @Nullable Map<String, Object> position) {
         this.state = state;
-        this.currentPosition = Collections.unmodifiableSortedMap(position == null ? null : new TreeMap<>(position));
+        this.currentPosition = position == null ? null : Collections.unmodifiableSortedMap(new TreeMap<>(position));
     }
 
     public FeatureIndexBuilderJobState(StreamInput in) throws IOException {

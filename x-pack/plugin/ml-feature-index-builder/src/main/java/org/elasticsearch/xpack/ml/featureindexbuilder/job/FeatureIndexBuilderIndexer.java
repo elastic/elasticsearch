@@ -80,9 +80,7 @@ public abstract class FeatureIndexBuilderIndexer extends AsyncTwoPhaseIndexer<Ma
             XContentBuilder builder;
             try {
                 builder = jsonBuilder();
-                builder.startObject();
                 builder.map(document);
-                builder.endObject();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

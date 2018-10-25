@@ -515,8 +515,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static void deleteAllPolicies() throws IOException {
         Map<String, Object> policies;
 
-        Response response = adminClient().performRequest(new Request("GET", "/_ilm"));
-        policies = entityAsMap(response);
+        try {
+            Response response = adminClient().performRequest(new Request("GET", "/_ilm"));
+            policies = entityAsMap(response);
+        } catch (ResponseException e) {
+            if (RestStatus.NOT_FOUND.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+                // no policies exist that need deleting
+                return;
+            }
+            throw e;
+        }
 
         if (policies == null || policies.isEmpty()) {
             return;

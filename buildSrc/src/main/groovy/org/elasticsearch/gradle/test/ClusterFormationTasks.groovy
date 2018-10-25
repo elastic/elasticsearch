@@ -343,6 +343,11 @@ class ClusterFormationTasks {
             // this will also allow new and old nodes in the BWC case to become the master
             esConfig['discovery.initial_state_timeout'] = '0s'
         }
+        if (esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
+            // We use 30s as the default timeout in rest requests waiting for cluster formation
+            // so we need to bail quicker than the default 30s here
+            esConfig['discovery.zen.master_election.wait_for_joins_timeout'] = '5s'
+        }
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
         esConfig['transport.tcp.port'] =  node.config.transportPort

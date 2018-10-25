@@ -19,13 +19,13 @@
 
 package org.elasticsearch;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
 
 public final class ExceptionsHelper {
 
-    private static final Logger logger = Loggers.getLogger(ExceptionsHelper.class);
+    private static final Logger logger = LogManager.getLogger(ExceptionsHelper.class);
 
     public static RuntimeException convertToRuntime(Exception e) {
         if (e instanceof RuntimeException) {

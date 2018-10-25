@@ -174,8 +174,8 @@ subprojects {
       }
 
       systemProperty 'tests.rest.blacklist', [
-              'mixed_cluster/30_ml_jobs_crud/*',
-              'mixed_cluster/40_ml_datafeed_crud/*',
+              'old_cluster/30_ml_jobs_crud/*',
+              'old_cluster/40_ml_datafeed_crud/*',
       ].join(',')
     }
 
@@ -300,8 +300,8 @@ subprojects {
       }
 
       systemProperty 'tests.rest.blacklist', [
-              'mixed_cluster/30_ml_jobs_crud/*',
-              'mixed_cluster/40_ml_datafeed_crud/*',
+              'upgraded_cluster/30_ml_jobs_crud/*',
+              'upgraded_cluster/40_ml_datafeed_crud/*',
       ].join(',')
     }
 

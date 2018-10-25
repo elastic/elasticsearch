@@ -25,7 +25,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 
 public class GetSettingsRequestBuilder
-    extends MasterNodeReadOperationRequestBuilder<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
+        extends MasterNodeReadOperationRequestBuilder<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
 
     public GetSettingsRequestBuilder(ElasticsearchClient client, GetSettingsAction action, String... indices) {
         super(client, action, new GetSettingsRequest().indices(indices));

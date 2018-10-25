@@ -32,7 +32,7 @@ import org.elasticsearch.client.ElasticsearchClient;
  * stats can be enabled.
  */
 public class IndicesStatsRequestBuilder
-    extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
+        extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
 
     public IndicesStatsRequestBuilder(ElasticsearchClient client, IndicesStatsAction action) {
         super(client, action, new IndicesStatsRequest());

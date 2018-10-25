@@ -28,7 +28,7 @@ import org.elasticsearch.common.Strings;
  */
 @Deprecated
 public class TypesExistsRequestBuilder
-    extends MasterNodeReadOperationRequestBuilder<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
+        extends MasterNodeReadOperationRequestBuilder<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
 
     /**
      * @param indices What indices to check for types

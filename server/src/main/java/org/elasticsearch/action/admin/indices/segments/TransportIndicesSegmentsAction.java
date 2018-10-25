@@ -42,7 +42,7 @@ import java.io.IOException;
 import java.util.List;
 
 public class TransportIndicesSegmentsAction
-    extends TransportBroadcastByNodeAction<IndicesSegmentsRequest, IndicesSegmentResponse, ShardSegments> {
+        extends TransportBroadcastByNodeAction<IndicesSegmentsRequest, IndicesSegmentResponse, ShardSegments> {
 
     private final IndicesService indicesService;
 

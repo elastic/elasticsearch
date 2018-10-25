@@ -44,7 +44,7 @@ import java.util.List;
  * ForceMerge index/indices action.
  */
 public class TransportForceMergeAction
-    extends TransportBroadcastByNodeAction<ForceMergeRequest, ForceMergeResponse, TransportBroadcastByNodeAction.EmptyResult> {
+        extends TransportBroadcastByNodeAction<ForceMergeRequest, ForceMergeResponse, TransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
 

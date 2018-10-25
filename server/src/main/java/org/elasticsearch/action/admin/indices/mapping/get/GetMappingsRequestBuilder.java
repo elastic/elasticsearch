@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class GetMappingsRequestBuilder
-    extends ClusterInfoRequestBuilder<GetMappingsRequest, GetMappingsResponse, GetMappingsRequestBuilder> {
+        extends ClusterInfoRequestBuilder<GetMappingsRequest, GetMappingsResponse, GetMappingsRequestBuilder> {
 
     public GetMappingsRequestBuilder(ElasticsearchClient client, GetMappingsAction action, String... indices) {
         super(client, action, new GetMappingsRequest().indices(indices));

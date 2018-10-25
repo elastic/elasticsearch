@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuild
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class IndicesSegmentsRequestBuilder
-    extends BroadcastOperationRequestBuilder<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder> {
+        extends BroadcastOperationRequestBuilder<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder> {
 
     public IndicesSegmentsRequestBuilder(ElasticsearchClient client, IndicesSegmentsAction action) {
         super(client, action, new IndicesSegmentsRequest());

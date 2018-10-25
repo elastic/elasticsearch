@@ -38,7 +38,7 @@ import org.elasticsearch.transport.TransportService;
  * Delete index action.
  */
 public class TransportDeleteIndexTemplateAction
-    extends TransportMasterNodeAction<DeleteIndexTemplateRequest, AcknowledgedResponse> {
+        extends TransportMasterNodeAction<DeleteIndexTemplateRequest, AcknowledgedResponse> {
 
     private final MetaDataIndexTemplateService indexTemplateService;
 

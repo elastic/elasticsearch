@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuild
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class UpgradeStatusRequestBuilder
-    extends BroadcastOperationRequestBuilder<UpgradeStatusRequest, UpgradeStatusResponse, UpgradeStatusRequestBuilder> {
+        extends BroadcastOperationRequestBuilder<UpgradeStatusRequest, UpgradeStatusResponse, UpgradeStatusRequestBuilder> {
 
     public UpgradeStatusRequestBuilder(ElasticsearchClient client, UpgradeStatusAction action) {
         super(client, action, new UpgradeStatusRequest());

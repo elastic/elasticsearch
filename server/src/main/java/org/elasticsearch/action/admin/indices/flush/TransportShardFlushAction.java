@@ -33,7 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportShardFlushAction
-    extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
+        extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";
 

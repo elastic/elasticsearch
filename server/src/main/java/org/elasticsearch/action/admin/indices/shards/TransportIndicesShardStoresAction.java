@@ -63,7 +63,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * indices and fetches store information from all the nodes using {@link TransportNodesListGatewayStartedShards}
  */
 public class TransportIndicesShardStoresAction
-    extends TransportMasterNodeReadAction<IndicesShardStoresRequest, IndicesShardStoresResponse> {
+        extends TransportMasterNodeReadAction<IndicesShardStoresRequest, IndicesShardStoresResponse> {
 
     private final TransportNodesListGatewayStartedShards listShardStoresInfo;
 

@@ -31,7 +31,7 @@ import java.util.Map;
  * Builder for an update index settings request
  */
 public class UpgradeSettingsRequestBuilder
-    extends AcknowledgedRequestBuilder<UpgradeSettingsRequest, AcknowledgedResponse, UpgradeSettingsRequestBuilder> {
+        extends AcknowledgedRequestBuilder<UpgradeSettingsRequest, AcknowledgedResponse, UpgradeSettingsRequestBuilder> {
 
     public UpgradeSettingsRequestBuilder(ElasticsearchClient client, UpgradeSettingsAction action) {
         super(client, action, new UpgradeSettingsRequest());

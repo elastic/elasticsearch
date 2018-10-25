@@ -36,7 +36,7 @@ import java.util.List;
  * Flush Action.
  */
 public class TransportFlushAction
-    extends TransportBroadcastReplicationAction<FlushRequest, FlushResponse, ShardFlushRequest, ReplicationResponse> {
+        extends TransportBroadcastReplicationAction<FlushRequest, FlushResponse, ShardFlushRequest, ReplicationResponse> {
 
     @Inject
     public TransportFlushAction(Settings settings, ClusterService clusterService, TransportService transportService,

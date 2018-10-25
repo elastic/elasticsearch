@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuild
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class ClearIndicesCacheRequestBuilder
-    extends BroadcastOperationRequestBuilder<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ClearIndicesCacheRequestBuilder> {
+        extends BroadcastOperationRequestBuilder<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ClearIndicesCacheRequestBuilder> {
 
     public ClearIndicesCacheRequestBuilder(ElasticsearchClient client, ClearIndicesCacheAction action) {
         super(client, action, new ClearIndicesCacheRequest());

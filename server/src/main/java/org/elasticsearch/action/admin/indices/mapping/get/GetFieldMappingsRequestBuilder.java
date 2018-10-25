@@ -26,7 +26,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 
 /** A helper class to build {@link GetFieldMappingsRequest} objects */
 public class GetFieldMappingsRequestBuilder
-    extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse> {
+        extends ActionRequestBuilder<GetFieldMappingsRequest, GetFieldMappingsResponse> {
 
     public GetFieldMappingsRequestBuilder(ElasticsearchClient client, GetFieldMappingsAction action, String... indices) {
         super(client, action, new GetFieldMappingsRequest().indices(indices));

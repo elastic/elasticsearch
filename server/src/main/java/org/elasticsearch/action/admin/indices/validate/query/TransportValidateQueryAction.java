@@ -59,8 +59,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.LongSupplier;
 
-public class TransportValidateQueryAction
-    extends TransportBroadcastAction<ValidateQueryRequest, ValidateQueryResponse, ShardValidateQueryRequest, ShardValidateQueryResponse> {
+public class TransportValidateQueryAction extends TransportBroadcastAction<
+        ValidateQueryRequest,
+        ValidateQueryResponse,
+        ShardValidateQueryRequest,
+        ShardValidateQueryResponse> {
 
     private final SearchService searchService;
 

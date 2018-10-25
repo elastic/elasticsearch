@@ -10,13 +10,23 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
+import java.util.Map;
+
 public interface AuthorizationEngine {
 
-    void authorizeRunAs(Authentication authentication, TransportRequest request, String action,
+    void resolveAuthorizationInfo(Authentication authentication, TransportRequest request, String action,
+                                  ActionListener<AuthorizationInfo> listener);
+
+    void authorizeRunAs(Authentication authentication, TransportRequest request, String action, AuthorizationInfo authorizationInfo,
                         ActionListener<AuthorizationResult> listener);
 
-    void authorizeClusterAction(Authentication authentication, TransportRequest request, String action,
+    void authorizeClusterAction(Authentication authentication, TransportRequest request, String action, AuthorizationInfo authorizationInfo,
                                 ActionListener<AuthorizationResult> listener);
+
+    interface AuthorizationInfo {
+
+        Map<String, Object> asMap();
+    }
 
     class AuthorizationResult {
 

@@ -365,36 +365,46 @@ public class AuthorizationService {
         if (SystemUser.is(authentication.getUser())) {
             authorizeSystemUser(authentication, action, unwrappedRequest);
         } else {
-            final boolean isRunAs = authentication.getUser().isRunAs();
-            if (isRunAs) {
-                ActionListener<AuthorizationResult> runAsListener = ActionListener.wrap(result -> {
-                    if (result.isGranted()) {
-                        if (result.isAuditable()) {
-                            // TODO get roles from result as AuthzInfo?
-                            auditTrail.runAsGranted(authentication, action, unwrappedRequest,
-                                authentication.getUser().authenticatedUser().roles());
-                        }
-                        authorizePostRunAs(authentication, action, unwrappedRequest, listener);
-                    } else {
-                        listener.onFailure(denyRunAs(authentication, action, unwrappedRequest,
-                            authentication.getUser().authenticatedUser().roles()));
+            final ActionListener<AuthorizationInfo> authzInfoListener = ActionListener.wrap(
+                authorizationInfo -> maybeAuthorizeRunAs(authentication, action, unwrappedRequest, authorizationInfo, listener),
+                listener::onFailure);
+            getAuthorizationEngine(authentication).resolveAuthorizationInfo(authentication, unwrappedRequest, action, authzInfoListener);
+        }
+    }
+
+    private void maybeAuthorizeRunAs(final Authentication authentication, final String action, final TransportRequest unwrappedRequest,
+                                     final AuthorizationInfo authzInfo, final ActionListener<Void> listener) {
+        final boolean isRunAs = authentication.getUser().isRunAs();
+        if (isRunAs) {
+            ActionListener<AuthorizationResult> runAsListener = ActionListener.wrap(result -> {
+                if (result.isGranted()) {
+                    if (result.isAuditable()) {
+                        // TODO get roles from result as AuthzInfo?
+                        auditTrail.runAsGranted(authentication, action, unwrappedRequest,
+                            authentication.getUser().authenticatedUser().roles());
                     }
-                }, e -> {
-                    // TODO need a failure handler better than this!
+                    authorizePostRunAs(authentication, action, unwrappedRequest, authzInfo, listener);
+                } else {
                     listener.onFailure(denyRunAs(authentication, action, unwrappedRequest,
-                        authentication.getUser().authenticatedUser().roles(), e));
-                });
-                authorizeRunAs(authentication, unwrappedRequest, action, runAsListener);
-            }
+                        authentication.getUser().authenticatedUser().roles()));
+                }
+            }, e -> {
+                // TODO need a failure handler better than this!
+                listener.onFailure(denyRunAs(authentication, action, unwrappedRequest,
+                    authentication.getUser().authenticatedUser().roles(), e));
+            });
+            authorizeRunAs(authentication, unwrappedRequest, action, authzInfo, runAsListener);
+        } else {
+            authorizePostRunAs(authentication, action, unwrappedRequest, authzInfo, listener);
         }
     }
 
     private void authorizePostRunAs(final Authentication authentication, final String action,
-                                    final TransportRequest unwrappedRequest, final ActionListener<Void> listener) {
+                                    final TransportRequest unwrappedRequest, final AuthorizationInfo authzInfo,
+                                    final ActionListener<Void> listener) {
         final AuthorizationEngine authzEngine = getAuthorizationEngine(authentication);
-        // TODO this is missing storage of roles/authz info in context
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
-            authzEngine.authorizeClusterAction(authentication, unwrappedRequest, action, ActionListener.wrap(result -> {
+            authzEngine.authorizeClusterAction(authentication, unwrappedRequest, action, authzInfo, ActionListener.wrap(result -> {
                 if (result.isGranted()) {
                     if (result.isAuditable()) {
                         // TODO authzInfo
@@ -416,8 +426,13 @@ public class AuthorizationService {
         }
     }
 
-    private AuthorizationEngine getAuthorizationEngine(final Authentication authentication) {
+    private AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {
         return ClientReservedRealm.isReserved(authentication.getUser().authenticatedUser().principal(), settings) ?
+            rbacEngine : rbacEngine;
+    }
+
+    private AuthorizationEngine getAuthorizationEngine(final Authentication authentication) {
+        return ClientReservedRealm.isReserved(authentication.getUser().principal(), settings) ?
             rbacEngine : rbacEngine;
     }
 
@@ -456,14 +471,14 @@ public class AuthorizationService {
     }
 
     private void authorizeRunAs(final Authentication authentication, final TransportRequest request, final String action,
-                                final ActionListener<AuthorizationResult> listener) {
+                                final AuthorizationInfo authzInfo, final ActionListener<AuthorizationResult> listener) {
         if (authentication.getLookedUpBy() == null) {
             // this user did not really exist
             // TODO(jaymode) find a better way to indicate lookup failed for a user and we need to fail authz
             throw denyRunAs(authentication, action, request, authentication.getUser().authenticatedUser().roles());
         } else {
-            final AuthorizationEngine runAsAuthzEngine = getAuthorizationEngine(authentication);
-            runAsAuthzEngine.authorizeRunAs(authentication, request, action, listener);
+            final AuthorizationEngine runAsAuthzEngine = getRunAsAuthorizationEngine(authentication);
+            runAsAuthzEngine.authorizeRunAs(authentication, request, action, authzInfo, listener);
         }
     }
 

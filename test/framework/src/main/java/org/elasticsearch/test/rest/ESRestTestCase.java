@@ -410,12 +410,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             waitForPendingRollupTasks();
         }
 
-        /*
-         * ILM was introduced in 6.6 so any cluster that contains older
-         * nodes won't be able to do *anything* with ILM, including cleanup.
-         */
-        if (hasXPack && nodeVersions.first().onOrAfter(Version.V_6_6_0)
-                && false == preserveILMPoliciesUponCompletion()) {
+        if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
             deleteAllPolicies();
         }
     }

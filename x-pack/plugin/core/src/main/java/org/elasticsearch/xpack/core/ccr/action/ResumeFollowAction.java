@@ -48,6 +48,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         static final ParseField MAX_CONCURRENT_READ_BATCHES = new ParseField("max_concurrent_read_batches");
         static final ParseField MAX_BATCH_SIZE = new ParseField("max_batch_size");
         static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
+        static final ParseField MAX_WRITE_BUFFER_COUNT = new ParseField("max_write_buffer_count");
         static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
         static final ParseField MAX_RETRY_DELAY_FIELD = new ParseField("max_retry_delay");
         static final ParseField POLL_TIMEOUT = new ParseField("poll_timeout");
@@ -63,11 +64,16 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
                     MAX_BATCH_SIZE,
                     ObjectParser.ValueType.STRING);
             PARSER.declareInt(Request::setMaxConcurrentWriteBatches, MAX_CONCURRENT_WRITE_BATCHES);
-            PARSER.declareInt(Request::setMaxWriteBufferSize, MAX_WRITE_BUFFER_SIZE);
+            PARSER.declareInt(Request::setMaxWriteBufferCount, MAX_WRITE_BUFFER_COUNT);
+            PARSER.declareField(
+                    Request::setMaxWriteBufferSize,
+                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
+                    MAX_WRITE_BUFFER_SIZE,
+                    ObjectParser.ValueType.STRING);
             PARSER.declareField(
                     Request::setMaxRetryDelay,
                     (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY_FIELD.getPreferredName()),
-                MAX_RETRY_DELAY_FIELD,
+                    MAX_RETRY_DELAY_FIELD,
                     ObjectParser.ValueType.STRING);
             PARSER.declareField(
                     Request::setPollTimeout,
@@ -140,13 +146,23 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
         }
 
-        private Integer maxWriteBufferSize;
+        private Integer maxWriteBufferCount;
 
-        public Integer getMaxWriteBufferSize() {
+        public Integer getMaxWriteBufferCount() {
+            return maxWriteBufferCount;
+        }
+
+        public void setMaxWriteBufferCount(Integer maxWriteBufferCount) {
+            this.maxWriteBufferCount = maxWriteBufferCount;
+        }
+
+        private ByteSizeValue maxWriteBufferSize;
+
+        public ByteSizeValue getMaxWriteBufferSize() {
             return maxWriteBufferSize;
         }
 
-        public void setMaxWriteBufferSize(Integer maxWriteBufferSize) {
+        public void setMaxWriteBufferSize(ByteSizeValue maxWriteBufferSize) {
             this.maxWriteBufferSize = maxWriteBufferSize;
         }
 
@@ -192,7 +208,10 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
             if (maxConcurrentWriteBatches != null && maxConcurrentWriteBatches < 1) {
                 e = addValidationError(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName() + " must be larger than 0", e);
             }
-            if (maxWriteBufferSize != null && maxWriteBufferSize < 1) {
+            if (maxWriteBufferCount != null && maxWriteBufferCount < 1) {
+                e = addValidationError(MAX_WRITE_BUFFER_COUNT.getPreferredName() + " must be larger than 0", e);
+            }
+            if (maxWriteBufferSize != null && maxWriteBufferSize.compareTo(ByteSizeValue.ZERO) <= 0) {
                 e = addValidationError(MAX_WRITE_BUFFER_SIZE.getPreferredName() + " must be larger than 0", e);
             }
             if (maxRetryDelay != null && maxRetryDelay.millis() <= 0) {
@@ -217,7 +236,8 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
             maxConcurrentReadBatches = in.readOptionalVInt();
             maxBatchSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxConcurrentWriteBatches = in.readOptionalVInt();
-            maxWriteBufferSize = in.readOptionalVInt();
+            maxWriteBufferCount = in.readOptionalVInt();
+            maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxRetryDelay = in.readOptionalTimeValue();
             pollTimeout = in.readOptionalTimeValue();
         }
@@ -230,7 +250,8 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
             out.writeOptionalVInt(maxConcurrentReadBatches);
             out.writeOptionalWriteable(maxBatchSize);
             out.writeOptionalVInt(maxConcurrentWriteBatches);
-            out.writeOptionalVInt(maxWriteBufferSize);
+            out.writeOptionalVInt(maxWriteBufferCount);
+            out.writeOptionalWriteable(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
             out.writeOptionalTimeValue(pollTimeout);
         }
@@ -253,8 +274,11 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
             if (maxBatchSize != null) {
                 builder.field(MAX_BATCH_SIZE.getPreferredName(), maxBatchSize.getStringRep());
             }
+            if (maxWriteBufferCount != null) {
+                builder.field(MAX_WRITE_BUFFER_COUNT.getPreferredName(), maxWriteBufferCount);
+            }
             if (maxWriteBufferSize != null) {
-                builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
+                builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize.getStringRep());
             }
             if (maxConcurrentReadBatches != null) {
                 builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
@@ -279,6 +303,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
                     Objects.equals(maxConcurrentReadBatches, request.maxConcurrentReadBatches) &&
                     Objects.equals(maxBatchSize, request.maxBatchSize) &&
                     Objects.equals(maxConcurrentWriteBatches, request.maxConcurrentWriteBatches) &&
+                    Objects.equals(maxWriteBufferCount, request.maxWriteBufferCount) &&
                     Objects.equals(maxWriteBufferSize, request.maxWriteBufferSize) &&
                     Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
                     Objects.equals(pollTimeout, request.pollTimeout) &&
@@ -293,6 +318,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
                     maxConcurrentReadBatches,
                     maxBatchSize,
                     maxConcurrentWriteBatches,
+                    maxWriteBufferCount,
                     maxWriteBufferSize,
                     maxRetryDelay,
                     pollTimeout);

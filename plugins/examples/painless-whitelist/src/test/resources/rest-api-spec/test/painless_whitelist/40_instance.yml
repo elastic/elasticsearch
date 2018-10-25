@@ -1,6 +1,6 @@
 # Example tests using an instance binding
 
-"custom instance binding":
+" custom instance binding":
 - do:
     index:
       index: test
@@ -11,8 +11,8 @@
     indices.refresh: {}
 
 - do:
-    index: test
     search:
+      index: test
       body:
         query:
           match_all: {}
@@ -26,8 +26,8 @@
 - match: { hits.hits.0.fields.sNum1.0: 2 }
 
 - do:
-    index: test
     search:
+      index: test
       body:
         query:
           match_all: {}

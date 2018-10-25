@@ -255,7 +255,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         followRequest.getFollowRequest().setMaxBatchOperationCount(maxReadSize);
         followRequest.getFollowRequest().setMaxConcurrentReadBatches(randomIntBetween(2, 10));
         followRequest.getFollowRequest().setMaxConcurrentWriteBatches(randomIntBetween(2, 10));
-        followRequest.getFollowRequest().setMaxWriteBufferSize(randomIntBetween(1024, 10240));
+        followRequest.getFollowRequest().setMaxWriteBufferCount(randomIntBetween(1024, 10240));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         atLeastDocsIndexed(leaderClient(), "index1", numDocsIndexed);

@@ -46,6 +46,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     private static final ParseField NUMBER_OF_CONCURRENT_READS_FIELD = new ParseField("number_of_concurrent_reads");
     private static final ParseField NUMBER_OF_CONCURRENT_WRITES_FIELD = new ParseField("number_of_concurrent_writes");
     private static final ParseField NUMBER_OF_QUEUED_WRITES_FIELD = new ParseField("number_of_queued_writes");
+    private static final ParseField BUFFER_SIZE_IN_BYTES_FIELD = new ParseField("buffer_size_in_bytes");
     private static final ParseField MAPPING_VERSION_FIELD = new ParseField("mapping_version");
     private static final ParseField TOTAL_FETCH_TIME_MILLIS_FIELD = new ParseField("total_fetch_time_millis");
     private static final ParseField TOTAL_FETCH_REMOTE_TIME_MILLIS_FIELD = new ParseField("total_fetch_remote_time_millis");
@@ -89,12 +90,13 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                             (long) args[20],
                             (long) args[21],
                             (long) args[22],
+                            (long) args[23],
                             new TreeMap<>(
-                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[23])
+                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[24])
                                             .stream()
                                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-                            (long) args[24],
-                            (ElasticsearchException) args[25]));
+                            (long) args[25],
+                            (ElasticsearchException) args[26]));
 
     public static final String FETCH_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-fetch-exceptions-entry";
 
@@ -116,6 +118,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_READS_FIELD);
         STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_WRITES_FIELD);
         STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_QUEUED_WRITES_FIELD);
+        STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUFFER_SIZE_IN_BYTES_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAPPING_VERSION_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_TIME_MILLIS_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_REMOTE_TIME_MILLIS_FIELD);
@@ -219,6 +222,12 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         return numberOfQueuedWrites;
     }
 
+    private final long bufferSize;
+
+    public long bufferSize() {
+        return bufferSize;
+    }
+
     private final long mappingVersion;
 
     public long mappingVersion() {
@@ -316,6 +325,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             final int numberOfConcurrentReads,
             final int numberOfConcurrentWrites,
             final int numberOfQueuedWrites,
+            final long bufferSize,
             final long mappingVersion,
             final long totalFetchTimeMillis,
             final long totalFetchRemoteTimeMillis,
@@ -342,6 +352,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.numberOfConcurrentReads = numberOfConcurrentReads;
         this.numberOfConcurrentWrites = numberOfConcurrentWrites;
         this.numberOfQueuedWrites = numberOfQueuedWrites;
+        this.bufferSize = bufferSize;
         this.mappingVersion = mappingVersion;
         this.totalFetchTimeMillis = totalFetchTimeMillis;
         this.totalFetchRemoteTimeMillis = totalFetchRemoteTimeMillis;
@@ -371,6 +382,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.numberOfConcurrentReads = in.readVInt();
         this.numberOfConcurrentWrites = in.readVInt();
         this.numberOfQueuedWrites = in.readVInt();
+        this.bufferSize = in.readVLong();
         this.mappingVersion = in.readVLong();
         this.totalFetchTimeMillis = in.readVLong();
         this.totalFetchRemoteTimeMillis = in.readVLong();
@@ -407,6 +419,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeVInt(numberOfConcurrentReads);
         out.writeVInt(numberOfConcurrentWrites);
         out.writeVInt(numberOfQueuedWrites);
+        out.writeVLong(bufferSize);
         out.writeVLong(mappingVersion);
         out.writeVLong(totalFetchTimeMillis);
         out.writeVLong(totalFetchRemoteTimeMillis);
@@ -452,6 +465,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         builder.field(NUMBER_OF_CONCURRENT_READS_FIELD.getPreferredName(), numberOfConcurrentReads);
         builder.field(NUMBER_OF_CONCURRENT_WRITES_FIELD.getPreferredName(), numberOfConcurrentWrites);
         builder.field(NUMBER_OF_QUEUED_WRITES_FIELD.getPreferredName(), numberOfQueuedWrites);
+        builder.humanReadableField(
+                BUFFER_SIZE_IN_BYTES_FIELD.getPreferredName(),
+                "buffer_size",
+                new ByteSizeValue(bufferSize));
         builder.field(MAPPING_VERSION_FIELD.getPreferredName(), mappingVersion);
         builder.humanReadableField(
                 TOTAL_FETCH_TIME_MILLIS_FIELD.getPreferredName(),
@@ -531,6 +548,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 numberOfConcurrentReads == that.numberOfConcurrentReads &&
                 numberOfConcurrentWrites == that.numberOfConcurrentWrites &&
                 numberOfQueuedWrites == that.numberOfQueuedWrites &&
+                bufferSize == that.bufferSize &&
                 mappingVersion == that.mappingVersion &&
                 totalFetchTimeMillis == that.totalFetchTimeMillis &&
                 totalFetchRemoteTimeMillis == that.totalFetchRemoteTimeMillis &&
@@ -568,6 +586,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 numberOfConcurrentReads,
                 numberOfConcurrentWrites,
                 numberOfQueuedWrites,
+                bufferSize,
                 mappingVersion,
                 totalFetchTimeMillis,
             totalFetchRemoteTimeMillis,

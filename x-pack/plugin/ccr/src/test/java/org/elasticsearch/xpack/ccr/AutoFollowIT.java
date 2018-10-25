@@ -126,7 +126,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(randomIntBetween(0, Integer.MAX_VALUE));
+            request.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
             request.setMaxConcurrentReadBatches(randomIntBetween(0, Integer.MAX_VALUE));
@@ -136,6 +136,9 @@ public class AutoFollowIT extends CcrIntegTestCase {
         }
         if (randomBoolean()) {
             request.setMaxBatchOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
@@ -157,6 +160,9 @@ public class AutoFollowIT extends CcrIntegTestCase {
             ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTasksMetaData.tasks().iterator().next().getParams();
             assertThat(shardFollowTask.getLeaderShardId().getIndexName(), equalTo("logs-201901"));
             assertThat(shardFollowTask.getFollowShardId().getIndexName(), equalTo("copy-logs-201901"));
+            if (request.getMaxWriteBufferCount() != null) {
+                assertThat(shardFollowTask.getMaxWriteBufferCount(), equalTo(request.getMaxWriteBufferCount()));
+            }
             if (request.getMaxWriteBufferSize() != null) {
                 assertThat(shardFollowTask.getMaxWriteBufferSize(), equalTo(request.getMaxWriteBufferSize()));
             }

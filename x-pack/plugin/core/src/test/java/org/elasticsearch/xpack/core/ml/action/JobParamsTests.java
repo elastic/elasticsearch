@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
 import java.io.IOException;
 
@@ -24,6 +25,9 @@ public class JobParamsTests extends AbstractSerializingTestCase<OpenJobAction.Jo
         OpenJobAction.JobParams params = new OpenJobAction.JobParams(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             params.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            params.setJob(JobTests.createRandomizedJob());
         }
         return params;
     }

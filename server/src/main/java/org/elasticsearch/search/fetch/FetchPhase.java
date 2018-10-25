@@ -277,7 +277,16 @@ public class FetchPhase implements SearchPhase {
                 storedToRequestedFields, subReaderContext);
         }
 
-        DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());
+        final String typeText;
+        if (uid != null && uid.type() != null) {
+            typeText = uid.type();
+        } else {
+            // stored fields are disabled but it is not allowed to disable them on inner hits
+            // if the index has multiple types so we can assume that the index has a single type.
+            assert context.mapperService().types().size() == 1;
+            typeText = context.mapperService().types().iterator().next();
+        }
+        DocumentMapper documentMapper = context.mapperService().documentMapper(typeText);
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, nestedSubDocId);
 

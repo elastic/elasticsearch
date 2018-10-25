@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBui
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class GetPipelineRequestBuilder
-    extends MasterNodeReadOperationRequestBuilder<GetPipelineRequest, GetPipelineResponse, GetPipelineRequestBuilder> {
+        extends MasterNodeReadOperationRequestBuilder<GetPipelineRequest, GetPipelineResponse, GetPipelineRequestBuilder> {
 
     public GetPipelineRequestBuilder(ElasticsearchClient client, GetPipelineAction action) {
         super(client, action, new GetPipelineRequest());

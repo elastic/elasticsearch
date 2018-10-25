@@ -149,8 +149,10 @@
           "type" : "date",
           "format" : "epoch_millis"
         },
-        "api_key" : {
-          "type" : "keyword"
+        "api_key_hash" : {
+          "type" : "keyword",
+          "index": false,
+          "doc_values": false
         },
         "role_descriptors" : {
           "type" : "object",

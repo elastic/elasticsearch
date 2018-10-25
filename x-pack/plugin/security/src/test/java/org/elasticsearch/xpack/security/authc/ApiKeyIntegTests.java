@@ -61,6 +61,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .get();
 
         assertEquals("test key", response.getName());
+        assertNotNull(response.getId());
         assertNotNull(response.getKey());
         Instant expiration = response.getExpiration();
         final long daysBetween = ChronoUnit.DAYS.between(start, expiration);
@@ -69,6 +70,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // simple one
         response = securityClient.prepareCreateApiKey().setName("simple").get();
         assertEquals("simple", response.getName());
+        assertNotNull(response.getId());
         assertNotNull(response.getKey());
         assertNull(response.getExpiration());
     }

@@ -23,13 +23,15 @@ import java.util.Arrays;
 public final class CreateApiKeyResponse extends ActionResponse {
 
     private String name;
+    private String id;
     private SecureString key;
     private Instant expiration;
 
     CreateApiKeyResponse() {}
 
-    public CreateApiKeyResponse(String name, SecureString key, Instant expiration) {
+    public CreateApiKeyResponse(String name, String id, SecureString key, Instant expiration) {
         this.name = name;
+        this.id = id;
         this.key = key;
         this.expiration = expiration;
     }
@@ -37,6 +39,7 @@ public final class CreateApiKeyResponse extends ActionResponse {
     public CreateApiKeyResponse(StreamInput in) throws IOException {
         // TODO(jaymode) call super(in) once this is added in #34655
         this.name = in.readString();
+        this.id = in.readString();
         byte[] bytes = null;
         try {
             bytes = in.readByteArray();
@@ -53,6 +56,10 @@ public final class CreateApiKeyResponse extends ActionResponse {
         return name;
     }
 
+    public String getId() {
+        return id;
+    }
+
     public SecureString getKey() {
         return key;
     }
@@ -66,6 +73,7 @@ public final class CreateApiKeyResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
+        out.writeString(id);
         byte[] bytes = null;
         try {
             bytes = CharArrays.toUtf8Bytes(key.getChars());
@@ -84,6 +92,7 @@ public final class CreateApiKeyResponse extends ActionResponse {
         //throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         super.readFrom(in);
         this.name = in.readString();
+        this.id = in.readString();
         byte[] bytes = null;
         try {
             bytes = in.readByteArray();

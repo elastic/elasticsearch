@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -75,6 +76,7 @@ public class ApiKeyService {
                     "able to use api keys", Version.V_7_0_0_alpha1);
             }
 
+            final char[] keyHash = Hasher.PBKDF2.hash(apiKey);
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject()
                     .field("doc_type", "api_key")
@@ -83,8 +85,8 @@ public class ApiKeyService {
 
                 byte[] utf8Bytes = null;
                 try {
-                    utf8Bytes = CharArrays.toUtf8Bytes(apiKey.getChars());
-                    builder.field("api_key").utf8Value(utf8Bytes, 0, utf8Bytes.length);
+                    utf8Bytes = CharArrays.toUtf8Bytes(keyHash);
+                    builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
                 } finally {
                     if (utf8Bytes != null) {
                         Arrays.fill(utf8Bytes, (byte) 0);
@@ -110,10 +112,12 @@ public class ApiKeyService {
                 securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                     executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexRequest,
                         ActionListener.wrap(indexResponse ->
-                                listener.onResponse(new CreateApiKeyResponse(request.getName(), apiKey, expiration)),
+                                listener.onResponse(new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
                             listener::onFailure)));
             } catch (IOException e) {
                 listener.onFailure(e);
+            } finally {
+                Arrays.fill(keyHash, (char) 0);
             }
         }
     }

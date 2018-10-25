@@ -22,14 +22,16 @@ public class CreateApiKeyResponseTests extends ESTestCase {
         final String name = randomAlphaOfLengthBetween(1, 256);
         final SecureString key = new SecureString(UUIDs.randomBase64UUID().toCharArray());
         final Instant expiration = randomBoolean() ? Instant.now().plus(7L, ChronoUnit.DAYS) : null;
+        final String id = randomAlphaOfLength(100);
 
-        final CreateApiKeyResponse response = new CreateApiKeyResponse(name, key, expiration);
+        final CreateApiKeyResponse response = new CreateApiKeyResponse(name, id, key, expiration);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 CreateApiKeyResponse serialized = new CreateApiKeyResponse();
                 serialized.readFrom(in);
                 assertEquals(name, serialized.getName());
+                assertEquals(id, serialized.getId());
                 assertEquals(key, serialized.getKey());
                 assertEquals(expiration, serialized.getExpiration());
             }
@@ -37,6 +39,7 @@ public class CreateApiKeyResponseTests extends ESTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 CreateApiKeyResponse serialized = new CreateApiKeyResponse(in);
                 assertEquals(name, serialized.getName());
+                assertEquals(id, serialized.getId());
                 assertEquals(key, serialized.getKey());
                 assertEquals(expiration, serialized.getExpiration());
             }

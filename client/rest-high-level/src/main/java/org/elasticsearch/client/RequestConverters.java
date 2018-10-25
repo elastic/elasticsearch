@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client;
 
-import java.util.List;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -50,15 +49,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
-import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.StartILMRequest;
-import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Nullable;
@@ -93,6 +83,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.util.List;
 import java.util.Locale;
 import java.util.StringJoiner;
 
@@ -602,118 +593,6 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withTimeout(deleteStoredScriptRequest.timeout());
         params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request getLifecyclePolicy(GetLifecyclePolicyRequest getLifecyclePolicyRequest) {
-        String endpoint = new EndpointBuilder().addPathPartAsIs("_ilm")
-                .addCommaSeparatedPathParts(getLifecyclePolicyRequest.getPolicyNames()).build();
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        Params params = new Params(request);
-        params.withMasterTimeout(getLifecyclePolicyRequest.masterNodeTimeout());
-        params.withTimeout(getLifecyclePolicyRequest.timeout());
-        return request;
-    }
-
-    static Request putLifecyclePolicy(PutLifecyclePolicyRequest putLifecycleRequest) throws IOException {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ilm")
-            .addPathPartAsIs(putLifecycleRequest.getName())
-            .build();
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        Params params = new Params(request);
-        params.withMasterTimeout(putLifecycleRequest.masterNodeTimeout());
-        params.withTimeout(putLifecycleRequest.timeout());
-        request.setEntity(createEntity(putLifecycleRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request deleteLifecyclePolicy(DeleteLifecyclePolicyRequest deleteLifecyclePolicyRequest) {
-        Request request = new Request(HttpDelete.METHOD_NAME,
-            new EndpointBuilder()
-                .addPathPartAsIs("_ilm")
-                .addPathPartAsIs(deleteLifecyclePolicyRequest.getLifecyclePolicy())
-                .build());
-        Params params = new Params(request);
-        params.withMasterTimeout(deleteLifecyclePolicyRequest.masterNodeTimeout());
-        params.withTimeout(deleteLifecyclePolicyRequest.timeout());
-        return request;
-    }
-
-    static Request removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyRequest removePolicyRequest) {
-        String[] indices = removePolicyRequest.indices() == null ?
-                Strings.EMPTY_ARRAY : removePolicyRequest.indices().toArray(new String[] {});
-        Request request = new Request(HttpDelete.METHOD_NAME,
-                new EndpointBuilder()
-                        .addCommaSeparatedPathParts(indices)
-                        .addPathPartAsIs("_ilm")
-                        .build());
-        Params params = new Params(request);
-        params.withIndicesOptions(removePolicyRequest.indicesOptions());
-        params.withMasterTimeout(removePolicyRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request startILM(StartILMRequest startILMRequest) {
-        Request request = new Request(HttpPost.METHOD_NAME,
-            new EndpointBuilder()
-                .addPathPartAsIs("_ilm")
-                .addPathPartAsIs("start")
-            .build());
-        Params params = new Params(request);
-        params.withMasterTimeout(startILMRequest.masterNodeTimeout());
-        params.withTimeout(startILMRequest.timeout());
-        return request;
-    }
-
-    static Request stopILM(StopILMRequest stopILMRequest) {
-        Request request = new Request(HttpPost.METHOD_NAME,
-            new EndpointBuilder()
-                .addPathPartAsIs("_ilm")
-                .addPathPartAsIs("stop")
-            .build());
-        Params params = new Params(request);
-        params.withMasterTimeout(stopILMRequest.masterNodeTimeout());
-        params.withTimeout(stopILMRequest.timeout());
-        return request;
-    }
-
-    static Request lifecycleManagementStatus(LifecycleManagementStatusRequest lifecycleManagementStatusRequest){
-        Request request = new Request(HttpGet.METHOD_NAME,
-            new EndpointBuilder()
-                .addPathPartAsIs("_ilm")
-                .addPathPartAsIs("status")
-            .build());
-        Params params = new Params(request);
-        params.withMasterTimeout(lifecycleManagementStatusRequest.masterNodeTimeout());
-        params.withTimeout(lifecycleManagementStatusRequest.timeout());
-        return request;
-    }
-
-    static Request explainLifecycle(ExplainLifecycleRequest explainLifecycleRequest) {
-        String[] indices = explainLifecycleRequest.indices() == null ? Strings.EMPTY_ARRAY : explainLifecycleRequest.indices();
-        Request request = new Request(HttpGet.METHOD_NAME,
-            new EndpointBuilder()
-                .addCommaSeparatedPathParts(indices)
-                .addPathPartAsIs("_ilm")
-                .addPathPartAsIs("explain")
-            .build());
-        Params params = new Params(request);
-        params.withIndicesOptions(explainLifecycleRequest.indicesOptions());
-        params.withMasterTimeout(explainLifecycleRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request retryLifecycle(RetryLifecyclePolicyRequest retryLifecyclePolicyRequest) {
-        Request request = new Request(HttpPost.METHOD_NAME,
-            new EndpointBuilder()
-                .addCommaSeparatedPathParts(retryLifecyclePolicyRequest.getIndices())
-                .addPathPartAsIs("_ilm")
-                .addPathPartAsIs("retry")
-                .build());
-        Params params = new Params(request);
-        params.withMasterTimeout(retryLifecyclePolicyRequest.masterNodeTimeout());
-        params.withTimeout(retryLifecyclePolicyRequest.timeout());
         return request;
     }
 

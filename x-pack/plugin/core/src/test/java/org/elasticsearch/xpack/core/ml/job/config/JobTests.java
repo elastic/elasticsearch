@@ -660,8 +660,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setModelSnapshotRetentionDays(randomNonNegativeLong());
-        } else {
-            builder.setModelSnapshotRetentionDays(null);
         }
         if (randomBoolean()) {
             builder.setResultsRetentionDays(randomNonNegativeLong());

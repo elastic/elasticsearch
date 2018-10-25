@@ -12,8 +12,7 @@ Creates a follower index.
 
 This API creates a new follower index that is configured to follow the
 referenced leader index. When this API returns, the follower index exists, and
-{ccr} will start replicating operations from the leader index to the follower
-index.
+{ccr} starts replicating operations from the leader index to the follower index.
 
 ==== Request
 
@@ -42,24 +41,24 @@ PUT /<follower_index>/_ccr/follow
 // TEST[s/<leader_cluster>/leader_cluster/]
 // TEST[s/<leader_index>/leader_index/]
 
-Here, `<follower_index>` is the name of the follower index to create,
-`<leader_cluster>` is the name of the
-<<modules-remote-clusters,remote cluster> containing the leader index, and
-`<leader_index>` is the name of the leader index in that remote cluster.
+==== Path Components
+
+`follower_index` (required)::
+  (string) the name of the follower index
 
 ==== Request Body
-`leader_cluster`::
-  (required string) the <<modules-remote-clusters,remote cluster>> containing the leader
+`leader_cluster` (required)::
+  (string) the <<modules-remote-clusters,remote cluster>> containing the leader
   index
 
-`leader_index`::
-  (required string) the name of the index in the leader cluster to follow
+`leader_index` (required)::
+  (string) the name of the index in the leader cluster to follow
 
 include::../follow-request-body.asciidoc[]
 
 ==== Example
 
-The following is an example of using the create follower API.
+This example creates a follower index named `follower_index`:
 
 [source,js]
 --------------------------------------------------

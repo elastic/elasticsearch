@@ -21,11 +21,9 @@ GET /_ccr/auto_follow/stats
 // CONSOLE
 // TEST
 
-Here, stats about auto-follow patterns will be returned.
-
 ==== Example
 
-The following is an example of using the get auto-follow stats API.
+This example retrieves stats about auto-follow patterns:
 
 [source,js]
 --------------------------------------------------

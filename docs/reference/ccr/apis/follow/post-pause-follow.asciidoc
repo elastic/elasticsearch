@@ -41,11 +41,14 @@ POST /<follower_index>/_ccr/pause_follow
 // CONSOLE
 // TEST[s/<follower_index>/follower_index/]
 
-Here, `<follower_index>` is the name of the follower index to pause.
+==== Path Components
+
+`follower_index` (required)::
+  (string) the name of the follower index
 
 ==== Example
 
-The following is an example of using the pause follower API.
+This example pauses a follower index named `follower_index`:
 
 [source,js]
 --------------------------------------------------

@@ -10,7 +10,7 @@ Delete auto-follow patterns.
 
 ==== Description
 
-This API deletes configured auto-follow patterns.
+This API deletes a configured auto-follow pattern collection.
 
 ==== Request
 
@@ -41,13 +41,14 @@ DELETE /_ccr/auto_follow/<auto_follow_pattern_name>
 // CONSOLE
 // TEST[s/<auto_follow_pattern_name>/my_auto_follow_pattern/]
 
-Here, the auto-follow patterns associated with the
-<<modules-remote-clusters,remote cluster>> specified by `<leader_cluster>`
-will be deleted.
+==== Path Components
+`auto_follow_pattern_name` (required)::
+  (string) specifies the auto-follow pattern collection to delete
 
 ==== Example
 
-The following is an example of using the delete auto-follow pattern API.
+This example deletes an auto-follow pattern collection named
+`my_auto_follow_pattern`:
 
 [source,js]
 --------------------------------------------------

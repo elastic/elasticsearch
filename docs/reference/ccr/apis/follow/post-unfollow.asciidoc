@@ -48,12 +48,14 @@ POST /<follower_index>/_ccr/unfollow
 // CONSOLE
 // TEST[s/<follower_index>/follower_index/]
 
-Here, `<follower_index>` is the name of the follower index to convert to a
-regular index.
+==== Path Components
+
+`follower_index` (required)::
+  (string) the name of the follower index
 
 ==== Example
 
-The following is an example of using the unfollow API.
+This example converts `follower_index` from a follower index to a regular index:
 
 [source,js]
 --------------------------------------------------

@@ -49,8 +49,6 @@ GET /_ccr/auto_follow/
 --------------------------------------------------
 // CONSOLE
 
-Here, all auto-follow patterns will be returned.
-
 [source,js]
 --------------------------------------------------
 GET /_ccr/auto_follow/<auto_follow_pattern_name>
@@ -58,12 +56,16 @@ GET /_ccr/auto_follow/<auto_follow_pattern_name>
 // CONSOLE
 // TEST[s/<auto_follow_pattern_name>/my_auto_follow_pattern/]
 
-Here, the named auto-follow pattern collection specified by
-`<auto_follow_pattern_name>` will be returned.
+==== Path Components
+`auto_follow_pattern_name`::
+  (string) specifies the auto-follow pattern collection that you want to
+  retrieve; if you do not specify a name, the API returns information for all
+  collections
 
 ==== Example
 
-The following is an example of using the get auto-follow pattern API.
+This example retrieves information about an auto-follow pattern collection
+named `my_auto_follow_pattern`:
 
 [source,js]
 --------------------------------------------------

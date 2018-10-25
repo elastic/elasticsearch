@@ -43,9 +43,6 @@ POST /follower_index/_ccr/pause_follow
 GET /_ccr/stats
 --------------------------------------------------
 // CONSOLE
-// TEST
-
-Here, all follower indices will have their follower stats returned.
 
 [source,js]
 --------------------------------------------------
@@ -54,8 +51,9 @@ GET /<index>/_ccr/stats
 // CONSOLE
 // TEST[s/<index>/follower_index/]
 
-Here, `<index>` is a comma-delimited list of index patterns that will be matched
-against follower indices to retrieve follower stats for.
+==== Path Components
+`index` ::
+  (string) a comma-delimited list of index patterns
 
 ==== Results
 
@@ -181,12 +179,13 @@ Continuing with the fields from `shards`:
 
 ==== Example
 
+This example retrieves follower stats:
+
 [source,js]
 --------------------------------------------------
 GET /_ccr/stats
 --------------------------------------------------
 // CONSOLE
-// TEST
 
 The API returns the following results:
 [source,js]

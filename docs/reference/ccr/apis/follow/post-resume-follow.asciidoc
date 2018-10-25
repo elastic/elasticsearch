@@ -55,21 +55,24 @@ POST /<follower_index>/_ccr/resume_follow
 // TEST[s/<leader_cluster>/leader_cluster/]
 // TEST[s/<leader_index>/leader_index/]
 
-Here, `<follower_index>` is the name of the follower index to resume.
+==== Path Components
+
+`follower_index` (required)::
+  (string) the name of the follower index
 
 ==== Request Body
-`leader_cluster`::
-  (required string) the <<modules-remote-clusters,remote cluster>> containing the leader
+`leader_cluster` (required)::
+  (string) the <<modules-remote-clusters,remote cluster>> containing the leader
   index
 
-`leader_index`::
-  (required string) the name of the index in the leader cluster to follow
+`leader_index` (required)::
+  (string) the name of the index in the leader cluster to follow
 
 include::../follow-request-body.asciidoc[]
 
 ==== Example
 
-The following is an example of using the resume follower API.
+This example resumes a follower index named `follower_index`:
 
 [source,js]
 --------------------------------------------------

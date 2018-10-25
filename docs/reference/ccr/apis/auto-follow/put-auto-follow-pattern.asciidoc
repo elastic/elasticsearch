@@ -47,14 +47,9 @@ DELETE /_ccr/auto_follow/auto_follow_pattern_name
 
 //////////////////////////
 
-Here, `<auto_follow_pattern_name>` is a user-chosen name for the collection of
-auto-follow patterns being created, `<leader_cluster>` is the
-<<modules-remote-clusters,remote cluster>> containing the leader indices to
-match against, `<leader_index_pattern>` is a simple index pattern to match
-against indices in the remote cluster, and `<follow_index_pattern>` is the
-pattern to use to name the resulting follower indices. The
-`<follow_index_pattern>` can use the template `{{leader_index}}` to refer to the
-name of the leader index being followed.
+==== Path Components
+`auto_follow_pattern_name` (required)::
+  (string) name of the collection of auto-follow patterns
 
 ==== Request Body
 `leader_cluster`::
@@ -74,7 +69,7 @@ include::../follow-request-body.asciidoc[]
 
 ==== Example
 
-The following is an example of using the create auto-follow pattern API.
+This example creates an auto-follow pattern named `my_auto_follow_pattern`:
 
 [source,js]
 --------------------------------------------------

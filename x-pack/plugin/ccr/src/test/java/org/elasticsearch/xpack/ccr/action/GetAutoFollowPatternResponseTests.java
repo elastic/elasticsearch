@@ -33,6 +33,8 @@ public class GetAutoFollowPatternResponseTests extends AbstractStreamableTestCas
                 Collections.singletonList(randomAlphaOfLength(4)),
                 randomAlphaOfLength(4),
                 randomIntBetween(0, Integer.MAX_VALUE),
+                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
+                randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
                 randomIntBetween(0, Integer.MAX_VALUE),

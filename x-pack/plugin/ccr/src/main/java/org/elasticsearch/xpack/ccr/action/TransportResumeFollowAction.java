@@ -52,14 +52,16 @@ import java.util.stream.Collectors;
 
 public class TransportResumeFollowAction extends HandledTransportAction<ResumeFollowAction.Request, AcknowledgedResponse> {
 
-    static final ByteSizeValue DEFAULT_MAX_BATCH_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+    static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
+    static final ByteSizeValue DEFAULT_MAX_WRITE_REQUEST_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
-    private static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 9;
+    private static final int DEFAULT_MAX_OUTSTANDING_WRITE_REQUESTS = 9;
     private static final int DEFAULT_MAX_WRITE_BUFFER_COUNT = Integer.MAX_VALUE;
     private static final ByteSizeValue DEFAULT_MAX_WRITE_BUFFER_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
-    private static final int DEFAULT_MAX_BATCH_OPERATION_COUNT = 5120;
-    private static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 12;
-    static final TimeValue DEFAULT_POLL_TIMEOUT = TimeValue.timeValueMinutes(1);
+    private static final int DEFAULT_MAX_READ_REQUEST_OPERATION_COUNT = 5120;
+    private static final int DEFAULT_MAX_WRITE_REQUEST_OPERATION_COUNT = 5120;
+    private static final int DEFAULT_MAX_OUTSTANDING_READ_REQUESTS = 12;
+    static final TimeValue DEFAULT_READ_POLL_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final Client client;
     private final ThreadPool threadPool;
@@ -232,32 +234,46 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         IndexMetaData followIndexMetadata,
         Map<String, String> filteredHeaders
     ) {
-        int maxBatchOperationCount;
-        if (request.getMaxBatchOperationCount() != null) {
-            maxBatchOperationCount = request.getMaxBatchOperationCount();
+        int maxReadRequestOperationCount;
+        if (request.getMaxReadRequestOperationCount() != null) {
+            maxReadRequestOperationCount = request.getMaxReadRequestOperationCount();
         } else {
-            maxBatchOperationCount = DEFAULT_MAX_BATCH_OPERATION_COUNT;
+            maxReadRequestOperationCount = DEFAULT_MAX_READ_REQUEST_OPERATION_COUNT;
         }
 
-        int maxConcurrentReadBatches;
-        if (request.getMaxConcurrentReadBatches() != null){
-            maxConcurrentReadBatches = request.getMaxConcurrentReadBatches();
+        ByteSizeValue maxReadRequestSize;
+        if (request.getMaxReadRequestSize() != null) {
+            maxReadRequestSize = request.getMaxReadRequestSize();
         } else {
-            maxConcurrentReadBatches = DEFAULT_MAX_CONCURRENT_READ_BATCHES;
+            maxReadRequestSize = DEFAULT_MAX_READ_REQUEST_SIZE;
         }
 
-        ByteSizeValue maxBatchSize;
-        if (request.getMaxBatchSize() != null) {
-            maxBatchSize = request.getMaxBatchSize();
+        int maxOutstandingReadRequests;
+        if (request.getMaxOutstandingReadRequests() != null){
+            maxOutstandingReadRequests = request.getMaxOutstandingReadRequests();
         } else {
-            maxBatchSize = DEFAULT_MAX_BATCH_SIZE;
+            maxOutstandingReadRequests = DEFAULT_MAX_OUTSTANDING_READ_REQUESTS;
         }
 
-        int maxConcurrentWriteBatches;
-        if (request.getMaxConcurrentWriteBatches() != null) {
-            maxConcurrentWriteBatches = request.getMaxConcurrentWriteBatches();
+        final int maxWriteRequestOperationCount;
+        if (request.getMaxWriteRequestOperationCount() != null) {
+            maxWriteRequestOperationCount = request.getMaxWriteRequestOperationCount();
         } else {
-            maxConcurrentWriteBatches = DEFAULT_MAX_CONCURRENT_WRITE_BATCHES;
+            maxWriteRequestOperationCount = DEFAULT_MAX_WRITE_REQUEST_OPERATION_COUNT;
+        }
+
+        final ByteSizeValue maxWriteRequestSize;
+        if (request.getMaxWriteRequestSize() != null) {
+            maxWriteRequestSize = request.getMaxWriteRequestSize();
+        } else {
+            maxWriteRequestSize = DEFAULT_MAX_WRITE_REQUEST_SIZE;
+        }
+
+        int maxOutstandingWriteRequests;
+        if (request.getMaxOutstandingWriteRequests() != null) {
+            maxOutstandingWriteRequests = request.getMaxOutstandingWriteRequests();
+        } else {
+            maxOutstandingWriteRequests = DEFAULT_MAX_OUTSTANDING_WRITE_REQUESTS;
         }
 
         int maxWriteBufferCount;
@@ -275,20 +291,22 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         }
 
         TimeValue maxRetryDelay = request.getMaxRetryDelay() == null ? DEFAULT_MAX_RETRY_DELAY : request.getMaxRetryDelay();
-        TimeValue pollTimeout = request.getPollTimeout() == null ? DEFAULT_POLL_TIMEOUT : request.getPollTimeout();
+        TimeValue readPollTimeout = request.getReadPollTimeout() == null ? DEFAULT_READ_POLL_TIMEOUT : request.getReadPollTimeout();
 
         return new ShardFollowTask(
             clusterAliasName,
             new ShardId(followIndexMetadata.getIndex(), shardId),
             new ShardId(leaderIndexMetadata.getIndex(), shardId),
-            maxBatchOperationCount,
-            maxConcurrentReadBatches,
-            maxBatchSize,
-            maxConcurrentWriteBatches,
+            maxReadRequestOperationCount,
+            maxReadRequestSize,
+            maxOutstandingReadRequests,
+            maxWriteRequestOperationCount,
+            maxWriteRequestSize,
+            maxOutstandingWriteRequests,
             maxWriteBufferCount,
             maxWriteBufferSize,
             maxRetryDelay,
-            pollTimeout,
+            readPollTimeout,
             filteredHeaders
         );
     }

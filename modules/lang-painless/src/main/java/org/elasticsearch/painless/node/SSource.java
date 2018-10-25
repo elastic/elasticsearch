@@ -164,7 +164,7 @@ public final class SSource extends AStatement {
         throw new IllegalStateException("Illegal tree structure.");
     }
 
-    public Map<String, LocalMethod> analyze(PainlessLookup painlessLookup) {
+    public void analyze(PainlessLookup painlessLookup) {
         Map<String, LocalMethod> methods = new HashMap<>();
 
         for (SFunction function : functions) {
@@ -180,8 +180,6 @@ public final class SSource extends AStatement {
 
         Locals locals = Locals.newProgramScope(painlessLookup, methods.values());
         analyze(locals);
-
-        return locals.getMethods();
     }
 
     @Override
@@ -228,7 +226,7 @@ public final class SSource extends AStatement {
         }
     }
 
-    public void write() {
+    public Map<String, Object> write() {
         // Create the ClassWriter.
 
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
@@ -359,11 +357,18 @@ public final class SSource extends AStatement {
             clinit.endMethod();
         }
 
-        // Write binding variables
-        for (Map.Entry<String, Class<?>> binding : globals.getBindings().entrySet()) {
-            String name = binding.getKey();
-            String descriptor = Type.getType(binding.getValue()).getDescriptor();
+        // Write class binding variables
+        for (Map.Entry<String, Class<?>> classBinding : globals.getClassBindings().entrySet()) {
+            String name = classBinding.getKey();
+            String descriptor = Type.getType(classBinding.getValue()).getDescriptor();
             visitor.visitField(Opcodes.ACC_PRIVATE, name, descriptor, null, null).visitEnd();
+        }
+
+        // Write instance binding variables
+        for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
+            String name = instanceBinding.getValue();
+            String descriptor = Type.getType(instanceBinding.getKey().getClass()).getDescriptor();
+            visitor.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, name, descriptor, null, null).visitEnd();
         }
 
         // Write any needsVarName methods for used variables
@@ -382,6 +387,15 @@ public final class SSource extends AStatement {
 
         visitor.visitEnd();
         bytes = writer.toByteArray();
+
+        Map<String, Object> statics = new HashMap<>();
+        statics.put("$LOCALS", mainMethod.getMethods());
+
+        for (Map.Entry<Object, String> instanceBinding : globals.getInstanceBindings().entrySet()) {
+            statics.put(instanceBinding.getValue(), instanceBinding.getKey());
+        }
+
+        return statics;
     }
 
     @Override

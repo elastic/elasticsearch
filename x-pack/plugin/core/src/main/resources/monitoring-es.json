@@ -835,6 +835,16 @@
                       "type": "long"
                     }
                   }
+                },
+                "write": {
+                  "properties": {
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
                 }
               }
             }
@@ -919,6 +929,9 @@
         },
         "ccr_stats": {
           "properties": {
+            "remote_cluster": {
+              "type": "keyword"
+            },
             "leader_index": {
               "type": "keyword"
             },
@@ -952,10 +965,16 @@
             "number_of_queued_writes": {
               "type": "long"
             },
+            "buffer_size_in_bytes": {
+              "type": "long"
+            },
             "mapping_version": {
               "type": "long"
             },
             "total_fetch_time_millis": {
+              "type": "long"
+            },
+            "total_fetch_remote_time_millis": {
               "type": "long"
             },
             "number_of_successful_fetches": {

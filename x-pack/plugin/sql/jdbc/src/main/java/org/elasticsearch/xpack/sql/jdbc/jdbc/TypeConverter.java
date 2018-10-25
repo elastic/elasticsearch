@@ -30,7 +30,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 import static java.util.Calendar.DAY_OF_MONTH;
@@ -41,6 +40,7 @@ import static java.util.Calendar.MINUTE;
 import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * Conversion utilities for conversion of JDBC types to Java type and back
@@ -52,9 +52,7 @@ import static java.util.Calendar.YEAR;
  */
 final class TypeConverter {
 
-    private TypeConverter() {
-
-    }
+    private TypeConverter() {}
 
     private static final long DAY_IN_MILLIS = 60 * 60 * 24 * 1000;
     private static final Map<Class<?>, SQLType> javaToJDBC;
@@ -64,9 +62,10 @@ final class TypeConverter {
         Map<Class<?>, SQLType> aMap = Arrays.stream(DataType.values())
                 .filter(dataType -> dataType.javaClass() != null
                         && dataType != DataType.HALF_FLOAT
+                        && dataType != DataType.IP
                         && dataType != DataType.SCALED_FLOAT
                         && dataType != DataType.TEXT)
-                .collect(Collectors.toMap(dataType -> dataType.javaClass(), dataType -> dataType.jdbcType));
+                .collect(toMap(dataType -> dataType.javaClass(), dataType -> dataType.jdbcType));
         // apart from the mappings in {@code DataType} three more Java classes can be mapped to a {@code JDBCType.TIMESTAMP}
         // according to B-4 table from the jdbc4.2 spec
         aMap.put(Calendar.class, JDBCType.TIMESTAMP);

@@ -427,8 +427,7 @@ public class MultiGetRequest extends ActionRequest
                     } else if (VERSION_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                         versionType = VersionType.fromString(parser.text());
                     } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        // check lenient to avoid interpreting the value as string but parse strict in order to provoke an error early on.
-                        if (parser.isBooleanValueLenient()) {
+                        if (parser.isBooleanValue()) {
                             fetchSourceContext = new FetchSourceContext(parser.booleanValue(), fetchSourceContext.includes(),
                                 fetchSourceContext.excludes());
                         } else if (token == Token.VALUE_STRING) {

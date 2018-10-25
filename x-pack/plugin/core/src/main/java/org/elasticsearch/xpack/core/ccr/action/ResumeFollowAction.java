@@ -43,19 +43,18 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
-        private static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
-        private static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
-        private static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
-        private static final ParseField MAX_CONCURRENT_READ_BATCHES = new ParseField("max_concurrent_read_batches");
-        private static final ParseField MAX_BATCH_SIZE = new ParseField("max_batch_size");
-        private static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
-        private static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
-        private static final ParseField MAX_RETRY_DELAY_FIELD = new ParseField("max_retry_delay");
-        private static final ParseField POLL_TIMEOUT = new ParseField("poll_timeout");
-        private static final ObjectParser<Request, String> PARSER = new ObjectParser<>(NAME, Request::new);
+        static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
+        static final ParseField MAX_BATCH_OPERATION_COUNT = new ParseField("max_batch_operation_count");
+        static final ParseField MAX_CONCURRENT_READ_BATCHES = new ParseField("max_concurrent_read_batches");
+        static final ParseField MAX_BATCH_SIZE = new ParseField("max_batch_size");
+        static final ParseField MAX_CONCURRENT_WRITE_BATCHES = new ParseField("max_concurrent_write_batches");
+        static final ParseField MAX_WRITE_BUFFER_COUNT = new ParseField("max_write_buffer_count");
+        static final ParseField MAX_WRITE_BUFFER_SIZE = new ParseField("max_write_buffer_size");
+        static final ParseField MAX_RETRY_DELAY_FIELD = new ParseField("max_retry_delay");
+        static final ParseField POLL_TIMEOUT = new ParseField("poll_timeout");
+        static final ObjectParser<Request, String> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
-            PARSER.declareString(Request::setLeaderIndex, LEADER_INDEX_FIELD);
             PARSER.declareString(Request::setFollowerIndex, FOLLOWER_INDEX_FIELD);
             PARSER.declareInt(Request::setMaxBatchOperationCount, MAX_BATCH_OPERATION_COUNT);
             PARSER.declareInt(Request::setMaxConcurrentReadBatches, MAX_CONCURRENT_READ_BATCHES);
@@ -65,11 +64,16 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
                     MAX_BATCH_SIZE,
                     ObjectParser.ValueType.STRING);
             PARSER.declareInt(Request::setMaxConcurrentWriteBatches, MAX_CONCURRENT_WRITE_BATCHES);
-            PARSER.declareInt(Request::setMaxWriteBufferSize, MAX_WRITE_BUFFER_SIZE);
+            PARSER.declareInt(Request::setMaxWriteBufferCount, MAX_WRITE_BUFFER_COUNT);
+            PARSER.declareField(
+                    Request::setMaxWriteBufferSize,
+                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
+                    MAX_WRITE_BUFFER_SIZE,
+                    ObjectParser.ValueType.STRING);
             PARSER.declareField(
                     Request::setMaxRetryDelay,
                     (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY_FIELD.getPreferredName()),
-                MAX_RETRY_DELAY_FIELD,
+                    MAX_RETRY_DELAY_FIELD,
                     ObjectParser.ValueType.STRING);
             PARSER.declareField(
                     Request::setPollTimeout,
@@ -90,16 +94,6 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
                 }
             }
             return request;
-        }
-
-        private String leaderIndex;
-
-        public String getLeaderIndex() {
-            return leaderIndex;
-        }
-
-        public void setLeaderIndex(String leaderIndex) {
-            this.leaderIndex = leaderIndex;
         }
 
         private String followerIndex;
@@ -152,13 +146,23 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
             this.maxConcurrentWriteBatches = maxConcurrentWriteBatches;
         }
 
-        private Integer maxWriteBufferSize;
+        private Integer maxWriteBufferCount;
 
-        public Integer getMaxWriteBufferSize() {
+        public Integer getMaxWriteBufferCount() {
+            return maxWriteBufferCount;
+        }
+
+        public void setMaxWriteBufferCount(Integer maxWriteBufferCount) {
+            this.maxWriteBufferCount = maxWriteBufferCount;
+        }
+
+        private ByteSizeValue maxWriteBufferSize;
+
+        public ByteSizeValue getMaxWriteBufferSize() {
             return maxWriteBufferSize;
         }
 
-        public void setMaxWriteBufferSize(Integer maxWriteBufferSize) {
+        public void setMaxWriteBufferSize(ByteSizeValue maxWriteBufferSize) {
             this.maxWriteBufferSize = maxWriteBufferSize;
         }
 
@@ -189,9 +193,6 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException e = null;
 
-            if (leaderIndex == null) {
-                e = addValidationError(LEADER_INDEX_FIELD.getPreferredName() + " is missing", e);
-            }
             if (followerIndex == null) {
                 e = addValidationError(FOLLOWER_INDEX_FIELD.getPreferredName() + " is missing", e);
             }
@@ -207,7 +208,10 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
             if (maxConcurrentWriteBatches != null && maxConcurrentWriteBatches < 1) {
                 e = addValidationError(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName() + " must be larger than 0", e);
             }
-            if (maxWriteBufferSize != null && maxWriteBufferSize < 1) {
+            if (maxWriteBufferCount != null && maxWriteBufferCount < 1) {
+                e = addValidationError(MAX_WRITE_BUFFER_COUNT.getPreferredName() + " must be larger than 0", e);
+            }
+            if (maxWriteBufferSize != null && maxWriteBufferSize.compareTo(ByteSizeValue.ZERO) <= 0) {
                 e = addValidationError(MAX_WRITE_BUFFER_SIZE.getPreferredName() + " must be larger than 0", e);
             }
             if (maxRetryDelay != null && maxRetryDelay.millis() <= 0) {
@@ -227,13 +231,13 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            leaderIndex = in.readString();
             followerIndex = in.readString();
             maxBatchOperationCount = in.readOptionalVInt();
             maxConcurrentReadBatches = in.readOptionalVInt();
             maxBatchSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxConcurrentWriteBatches = in.readOptionalVInt();
-            maxWriteBufferSize = in.readOptionalVInt();
+            maxWriteBufferCount = in.readOptionalVInt();
+            maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxRetryDelay = in.readOptionalTimeValue();
             pollTimeout = in.readOptionalTimeValue();
         }
@@ -241,13 +245,13 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(leaderIndex);
             out.writeString(followerIndex);
             out.writeOptionalVInt(maxBatchOperationCount);
             out.writeOptionalVInt(maxConcurrentReadBatches);
             out.writeOptionalWriteable(maxBatchSize);
             out.writeOptionalVInt(maxConcurrentWriteBatches);
-            out.writeOptionalVInt(maxWriteBufferSize);
+            out.writeOptionalVInt(maxWriteBufferCount);
+            out.writeOptionalWriteable(maxWriteBufferSize);
             out.writeOptionalTimeValue(maxRetryDelay);
             out.writeOptionalTimeValue(pollTimeout);
         }
@@ -256,32 +260,38 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();
             {
-                builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
-                builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
-                if (maxBatchOperationCount != null) {
-                    builder.field(MAX_BATCH_OPERATION_COUNT.getPreferredName(), maxBatchOperationCount);
-                }
-                if (maxBatchSize != null) {
-                    builder.field(MAX_BATCH_SIZE.getPreferredName(), maxBatchSize.getStringRep());
-                }
-                if (maxWriteBufferSize != null) {
-                    builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize);
-                }
-                if (maxConcurrentReadBatches != null) {
-                    builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
-                }
-                if (maxConcurrentWriteBatches != null) {
-                    builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
-                }
-                if (maxRetryDelay != null) {
-                    builder.field(MAX_RETRY_DELAY_FIELD.getPreferredName(), maxRetryDelay.getStringRep());
-                }
-                if (pollTimeout != null) {
-                    builder.field(POLL_TIMEOUT.getPreferredName(), pollTimeout.getStringRep());
-                }
+                toXContentFragment(builder, params);
             }
             builder.endObject();
             return builder;
+        }
+
+        void toXContentFragment(final XContentBuilder builder, final Params params) throws IOException {
+            builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
+            if (maxBatchOperationCount != null) {
+                builder.field(MAX_BATCH_OPERATION_COUNT.getPreferredName(), maxBatchOperationCount);
+            }
+            if (maxBatchSize != null) {
+                builder.field(MAX_BATCH_SIZE.getPreferredName(), maxBatchSize.getStringRep());
+            }
+            if (maxWriteBufferCount != null) {
+                builder.field(MAX_WRITE_BUFFER_COUNT.getPreferredName(), maxWriteBufferCount);
+            }
+            if (maxWriteBufferSize != null) {
+                builder.field(MAX_WRITE_BUFFER_SIZE.getPreferredName(), maxWriteBufferSize.getStringRep());
+            }
+            if (maxConcurrentReadBatches != null) {
+                builder.field(MAX_CONCURRENT_READ_BATCHES.getPreferredName(), maxConcurrentReadBatches);
+            }
+            if (maxConcurrentWriteBatches != null) {
+                builder.field(MAX_CONCURRENT_WRITE_BATCHES.getPreferredName(), maxConcurrentWriteBatches);
+            }
+            if (maxRetryDelay != null) {
+                builder.field(MAX_RETRY_DELAY_FIELD.getPreferredName(), maxRetryDelay.getStringRep());
+            }
+            if (pollTimeout != null) {
+                builder.field(POLL_TIMEOUT.getPreferredName(), pollTimeout.getStringRep());
+            }
         }
 
         @Override
@@ -293,22 +303,22 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
                     Objects.equals(maxConcurrentReadBatches, request.maxConcurrentReadBatches) &&
                     Objects.equals(maxBatchSize, request.maxBatchSize) &&
                     Objects.equals(maxConcurrentWriteBatches, request.maxConcurrentWriteBatches) &&
+                    Objects.equals(maxWriteBufferCount, request.maxWriteBufferCount) &&
                     Objects.equals(maxWriteBufferSize, request.maxWriteBufferSize) &&
                     Objects.equals(maxRetryDelay, request.maxRetryDelay) &&
                     Objects.equals(pollTimeout, request.pollTimeout) &&
-                    Objects.equals(leaderIndex, request.leaderIndex) &&
                     Objects.equals(followerIndex, request.followerIndex);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(
-                    leaderIndex,
                     followerIndex,
                     maxBatchOperationCount,
                     maxConcurrentReadBatches,
                     maxBatchSize,
                     maxConcurrentWriteBatches,
+                    maxWriteBufferCount,
                     maxWriteBufferSize,
                     maxRetryDelay,
                     pollTimeout);

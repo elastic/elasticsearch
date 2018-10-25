@@ -28,6 +28,8 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
@@ -57,7 +59,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private static final int DELAY_MILLIS = 50;
     private static final Logger LOGGER = LogManager.getLogger(ShardFollowNodeTask.class);
 
-    private final String leaderIndex;
     private final ShardFollowTask params;
     private final BiConsumer<TimeValue, Runnable> scheduler;
     private final LongSupplier relativeTimeProvider;
@@ -72,6 +73,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private int numConcurrentReads = 0;
     private int numConcurrentWrites = 0;
     private long currentMappingVersion = 0;
+    private long totalFetchTookTimeMillis = 0;
     private long totalFetchTimeMillis = 0;
     private long numberOfSuccessfulFetches = 0;
     private long numberOfFailedFetches = 0;
@@ -83,7 +85,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long numberOfOperationsIndexed = 0;
     private long lastFetchTime = -1;
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
+    private long bufferSizeInBytes = 0;
     private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
+
+    private volatile ElasticsearchException fatalException;
 
     ShardFollowNodeTask(long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers,
                         ShardFollowTask params, BiConsumer<TimeValue, Runnable> scheduler, final LongSupplier relativeTimeProvider) {
@@ -102,12 +107,6 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 return size() > params.getMaxConcurrentReadBatches();
             }
         };
-
-        if (params.getLeaderClusterAlias() != null) {
-            leaderIndex = params.getLeaderClusterAlias() + ":" + params.getLeaderShardId().getIndexName();
-        } else {
-            leaderIndex = params.getLeaderShardId().getIndexName();
-        }
     }
 
     void start(
@@ -185,8 +184,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 params.getFollowShardId(), numConcurrentReads);
             return false;
         }
-        if (buffer.size() > params.getMaxWriteBufferSize()) {
-            LOGGER.trace("{} no new reads, buffer limit has been reached [{}]", params.getFollowShardId(), buffer.size());
+        if (bufferSizeInBytes >= params.getMaxWriteBufferSize().getBytes()) {
+            LOGGER.trace("{} no new reads, buffer size limit has been reached [{}]", params.getFollowShardId(), bufferSizeInBytes);
+            return false;
+        }
+        if (buffer.size() > params.getMaxWriteBufferCount()) {
+            LOGGER.trace("{} no new reads, buffer count limit has been reached [{}]", params.getFollowShardId(), buffer.size());
             return false;
         }
         return true;
@@ -210,6 +213,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     break;
                 }
             }
+            bufferSizeInBytes -= sumEstimatedSize;
             numConcurrentWrites++;
             LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops.get(0).seqNo(),
                 ops.get(ops.size() - 1).seqNo(), ops.size());
@@ -243,6 +247,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                         fetchExceptions.remove(from);
                         if (response.getOperations().length > 0) {
                             // do not count polls against fetch stats
+                            totalFetchTookTimeMillis += response.getTookInMillis();
                             totalFetchTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                             numberOfSuccessfulFetches++;
                             operationsReceived += response.getOperations().length;
@@ -282,7 +287,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         } else {
             assert response.getOperations()[0].seqNo() == from :
                 "first operation is not what we asked for. From is [" + from + "], got " + response.getOperations()[0];
-            buffer.addAll(Arrays.asList(response.getOperations()));
+            List<Translog.Operation> operations = Arrays.asList(response.getOperations());
+            long operationsSize = operations.stream()
+                .mapToLong(Translog.Operation::estimateSize)
+                .sum();
+            buffer.addAll(operations);
+            bufferSizeInBytes += operationsSize;
             final long maxSeqNo = response.getOperations()[response.getOperations().length - 1].seqNo();
             assert maxSeqNo ==
                 Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::seqNo).max().getAsLong();
@@ -373,7 +383,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             long delay = computeDelay(currentRetry, params.getPollTimeout().getMillis());
             scheduler.accept(TimeValue.timeValueMillis(delay), task);
         } else {
-            markAsFailed(e);
+            fatalException = ExceptionsHelper.convertToElastic(e);
+            LOGGER.warn("shard follow task encounter non-retryable error", e);
         }
     }
 
@@ -402,7 +413,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof AlreadyClosedException ||
             actual instanceof ElasticsearchSecurityException || // If user does not have sufficient privileges
             actual instanceof ClusterBlockException || // If leader index is closed or no elected master
-            actual instanceof IndexClosedException; // If follow index is closed
+            actual instanceof IndexClosedException || // If follow index is closed
+            actual instanceof NodeDisconnectedException ||
+            actual instanceof NodeNotConnectedException ||
+            (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
     }
 
     // These methods are protected for testing purposes:
@@ -423,7 +437,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     protected boolean isStopped() {
-        return isCancelled() || isCompleted();
+        return fatalException != null || isCancelled() || isCompleted();
     }
 
     public ShardId getFollowShardId() {
@@ -440,7 +454,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             timeSinceLastFetchMillis = -1;
         }
         return new ShardFollowNodeTaskStatus(
-                leaderIndex,
+                params.getRemoteCluster(),
+                params.getLeaderShardId().getIndexName(),
                 params.getFollowShardId().getIndexName(),
                 getFollowShardId().getId(),
                 leaderGlobalCheckpoint,
@@ -451,8 +466,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 numConcurrentReads,
                 numConcurrentWrites,
                 buffer.size(),
+                bufferSizeInBytes,
                 currentMappingVersion,
                 totalFetchTimeMillis,
+                totalFetchTookTimeMillis,
                 numberOfSuccessfulFetches,
                 numberOfFailedFetches,
                 operationsReceived,
@@ -467,7 +484,8 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                                 .stream()
                                 .collect(
                                         Collectors.toMap(Map.Entry::getKey, e -> Tuple.tuple(e.getValue().v1().get(), e.getValue().v2())))),
-                timeSinceLastFetchMillis);
+                timeSinceLastFetchMillis,
+                fatalException);
     }
 
 }

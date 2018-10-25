@@ -32,12 +32,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
@@ -48,28 +45,25 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.stream.Collectors;
 
 public class TransportResumeFollowAction extends HandledTransportAction<ResumeFollowAction.Request, AcknowledgedResponse> {
 
     static final ByteSizeValue DEFAULT_MAX_BATCH_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
-    private static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 1;
-    private static final int DEFAULT_MAX_WRITE_BUFFER_SIZE = 10240;
-    private static final int DEFAULT_MAX_BATCH_OPERATION_COUNT = 1024;
-    private static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 1;
+    private static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 9;
+    private static final int DEFAULT_MAX_WRITE_BUFFER_COUNT = Integer.MAX_VALUE;
+    private static final ByteSizeValue DEFAULT_MAX_WRITE_BUFFER_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
+    private static final int DEFAULT_MAX_BATCH_OPERATION_COUNT = 5120;
+    private static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 12;
     static final TimeValue DEFAULT_POLL_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final Client client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final RemoteClusterService remoteClusterService;
     private final PersistentTasksService persistentTasksService;
     private final IndicesService indicesService;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -89,7 +83,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.remoteClusterService = transportService.getRemoteClusterService();
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
@@ -103,63 +96,34 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final String[] indices = new String[]{request.getLeaderIndex()};
-        final Map<String, List<String>> remoteClusterIndices = remoteClusterService.groupClusterIndices(indices, s -> false);
-        if (remoteClusterIndices.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-            followLocalIndex(request, listener);
-        } else {
-            assert remoteClusterIndices.size() == 1;
-            final Map.Entry<String, List<String>> entry = remoteClusterIndices.entrySet().iterator().next();
-            assert entry.getValue().size() == 1;
-            final String clusterAlias = entry.getKey();
-            final String leaderIndex = entry.getValue().get(0);
-            followRemoteIndex(request, clusterAlias, leaderIndex, listener);
-        }
-    }
 
-    private void followLocalIndex(final ResumeFollowAction.Request request,
-                                  final ActionListener<AcknowledgedResponse> listener) {
         final ClusterState state = clusterService.state();
         final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
-        // following an index in local cluster, so use local cluster state to fetch leader index metadata
-        final IndexMetaData leaderIndexMetadata = state.getMetaData().index(request.getLeaderIndex());
-        if (leaderIndexMetadata == null) {
-            throw new IndexNotFoundException(request.getFollowerIndex());
+        if (followerIndexMetadata == null) {
+            listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));
+            return;
         }
-        ccrLicenseChecker.hasPrivilegesToFollowIndices(client, new String[] {request.getLeaderIndex()}, e -> {
-            if (e == null) {
-                ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDs -> {
-                    try {
-                        start(request, null, leaderIndexMetadata, followerIndexMetadata, historyUUIDs, listener);
-                    } catch (final IOException ioe) {
-                        listener.onFailure(ioe);
-                    }
-                });
-            } else {
-                listener.onFailure(e);
-            }
-        });
-    }
 
-    private void followRemoteIndex(
-            final ResumeFollowAction.Request request,
-            final String clusterAlias,
-            final String leaderIndex,
-            final ActionListener<AcknowledgedResponse> listener) {
-        final ClusterState state = clusterService.state();
-        final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
+        final Map<String, String> ccrMetadata = followerIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        if (ccrMetadata == null) {
+            throw new IllegalArgumentException("follow index ["+ request.getFollowerIndex() + "] does not have ccr metadata");
+        }
+        final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
+        // Validates whether the leader cluster has been configured properly:
+        client.getRemoteClusterClient(leaderCluster);
+        final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
-                client,
-                clusterAlias,
-                leaderIndex,
-                listener::onFailure,
-                (leaderHistoryUUID, leaderIndexMetadata) -> {
-                    try {
-                        start(request, clusterAlias, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
-                    } catch (final IOException e) {
-                        listener.onFailure(e);
-                    }
-                });
+            client,
+            leaderCluster,
+            leaderIndex,
+            listener::onFailure,
+            (leaderHistoryUUID, leaderIndexMetadata) -> {
+                try {
+                    start(request, leaderCluster, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
+                } catch (final IOException e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     /**
@@ -178,62 +142,22 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             IndexMetaData leaderIndexMetadata,
             IndexMetaData followIndexMetadata,
             String[] leaderIndexHistoryUUIDs,
-            ActionListener<AcknowledgedResponse> handler) throws IOException {
+            ActionListener<AcknowledgedResponse> listener) throws IOException {
 
         MapperService mapperService = followIndexMetadata != null ? indicesService.createIndexMapperService(followIndexMetadata) : null;
         validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
         final int numShards = followIndexMetadata.getNumberOfShards();
-        final AtomicInteger counter = new AtomicInteger(numShards);
-        final AtomicReferenceArray<Object> responses = new AtomicReferenceArray<>(followIndexMetadata.getNumberOfShards());
+        final ResponseHandler handler = new ResponseHandler(numShards, listener);
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
                 .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        for (int i = 0; i < numShards; i++) {
-            final int shardId = i;
+        for (int shardId = 0; shardId < numShards; shardId++) {
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
 
             final ShardFollowTask shardFollowTask = createShardFollowTask(shardId, clusterNameAlias, request,
                 leaderIndexMetadata, followIndexMetadata, filteredHeaders);
-            persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask,
-                    new ActionListener<PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask>>() {
-                        @Override
-                        public void onResponse(PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask> task) {
-                            responses.set(shardId, task);
-                            finalizeResponse();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            responses.set(shardId, e);
-                            finalizeResponse();
-                        }
-
-                        void finalizeResponse() {
-                            Exception error = null;
-                            if (counter.decrementAndGet() == 0) {
-                                for (int j = 0; j < responses.length(); j++) {
-                                    Object response = responses.get(j);
-                                    if (response instanceof Exception) {
-                                        if (error == null) {
-                                            error = (Exception) response;
-                                        } else {
-                                            error.addSuppressed((Throwable) response);
-                                        }
-                                    }
-                                }
-
-                                if (error == null) {
-                                    // include task ids?
-                                    handler.onResponse(new AcknowledgedResponse(true));
-                                } else {
-                                    // TODO: cancel all started tasks
-                                    handler.onFailure(error);
-                                }
-                            }
-                        }
-                    }
-            );
+            persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask, handler.getActionListener(shardId));
         }
     }
 
@@ -243,12 +167,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             final IndexMetaData followIndex,
             final String[] leaderIndexHistoryUUID,
             final MapperService followerMapperService) {
-        if (leaderIndex == null) {
-            throw new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist");
-        }
-        if (followIndex == null) {
-            throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] does not exist");
-        }
         Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         if (ccrIndexMetadata == null) {
             throw new IllegalArgumentException("follow index ["+ followIndex.getIndex().getName() + "] does not have ccr metadata");
@@ -273,7 +191,11 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         }
 
         if (leaderIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
-            throw new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled");
+            throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
+                "] does not have soft deletes enabled");
+        }
+        if (followIndex.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+            throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() + "] does not have soft deletes enabled");
         }
         if (leaderIndex.getNumberOfShards() != followIndex.getNumberOfShards()) {
             throw new IllegalArgumentException("leader index primary shards [" + leaderIndex.getNumberOfShards() +
@@ -338,7 +260,14 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             maxConcurrentWriteBatches = DEFAULT_MAX_CONCURRENT_WRITE_BATCHES;
         }
 
-        int maxWriteBufferSize;
+        int maxWriteBufferCount;
+        if (request.getMaxWriteBufferCount() != null) {
+            maxWriteBufferCount = request.getMaxWriteBufferCount();
+        } else {
+            maxWriteBufferCount = DEFAULT_MAX_WRITE_BUFFER_COUNT;
+        }
+
+        ByteSizeValue maxWriteBufferSize;
         if (request.getMaxWriteBufferSize() != null) {
             maxWriteBufferSize = request.getMaxWriteBufferSize();
         } else {
@@ -356,6 +285,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             maxConcurrentReadBatches,
             maxBatchSize,
             maxConcurrentWriteBatches,
+            maxWriteBufferCount,
             maxWriteBufferSize,
             maxRetryDelay,
             pollTimeout,
@@ -417,7 +347,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING);
         whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING);
 
-        whiteListedSettings.add(IndexSettings.INDEX_SOFT_DELETES_SETTING);
         whiteListedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
 
         WHITE_LISTED_SETTINGS = Collections.unmodifiableSet(whiteListedSettings);

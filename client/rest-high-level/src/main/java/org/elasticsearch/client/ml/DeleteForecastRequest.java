@@ -104,7 +104,7 @@ public class DeleteForecastRequest extends ActionRequest implements ToXContentOb
         this.forecastIds = new ArrayList<>(forecastIds);
     }
 
-    public Boolean isAllowNoForecasts() {
+    public Boolean getAllowNoForecasts() {
         return allowNoForecasts;
     }
 

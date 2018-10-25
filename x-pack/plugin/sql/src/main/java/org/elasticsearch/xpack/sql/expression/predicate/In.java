@@ -42,7 +42,7 @@ public class In extends NamedExpression implements ScriptWeaver {
     public In(Location location, Expression value, List<Expression> list) {
         super(location, null, CollectionUtils.combine(list, value), null);
         this.value = value;
-        this.list = list.stream().distinct().collect(Collectors.toList());
+        this.list = new ArrayList<>(new LinkedHashSet<>(list));
     }
 
     @Override
@@ -78,20 +78,30 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public boolean foldable() {
-        return Expressions.foldable(children());
+        return Expressions.foldable(children()) ||
+            (Expressions.foldable(list) && list().stream().allMatch(e -> e.dataType() == DataType.NULL));
     }
 
     @Override
-    public Object fold() {
-        Object foldedLeftValue = value.fold();
+    public Boolean fold() {
+        if (value.dataType() == DataType.NULL) {
+            return null;
+        }
+        if (list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
+            return false;
+        }
 
+        Object foldedLeftValue = value.fold();
+        Boolean result = false;
         for (Expression rightValue : list) {
             Boolean compResult = Comparisons.eq(foldedLeftValue, rightValue.fold());
-            if (compResult != null && compResult) {
+            if (compResult == null) {
+                result = null;
+            } else if (compResult) {
                 return true;
             }
         }
-        return false;
+        return result;
     }
 
     @Override
@@ -118,15 +128,18 @@ public class In extends NamedExpression implements ScriptWeaver {
         String scriptPrefix = leftScript + "==";
         LinkedHashSet<Object> values = list.stream().map(Expression::fold).collect(Collectors.toCollection(LinkedHashSet::new));
         for (Object valueFromList : values) {
-            if (valueFromList instanceof Expression) {
-                ScriptTemplate rightScript = asScript((Expression) valueFromList);
-                sj.add(scriptPrefix + rightScript.template());
-                rightParams.add(rightScript.params());
-            } else {
-                if (valueFromList instanceof String) {
-                    sj.add(scriptPrefix + '"' + valueFromList + '"');
+            // if checked against null => false
+            if (valueFromList != null) {
+                if (valueFromList instanceof Expression) {
+                    ScriptTemplate rightScript = asScript((Expression) valueFromList);
+                    sj.add(scriptPrefix + rightScript.template());
+                    rightParams.add(rightScript.params());
                 } else {
-                    sj.add(scriptPrefix + valueFromList.toString());
+                    if (valueFromList instanceof String) {
+                        sj.add(scriptPrefix + '"' + valueFromList + '"');
+                    } else {
+                        sj.add(scriptPrefix + valueFromList.toString());
+                    }
                 }
             }
         }

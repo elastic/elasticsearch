@@ -239,7 +239,8 @@ public class XPackLicenseState {
                 switch (currentMode) {
                     case TRIAL:
                     case PLATINUM:
-                        return new String[] { "JDBC support will be disabled, but you can continue to use SQL CLI and REST endpoint" };
+                        return new String[] {
+                                "JDBC and ODBC support will be disabled, but you can continue to use SQL CLI and REST endpoint" };
                 }
                 break;
         }
@@ -636,6 +637,20 @@ public class XPackLicenseState {
      *  JDBC is available only in for {@link OperationMode#PLATINUM} and {@link OperationMode#TRIAL} licences
      */
     public synchronized boolean isJdbcAllowed() {
+        Status localStatus = status;
+        OperationMode operationMode = localStatus.mode;
+
+        boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
+
+        return licensed && localStatus.active;
+    }
+
+    /**
+     * Determine if ODBC support should be enabled.
+     * <p>
+     * ODBC is available only in for {@link OperationMode#PLATINUM} and {@link OperationMode#TRIAL} licences
+     */
+    public synchronized boolean isOdbcAllowed() {
         Status localStatus = status;
         OperationMode operationMode = localStatus.mode;
 

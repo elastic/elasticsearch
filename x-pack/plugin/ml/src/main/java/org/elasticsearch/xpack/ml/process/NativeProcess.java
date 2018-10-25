@@ -34,7 +34,7 @@ public interface NativeProcess extends Closeable {
      * Ask the process to persist its state in the background
      * @throws IOException If writing the request fails
      */
-    void persistJob() throws IOException;
+    void persistState() throws IOException;
 
     /**
      * Flush the output data stream
@@ -64,14 +64,14 @@ public interface NativeProcess extends Closeable {
     boolean isProcessAlive();
 
     /**
-     * Check whether the process terminated given maximum 45ms for termination
+     * Check whether the process terminated given a grace period.
      *
      * Processing errors are highly likely caused by the process being unexpectedly
      * terminated.
      *
      * Workaround: As we can not easily check if the process is alive, we rely on
      * the logPipe being ended. As the loghandler runs in another thread which
-     * might fall behind this one, we give it a grace period of 45ms.
+     * might fall behind this one, we give it a grace period.
      *
      * @return false if process has ended for sure, true if it probably still runs
      */

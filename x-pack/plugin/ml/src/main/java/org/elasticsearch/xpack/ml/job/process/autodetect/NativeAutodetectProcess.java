@@ -105,7 +105,7 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
     }
 
     @Override
-    public void persistJob() throws IOException {
+    public void persistState() throws IOException {
         newMessageWriter().writeStartBackgroundPersistMessage();
     }
 

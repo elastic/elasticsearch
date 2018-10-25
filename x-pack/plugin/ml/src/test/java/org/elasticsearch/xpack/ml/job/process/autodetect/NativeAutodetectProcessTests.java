@@ -128,7 +128,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
     }
 
     public void testPersistJob() throws IOException {
-        testWriteMessage(p -> p.persistJob(), ControlMsgToProcessWriter.BACKGROUND_PERSIST_MESSAGE_CODE);
+        testWriteMessage(p -> p.persistState(), ControlMsgToProcessWriter.BACKGROUND_PERSIST_MESSAGE_CODE);
     }
 
     public void testWriteMessage(CheckedConsumer<NativeAutodetectProcess> writeFunction, String expectedMessageCode) throws IOException {

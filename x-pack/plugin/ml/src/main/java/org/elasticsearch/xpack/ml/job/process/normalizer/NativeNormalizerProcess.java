@@ -34,7 +34,7 @@ class NativeNormalizerProcess extends AbstractNativeProcess implements Normalize
     }
 
     @Override
-    public void persistJob() {
+    public void persistState() {
         // nothing to persist
     }
 

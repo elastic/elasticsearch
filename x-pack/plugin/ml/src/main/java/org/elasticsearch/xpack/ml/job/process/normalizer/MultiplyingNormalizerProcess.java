@@ -81,7 +81,7 @@ public class MultiplyingNormalizerProcess implements NormalizerProcess {
     }
 
     @Override
-    public void persistJob() {
+    public void persistState() {
         // Nothing to do
     }
 

@@ -22,7 +22,9 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
 
-public class MigrationRequestConverters {
+final class MigrationRequestConverters {
+
+    private MigrationRequestConverters() {}
 
     static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
         RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()

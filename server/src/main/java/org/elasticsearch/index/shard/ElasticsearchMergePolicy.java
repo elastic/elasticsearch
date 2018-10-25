@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexWriter;
@@ -26,7 +27,6 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -46,7 +46,7 @@ import java.util.Map;
  */
 public final class ElasticsearchMergePolicy extends FilterMergePolicy {
 
-    private static Logger logger = Loggers.getLogger(ElasticsearchMergePolicy.class);
+    private static Logger logger = LogManager.getLogger(ElasticsearchMergePolicy.class);
 
     // True if the next merge request should do segment upgrades:
     private volatile boolean upgradeInProgress;

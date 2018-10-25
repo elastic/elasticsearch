@@ -21,8 +21,6 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.Arrays;
 
 /**

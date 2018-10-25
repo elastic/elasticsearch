@@ -32,6 +32,28 @@ different. As long as more than half of the nodes in the voting configuration
 are still healthy then the cluster can still make progress.
 
 [float]
+=== Cluster maintenance, rolling restarts and migrations
+
+Many cluster maintenance tasks involve temporarily shutting down one or more
+nodes and then starting them back up again. By default Elasticsearch can remain
+available if one of its master-eligible nodes is taken offline, such as during
+a <<rolling-upgrades,rolling restart>>, and if multiple nodes are stopped and
+then started again then it will automatically recover, such as during a
+<<restart-upgrade,full cluster restart>>. There is no need to take any further
+action with the APIs described here in these cases, because the set of master
+nodes is not changing permanently.
+
+It is also possible to perform a migration of a cluster onto entirely new nodes
+without taking the cluster offline, via a _rolling migration_. A rolling
+migration is similar to a rolling restart, in that it is performed one node at
+a time, and also requires no special handling for the master-eligible nodes as
+long as there are at least two of them at all times.
+
+TODO the above is only true if the maintenance happens slowly enough, otherwise
+the configuration might not catch up. Need to add this to the rolling restart
+docs.
+
+[float]
 ==== Auto-reconfiguration
 
 Nodes may join or leave the cluster, and Elasticsearch reacts by making
@@ -49,8 +71,8 @@ Larger voting configurations are usually more resilient, so Elasticsearch will
 normally prefer to add nodes to the voting configuration once they have joined
 the cluster. Similarly, if a node in the voting configuration leaves the
 cluster and there is another node in the cluster that is not in the voting
-configuration then it is preferable to swap these two nodes in the voting
-configuration, leaving its size unchanged but increasing its resilience.
+configuration then it is preferable to swap these two nodes over, leaving the
+size of the voting configuration unchanged but increasing its resilience.
 
 It is not so straightforward to automatically remove nodes from the voting
 configuration after they have left the cluster, and different strategies have
@@ -65,19 +87,21 @@ cluster will be used and is controlled by the following setting.
     automatically shrinks; departed nodes must be removed manually using the
     retirement API described below.
 
-If `cluster.automatically_shrink_voting_configuration` is set to `true`, the
-recommended and default setting, and there are at least three master-eligible
-nodes in the cluster, then Elasticsearch remains capable of processing
-cluster-state updates as long as all but one of its master-eligible nodes are
-healthy. There are situations in which it might tolerate the loss of multiple
-nodes, but this is not guaranteed under all sequences of cascading failures. If
-this setting is set to `false` then departed nodes must be removed from the
-voting configuration manually, using the retirement API described below, to
-achieve the desired level of resilience.
+NOTE: If `cluster.automatically_shrink_voting_configuration` is set to `true`,
+the recommended and default setting, and there are at least three
+master-eligible nodes in the cluster, then Elasticsearch remains capable of
+processing cluster-state updates as long as all but one of its master-eligible
+nodes are healthy.
+
+There are situations in which Elasticsearch might tolerate the loss of multiple
+nodes, but this is not guaranteed under all sequences of failures. If this
+setting is set to `false` then departed nodes must be removed from the voting
+configuration manually, using the retirement API described below, to achieve
+the desired level of resilience.
 
 Note that Elasticsearch will not suffer from a "split-brain" inconsistency
 however it is configured. This setting only affects its availability in the
-event of some node failures.
+event of the failure of some of its nodes.
 
 [float]
 ==== Even numbers of master-eligible nodes
@@ -97,8 +121,7 @@ side could make any progress in this situation.
 It is recommended to have a small, fixed, number of master-eligible nodes in a
 cluster, and to scale the cluster up and down by adding and removing
 non-master-eligible nodes only. However there are situations in which it may be
-necessary to add some master-eligible nodes to a cluster, such as when
-migrating a cluster onto a new set of nodes without downtime.
+desirable to add extra master-eligible nodes to a cluster.
 
 If you wish to add some master-eligible nodes to your cluster, simply configure
 the new nodes to find the existing cluster and start them up. Elasticsearch
@@ -111,37 +134,25 @@ so.
 It is recommended to have a small, fixed, number of master-eligible nodes in a
 cluster, and to scale the cluster up and down by adding and removing
 non-master-eligible nodes only. However there are situations in which it may be
-necessary to remove some master-eligible nodes to a cluster, such as when
-migrating a cluster onto a new set of nodes without downtime.
+desirable to remove some master-eligible nodes from a cluster.
 
 You must be careful not to remove too many master-eligible nodes all at the
 same time. For instance, if you currently have seven master-eligible nodes and
 you wish to reduce this to three, you cannot simply stop four of the nodes all
 at the same time: to do so would leave only three nodes remaining, which is
 less than half of the voting configuration, which means it cannot take any
-further actions.  You should remove the nodes one-at-a-time and verify that
-each node has been removed from the voting configuration before moving onto the
-next one, using the `await_removal` API:
+further actions.
 
-[source,js]
---------------------------------------------------
-# Explicit timeout of one minute
-GET /_nodes/node_name/await_removal?timeout=1m
-# Default timeout of 30 seconds
-GET /_nodes/node_name/await_removal
---------------------------------------------------
-// CONSOLE
+As long as there are at least three master-eligible nodes in the cluster, as a
+general rule it is best to remove nodes one-at-a-time, allowing enough time for
+the auto-reconfiguration to take effect after each removal.
 
-The node (or nodes) for whose removal to wait are specified using
-<<cluster-nodes,node filters>> in place of `node_name` here.
-
-A special case of this is the case where there are only two master-eligible
-nodes and you wish to remove one of them. In this case neither node can be
-safely shut down since both nodes are required to reliably make progress, so
-you must first explicitly _retire_ one of the nodes. A retired node still works
-normally, but Elasticsearch will try and transfer it out of the voting
-configuration so its vote is no longer required, and will never move a retired
-node back into the voting configuration. Once a node has been successfully
+If there are only two master-eligible nodes then neither node can be safely
+removed since both are required to reliably make progress, so you must first
+explicitly _retire_ one of the nodes. A retired node still works normally, but
+Elasticsearch will try and remove it from the voting configuration so its vote
+is no longer required, and will never move a retired node back into the voting
+configuration after it has been removed. Once a node has been successfully
 retired, it is safe to shut it down. A node can be retired using the following
 API:
 
@@ -159,11 +170,15 @@ of `node_name` here. If a call to the retirement API fails then the call can
 safely be retried. A successful response guarantees that the node has been
 removed from the voting configuration and will not be reinstated.
 
-Although the retirement API is most useful for removing one node from a
-two-node cluster, it is also possible to use it to remove nodes from larger
-clusters. In the example described above, shrinking a seven-master-node cluster
-down to only have three master nodes, you could retire four of the nodes and
-then shut them down simultaneously.
+Although the retirement API is most useful for removing a node from a two-node
+cluster, it is also possible to use it to remove nodes from larger clusters. If
+removing multiple nodes from a cluster it is important not to remove too many
+voting nodes too quickly, so that the voting configuration can be updated
+between each removal, and this can be achieved by retiring the nodes too to
+obtain confirmation that they are no longer in the voting configuration.  In
+the example described above, shrinking a seven-master-node cluster down to only
+have three master nodes, you could retire four of the nodes and then shut them
+down simultaneously. 
 
 A node (or nodes) can be brought back out of retirement using the `unretire`
 API:
@@ -188,32 +203,16 @@ GET /_cluster/state?filter_path=TODO
 --------------------------------------------------
 // CONSOLE
 
-[float]
-=== Rolling restarts and migrations
+This set is limited in size by the following setting:
 
-It is possible to perform some cluster maintenance tasks without taking the
-whole cluster offline, such as a <<rolling-upgrades,rolling restart>>.  A
-rolling restart does not require any special handling for the master-eligible
-nodes or any use of the APIs described here. During a rolling restart the
-restarting node will be offline, and this reduces the cluster's ability to
-tolerate faults of its other nodes. If it is necessary to avoid this, you can
-temporarily add a new master node to the cluster as described above, perform
-the rolling restart, and then remove the extra master node again.
+`cluster.max_retired_nodes`::
 
-It is also possible to perform a migration of a cluster onto entirely new nodes
-without taking the cluster offline. A _rolling migration_ is similar to a
-rolling restart, in that it is performed one node at a time, and also requires
-no special handling for the master-eligible nodes.
+    Sets a limits on the number of retired nodes at any one time. Defaults to
+    `10`.
 
-Alternatively a migration can be performed by starting up all the new nodes at
-once, each configured to join the existing cluster, migrating all the data
-using <<shard-allocation-filtering,shard allocation filtering>>, and then
-shutting down the old nodes. Care must be taken not to shut the master-eligible
-nodes down too quickly since a majority of the voting configuration is always
-required to keep the cluster alive. This can be done with the `GET
-/_nodes/node_name/await_removal` API described above, or else the old
-master-eligible nodes may all be retired so that they do not form part of the
-voting configuration.
+Because there can only be a limited number of retired nodes at once, once a
+retired node has been destroyed its entry should be removed from the set of
+retired nodes using the unretire API.
 
 [float]
 === Cluster bootstrapping

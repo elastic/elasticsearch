@@ -188,7 +188,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             // fetchFollowerShardInfo(...) can thrown IndexNotFoundException when no index stats are found for the follow shard and
             // in this case we do want to retry since this is likely to happen when a shard task restarts
             // Also prior to following an index; validation is in place to check whether the follow index actually exists.
-            if (ShardFollowNodeTask.shouldRetry(e) || e instanceof IndexNotFoundException) {
+            if (ShardFollowNodeTask.shouldRetry(e)) {
                 logger.debug(new ParameterizedMessage("failed to fetch follow shard global {} checkpoint and max sequence number",
                     shardFollowNodeTask), e);
                 threadPool.schedule(params.getMaxRetryDelay(), Ccr.CCR_THREAD_POOL_NAME, () -> nodeOperation(task, params, state));
@@ -208,7 +208,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         client.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
             IndexStats indexStats = r.getIndex(shardId.getIndexName());
             if (indexStats == null) {
-                errorHandler.accept(new IndexNotFoundException(shardId.getIndex()));
+                IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
+                if (indexMetaData != null) {
+                    errorHandler.accept(new ShardNotFoundException(shardId));
+                } else {
+                    errorHandler.accept(new IndexNotFoundException(shardId.getIndex()));
+                }
                 return;
             }
 

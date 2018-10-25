@@ -39,7 +39,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField MANAGED_BY_ILM_FIELD = new ParseField("managed");
     private static final ParseField POLICY_NAME_FIELD = new ParseField("policy");
-    private static final ParseField SKIP_FIELD = new ParseField("skip");
     private static final ParseField LIFECYCLE_DATE_FIELD = new ParseField("lifecycle_date");
     private static final ParseField PHASE_FIELD = new ParseField("phase");
     private static final ParseField ACTION_FIELD = new ParseField("action");
@@ -57,22 +56,20 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
             (String) a[0],
             (boolean) a[1],
             (String) a[2],
-            (boolean) (a[3] == null ? false: a[3]),
-            (long) (a[4] == null ? -1L: a[4]),
+            (long) (a[3] == null ? -1L: a[3]),
+            (String) a[4],
             (String) a[5],
             (String) a[6],
             (String) a[7],
-            (String) a[8],
+            (long) (a[8] == null ? -1L: a[8]),
             (long) (a[9] == null ? -1L: a[9]),
             (long) (a[10] == null ? -1L: a[10]),
-            (long) (a[11] == null ? -1L: a[11]),
-            (BytesReference) a[12],
-            (PhaseExecutionInfo) a[13]));
+            (BytesReference) a[11],
+            (PhaseExecutionInfo) a[12]));
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), MANAGED_BY_ILM_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), POLICY_NAME_FIELD);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SKIP_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), LIFECYCLE_DATE_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PHASE_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ACTION_FIELD);
@@ -100,24 +97,23 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
     private final long phaseTime;
     private final long actionTime;
     private final long stepTime;
-    private final boolean skip;
     private final boolean managedByILM;
     private final BytesReference stepInfo;
     private final PhaseExecutionInfo phaseExecutionInfo;
 
-    public static IndexLifecycleExplainResponse newManagedIndexResponse(String index, String policyName, boolean skip, long lifecycleDate,
+    public static IndexLifecycleExplainResponse newManagedIndexResponse(String index, String policyName, long lifecycleDate,
                                                                         String phase, String action, String step, String failedStep,
                                                                         long phaseTime, long actionTime, long stepTime,
                                                                         BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
-        return new IndexLifecycleExplainResponse(index, true, policyName, skip, lifecycleDate, phase, action, step, failedStep, phaseTime,
+        return new IndexLifecycleExplainResponse(index, true, policyName, lifecycleDate, phase, action, step, failedStep, phaseTime,
             actionTime, stepTime, stepInfo, phaseExecutionInfo);
     }
 
     public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index) {
-        return new IndexLifecycleExplainResponse(index, false, null, false, -1L, null, null, null, null, -1L, -1L, -1L, null, null);
+        return new IndexLifecycleExplainResponse(index, false, null, -1L, null, null, null, null, -1L, -1L, -1L, null, null);
     }
 
-    private IndexLifecycleExplainResponse(String index, boolean managedByILM, String policyName, boolean skip, long lifecycleDate,
+    private IndexLifecycleExplainResponse(String index, boolean managedByILM, String policyName, long lifecycleDate,
                                           String phase, String action, String step, String failedStep, long phaseTime, long actionTime,
                                           long stepTime, BytesReference stepInfo, PhaseExecutionInfo phaseExecutionInfo) {
         if (managedByILM) {
@@ -134,7 +130,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
         this.index = index;
         this.policyName = policyName;
         this.managedByILM = managedByILM;
-        this.skip = skip;
         this.lifecycleDate = lifecycleDate;
         this.phase = phase;
         this.action = action;
@@ -157,10 +152,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
 
     public String getPolicyName() {
         return policyName;
-    }
-
-    public boolean skip() {
-        return skip;
     }
 
     public long getLifecycleDate() {
@@ -210,7 +201,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
         builder.field(MANAGED_BY_ILM_FIELD.getPreferredName(), managedByILM);
         if (managedByILM) {
             builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
-            builder.field(SKIP_FIELD.getPreferredName(), skip);
             if (builder.humanReadable()) {
                 builder.field(LIFECYCLE_DATE_FIELD.getPreferredName(), new DateTime(lifecycleDate, ISOChronology.getInstanceUTC()));
             } else {
@@ -250,7 +240,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, managedByILM, policyName, skip, lifecycleDate, phase, action, step, failedStep, phaseTime, actionTime,
+        return Objects.hash(index, managedByILM, policyName, lifecycleDate, phase, action, step, failedStep, phaseTime, actionTime,
             stepTime, stepInfo, phaseExecutionInfo);
     }
 
@@ -266,7 +256,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
         return Objects.equals(index, other.index) &&
             Objects.equals(managedByILM, other.managedByILM) &&
             Objects.equals(policyName, other.policyName) &&
-            Objects.equals(skip, other.skip) &&
             Objects.equals(lifecycleDate, other.lifecycleDate) &&
             Objects.equals(phase, other.phase) &&
             Objects.equals(action, other.action) &&

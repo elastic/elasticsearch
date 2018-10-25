@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
+import org.elasticsearch.xpack.core.indexlifecycle.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings;
@@ -88,13 +89,8 @@ public class IndexLifecycleRunner {
      * wait criteria are checked periodically from the ILM scheduler
      */
     public void runPeriodicStep(String policy, IndexMetaData indexMetaData) {
-        Settings indexSettings = indexMetaData.getSettings();
         String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexSettings)) {
-            logger.info("skipping policy [{}] for index [{}]: {} == true", policy, index, LifecycleSettings.LIFECYCLE_SKIP);
-            return;
-        }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
         if (currentStep == null) {
             if (stepRegistry.policyExists(policy) == false) {
@@ -151,13 +147,8 @@ public class IndexLifecycleRunner {
      * If the current step (matching the expected step key) is an asynchronous action step, run it
      */
     public void maybeRunAsyncAction(ClusterState currentState, IndexMetaData indexMetaData, String policy, StepKey expectedStepKey) {
-        Settings indexSettings = indexMetaData.getSettings();
         String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexSettings)) {
-            logger.info("skipping policy [{}] for index [{}]: {} == true", policy, index, LifecycleSettings.LIFECYCLE_SKIP);
-            return;
-        }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
         if (currentStep == null) {
             logger.warn("current step [{}] for index [{}] with policy [{}] is not recognized",
@@ -198,13 +189,8 @@ public class IndexLifecycleRunner {
      * Invoked after the cluster state has been changed
      */
     public void runPolicyAfterStateChange(String policy, IndexMetaData indexMetaData) {
-        Settings indexSettings = indexMetaData.getSettings();
         String index = indexMetaData.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
-        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexSettings)) {
-            logger.info("skipping policy [{}] for index [{}]: {} == true", policy, index, LifecycleSettings.LIFECYCLE_SKIP);
-            return;
-        }
         Step currentStep = getCurrentStep(stepRegistry, policy, indexMetaData, lifecycleState);
         if (currentStep == null) {
             if (stepRegistry.policyExists(policy) == false) {
@@ -396,7 +382,14 @@ public class IndexLifecycleRunner {
             newPhaseDefinition = Strings.toString(phaseExecutionInfo, false, false);
             updatedState.setPhaseDefinition(newPhaseDefinition);
             updatedState.setPhaseTime(nowAsMillis);
+        } else if (currentStep.getPhase().equals(InitializePolicyContextStep.INITIALIZATION_PHASE)) {
+            // The "new" phase is the initialization phase, usually the phase
+            // time would be set on phase transition, but since there is no
+            // transition into the "new" phase, we set it any time in the "new"
+            // phase
+            updatedState.setPhaseTime(nowAsMillis);
         }
+
         if (currentStep.getAction().equals(nextStep.getAction()) == false) {
             updatedState.setActionTime(nowAsMillis);
         }
@@ -468,56 +461,6 @@ public class IndexLifecycleRunner {
         clusterService.submitStateUpdateTask("ilm-set-step-info", new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo));
     }
 
-    public static ClusterState setPolicyForIndexes(final String newPolicyName, final Index[] indices, ClusterState currentState,
-                                                   LifecyclePolicyMetadata newPolicyMetadata, List<String> failedIndexes,
-                                                   LongSupplier nowSupplier) {
-        MetaData.Builder newMetadata = MetaData.builder(currentState.getMetaData());
-        boolean clusterStateChanged = false;
-        for (Index index : indices) {
-            IndexMetaData indexMetadata = currentState.getMetaData().index(index);
-            if (indexMetadata == null) {
-                // Index doesn't exist so fail it
-                failedIndexes.add(index.getName());
-            } else {
-                IndexMetaData.Builder newIdxMetadata = IndexLifecycleRunner.setPolicyForIndex(newPolicyName,
-                    newPolicyMetadata, indexMetadata, nowSupplier);
-                if (newIdxMetadata != null) {
-                    newMetadata.put(newIdxMetadata);
-                    clusterStateChanged = true;
-                }
-            }
-        }
-        if (clusterStateChanged) {
-            ClusterState.Builder newClusterState = ClusterState.builder(currentState);
-            newClusterState.metaData(newMetadata);
-            return newClusterState.build();
-        } else {
-            return currentState;
-        }
-    }
-
-    private static IndexMetaData.Builder setPolicyForIndex(final String newPolicyName, LifecyclePolicyMetadata newPolicyMetadata,
-                                                           IndexMetaData indexMetadata, LongSupplier nowSupplier) {
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
-
-        LifecycleExecutionState newState = LifecycleExecutionState.builder(lifecycleState).build();
-        if (currentStepKey != null) {
-            // Check if current step exists in new policy and if not move to
-            // next available step
-            StepKey nextValidStepKey = newPolicyMetadata.getPolicy().getNextValidStep(currentStepKey);
-            if (nextValidStepKey.equals(currentStepKey) == false) {
-                newState = moveExecutionStateToNextStep(newPolicyMetadata, lifecycleState, currentStepKey, nextValidStepKey, nowSupplier);
-            }
-        }
-
-        Settings.Builder newSettings = Settings.builder().put(indexMetadata.getSettings());
-        newSettings.put(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey(), newPolicyName);
-        return IndexMetaData.builder(indexMetadata)
-            .settings(newSettings).putCustom(ILM_CUSTOM_METADATA_KEY, newState.asMap())
-            .settingsVersion(1 + indexMetadata.getSettingsVersion());
-    }
-
     public static ClusterState removePolicyForIndexes(final Index[] indices, ClusterState currentState, List<String> failedIndexes) {
         MetaData.Builder newMetadata = MetaData.builder(currentState.getMetaData());
         boolean clusterStateChanged = false;
@@ -549,7 +492,6 @@ public class IndexLifecycleRunner {
         boolean notChanged = true;
 
         notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()));
-        notChanged &= Strings.isNullOrEmpty(newSettings.remove(LifecycleSettings.LIFECYCLE_SKIP_SETTING.getKey()));
         notChanged &= Strings.isNullOrEmpty(newSettings.remove(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey()));
         long newSettingsVersion = notChanged ? indexMetadata.getSettingsVersion() : 1 + indexMetadata.getSettingsVersion();
 

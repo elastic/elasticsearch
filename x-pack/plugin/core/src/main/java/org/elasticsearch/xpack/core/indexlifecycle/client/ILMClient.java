@@ -12,8 +12,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleResponse;
-import org.elasticsearch.xpack.core.indexlifecycle.SetIndexLifecyclePolicyRequest;
-import org.elasticsearch.xpack.core.indexlifecycle.SetIndexLifecyclePolicyResponse;
 import org.elasticsearch.xpack.core.indexlifecycle.StartILMRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.StopILMRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.action.DeleteLifecycleAction;
@@ -23,7 +21,6 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.GetStatusAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RemoveIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.RetryAction;
-import org.elasticsearch.xpack.core.indexlifecycle.action.SetIndexLifecyclePolicyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StartILMAction;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
 
@@ -106,20 +103,6 @@ public class ILMClient {
      */
     public ActionFuture<GetStatusAction.Response> getStatus(GetStatusAction.Request request) {
         return client.execute(GetStatusAction.INSTANCE, request);
-    }
-
-    /**
-     * Sets the lifecycle policy to use for an index
-     */
-    public void setIndexLifecyclePolicy(SetIndexLifecyclePolicyRequest request, ActionListener<SetIndexLifecyclePolicyResponse> listener) {
-        client.execute(SetIndexLifecyclePolicyAction.INSTANCE, request, listener);
-    }
-
-    /**
-     * Sets the lifecycle policy to use for an index
-     */
-    public ActionFuture<SetIndexLifecyclePolicyResponse> setIndexLifecyclePolicy(SetIndexLifecyclePolicyRequest request) {
-        return client.execute(SetIndexLifecyclePolicyAction.INSTANCE, request);
     }
 
     /**

@@ -101,7 +101,6 @@ public class TransportExplainLifecycleAction
             final IndexLifecycleExplainResponse indexResponse;
             if (Strings.hasLength(policyName)) {
                 indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(index, policyName,
-                    LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(idxSettings),
                     lifecycleState.getLifecycleDate(),
                     lifecycleState.getPhase(),
                     lifecycleState.getAction(),

@@ -16,24 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.watcher;
 
-package org.elasticsearch.painless;
+import org.elasticsearch.client.Validatable;
+import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import java.util.Objects;
 
-import java.util.Map;
+public class DeactivateWatchRequest implements Validatable {
+    private final String watchId;
 
-/**
- * Generic script interface that Painless implements for all Elasticsearch scripts.
- */
-public abstract class GenericElasticsearchScript {
+    public DeactivateWatchRequest(String watchId) {
 
-    public GenericElasticsearchScript() {}
+        Objects.requireNonNull(watchId, "watch id is missing");
+        if (PutWatchRequest.isValidId(watchId) == false) {
+            throw new IllegalArgumentException("watch id contains whitespace");
+        }
 
-    public static final String[] PARAMETERS = new String[] {"params", "_score", "doc", "_value", "ctx"};
-    public abstract Object execute(
-        Map<String, Object> params, double _score, Map<String, ScriptDocValues<?>> doc, Object _value, Map<?, ?> ctx);
+        this.watchId = watchId;
+    }
 
-    public abstract boolean needs_score();
-    public abstract boolean needsCtx();
+    public String getWatchId() {
+        return watchId;
+    }
 }
+

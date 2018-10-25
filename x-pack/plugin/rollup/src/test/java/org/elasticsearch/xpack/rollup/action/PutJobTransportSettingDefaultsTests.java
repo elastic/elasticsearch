@@ -51,9 +51,9 @@ public class PutJobTransportSettingDefaultsTests extends ESTestCase {
         when(nodes.getMinNodeVersion()).thenReturn(Version.V_6_0_0);
         when(clusterState.nodes()).thenReturn(nodes);
 
-        TransportPutRollupJobAction.addDefaultMetricsIfNecessary(request, clusterState);
+        RollupJobConfig newRollupJobConfig = TransportPutRollupJobAction.addDefaultMetricsIfNecessary(request.getConfig(), clusterState);
 
-        assertThat(metrics, containsInAnyOrder(request.getConfig().getMetricsConfig().toArray(new MetricConfig[0])));
+        assertThat(metrics, containsInAnyOrder(newRollupJobConfig.getMetricsConfig().toArray(new MetricConfig[0])));
     }
 
     public void testSettingDefaultValuesWithProperMinVersion() {
@@ -79,11 +79,11 @@ public class PutJobTransportSettingDefaultsTests extends ESTestCase {
         when(clusterState.nodes()).thenReturn(nodes);
         List<String> histoFields = Arrays.asList(group.getHistogram().getFields());
 
-        TransportPutRollupJobAction.addDefaultMetricsIfNecessary(request, clusterState);
+        RollupJobConfig newRollupJobConfig = TransportPutRollupJobAction.addDefaultMetricsIfNecessary(request.getConfig(), clusterState);
 
-        Set<String> metricFields = request.getConfig().getMetricsConfig().stream().map(MetricConfig::getField).collect(Collectors.toSet());
+        Set<String> metricFields = newRollupJobConfig.getMetricsConfig().stream().map(MetricConfig::getField).collect(Collectors.toSet());
         assertThat(group.getDateHistogram().getField(), isIn(metricFields));
-        request.getConfig().getMetricsConfig().forEach(metricConfig -> {
+        newRollupJobConfig.getMetricsConfig().forEach(metricConfig -> {
             if (metricConfig.getField().equals(group.getDateHistogram().getField())) {
                 assertThat(metricConfig.getMetrics(), containsInAnyOrder("max", "min"));
             } else if (histoFields.contains(metricConfig.getField())) {
@@ -119,9 +119,10 @@ public class PutJobTransportSettingDefaultsTests extends ESTestCase {
         when(nodes.getMinNodeVersion()).thenReturn(Version.V_6_5_0);
         when(clusterState.nodes()).thenReturn(nodes);
 
-        TransportPutRollupJobAction.addDefaultMetricsIfNecessary(request, clusterState);
+        RollupJobConfig newRollupJobConfig = TransportPutRollupJobAction.addDefaultMetricsIfNecessary(request.getConfig(), clusterState);
+
         List<String> histoFields = Arrays.asList(group.getHistogram().getFields());
-        request.getConfig().getMetricsConfig().forEach(metricConfig -> {
+        newRollupJobConfig.getMetricsConfig().forEach(metricConfig -> {
             if (metricConfig.getField().equals(group.getDateHistogram().getField())) {
                 assertThat(metricConfig.getMetrics(), containsInAnyOrder("min"));
             } else if (histoFields.contains(metricConfig.getField())) {

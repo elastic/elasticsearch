@@ -98,7 +98,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
 
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        addDefaultMetricsIfNecessary(request, clusterState);
+        request.setConfig(addDefaultMetricsIfNecessary(request.getConfig(), clusterState));
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest()
             .indices(request.getConfig().getIndexPattern())
@@ -132,16 +132,15 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         return new RollupJob(config, filteredHeaders);
     }
 
-    static void addDefaultMetricsIfNecessary(PutRollupJobAction.Request request, ClusterState clusterState) {
+    static RollupJobConfig addDefaultMetricsIfNecessary(final RollupJobConfig originalConfig, final ClusterState clusterState) {
         // All nodes need to support `date` field types in RollupJobConfig#metricConfig settings
         if (clusterState.nodes().getMinNodeVersion().before(Version.V_6_5_0)) {
-            return;
+            return originalConfig;
         }
-        final RollupJobConfig oldConfig = request.getConfig();
-        final GroupConfig groupConfig = oldConfig.getGroupConfig();
+        final GroupConfig groupConfig = originalConfig.getGroupConfig();
 
         List<MetricConfig> inputMetrics =
-            oldConfig.getMetricsConfig() != null ? new ArrayList<>(oldConfig.getMetricsConfig()) : new ArrayList<>();
+            originalConfig.getMetricsConfig() != null ? new ArrayList<>(originalConfig.getMetricsConfig()) : new ArrayList<>();
         if (groupConfig != null) {
             String timeField = groupConfig.getDateHistogram().getField();
             Set<String> currentFields = inputMetrics.stream().map(MetricConfig::getField).collect(Collectors.toSet());
@@ -157,14 +156,14 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
             }
         }
 
-        request.setConfig(new RollupJobConfig(oldConfig.getId(),
-            oldConfig.getIndexPattern(),
-            oldConfig.getRollupIndex(),
-            oldConfig.getCron(),
-            oldConfig.getPageSize(),
+        return new RollupJobConfig(originalConfig.getId(),
+            originalConfig.getIndexPattern(),
+            originalConfig.getRollupIndex(),
+            originalConfig.getCron(),
+            originalConfig.getPageSize(),
             groupConfig,
             inputMetrics,
-            oldConfig.getTimeout()));
+            originalConfig.getTimeout());
     }
 
     static void createIndex(RollupJob job, ActionListener<AcknowledgedResponse> listener,

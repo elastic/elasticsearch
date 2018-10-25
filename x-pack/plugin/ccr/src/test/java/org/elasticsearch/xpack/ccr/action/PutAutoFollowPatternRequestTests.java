@@ -41,7 +41,8 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
     @Override
     protected PutAutoFollowPatternAction.Request createTestInstance() {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderCluster(randomAlphaOfLength(4));
+        request.setName(randomAlphaOfLength(4));
+        request.setRemoteCluster(randomAlphaOfLength(4));
         request.setLeaderIndexPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
         if (randomBoolean()) {
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));
@@ -65,7 +66,10 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
             request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(randomIntBetween(0, Integer.MAX_VALUE));
+            request.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
         }
         return request;
     }
@@ -74,9 +78,14 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         ActionRequestValidationException validationException = request.validate();
         assertThat(validationException, notNullValue());
-        assertThat(validationException.getMessage(), containsString("[leader_cluster] is missing"));
+        assertThat(validationException.getMessage(), containsString("[name] is missing"));
 
-        request.setLeaderCluster("_alias");
+        request.setName("name");
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("[remote_cluster] is missing"));
+
+        request.setRemoteCluster("_alias");
         validationException = request.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.getMessage(), containsString("[leader_index_patterns] is missing"));

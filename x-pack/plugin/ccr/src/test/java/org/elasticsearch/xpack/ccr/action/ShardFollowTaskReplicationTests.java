@@ -370,7 +370,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             between(1, 64),
             between(1, 8),
             new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-            between(1, 4), 10240,
+            between(1, 4),
+            10240,
+            new ByteSizeValue(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()
@@ -429,7 +431,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                             if (from > seqNoStats.getGlobalCheckpoint()) {
                                 handler.accept(ShardChangesAction.getResponse(1L, seqNoStats,
-                                    maxSeqNoOfUpdatesOrDeletes, ShardChangesAction.EMPTY_OPERATIONS_ARRAY));
+                                    maxSeqNoOfUpdatesOrDeletes, ShardChangesAction.EMPTY_OPERATIONS_ARRAY, 1L));
                                 return;
                             }
                             Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
@@ -440,7 +442,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                                 seqNoStats.getGlobalCheckpoint(),
                                 seqNoStats.getMaxSeqNo(),
                                 maxSeqNoOfUpdatesOrDeletes,
-                                ops
+                                ops,
+                                1L
                             );
                             handler.accept(response);
                             return;

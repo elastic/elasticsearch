@@ -43,8 +43,6 @@ public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTe
 
     static ResumeFollowAction.Request createTestRequest() {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setLeaderCluster(randomAlphaOfLength(4));
-        request.setLeaderIndex(randomAlphaOfLength(4));
         request.setFollowerIndex(randomAlphaOfLength(4));
         if (randomBoolean()) {
             request.setMaxBatchOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
@@ -59,7 +57,10 @@ public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTe
             request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(randomIntBetween(1, Integer.MAX_VALUE));
+            request.setMaxWriteBufferCount(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
             request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
@@ -72,8 +73,6 @@ public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTe
 
     public void testValidate() {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setLeaderCluster("leader_cluster");
-        request.setLeaderIndex("index1");
         request.setFollowerIndex("index2");
         request.setMaxRetryDelay(TimeValue.ZERO);
 

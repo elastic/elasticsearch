@@ -34,7 +34,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
 
     public static final String STATUS_PARSER_NAME = "shard-follow-node-task-status";
 
-    private static final ParseField LEADER_CLUSTER = new ParseField("leader_cluster");
+    private static final ParseField LEADER_CLUSTER = new ParseField("remote_cluster");
     private static final ParseField LEADER_INDEX = new ParseField("leader_index");
     private static final ParseField FOLLOWER_INDEX = new ParseField("follower_index");
     private static final ParseField SHARD_ID = new ParseField("shard_id");
@@ -46,8 +46,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     private static final ParseField NUMBER_OF_CONCURRENT_READS_FIELD = new ParseField("number_of_concurrent_reads");
     private static final ParseField NUMBER_OF_CONCURRENT_WRITES_FIELD = new ParseField("number_of_concurrent_writes");
     private static final ParseField NUMBER_OF_QUEUED_WRITES_FIELD = new ParseField("number_of_queued_writes");
+    private static final ParseField BUFFER_SIZE_IN_BYTES_FIELD = new ParseField("buffer_size_in_bytes");
     private static final ParseField MAPPING_VERSION_FIELD = new ParseField("mapping_version");
     private static final ParseField TOTAL_FETCH_TIME_MILLIS_FIELD = new ParseField("total_fetch_time_millis");
+    private static final ParseField TOTAL_FETCH_REMOTE_TIME_MILLIS_FIELD = new ParseField("total_fetch_remote_time_millis");
     private static final ParseField NUMBER_OF_SUCCESSFUL_FETCHES_FIELD = new ParseField("number_of_successful_fetches");
     private static final ParseField NUMBER_OF_FAILED_FETCHES_FIELD = new ParseField("number_of_failed_fetches");
     private static final ParseField OPERATIONS_RECEIVED_FIELD = new ParseField("operations_received");
@@ -87,12 +89,14 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                             (long) args[19],
                             (long) args[20],
                             (long) args[21],
+                            (long) args[22],
+                            (long) args[23],
                             new TreeMap<>(
-                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[22])
+                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[24])
                                             .stream()
                                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-                            (long) args[23],
-                            (ElasticsearchException) args[24]));
+                            (long) args[25],
+                            (ElasticsearchException) args[26]));
 
     public static final String FETCH_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-fetch-exceptions-entry";
 
@@ -114,8 +118,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_READS_FIELD);
         STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_CONCURRENT_WRITES_FIELD);
         STATUS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_QUEUED_WRITES_FIELD);
+        STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUFFER_SIZE_IN_BYTES_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), MAPPING_VERSION_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_TIME_MILLIS_FIELD);
+        STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_FETCH_REMOTE_TIME_MILLIS_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_FETCHES_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_FETCHES_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), OPERATIONS_RECEIVED_FIELD);
@@ -144,10 +150,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 FETCH_EXCEPTIONS_ENTRY_EXCEPTION);
     }
 
-    private final String leaderCluster;
+    private final String remoteCluster;
 
-    public String getLeaderCluster() {
-        return leaderCluster;
+    public String getRemoteCluster() {
+        return remoteCluster;
     }
 
     private final String leaderIndex;
@@ -216,6 +222,12 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         return numberOfQueuedWrites;
     }
 
+    private final long bufferSize;
+
+    public long bufferSize() {
+        return bufferSize;
+    }
+
     private final long mappingVersion;
 
     public long mappingVersion() {
@@ -226,6 +238,12 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
 
     public long totalFetchTimeMillis() {
         return totalFetchTimeMillis;
+    }
+
+    private final long totalFetchRemoteTimeMillis;
+
+    public long totalFetchRemoteTimeMillis() {
+        return totalFetchRemoteTimeMillis;
     }
 
     private final long numberOfSuccessfulFetches;
@@ -295,7 +313,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     public ShardFollowNodeTaskStatus(
-            final String leaderCluster,
+            final String remoteCluster,
             final String leaderIndex,
             final String followerIndex,
             final int shardId,
@@ -307,8 +325,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             final int numberOfConcurrentReads,
             final int numberOfConcurrentWrites,
             final int numberOfQueuedWrites,
+            final long bufferSize,
             final long mappingVersion,
             final long totalFetchTimeMillis,
+            final long totalFetchRemoteTimeMillis,
             final long numberOfSuccessfulFetches,
             final long numberOfFailedFetches,
             final long operationsReceived,
@@ -320,7 +340,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
             final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions,
             final long timeSinceLastFetchMillis,
             final ElasticsearchException fatalException) {
-        this.leaderCluster = leaderCluster;
+        this.remoteCluster = remoteCluster;
         this.leaderIndex = leaderIndex;
         this.followerIndex = followerIndex;
         this.shardId = shardId;
@@ -332,8 +352,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.numberOfConcurrentReads = numberOfConcurrentReads;
         this.numberOfConcurrentWrites = numberOfConcurrentWrites;
         this.numberOfQueuedWrites = numberOfQueuedWrites;
+        this.bufferSize = bufferSize;
         this.mappingVersion = mappingVersion;
         this.totalFetchTimeMillis = totalFetchTimeMillis;
+        this.totalFetchRemoteTimeMillis = totalFetchRemoteTimeMillis;
         this.numberOfSuccessfulFetches = numberOfSuccessfulFetches;
         this.numberOfFailedFetches = numberOfFailedFetches;
         this.operationsReceived = operationsReceived;
@@ -348,7 +370,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     public ShardFollowNodeTaskStatus(final StreamInput in) throws IOException {
-        this.leaderCluster = in.readOptionalString();
+        this.remoteCluster = in.readOptionalString();
         this.leaderIndex = in.readString();
         this.followerIndex = in.readString();
         this.shardId = in.readVInt();
@@ -360,8 +382,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.numberOfConcurrentReads = in.readVInt();
         this.numberOfConcurrentWrites = in.readVInt();
         this.numberOfQueuedWrites = in.readVInt();
+        this.bufferSize = in.readVLong();
         this.mappingVersion = in.readVLong();
         this.totalFetchTimeMillis = in.readVLong();
+        this.totalFetchRemoteTimeMillis = in.readVLong();
         this.numberOfSuccessfulFetches = in.readVLong();
         this.numberOfFailedFetches = in.readVLong();
         this.operationsReceived = in.readVLong();
@@ -383,7 +407,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeOptionalString(leaderCluster);
+        out.writeOptionalString(remoteCluster);
         out.writeString(leaderIndex);
         out.writeString(followerIndex);
         out.writeVInt(shardId);
@@ -395,8 +419,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeVInt(numberOfConcurrentReads);
         out.writeVInt(numberOfConcurrentWrites);
         out.writeVInt(numberOfQueuedWrites);
+        out.writeVLong(bufferSize);
         out.writeVLong(mappingVersion);
         out.writeVLong(totalFetchTimeMillis);
+        out.writeVLong(totalFetchRemoteTimeMillis);
         out.writeVLong(numberOfSuccessfulFetches);
         out.writeVLong(numberOfFailedFetches);
         out.writeVLong(operationsReceived);
@@ -427,7 +453,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     public XContentBuilder toXContentFragment(final XContentBuilder builder, final Params params) throws IOException {
-        builder.field(LEADER_CLUSTER.getPreferredName(), leaderCluster);
+        builder.field(LEADER_CLUSTER.getPreferredName(), remoteCluster);
         builder.field(LEADER_INDEX.getPreferredName(), leaderIndex);
         builder.field(FOLLOWER_INDEX.getPreferredName(), followerIndex);
         builder.field(SHARD_ID.getPreferredName(), shardId);
@@ -439,11 +465,19 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         builder.field(NUMBER_OF_CONCURRENT_READS_FIELD.getPreferredName(), numberOfConcurrentReads);
         builder.field(NUMBER_OF_CONCURRENT_WRITES_FIELD.getPreferredName(), numberOfConcurrentWrites);
         builder.field(NUMBER_OF_QUEUED_WRITES_FIELD.getPreferredName(), numberOfQueuedWrites);
+        builder.humanReadableField(
+                BUFFER_SIZE_IN_BYTES_FIELD.getPreferredName(),
+                "buffer_size",
+                new ByteSizeValue(bufferSize));
         builder.field(MAPPING_VERSION_FIELD.getPreferredName(), mappingVersion);
         builder.humanReadableField(
                 TOTAL_FETCH_TIME_MILLIS_FIELD.getPreferredName(),
                 "total_fetch_time",
                 new TimeValue(totalFetchTimeMillis, TimeUnit.MILLISECONDS));
+        builder.humanReadableField(
+                TOTAL_FETCH_REMOTE_TIME_MILLIS_FIELD.getPreferredName(),
+                "total_fetch_leader_time",
+                new TimeValue(totalFetchRemoteTimeMillis, TimeUnit.MILLISECONDS));
         builder.field(NUMBER_OF_SUCCESSFUL_FETCHES_FIELD.getPreferredName(), numberOfSuccessfulFetches);
         builder.field(NUMBER_OF_FAILED_FETCHES_FIELD.getPreferredName(), numberOfFailedFetches);
         builder.field(OPERATIONS_RECEIVED_FIELD.getPreferredName(), operationsReceived);
@@ -502,7 +536,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         final ShardFollowNodeTaskStatus that = (ShardFollowNodeTaskStatus) o;
         String fatalExceptionMessage = fatalException != null ? fatalException.getMessage() : null;
         String otherFatalExceptionMessage = that.fatalException != null ? that.fatalException.getMessage() : null;
-        return leaderCluster.equals(that.leaderCluster) &&
+        return remoteCluster.equals(that.remoteCluster) &&
                 leaderIndex.equals(that.leaderIndex) &&
                 followerIndex.equals(that.followerIndex) &&
                 shardId == that.shardId &&
@@ -514,8 +548,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 numberOfConcurrentReads == that.numberOfConcurrentReads &&
                 numberOfConcurrentWrites == that.numberOfConcurrentWrites &&
                 numberOfQueuedWrites == that.numberOfQueuedWrites &&
+                bufferSize == that.bufferSize &&
                 mappingVersion == that.mappingVersion &&
                 totalFetchTimeMillis == that.totalFetchTimeMillis &&
+                totalFetchRemoteTimeMillis == that.totalFetchRemoteTimeMillis &&
                 numberOfSuccessfulFetches == that.numberOfSuccessfulFetches &&
                 numberOfFailedFetches == that.numberOfFailedFetches &&
                 operationsReceived == that.operationsReceived &&
@@ -538,7 +574,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     public int hashCode() {
         String fatalExceptionMessage = fatalException != null ? fatalException.getMessage() : null;
         return Objects.hash(
-            leaderCluster,
+                remoteCluster,
                 leaderIndex,
                 followerIndex,
                 shardId,
@@ -550,8 +586,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
                 numberOfConcurrentReads,
                 numberOfConcurrentWrites,
                 numberOfQueuedWrites,
+                bufferSize,
                 mappingVersion,
                 totalFetchTimeMillis,
+            totalFetchRemoteTimeMillis,
                 numberOfSuccessfulFetches,
                 numberOfFailedFetches,
                 operationsReceived,

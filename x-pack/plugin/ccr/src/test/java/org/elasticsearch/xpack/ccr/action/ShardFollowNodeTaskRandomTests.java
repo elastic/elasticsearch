@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
@@ -83,6 +85,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             TransportResumeFollowAction.DEFAULT_MAX_BATCH_SIZE,
             concurrency,
             10240,
+            new ByteSizeValue(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()
@@ -158,7 +161,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         final long globalCheckpoint = tracker.getCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
                         handler.accept(new ShardChangesAction.Response(
-                            0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(), new Translog.Operation[0]));
+                            0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(), new Translog.Operation[0], 1L));
                     }
                 };
                 threadPool.generic().execute(task);
@@ -233,7 +236,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         nextGlobalCheckPoint,
                         nextGlobalCheckPoint,
                         randomNonNegativeLong(),
-                        ops.toArray(EMPTY))
+                        ops.toArray(EMPTY),
+                        randomNonNegativeLong())
                     )
                 );
                 responses.put(prevGlobalCheckpoint, item);
@@ -256,7 +260,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             prevGlobalCheckpoint,
                             prevGlobalCheckpoint,
                             randomNonNegativeLong(),
-                            EMPTY
+                            EMPTY,
+                            randomNonNegativeLong()
                         );
                         item.add(new TestResponse(null, mappingVersion, response));
                     }
@@ -273,7 +278,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         localLeaderGCP,
                         localLeaderGCP,
                         randomNonNegativeLong(),
-                        ops.toArray(EMPTY)
+                        ops.toArray(EMPTY),
+                        randomNonNegativeLong()
                     );
                     item.add(new TestResponse(null, mappingVersion, response));
                     responses.put(fromSeqNo, Collections.unmodifiableList(item));

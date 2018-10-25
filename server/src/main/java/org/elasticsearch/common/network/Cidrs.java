@@ -40,13 +40,15 @@ public final class Cidrs {
         String[] fields = cidr.split("/");
         if (fields.length != 2) {
             throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "invalid IPv4/CIDR; expected [a.b.c.d, e] but was [%s] after splitting on \"/\" in [%s]", Arrays.toString(fields), cidr)
+                    String.format(Locale.ROOT, "invalid IPv4/CIDR; expected [a.b.c.d, e] but was [%s] after splitting on \"/\" in [%s]",
+                        Arrays.toString(fields), cidr)
             );
         }
         // do not try to parse IPv4-mapped IPv6 address
         if (fields[0].contains(":")) {
             throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "invalid IPv4/CIDR; expected [a.b.c.d, e] where a, b, c, d are decimal octets but was [%s] after splitting on \"/\" in [%s]", Arrays.toString(fields), cidr)
+                    String.format(Locale.ROOT, "invalid IPv4/CIDR; expected [a.b.c.d, e] where a, b, c, d are decimal octets " +
+                        "but was [%s] after splitting on \"/\" in [%s]", Arrays.toString(fields), cidr)
             );
         }
         byte[] addressBytes;

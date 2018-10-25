@@ -556,18 +556,20 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             };
             //end::create-token-execute-listener
 
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
             // Replace the empty listener by a blocking listener in test
-            final CountDownLatch latch = new CountDownLatch(1);
             final PlainActionFuture<CreateTokenResponse> future = new PlainActionFuture<>();
-            listener = new LatchedActionListener<>(future, latch);
+            listener = future;
 
             //tag::create-token-execute-async
             client.security().createTokenAsync(createTokenRequest, RequestOptions.DEFAULT, listener); // <1>
             //end::create-token-execute-async
 
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
-            assertNotNull(future.get());
+            assertNotNull(future.get(30, TimeUnit.SECONDS));
             assertNotNull(future.get().getAccessToken());
+            // "client-credentials" grants aren't refreshable
             assertNull(future.get().getRefreshToken());
         }
 

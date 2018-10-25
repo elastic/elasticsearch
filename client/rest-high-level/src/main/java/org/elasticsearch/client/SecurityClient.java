@@ -285,7 +285,7 @@ public final class SecurityClient {
     }
 
     /**
-     * Creates an OAuth2 token role.
+     * Creates an OAuth2 token.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html">
      * the docs</a> for more.
      *
@@ -300,7 +300,7 @@ public final class SecurityClient {
     }
 
     /**
-     * Creates an OAuth2 token role.
+     * Asynchronously creates an OAuth2 token.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html">
      * the docs</a> for more.
      *

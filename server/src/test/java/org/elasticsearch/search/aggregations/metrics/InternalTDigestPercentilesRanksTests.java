@@ -21,11 +21,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.ParsedTDigestPercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
-import org.elasticsearch.search.aggregations.metrics.InternalPercentilesRanksTestCase;
-import org.elasticsearch.search.aggregations.metrics.ParsedPercentiles;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.Arrays;
@@ -42,7 +37,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
-        assertEquals(state.centroidCount(), values.length);
+        assertEquals(state.size(), values.length);
         return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, aggregators, metadata);
     }
 

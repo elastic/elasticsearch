@@ -265,8 +265,8 @@ teardown:
 
 "Test get_user_privileges for merged roles":
   - skip:
+      reason: "contains is a newly added assertion"
       features: contains
-
   - do:
       headers: { Authorization: "Basic dGVzdC0zOjEyMzQ1Njc4" } # test-3
       xpack.security.get_user_privileges: {}

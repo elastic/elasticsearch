@@ -56,7 +56,7 @@ public abstract class WatcherMockScriptPlugin extends MockScriptPlugin {
     }
 
     public static final List<ScriptContext<?>> CONTEXTS = Collections.unmodifiableList(Arrays.asList(
-        WatcherConditionScript.CONTEXT, WatcherTransformScript.CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT, Watcher.SCRIPT_SEARCH_CONTEXT
+        WatcherConditionScript.CONTEXT, WatcherTransformScript.CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT
     ));
 
     @Override

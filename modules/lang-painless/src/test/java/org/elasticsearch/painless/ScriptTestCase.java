@@ -27,7 +27,6 @@ import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -67,7 +66,6 @@ public abstract class ScriptTestCase extends ESTestCase {
      */
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(SearchScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         contexts.put(PainlessTestScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         return contexts;
     }
@@ -93,7 +91,7 @@ public abstract class ScriptTestCase extends ESTestCase {
     public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, boolean picky) {
         // test for ambiguity errors before running the actual script if picky is true
         if (picky) {
-            ScriptClassInfo scriptClassInfo = new ScriptClassInfo(PAINLESS_LOOKUP, GenericElasticsearchScript.class);
+            ScriptClassInfo scriptClassInfo = new ScriptClassInfo(PAINLESS_LOOKUP, PainlessTestScript.class);
             CompilerSettings pickySettings = new CompilerSettings();
             pickySettings.setPicky(true);
             pickySettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(scriptEngineSettings()));

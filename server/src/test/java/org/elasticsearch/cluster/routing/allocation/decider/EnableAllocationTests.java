@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,7 +34,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Allocation;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Rebalance;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 
@@ -49,7 +50,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class EnableAllocationTests extends ESAllocationTestCase {
 
-    private final Logger logger = Loggers.getLogger(EnableAllocationTests.class);
+    private final Logger logger = LogManager.getLogger(EnableAllocationTests.class);
 
     public void testClusterEnableNone() {
         AllocationService strategy = createAllocationService(Settings.builder()

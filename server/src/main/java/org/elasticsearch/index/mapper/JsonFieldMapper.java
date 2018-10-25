@@ -369,10 +369,10 @@ public final class JsonFieldMapper extends FieldMapper {
     private int ignoreAbove;
 
     private JsonFieldMapper(String simpleName,
-                    MappedFieldType fieldType,
-                    MappedFieldType defaultFieldType,
-                    int ignoreAbove,
-                    Settings indexSettings) {
+                            MappedFieldType fieldType,
+                            MappedFieldType defaultFieldType,
+                            int ignoreAbove,
+                            Settings indexSettings) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 

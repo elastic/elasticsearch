@@ -39,7 +39,7 @@ public class PolicyStatsTests extends AbstractWireSerializingTestCase<PolicyStat
         switch (between(0, 1)) {
         case 0:
             phaseStats = new HashMap<>(phaseStats);
-            phaseStats.put(randomAlphaOfLength(10), PhaseStatsTests.randomPhaseStats());
+            phaseStats.put(randomAlphaOfLength(11), PhaseStatsTests.randomPhaseStats());
             break;
         case 1:
             numberIndicesManaged += randomIntBetween(1, 10);

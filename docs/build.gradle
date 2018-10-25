@@ -61,17 +61,7 @@ integTestCluster {
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
 }
 
-// remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed
-if (rootProject.ext.compilerJavaVersion.isJava11()) {
-  integTestRunner {
-    systemProperty 'tests.rest.blacklist', [
-            'plugins/ingest-attachment/line_164',
-            'plugins/ingest-attachment/line_117'
-    ].join(',')
-  }
-}
-// Build the cluster with all plugins
-
+// build the cluster with all plugins
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
   /* Skip repositories. We just aren't going to be able to test them so it
    * doesn't make sense to waste time installing them. */

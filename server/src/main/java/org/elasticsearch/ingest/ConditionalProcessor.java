@@ -62,10 +62,7 @@ public class ConditionalProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        IngestConditionalScript script =
-            scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
-        if (script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()))) {
-            // Only record metric if the script evaluates to true
+        if (evaluate(ingestDocument)) {
             long startTimeInNanos = relativeTimeProvider.getAsLong();
             try {
                 metric.preIngest();
@@ -79,6 +76,12 @@ public class ConditionalProcessor extends AbstractProcessor {
             }
         }
         return ingestDocument;
+    }
+
+    boolean evaluate(IngestDocument ingestDocument) {
+        IngestConditionalScript script =
+            scriptService.compile(condition, IngestConditionalScript.CONTEXT).newInstance(condition.getParams());
+        return script.execute(new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata()));
     }
 
     Processor getProcessor() {

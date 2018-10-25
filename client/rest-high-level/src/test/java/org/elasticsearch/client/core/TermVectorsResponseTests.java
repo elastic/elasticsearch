@@ -158,14 +158,14 @@ public class TermVectorsResponseTests extends ESTestCase {
             terms.add(randomTerm(hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
         }
 
-        TermVectorsResponse.TermVector tv = new TermVectorsResponse.TermVector("field" + randomAlphaOfLength(2), fs, terms);
+        TermVectorsResponse.TermVector tv = new TermVectorsResponse.TermVector("field" + randomAlphaOfLength(7), fs, terms);
         return tv;
     }
 
     private TermVectorsResponse.TermVector.Term randomTerm(boolean hasTermStatistics, boolean hasScores,
             boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
 
-        String termTxt = "term" + randomAlphaOfLength(2);
+        String termTxt = "term" + randomAlphaOfLength(7);
         int termFreq =  randomInt(10000);
         Integer docFreq = null;
         Long totalTermFreq = null;

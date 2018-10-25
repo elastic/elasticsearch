@@ -17,23 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.example.painlesswhitelist;
 
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+public class ExampleWhitelistedInstance {
+    private final int value;
 
-import java.util.Map;
+    public ExampleWhitelistedInstance(int value) {
+        this.value = value;
+    }
 
-/**
- * Generic script interface that Painless implements for all Elasticsearch scripts.
- */
-public abstract class GenericElasticsearchScript {
+    public int addValue(int value) {
+        return this.value + value;
+    }
 
-    public GenericElasticsearchScript() {}
-
-    public static final String[] PARAMETERS = new String[] {"params", "_score", "doc", "_value", "ctx"};
-    public abstract Object execute(
-        Map<String, Object> params, double _score, Map<String, ScriptDocValues<?>> doc, Object _value, Map<?, ?> ctx);
-
-    public abstract boolean needs_score();
-    public abstract boolean needsCtx();
+    public int getValue() {
+        return value;
+    }
 }

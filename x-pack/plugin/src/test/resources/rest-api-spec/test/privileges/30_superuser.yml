@@ -1,8 +1,5 @@
 ---
 setup:
-  - skip:
-      features: headers
-
   - do:
       cluster.health:
         wait_for_status: yellow
@@ -86,6 +83,9 @@ teardown:
 
 ---
 "Test superuser has all application-privileges":
+  - skip:
+      features: headers
+
   - do:
       headers: { Authorization: "Basic bXlfYWRtaW46YWRtaW4wMQ==" } # my_admin
       xpack.security.has_privileges:

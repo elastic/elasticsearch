@@ -86,6 +86,7 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
     public void addExecutableSection(ExecutableSection executableSection) {
         if (executableSection instanceof DoSection) {
             DoSection doSection = (DoSection) executableSection;
+            //TODO skip sections from setup and teardown sections should also be checked here, but they are not available at this time.
             if (false == doSection.getExpectedWarningHeaders().isEmpty()
                     && false == skipSection.getFeatures().contains("warnings")) {
                 throw new IllegalArgumentException("Attempted to add a [do] with a [warnings] section without a corresponding " +

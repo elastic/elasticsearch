@@ -11,12 +11,13 @@ Electing a master node and changing the cluster state are the two fundamental
 tasks that master-eligible nodes must work together to perform. It is important
 that these activities work robustly even if some nodes have failed, and
 Elasticsearch achieves this robustness by only considering each action to have
-succeeded on receipt of responses from a majority of the master-eligible nodes
-in the cluster. The advantage of requiring a majority of nodes to respond is
-that it allows for nearly half of the master-eligible nodes to fail without
-preventing the cluster from making progress, but also does not allow the
-cluster to "split brain", i.e. to be partitioned into two pieces each of which
-may make decisions that are inconsistent with those of the other piece.
+succeeded on receipt of responses from a _quorum_, a subset of the
+master-eligible nodes in the cluster. The advantage of requiring only a subset
+of the nodes to respond is that it allows for some of the nodes to fail without
+preventing the cluster from making progress, and the quorums are carefully
+chosen so as not to allow the cluster to "split brain", i.e. to be partitioned
+into two pieces each of which may make decisions that are inconsistent with
+those of the other piece.
 
 Elasticsearch allows you to add and remove master-eligible nodes to a running
 cluster. In many cases you can do this simply by starting or stopping the nodes

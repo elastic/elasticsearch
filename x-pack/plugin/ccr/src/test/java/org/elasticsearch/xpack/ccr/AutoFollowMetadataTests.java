@@ -45,6 +45,8 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
                 leaderPatterns,
                 randomAlphaOfLength(4),
                 randomIntBetween(0, Integer.MAX_VALUE),
+                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
+                randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
                 randomIntBetween(0, Integer.MAX_VALUE),

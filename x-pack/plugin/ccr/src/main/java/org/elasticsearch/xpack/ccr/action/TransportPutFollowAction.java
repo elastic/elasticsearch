@@ -125,6 +125,10 @@ public final class TransportPutFollowAction
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
+        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+            listener.onFailure(
+                new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled"));
+        }
 
         ActionListener<Boolean> handler = ActionListener.wrap(
                 result -> {

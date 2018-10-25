@@ -487,7 +487,6 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         }
     }
 
-
     public void testAddingDoWithNodeSelectorWithSkipButNotWarnings() {
         int lineNumber = between(1, 10000);
         ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");

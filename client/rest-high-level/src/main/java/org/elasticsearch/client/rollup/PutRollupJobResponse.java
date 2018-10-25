@@ -31,7 +31,7 @@ public class PutRollupJobResponse extends AcknowledgedResponse {
     private static final String PARSE_FIELD_NAME = "acknowledged";
 
     public PutRollupJobResponse(boolean acknowledged) {
-        super(acknowledged, PARSE_FIELD_NAME);
+        super(acknowledged);
     }
 
     public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
@@ -42,5 +42,10 @@ public class PutRollupJobResponse extends AcknowledgedResponse {
         = new ConstructingObjectParser<>("put_rollup_job_response", true, args -> new PutRollupJobResponse((boolean) args[0]));
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField(PARSE_FIELD_NAME));
+    }
+
+    @Override
+    protected String getFieldName() {
+        return PARSE_FIELD_NAME;
     }
 }

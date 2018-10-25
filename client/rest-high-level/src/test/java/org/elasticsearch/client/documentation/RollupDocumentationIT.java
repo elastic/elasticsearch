@@ -45,10 +45,10 @@ import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupIndexerJobStat
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupJobStatus;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
-import org.elasticsearch.client.rollup.StartRollupJobRequest;
-import org.elasticsearch.client.rollup.StartRollupJobResponse;
 import org.elasticsearch.client.rollup.RollableIndexCaps;
 import org.elasticsearch.client.rollup.RollupJobCaps;
+import org.elasticsearch.client.rollup.StartRollupJobRequest;
+import org.elasticsearch.client.rollup.StartRollupJobResponse;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
 import org.elasticsearch.client.rollup.job.config.GroupConfig;
 import org.elasticsearch.client.rollup.job.config.HistogramGroupConfig;
@@ -278,16 +278,21 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
             }
         };
         // end::rollup-start-job-execute-listener
-        
+
         final CountDownLatch latch = new CountDownLatch(1);
         listener = new LatchedActionListener<>(listener, latch);
-     
+
         // tag::rollup-start-job-execute-async
         RollupClient rc = client.rollup();
         rc.startRollupJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::rollup-start-job-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // stop job so it can correctly be deleted by the test teardown
+        // TODO Replace this with the Rollup Stop Job API
+        Response stoptResponse = client().performRequest(new Request("POST", "/_xpack/rollup/job/" + id + "/_stop"));
+        assertEquals(RestStatus.OK.getStatus(), stoptResponse.getStatusLine().getStatusCode());
     }
 
     @SuppressWarnings("unused")

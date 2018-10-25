@@ -28,11 +28,9 @@ import java.util.Objects;
 
 public abstract class AcknowledgedResponse implements ToXContentObject {
     private final boolean acknowledged;
-    private final String field;
 
-    public AcknowledgedResponse(final boolean acknowledged, final String field) {
+    public AcknowledgedResponse(final boolean acknowledged) {
         this.acknowledged = acknowledged;
-        this.field = field;
     }
 
     public boolean isAcknowledged() {
@@ -60,10 +58,14 @@ public abstract class AcknowledgedResponse implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(field, isAcknowledged());
+            builder.field(getFieldName(), isAcknowledged());
         }
         builder.endObject();
         return builder;
     }
 
+    /**
+     * @return the field name this response uses to output the acknowledged flag
+     */
+    protected abstract String getFieldName();
 }

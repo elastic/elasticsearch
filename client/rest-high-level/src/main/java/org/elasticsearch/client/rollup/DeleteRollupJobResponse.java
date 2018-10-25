@@ -32,7 +32,7 @@ public class DeleteRollupJobResponse extends AcknowledgedResponse {
     private static final String PARSE_FIELD_NAME = "acknowledged";
 
     public DeleteRollupJobResponse(boolean acknowledged) {
-        super(acknowledged, PARSE_FIELD_NAME);
+        super(acknowledged);
     }
 
     public static DeleteRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
@@ -44,5 +44,10 @@ public class DeleteRollupJobResponse extends AcknowledgedResponse {
         args -> new DeleteRollupJobResponse((boolean) args[0]));
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField(PARSE_FIELD_NAME));
+    }
+
+    @Override
+    protected String getFieldName() {
+        return PARSE_FIELD_NAME;
     }
 }

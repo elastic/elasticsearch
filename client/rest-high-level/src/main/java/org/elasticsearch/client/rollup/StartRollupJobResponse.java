@@ -32,7 +32,7 @@ public class StartRollupJobResponse extends AcknowledgedResponse {
     private static final String PARSE_FIELD_NAME = "started";
 
     public StartRollupJobResponse(boolean acknowledged) {
-        super(acknowledged, PARSE_FIELD_NAME);
+        super(acknowledged);
     }
 
     public static StartRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
@@ -44,5 +44,10 @@ public class StartRollupJobResponse extends AcknowledgedResponse {
         args -> new StartRollupJobResponse((boolean) args[0]));
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField(PARSE_FIELD_NAME));
+    }
+
+    @Override
+    protected String getFieldName() {
+        return PARSE_FIELD_NAME;
     }
 }

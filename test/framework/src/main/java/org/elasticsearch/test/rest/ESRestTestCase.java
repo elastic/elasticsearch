@@ -400,7 +400,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
-            removePoliciesFromAllIndexes();
             deleteAllPolicies();
         }
     }
@@ -513,43 +512,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
 
-    private static void removePoliciesFromAllIndexes() throws IOException {
-        Response response = adminClient().performRequest(new Request("GET", "/_all"));
-        Map<String, Object> indexes = ESRestTestCase.entityAsMap(response);
-
-        if (indexes == null || indexes.isEmpty()) {
-            return;
-        }
-
-        for (String indexName : indexes.keySet()) {
-            try {
-                adminClient().performRequest(new Request("DELETE", indexName + "/_ilm/"));
-            } catch (Exception e) {
-                // ok
-            }
-        }
-    }
-
-    private static void deleteAllPolicies() throws Exception {
+    private static void deleteAllPolicies() throws IOException {
         Map<String, Object> policies;
 
-        try {
-            Response response = adminClient().performRequest(new Request("GET", "/_ilm"));
-            policies = ESRestTestCase.entityAsMap(response);
-        } catch (Exception e) {
-            return;
-        }
+        Response response = adminClient().performRequest(new Request("GET", "/_ilm"));
+        policies = entityAsMap(response);
 
         if (policies == null || policies.isEmpty()) {
             return;
         }
 
         for (String policyName : policies.keySet()) {
-            try {
-                adminClient().performRequest(new Request("DELETE", "/_ilm/" + policyName));
-            } catch (Exception e) {
-                // ok
-            }
+            adminClient().performRequest(new Request("DELETE", "/_ilm/" + policyName));
         }
     }
 

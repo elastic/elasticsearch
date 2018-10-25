@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -238,52 +239,54 @@ final class Verifier {
             Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
         if (p instanceof OrderBy) {
             OrderBy o = (OrderBy) p;
-            if (o.child() instanceof Aggregate) {
-                Aggregate a = (Aggregate) o.child();
 
-                Map<Expression, Node<?>> missing = new LinkedHashMap<>();
-                o.order().forEach(oe -> {
-                    Expression e = oe.child();
-                    // cannot order by aggregates (not supported by composite)
-                    if (Functions.isAggregate(e)) {
-                        missing.put(e, oe);
-                        return;
-                    }
+            o.forEachDown(child -> {
+                if (child instanceof Aggregate) {
+                    Aggregate a = (Aggregate) child;
 
-                    // take aliases declared inside the aggregates which point to the grouping (but are not included in there)
-                    // to correlate them to the order
-                    List<Expression> groupingAndMatchingAggregatesAliases = new ArrayList<>(a.groupings());
-                    
-                    a.aggregates().forEach(as -> {
-                        if (as instanceof Alias) {
-                            Alias al = (Alias) as;
-                            if (Expressions.anyMatch(a.groupings(), g -> Expressions.equalsAsAttribute(al.child(), g))) {
-                                groupingAndMatchingAggregatesAliases.add(al);
-                            }
+                    Map<Expression, Node<?>> missing = new LinkedHashMap<>();
+                    o.order().forEach(oe -> {
+                        Expression e = oe.child();
+                        // cannot order by aggregates (not supported by composite)
+                        if (Functions.isAggregate(e)) {
+                            missing.put(e, oe);
+                            return;
                         }
-                    });
-                    
-                    // make sure to compare attributes directly
-                    if (Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
+
+                        // take aliases declared inside the aggregates which point to the grouping (but are not included in there)
+                        // to correlate them to the order
+                        List<Expression> groupingAndMatchingAggregatesAliases = new ArrayList<>(a.groupings());
+
+                        a.aggregates().forEach(as -> {
+                            if (as instanceof Alias) {
+                                Alias al = (Alias) as;
+                                if (Expressions.anyMatch(a.groupings(), g -> Expressions.equalsAsAttribute(al.child(), g))) {
+                                    groupingAndMatchingAggregatesAliases.add(al);
+                                }
+                            }
+                        });
+
+                        // make sure to compare attributes directly
+                        if (Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
                             g -> e.semanticEquals(e instanceof Attribute ? Expressions.attribute(g) : g))) {
-                        return;
-                    }
+                            return;
+                        }
 
-                    // nothing matched, cannot group by it
-                    missing.put(e, oe);
-                });
+                        // nothing matched, cannot group by it
+                        missing.put(e, oe);
+                    });
 
-                if (!missing.isEmpty()) {
-                    String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
-                    // get the location of the first missing expression as the order by might be on a different line
-                    localFailures.add(
+                    if (!missing.isEmpty()) {
+                        String plural = missing.size() > 1 ? "s" : StringUtils.EMPTY;
+                        // get the location of the first missing expression as the order by might be on a different line
+                        localFailures.add(
                             fail(missing.values().iterator().next(), "Cannot order by non-grouped column" + plural + " %s, expected %s",
-                                    Expressions.names(missing.keySet()),
-                                    Expressions.names(a.groupings())));
-                    groupingFailures.add(a);
-                    return false;
+                                Expressions.names(missing.keySet()),
+                                Expressions.names(a.groupings())));
+                        groupingFailures.add(a);
+                    }
                 }
-            }
+            });
         }
         return true;
     }

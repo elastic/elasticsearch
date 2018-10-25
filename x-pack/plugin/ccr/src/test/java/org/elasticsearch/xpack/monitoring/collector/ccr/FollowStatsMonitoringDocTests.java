@@ -92,6 +92,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         final int numberOfConcurrentReads = randomIntBetween(1, Integer.MAX_VALUE);
         final int numberOfConcurrentWrites = randomIntBetween(1, Integer.MAX_VALUE);
         final int numberOfQueuedWrites = randomIntBetween(0, Integer.MAX_VALUE);
+        final long bufferSize = randomNonNegativeLong();
         final long mappingVersion = randomIntBetween(0, Integer.MAX_VALUE);
         final long totalFetchTimeMillis = randomLongBetween(0, 4096);
         final long totalFetchTookTimeMillis = randomLongBetween(0, 4096);
@@ -121,6 +122,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                 numberOfConcurrentReads,
                 numberOfConcurrentWrites,
                 numberOfQueuedWrites,
+                bufferSize,
                 mappingVersion,
                 totalFetchTimeMillis,
                 totalFetchTookTimeMillis,
@@ -166,6 +168,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"number_of_concurrent_reads\":" + numberOfConcurrentReads + ","
                                         + "\"number_of_concurrent_writes\":" + numberOfConcurrentWrites + ","
                                         + "\"number_of_queued_writes\":" + numberOfQueuedWrites + ","
+                                        + "\"buffer_size_in_bytes\":" + bufferSize + ","
                                         + "\"mapping_version\":" + mappingVersion + ","
                                         + "\"total_fetch_time_millis\":" + totalFetchTimeMillis + ","
                                         + "\"total_fetch_remote_time_millis\":" + totalFetchTookTimeMillis + ","
@@ -210,6 +213,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             1,
             1,
             1,
+            1,
             100,
             50,
             10,
@@ -234,7 +238,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         for (Map.Entry<String, Object> entry : serializedStatus.entrySet()) {
             String fieldName = entry.getKey();
             Map<?, ?> fieldMapping = (Map<?, ?>) followStatsMapping.get(fieldName);
-            assertThat(fieldMapping, notNullValue());
+            assertThat("no field mapping for field [" + fieldName + "]", fieldMapping, notNullValue());
 
             Object fieldValue = entry.getValue();
             String fieldType = (String) fieldMapping.get("type");

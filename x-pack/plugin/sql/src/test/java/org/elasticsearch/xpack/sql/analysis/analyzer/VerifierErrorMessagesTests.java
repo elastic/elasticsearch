@@ -139,7 +139,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testNotSupportedAggregateOnDate() {
-        assertEquals("1:8: Argument required to be numeric ('date' of type 'date')",
+        assertEquals("1:8: Argument required to be numeric ('date' type is 'date')",
             verify("SELECT AVG(date) FROM test"));
     }
 

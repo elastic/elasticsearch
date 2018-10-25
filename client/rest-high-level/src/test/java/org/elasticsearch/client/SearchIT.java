@@ -1079,7 +1079,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(exception.getIndex().getName(), equalTo("non_existent_index"));
             assertThat(exception.getDetailedMessage(),
-                containsString("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+                containsString("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
         {
             ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "999");

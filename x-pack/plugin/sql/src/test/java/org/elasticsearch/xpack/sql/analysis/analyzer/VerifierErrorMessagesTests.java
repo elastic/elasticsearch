@@ -133,7 +133,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
     }
 
-    public void testGroupByOrderByScalarÎOverNonGrouped_WithHaving() {
+    public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
         assertEquals("1:71: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
             verify("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY YEAR(date)"));
     }

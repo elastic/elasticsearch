@@ -22,16 +22,22 @@ Elasticsearch allows you to add and remove master-eligible nodes to a running
 cluster. In many cases you can do this simply by starting or stopping the nodes
 as required, as described in more detail below. As nodes are added or removed
 Elasticsearch maintains an optimal level of fault tolerance by updating the
-cluster's _configuration_, which is the set of master-eligible nodes whose
-responses are counted when making decisions such as electing a new master or
-committing a new cluster state. A decision is only made once more than half of
-the nodes in the configuration have responded. Usually the cluster
+cluster's _voting configuration_, which is the set of master-eligible nodes
+whose responses are counted when making decisions such as electing a new master
+or committing a new cluster state. A decision is only made once more than half
+of the nodes in the voting configuration have responded. Usually the voting
 configuration is the same as the set of all the master-eligible nodes that are
 currently in the cluster, but there are some situations in which they may be
-different. As long as more than half of the nodes in the configuration are
-still healthy then the cluster can still make progress. The configuration is
-managed automatically by Elasticsearch and stored in the cluster state so you
-can inspect its current contents as follows:
+different. As long as more than half of the nodes in the voting configuration
+are still healthy then the cluster can still make progress.
+
+[float]
+==== Auto-reconfiguration
+
+Nodes may join or leave the cluster, and Elasticsearch reacts by making
+corresponding changes to the voting configuration in order to ensure that the
+cluster is as resilient as possible.  The current voting configuration is
+stored in the cluster state so you can inspect its current contents as follows:
 
 [source,js]
 --------------------------------------------------
@@ -39,64 +45,51 @@ GET /_cluster/state?filter_path=TODO
 --------------------------------------------------
 // CONSOLE
 
-The way that the configuration is managed is controlled by the following
-setting. (TODO maybe not a setting?)
+Larger voting configurations are usually more resilient, so Elasticsearch will
+normally prefer to add nodes to the voting configuration once they have joined
+the cluster. Similarly, if a node in the voting configuration leaves the
+cluster and there is another node in the cluster that is not in the voting
+configuration then it is preferable to swap these two nodes in the voting
+configuration, leaving its size unchanged but increasing its resilience.
 
-`cluster.master_nodes_failure_tolerance`::
+It is not so straightforward to automatically remove nodes from the voting
+configuration after they have left the cluster, and different strategies have
+different benefits and drawbacks, so the right choice depends on how the
+cluster will be used and is controlled by the following setting.
 
-    Sets the number of master-eligible nodes whose simultaneous failure the
-    cluster should be able to tolerate. This imposes a lower bound on the size
-    of the configuration. Elasticsearch will not remove nodes from the
-    configuration if their removal would break this bound, and will not permit
-    this bound to be increased to a value that is too large for the current
-    configuration.
+`cluster.automatically_shrink_voting_configuration`::
 
-The relationship between the number of master-eligible nodes in your cluster,
-the size of a majority, and the appropriate value for the
-`cluster.master_nodes_failure_tolerance` setting is shown below.
+    Defaults to `true`, meaning that the voting configuration will
+    automatically shrink, shedding departed nodes, as long as it still contains
+    at least 3 nodes.  If set to `false`, the voting configuration never
+    automatically shrinks; departed nodes must be removed manually using the
+    retirement API described below.
 
-[cols="<,<,<",options="header",]
-|=======================================================================================
-|Number of master-eligible nodes |Majority size |`cluster.master_nodes_failure_tolerance`
-|1                               |1             |0                             
-|2                               |2             |0                             
-|**3 (recommended)**             |**2**         |**1**                             
-|4                               |3             |1                             
-|5                               |3             |2                             
-|6                               |4             |2                             
-|7                               |4             |3                             
-|=======================================================================================
+If `cluster.automatically_shrink_voting_configuration` is set to `true`, the
+recommended and default setting, and there are at least three master-eligible
+nodes in the cluster, then Elasticsearch remains capable of processing
+cluster-state updates as long as all but one of its master-eligible nodes are
+healthy. There are situations in which it might tolerate the loss of multiple
+nodes, but this is not guaranteed under all sequences of cascading failures. If
+this setting is set to `false` then departed nodes must be removed from the
+voting configuration manually, using the retirement API described below, to
+achieve the desired level of resilience.
 
-The minimum configuration size is `2 * cluster.master_nodes_failure_tolerance + 1`:
-
-[cols="<,<",options="header",]
-|====================================================================
-|`cluster.master_nodes_failure_tolerance` |Minimum configuration size
-|0                                        |1
-|**1**                                    |**3**
-|2                                        |5
-|3                                        |7
-|====================================================================
-
-It is permissible, but not recommended, to set
-`cluster.master_nodes_failure_tolerance` too low for your cluster or, put
-differently, to have more master-eligible nodes than the minimum configuration
-size. To do so is _safe_ in the sense that the cluster will not suffer from a
-split-brain however this setting is configured, but if
-`cluster.master_nodes_failure_tolerance` is too low then your cluster may not
-tolerate as many failures as expected.
+Note that Elasticsearch will not suffer from a "split-brain" inconsistency
+however it is configured. This setting only affects its availability in the
+event of some node failures.
 
 [float]
 ==== Even numbers of master-eligible nodes
 
 There should normally be an odd number of master-eligible nodes in a cluster.
-If there is an even number then Elasticsearch will put all but one of them into
-the configuration to ensure that the configuration has an odd size. This does
-not decrease the failure-tolerance of the cluster, and in fact improves it
-slightly: if the cluster is partitioned into two even halves then one of the
-halves will contain a majority of the masters and will be able to keep
-operating, whereas if all of the master-eligible nodes' votes were counted then
-neither side could make any progress in this situation.
+If there is an even number then Elasticsearch will leave one of them out of the
+voting configuration to ensure that it has an odd size. This does not decrease
+the failure-tolerance of the cluster, and in fact improves it slightly: if the
+cluster is partitioned into two even halves then one of the halves will contain
+a majority of the voting configuration and will be able to keep operating,
+whereas if all of the master-eligible nodes' votes were counted then neither
+side could make any progress in this situation.
 
 [float]
 ==== Adding master-eligible nodes
@@ -108,10 +101,9 @@ necessary to add some master-eligible nodes to a cluster, such as when
 migrating a cluster onto a new set of nodes without downtime.
 
 If you wish to add some master-eligible nodes to your cluster, simply configure
-the new nodes to find the existing cluster and start them up. Once the new
-nodes have joined the cluster, you may be able to increase the
-`cluster.master_nodes_failure_tolerance` setting to match. (TODO do we log
-info/warn messages about this?)
+the new nodes to find the existing cluster and start them up. Elasticsearch
+will add the new nodes to the voting configuration if it is appropriate to do
+so.
 
 [float]
 ==== Removing master-eligible nodes
@@ -122,20 +114,14 @@ non-master-eligible nodes only. However there are situations in which it may be
 necessary to remove some master-eligible nodes to a cluster, such as when
 migrating a cluster onto a new set of nodes without downtime.
 
-If you wish to remove some of the master-eligible nodes in your cluster, you
-must first reduce the `cluster.master_nodes_failure_tolerance` setting to match
-the target cluster size before removing the extraneous nodes. This temporary
-situation is the only case in which `cluster.master_nodes_failure_tolerance`
-should be set lower than the recommended values above.
-
-You must also be careful not to remove too many master-eligible nodes all at
-the same time. For instance, if you currently have seven master-eligible nodes
-and you wish to reduce this to three, you cannot simply stop four of the nodes
-all at the same time: to do so would leave only three nodes remaining, which is
-less than half of the cluster, which means it cannot take any further actions.
-You should remove the nodes one-at-a-time and verify that each node has been
-removed from the configuration before moving onto the next one, using the
-`await_removal` API:
+You must be careful not to remove too many master-eligible nodes all at the
+same time. For instance, if you currently have seven master-eligible nodes and
+you wish to reduce this to three, you cannot simply stop four of the nodes all
+at the same time: to do so would leave only three nodes remaining, which is
+less than half of the voting configuration, which means it cannot take any
+further actions.  You should remove the nodes one-at-a-time and verify that
+each node has been removed from the voting configuration before moving onto the
+next one, using the `await_removal` API:
 
 [source,js]
 --------------------------------------------------
@@ -153,11 +139,11 @@ A special case of this is the case where there are only two master-eligible
 nodes and you wish to remove one of them. In this case neither node can be
 safely shut down since both nodes are required to reliably make progress, so
 you must first explicitly _retire_ one of the nodes. A retired node still works
-normally, but Elasticsearch will try and transfer it out of the current
+normally, but Elasticsearch will try and transfer it out of the voting
 configuration so its vote is no longer required, and will never move a retired
-node back into the configuration. Once a node has been retired and is removed
-from the configuration, it is safe to shut it down. A node can be retired using
-the retirement API:
+node back into the voting configuration. Once a node has been successfully
+retired, it is safe to shut it down. A node can be retired using the following
+API:
 
 [source,js]
 --------------------------------------------------
@@ -170,11 +156,14 @@ POST /_nodes/node_name/retire?timeout=1m
 
 The node to retire is specified using <<cluster-nodes,node filters>> in place
 of `node_name` here. If a call to the retirement API fails then the call can
-safely be retried. However if a retirement fails then it's possible the node
-cannot be removed from the configuration due to the
-`cluster.master_nodes_failure_tolerance` setting, so verify that this is set
-correctly first. A successful response guarantees that the node has been
-removed from the configuration and will not be reinstated.
+safely be retried. A successful response guarantees that the node has been
+removed from the voting configuration and will not be reinstated.
+
+Although the retirement API is most useful for removing one node from a
+two-node cluster, it is also possible to use it to remove nodes from larger
+clusters. In the example described above, shrinking a seven-master-node cluster
+down to only have three master nodes, you could retire four of the nodes and
+then shut them down simultaneously.
 
 A node (or nodes) can be brought back out of retirement using the `unretire`
 API:
@@ -187,7 +176,8 @@ POST /_nodes/node_name/unretire
 
 The node (or nodes) to reinstate are specified using <<cluster-nodes,node
 filters>> in place of `node_name` here. After being brought back out of
-retirement they may not immediately be added to the configuration.
+retirement they might or might not immediately be added to the voting
+configuration.
 
 The current set of retired nodes is stored in the cluster state and can be
 inspected as follows:
@@ -260,7 +250,6 @@ looks like this:
 [source,js]
 --------------------------------------------------
 {
-  "master_nodes_failure_tolerance": 1,
   "master_nodes":[
     {"id":"USpTGYaBSIKbgSUJR2Z9lg","name":"master-a"},
     {"id":"gSUJR2Z9lgUSpTGYaBSIKb","name":"master-b"},
@@ -278,7 +267,6 @@ the `POST /_cluster/bootstrap` API:
 # send the bootstrap warrant back to the cluster
 POST /_cluster/bootstrap
 {
-  "master_nodes_failure_tolerance": 1,
   "master_nodes":[
     {"id":"USpTGYaBSIKbgSUJR2Z9lg","name":"master-a"},
     {"id":"gSUJR2Z9lgUSpTGYaBSIKb","name":"master-b"},
@@ -295,7 +283,7 @@ important** to use the same bootstrap warrant in each call.
 
 WARNING: You must pass the same bootstrap warrant to each call to `POST
 /_cluster/bootstrap` in order to be sure that only a single cluster forms
-during bootstrapping.
+during bootstrapping and therefore to avoid the risk of data loss.
 
 The simplest and safest way to construct a bootstrap warrant is to use the `GET
 /_cluster/bootstrap` API:
@@ -325,7 +313,6 @@ their IDs too:
 # send the bootstrap warrant back to the cluster
 POST /_cluster/bootstrap
 {
-  "master_nodes_failure_tolerance": 1,
   "master_nodes":[
     {"name":"master-a"},
     {"name":"master-b"},
@@ -343,15 +330,13 @@ command-line tool:
 
 [source,txt]
 --------------------------------------------------
-$ bin/elasticsearch-bootstrap-cluster --failure-tolerance 1 \
-    --node http://10.0.12.1:9200/ --node http://10.0.13.1:9200/ \
-    --node https://10.0.14.1:9200/
+$ bin/elasticsearch-bootstrap-cluster --node http://10.0.12.1:9200/ \
+    --node http://10.0.13.1:9200/ --node https://10.0.14.1:9200/
 --------------------------------------------------
 
-The arguments to this tool are the target failure tolerance of the cluster and
-the addresses of (some, preferably all, of) its master-eligible nodes. The tool
-will construct a bootstrap warrant and then bootstrap the cluster, retrying
-safely if any step fails.
+The arguments to this tool are the addresses of (some, preferably all, of) its
+master-eligible nodes. The tool will construct a bootstrap warrant and then
+bootstrap the cluster, retrying safely if any step fails.
 
 [float]
 === Unsafe disaster recovery
@@ -368,13 +353,13 @@ POST /_cluster/force_local_node_takeover
 --------------------------------------------------
 // CONSOLE
 
-This works by reducing `cluster.master_nodes_failure_tolerance` to 0 and then
-forcibly overriding the current configuration with one in which the handling
-node is the only voting master, so that it forms a quorum on its own. Because
-there is a risk of data loss when performing this command it requires the
-`accept_data_loss` parameter to be set to `true` in the URL. Afterwards, once
-the cluster has successfully formed, `cluster.master_nodes_failure_tolerance`
-should be increased to a suitable value.
+This works by forcibly overriding the current voting configuration with one in
+which the handling node is the only voting master, so that it forms a quorum on
+its own. Because there is a risk of data loss when performing this command it
+requires the `accept_data_loss` parameter to be set to `true` in the URL.
+Afterwards, once the cluster has successfully formed,
+`cluster.master_nodes_failure_tolerance` should be increased to a suitable
+value.
 
 [float]
 === Election scheduling

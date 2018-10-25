@@ -154,11 +154,12 @@ PUT _cluster/settings
 
 `cluster.remote.${cluster_alias}.transport.ping_schedule`::
 
-  Schedule a regular application-level ping message to ensure that transport
-  connections to nodes belonging to remote clusters are kept alive. Defaults
-  to the value that the global `transport.ping_schedule` setting is set to
-  (which defaults to `-1`, meaning pings are disabled).
-
+  Sets the time interval between regular application-level ping messages that
+  are sent to ensure that transport connections to nodes belonging to remote
+  clusters are kept alive. If set to `-1`, application-level ping messages to
+  this remote cluster are not sent. If unset, application-level ping messages
+  are sent according to the global `transport.ping_schedule` setting, which
+  defaults to ``-1` meaning that pings are not sent.
 
 [float]
 [[retrieve-remote-clusters-info]]

@@ -381,18 +381,23 @@ public class RemoteClusterServiceTests extends ESTestCase {
             knownNodes.add(seedTransport.getLocalDiscoNode());
             knownNodes.add(otherSeedTransport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
+            Settings.Builder settingsBuilder = Settings.builder();
+            if (randomBoolean()) {
+                settingsBuilder.put(TcpTransport.PING_SCHEDULE.getKey(), TimeValue.timeValueSeconds(randomIntBetween(1, 10)));
+            }
+            Settings transportSettings = settingsBuilder.build();
 
-            try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
+            try (MockTransportService transportService = MockTransportService.createNewService(transportSettings, Version.CURRENT, threadPool,
                 null)) {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
                 builder.putList("cluster.remote.cluster_1.seeds", seedNode.getAddress().toString());
                 builder.putList("cluster.remote.cluster_2.seeds", otherSeedNode.getAddress().toString());
-                TimeValue clusterOnePingSchedule = TimeValue.timeValueSeconds(randomIntBetween(1, 10));
-                builder.put("cluster.remote.cluster_1.transport.ping_schedule", clusterOnePingSchedule);
-                TimeValue clusterTwoPingSchedule = TimeValue.timeValueSeconds(randomIntBetween(1, 10));
-                builder.put("cluster.remote.cluster_2.transport.ping_schedule", clusterTwoPingSchedule);
+                TimeValue pingSchedule1 = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(1, 10));
+                builder.put("cluster.remote.cluster_1.transport.ping_schedule", pingSchedule1);
+                TimeValue pingSchedule2 = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(1, 10));
+                builder.put("cluster.remote.cluster_2.transport.ping_schedule", pingSchedule2);
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
@@ -401,9 +406,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     RemoteClusterConnection remoteClusterConnection1 = service.getRemoteClusterConnection("cluster_1");
-                    assertEquals(clusterOnePingSchedule, remoteClusterConnection1.getConnectionManager().getPingSchedule());
+                    assertEquals(pingSchedule1, remoteClusterConnection1.getConnectionManager().getPingSchedule());
                     RemoteClusterConnection remoteClusterConnection2 = service.getRemoteClusterConnection("cluster_2");
-                    assertEquals(clusterTwoPingSchedule, remoteClusterConnection2.getConnectionManager().getPingSchedule());
+                    assertEquals(pingSchedule2, remoteClusterConnection2.getConnectionManager().getPingSchedule());
                 }
             }
         }

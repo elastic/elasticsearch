@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -68,7 +69,9 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
 
     @Override
     public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
-        addAllocationId(startedShard);
+        assert Objects.equals(initializingShard.allocationId(), startedShard.allocationId())
+            : "initializingShard and startedShard have to have the same allocation id";
+        changes(startedShard.shardId()).addedAllocationIds.add(startedShard.allocationId().getId());
         if (startedShard.primary()
             // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
             && (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
@@ -302,14 +305,6 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
         if (shardRouting.active()) {
             changes(shardRouting.shardId()).removedAllocationIds.add(shardRouting.allocationId().getId());
         }
-    }
-
-    /**
-     * Add allocation id of this shard to the set of in-sync shard copies
-     */
-    private void addAllocationId(ShardRouting shardRouting) {
-        final Updates changes = changes(shardRouting.shardId());
-        changes.addedAllocationIds.add(shardRouting.allocationId().getId());
     }
 
     /**

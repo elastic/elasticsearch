@@ -14,7 +14,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketSelector;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketSelector;
 
 public class AggFilter extends PipelineAgg {
 

@@ -22,9 +22,10 @@ package org.elasticsearch.bootstrap;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.WString;
+
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
@@ -40,7 +41,7 @@ class JNANatives {
     /** no instantiation */
     private JNANatives() {}
 
-    private static final Logger logger = Loggers.getLogger(JNANatives.class);
+    private static final Logger logger = LogManager.getLogger(JNANatives.class);
 
     // Set to true, in case native mlockall call was successful
     static boolean LOCAL_MLOCKALL = false;

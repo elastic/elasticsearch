@@ -17,7 +17,6 @@ setup:
         policy: "my_timeseries_lifecycle"
 
   - do:
-      acknowlege: true
       ilm.put_lifecycle:
         policy: "my_timeseries_lifecycle"
         body: |
@@ -43,7 +42,6 @@ setup:
            }
 
   - do:
-      acknowledge: true
       ilm.get_lifecycle:
         policy: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 1 }
@@ -52,7 +50,6 @@ setup:
   - match: { my_timeseries_lifecycle.policy.phases.delete.minimum_age: "30s" }
 
   - do:
-      acknowledge: true
       ilm.delete_lifecycle:
         policy: "my_timeseries_lifecycle"
 
@@ -64,7 +61,6 @@ setup:
 ---
 "Test Policy Update":
   - do:
-      acknowlege: true
       ilm.put_lifecycle:
         policy: "my_timeseries_lifecycle"
         body: |
@@ -90,7 +86,6 @@ setup:
            }
 
   - do:
-      acknowledge: true
       ilm.get_lifecycle:
         policy: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 1 }
@@ -114,7 +109,6 @@ setup:
             index.lifecycle.name: "my_moveable_timeseries_lifecycle"
   
   - do:
-      acknowlege: true
       ilm.put_lifecycle:
         policy: "my_timeseries_lifecycle"
         body: |
@@ -140,7 +134,6 @@ setup:
            }
 
   - do:
-      acknowledge: true
       ilm.get_lifecycle:
         policy: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.version: 2 }
@@ -149,16 +142,13 @@ setup:
   - match: { my_timeseries_lifecycle.policy.phases.delete.minimum_age: "600s" }
 
   - do:
-      acknowledge: true
       indices.delete:
         index: my_index
   - do:
-      acknowledge: true
       indices.delete:
         index: my_index2
 
   - do:
-      acknowledge: true
       ilm.delete_lifecycle:
         policy: "my_timeseries_lifecycle"
 
@@ -170,7 +160,6 @@ setup:
 ---
 "Test Undeletable Policy In Use":
   - do:
-      acknowlege: true
       ilm.put_lifecycle:
         policy: "my_timeseries_lifecycle"
         body: |
@@ -196,7 +185,6 @@ setup:
            }
 
   - do:
-      acknowledge: true
       ilm.get_lifecycle:
         policy: "my_timeseries_lifecycle"
   - match: { my_timeseries_lifecycle.policy.phases.warm.minimum_age: "10s" }
@@ -221,7 +209,6 @@ setup:
         index: my_timeseries_index
 
   - do:
-      acknowledge: true
       ilm.delete_lifecycle:
         policy: "my_timeseries_lifecycle"
 

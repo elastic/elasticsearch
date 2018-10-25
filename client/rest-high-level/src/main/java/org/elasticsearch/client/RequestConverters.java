@@ -77,6 +77,7 @@ import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.client.core.TermVectorsRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -577,6 +578,19 @@ final class RequestConverters {
         Request req = new Request(HttpGet.METHOD_NAME, builder.build());
         req.setEntity(createEntity(request, REQUEST_BODY_CONTENT_TYPE));
         return req;
+    }
+
+    static Request termVectors(TermVectorsRequest tvrequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPart(
+            tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId()).addPathPartAsIs("_termvectors").build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withRouting(tvrequest.getRouting());
+        params.withPreference(tvrequest.getPreference());
+        params.withFields(tvrequest.getFields());
+        params.withRealtime(tvrequest.getRealtime());
+        request.setEntity(createEntity(tvrequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
     }
 
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {

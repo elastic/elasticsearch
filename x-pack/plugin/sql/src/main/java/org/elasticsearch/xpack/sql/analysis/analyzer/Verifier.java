@@ -302,12 +302,6 @@ final class Verifier {
         return true;
     }
 
-    private static boolean lala(Expression e, List<Expression> groupingAndMatchingAggregatesAliases) {
-        return e.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
-            g -> expression.semanticEquals(expression instanceof Attribute ? Expressions.attribute(g) : g)));
-    }
-
-
     private static boolean checkGroupByHaving(LogicalPlan p, Set<Failure> localFailures,
             Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
         if (p instanceof Filter) {

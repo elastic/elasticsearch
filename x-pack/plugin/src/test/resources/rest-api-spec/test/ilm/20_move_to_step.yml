@@ -4,7 +4,6 @@ setup:
       cluster.health:
           wait_for_status: yellow
   - do:
-      acknowlege: true
       ilm.put_lifecycle:
         policy: "my_moveable_timeseries_lifecycle"
         body: |
@@ -28,7 +27,6 @@ setup:
            }
 
   - do:
-      acknowledge: true
       ilm.get_lifecycle:
         policy: "my_moveable_timeseries_lifecycle"
 
@@ -47,17 +45,14 @@ setup:
 teardown:
 
   - do:
-      acknowledge: true
       indices.delete:
         index: my_index
 
   - do:
-      acknowledge: true
       indices.delete:
         index: my_index_no_policy
 
   - do:
-      acknowledge: true
       ilm.delete_lifecycle:
         policy: "my_moveable_timeseries_lifecycle"
 
@@ -70,7 +65,6 @@ teardown:
 "Test Basic Move To Step":
 
   - do:
-      acknowledge: true
       ilm.move_to_step:
         index: "my_index"
         body:
@@ -84,7 +78,6 @@ teardown:
             name: "forcemerge"
 
   - do:
-        acknowledge: true
         ilm.explain_lifecycle:
           index: "my_index"
   - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
@@ -113,7 +106,6 @@ teardown:
 
 
   - do:
-      acknowledge: true
       ilm.explain_lifecycle:
         index: "my_index"
   - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }
@@ -141,7 +133,6 @@ teardown:
   - match: { error.root_cause.0.reason: "step [{\"phase\":\"invalid\",\"action\":\"invalid\",\"name\":\"invalid\"}] for index [my_index] with policy [my_moveable_timeseries_lifecycle] does not exist" }
 
   - do:
-      acknowledge: true
       ilm.explain_lifecycle:
         index: "my_index"
   - match: { indices.my_index.policy: "my_moveable_timeseries_lifecycle" }

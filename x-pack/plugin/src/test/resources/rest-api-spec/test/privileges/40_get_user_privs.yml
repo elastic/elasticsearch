@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      features: headers
+
   - do:
       cluster.health:
         wait_for_status: yellow
@@ -199,8 +202,11 @@ teardown:
 ---
 
 "Test get_user_privileges for single role":
+<<<<<<< HEAD
   - skip:
           features: [contains, headers]
+=======
+>>>>>>> parent of f8ecf2ec820... adjusted tests
   - do:
       headers: { Authorization: "Basic dGVzdC0xOjEyMzQ1Njc4" } # test-1
       xpack.security.get_user_privileges: {}
@@ -260,9 +266,12 @@ teardown:
 ---
 
 "Test get_user_privileges for merged roles":
+<<<<<<< HEAD
   - skip:
       features: [contains, headers]
 
+=======
+>>>>>>> parent of f8ecf2ec820... adjusted tests
   - do:
       headers: { Authorization: "Basic dGVzdC0zOjEyMzQ1Njc4" } # test-3
       xpack.security.get_user_privileges: {}

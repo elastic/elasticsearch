@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      features: headers
+
   - do:
       cluster.health:
         wait_for_status: yellow

@@ -83,6 +83,31 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
     }
 
     public void addExecutableSection(ExecutableSection executableSection) {
+<<<<<<< HEAD
+=======
+        if (executableSection instanceof DoSection) {
+            DoSection doSection = (DoSection) executableSection;
+            if (false == doSection.getExpectedWarningHeaders().isEmpty()
+                    && false == skipSection.getFeatures().contains("warnings")) {
+                throw new IllegalArgumentException("Attempted to add a [do] with a [warnings] section without a corresponding " +
+                    "[skip: \"features\": \"warnings\"] so runners that do not support the [warnings] section can skip the test at line ["
+                        + doSection.getLocation().lineNumber + "]");
+            }
+            if (NodeSelector.ANY != doSection.getApiCallSection().getNodeSelector()
+                    && false == skipSection.getFeatures().contains("node_selector")) {
+                throw new IllegalArgumentException("Attempted to add a [do] with a [node_selector] section without a corresponding "
+                    + "[skip: \"features\": \"node_selector\"] so runners that do not support the [node_selector] section can skip the " +
+                    "test at line ["
+                    + doSection.getLocation().lineNumber + "]");
+            }
+            if (false == doSection.getApiCallSection().getHeaders().isEmpty()
+                    && false == skipSection.getFeatures().contains("headers")) {
+                throw new IllegalArgumentException("Attempted to add a [do] with a [headers] section without a corresponding "
+                    + "[skip: \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at line ["
+                    + doSection.getLocation().lineNumber + "]");
+            }
+        }
+>>>>>>> parent of f8ecf2ec820... adjusted tests
         this.executableSections.add(executableSection);
     }
 

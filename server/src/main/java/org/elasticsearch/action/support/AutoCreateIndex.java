@@ -70,9 +70,6 @@ public final class AutoCreateIndex {
         if (resolver.hasIndexOrAlias(index, state)) {
             return false;
         }
-        if (autoCreateIndexDisabled) {
-            throw new IndexNotFoundException("no such index [" + index + "] and parameter [disable_auto_create_index] is [true]", index);
-        }
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;
         if (autoCreate.autoCreateIndex == false) {
@@ -81,6 +78,9 @@ public final class AutoCreateIndex {
         if (dynamicMappingDisabled) {
             throw new IndexNotFoundException("[" + MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey() + "] is [false]",
                     index);
+        }
+        if (autoCreateIndexDisabled) {
+            throw new IndexNotFoundException("parameter [disable_auto_create_index] is [true]", index);
         }
         // matches not set, default value of "true"
         if (autoCreate.expressions.isEmpty()) {

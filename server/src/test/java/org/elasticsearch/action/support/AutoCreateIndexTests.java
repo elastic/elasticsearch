@@ -85,12 +85,12 @@ public class AutoCreateIndexTests extends ESTestCase {
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         String randomIndex = randomAlphaOfLengthBetween(1, 10);
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
-            autoCreateIndex.shouldAutoCreate(randomIndex, buildClusterState(), false));
+            autoCreateIndex.shouldAutoCreate(randomIndex, buildClusterState(), randomBoolean()));
         assertEquals("no such index [" + randomIndex + "] and [action.auto_create_index] is [false]", e.getMessage());
     }
 
     public void testAutoCreationDisabledByParameter() {
-        Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
+        Settings settings = Settings.EMPTY;
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         String index = randomAlphaOfLengthBetween(1, 10);
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->

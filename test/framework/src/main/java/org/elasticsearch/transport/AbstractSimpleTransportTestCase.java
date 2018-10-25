@@ -117,7 +117,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     protected int channelsPerNodeConnection() {
         // This is a customized profile for this test case.
-        return 5;
+        return 6;
     }
 
     @Override
@@ -129,7 +129,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Settings connectionSettings = Settings.builder()
             .put(TransportService.CONNECTIONS_PER_NODE_RECOVERY.getKey(), 1)
             .put(TransportService.CONNECTIONS_PER_NODE_BULK.getKey(), 1)
-            .put(TransportService.CONNECTIONS_PER_NODE_REG.getKey(), 1)
+            .put(TransportService.CONNECTIONS_PER_NODE_REG.getKey(), 2)
             .put(TransportService.CONNECTIONS_PER_NODE_STATE.getKey(), 1)
             .put(TransportService.CONNECTIONS_PER_NODE_PING.getKey(), 1)
             .build();

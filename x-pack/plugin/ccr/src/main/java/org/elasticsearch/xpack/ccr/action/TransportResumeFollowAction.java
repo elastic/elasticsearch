@@ -55,7 +55,8 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
     static final ByteSizeValue DEFAULT_MAX_BATCH_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
     private static final TimeValue DEFAULT_MAX_RETRY_DELAY = new TimeValue(500);
     private static final int DEFAULT_MAX_CONCURRENT_WRITE_BATCHES = 9;
-    private static final int DEFAULT_MAX_WRITE_BUFFER_SIZE = 10240;
+    private static final int DEFAULT_MAX_WRITE_BUFFER_COUNT = Integer.MAX_VALUE;
+    private static final ByteSizeValue DEFAULT_MAX_WRITE_BUFFER_SIZE = new ByteSizeValue(512, ByteSizeUnit.MB);
     private static final int DEFAULT_MAX_BATCH_OPERATION_COUNT = 5120;
     private static final int DEFAULT_MAX_CONCURRENT_READ_BATCHES = 12;
     static final TimeValue DEFAULT_POLL_TIMEOUT = TimeValue.timeValueMinutes(1);
@@ -259,7 +260,14 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             maxConcurrentWriteBatches = DEFAULT_MAX_CONCURRENT_WRITE_BATCHES;
         }
 
-        int maxWriteBufferSize;
+        int maxWriteBufferCount;
+        if (request.getMaxWriteBufferCount() != null) {
+            maxWriteBufferCount = request.getMaxWriteBufferCount();
+        } else {
+            maxWriteBufferCount = DEFAULT_MAX_WRITE_BUFFER_COUNT;
+        }
+
+        ByteSizeValue maxWriteBufferSize;
         if (request.getMaxWriteBufferSize() != null) {
             maxWriteBufferSize = request.getMaxWriteBufferSize();
         } else {
@@ -277,6 +285,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             maxConcurrentReadBatches,
             maxBatchSize,
             maxConcurrentWriteBatches,
+            maxWriteBufferCount,
             maxWriteBufferSize,
             maxRetryDelay,
             pollTimeout,

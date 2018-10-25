@@ -37,6 +37,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractStreamableTestCas
                 new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
+                new ByteSizeValue(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(500),
                 TimeValue.timeValueMillis(500));
             patterns.put(randomAlphaOfLength(4), autoFollowPattern);

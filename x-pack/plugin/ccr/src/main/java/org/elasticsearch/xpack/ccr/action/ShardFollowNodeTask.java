@@ -85,6 +85,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     private long numberOfOperationsIndexed = 0;
     private long lastFetchTime = -1;
     private final Queue<Translog.Operation> buffer = new PriorityQueue<>(Comparator.comparing(Translog.Operation::seqNo));
+    private long bufferSizeInBytes = 0;
     private final LinkedHashMap<Long, Tuple<AtomicInteger, ElasticsearchException>> fetchExceptions;
 
     private volatile ElasticsearchException fatalException;
@@ -183,8 +184,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 params.getFollowShardId(), numConcurrentReads);
             return false;
         }
-        if (buffer.size() > params.getMaxWriteBufferSize()) {
-            LOGGER.trace("{} no new reads, buffer limit has been reached [{}]", params.getFollowShardId(), buffer.size());
+        if (bufferSizeInBytes >= params.getMaxWriteBufferSize().getBytes()) {
+            LOGGER.trace("{} no new reads, buffer size limit has been reached [{}]", params.getFollowShardId(), bufferSizeInBytes);
+            return false;
+        }
+        if (buffer.size() > params.getMaxWriteBufferCount()) {
+            LOGGER.trace("{} no new reads, buffer count limit has been reached [{}]", params.getFollowShardId(), buffer.size());
             return false;
         }
         return true;
@@ -208,6 +213,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                     break;
                 }
             }
+            bufferSizeInBytes -= sumEstimatedSize;
             numConcurrentWrites++;
             LOGGER.trace("{}[{}] write [{}/{}] [{}]", params.getFollowShardId(), numConcurrentWrites, ops.get(0).seqNo(),
                 ops.get(ops.size() - 1).seqNo(), ops.size());
@@ -281,7 +287,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         } else {
             assert response.getOperations()[0].seqNo() == from :
                 "first operation is not what we asked for. From is [" + from + "], got " + response.getOperations()[0];
-            buffer.addAll(Arrays.asList(response.getOperations()));
+            List<Translog.Operation> operations = Arrays.asList(response.getOperations());
+            long operationsSize = operations.stream()
+                .mapToLong(Translog.Operation::estimateSize)
+                .sum();
+            buffer.addAll(operations);
+            bufferSizeInBytes += operationsSize;
             final long maxSeqNo = response.getOperations()[response.getOperations().length - 1].seqNo();
             assert maxSeqNo ==
                 Arrays.stream(response.getOperations()).mapToLong(Translog.Operation::seqNo).max().getAsLong();
@@ -455,6 +466,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 numConcurrentReads,
                 numConcurrentWrites,
                 buffer.size(),
+                bufferSizeInBytes,
                 currentMappingVersion,
                 totalFetchTimeMillis,
                 totalFetchTookTimeMillis,

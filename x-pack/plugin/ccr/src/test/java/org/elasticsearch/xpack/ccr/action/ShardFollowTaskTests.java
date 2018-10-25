@@ -34,6 +34,7 @@ public class ShardFollowTaskTests extends AbstractSerializingTestCase<ShardFollo
             new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
             randomIntBetween(1, Integer.MAX_VALUE),
             randomIntBetween(1, Integer.MAX_VALUE),
+            new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
             TimeValue.parseTimeValue(randomTimeValue(), ""),
             TimeValue.parseTimeValue(randomTimeValue(), ""),
             randomBoolean() ? null : Collections.singletonMap("key", "value")

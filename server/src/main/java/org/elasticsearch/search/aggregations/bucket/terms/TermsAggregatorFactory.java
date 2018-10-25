@@ -47,7 +47,7 @@ import java.util.List;
 import java.util.Map;
 
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, TermsAggregatorFactory> {
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(TermsAggregatorFactory.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TermsAggregatorFactory.class));
 
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 
@@ -128,7 +128,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint, DEPRECATION_LOGGER);
+                execution = ExecutionMode.fromString(executionHint, deprecationLogger);
             }
             // In some cases, using ordinals is just not supported: override it
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {

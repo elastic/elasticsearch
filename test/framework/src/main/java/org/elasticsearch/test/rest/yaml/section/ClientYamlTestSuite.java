@@ -149,7 +149,7 @@ public class ClientYamlTestSuite {
      * Adds a {@link org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection} to the REST suite
      * @return true if the test section was not already present, false otherwise
      */
-    public boolean addTestSection(ClientYamlTestSection testSection) {
+    boolean addTestSection(ClientYamlTestSection testSection) {
         for (ExecutableSection executableSection : testSection.getExecutableSections()) {
             if (executableSection instanceof DoSection) {
                 DoSection doSection = (DoSection) executableSection;
@@ -157,21 +157,20 @@ public class ClientYamlTestSuite {
                 if (false == doSection.getExpectedWarningHeaders().isEmpty()
                     && false == hasSkipFeature("warnings", testSection, setupSection, teardownSection)) {
                     throw new IllegalArgumentException("Attempted to add a [do] with a [warnings] section without a corresponding " +
-                        "[skip: \"features\": \"warnings\"] so runners that do not support the [warnings] section can skip the test at line ["
-                        + doSection.getLocation().lineNumber + "]");
+                        "[skip: \"features\": \"warnings\"] so runners that do not support the [warnings] section can skip the test at " +
+                        "line [" + doSection.getLocation().lineNumber + "]");
                 }
                 if (NodeSelector.ANY != doSection.getApiCallSection().getNodeSelector()
                     && false == hasSkipFeature("node_selector", testSection, setupSection, teardownSection)) {
                     throw new IllegalArgumentException("Attempted to add a [do] with a [node_selector] section without a corresponding "
-                        + "[skip: \"features\": \"node_selector\"] so runners that do not support the [node_selector] section can skip the " +
-                        "test at line ["
-                        + doSection.getLocation().lineNumber + "]");
+                        + "[skip: \"features\": \"node_selector\"] so runners that do not support the [node_selector] section can skip " +
+                        "the test at line [" + doSection.getLocation().lineNumber + "]");
                 }
                 if (false == doSection.getApiCallSection().getHeaders().isEmpty()
                     && false == hasSkipFeature("headers", testSection, setupSection, teardownSection)) {
                     throw new IllegalArgumentException("Attempted to add a [do] with a [headers] section without a corresponding "
-                        + "[skip: \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at line ["
-                        + doSection.getLocation().lineNumber + "]");
+                        + "[skip: \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at " +
+                        "line [" + doSection.getLocation().lineNumber + "]");
                 }
             }
         }

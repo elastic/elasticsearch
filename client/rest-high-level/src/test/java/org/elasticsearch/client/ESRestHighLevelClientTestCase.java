@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -194,5 +195,15 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             .collect(Collectors.joining(","));
         Response refreshResponse = client().performRequest(new Request("POST", "/" + joinedIndices + "/_refresh"));
         assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
+    }
+
+    protected void createIndexWithMultipleShards(String index) throws IOException {
+        CreateIndexRequest indexRequest = new CreateIndexRequest(index);
+        int shards = randomIntBetween(8,10);
+        indexRequest.settings(Settings.builder()
+            .put("index.number_of_shards", shards)
+            .put("index.number_of_replicas", 0)
+        );
+        highLevelClient().indices().create(indexRequest, RequestOptions.DEFAULT);
     }
 }

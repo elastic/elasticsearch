@@ -62,6 +62,24 @@ the index/update/delete operations.
 <2> Number of shard copies provided as a `ActiveShardCount`: can be `ActiveShardCount.ALL`,
 `ActiveShardCount.ONE` or `ActiveShardCount.DEFAULT` (default)
 
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request-pipeline]
+--------------------------------------------------
+<1> Global pipelineId used on all sub requests, unless overridden on a sub request
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request-routing]
+--------------------------------------------------
+<1> Global routingId used on all sub requests, unless overridden on a sub request
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request-index-type]
+--------------------------------------------------
+<1> A bulk request with global index and type used on all sub requests, unless overridden on a sub request.
+Both parameters are @Nullable and can only be set during BulkRequest creation.
 
 [[java-rest-high-document-bulk-sync]]
 ==== Synchronous Execution

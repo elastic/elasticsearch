@@ -19,12 +19,10 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 
@@ -89,16 +87,17 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
         createFieldAddingPipleine("globalId", "fieldXYZ", "valueXYZ");
         createFieldAddingPipleine("perIndexId", "someNewField", "someValue");
 
+        // tag::bulk-request-mix-pipeline
         BulkRequest request = new BulkRequest();
         request.pipeline("globalId");
 
         request.add(new IndexRequest("test", "doc", "1")
             .source(XContentType.JSON, "field", "bulk1")
-            .setPipeline("perIndexId"));
+            .setPipeline("perIndexId")); // <1>
 
         request.add(new IndexRequest("test", "doc", "2")
-            .source(XContentType.JSON, "field", "bulk2"));
-
+            .source(XContentType.JSON, "field", "bulk2")); // <2>
+        // end::bulk-request-mix-pipeline
         bulk(request);
 
         Iterable<SearchHit> hits = searchAll("test");
@@ -214,16 +213,5 @@ public class BulkRequestWithGlobalParametersIT extends ESRestHighLevelClientTest
     @SuppressWarnings("unchecked")
     private static <T> Function<SearchHit, T> fieldFromSource(String fieldName) {
         return (response) -> (T) response.getSourceAsMap().get(fieldName);
-    }
-
-    private void createIndexWithMultipleShards(String index) throws IOException {
-        CreateIndexRequest indexRequest = new CreateIndexRequest(index);
-        // keeping shard # high to make sure different routings will lead to different shards - reduces the chances of random failure
-        int shards = randomIntBetween(8,10);
-        indexRequest.settings(Settings.builder()
-            .put("index.number_of_shards", shards)
-            .put("index.number_of_replicas", 0)
-        );
-        highLevelClient().indices().create(indexRequest, RequestOptions.DEFAULT);
     }
 }

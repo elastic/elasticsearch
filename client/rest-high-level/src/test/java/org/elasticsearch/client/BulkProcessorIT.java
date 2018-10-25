@@ -20,7 +20,6 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -32,7 +31,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -284,6 +282,41 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testGlobalParametersAndSingleRequest() throws Exception {
+        createIndexWithMultipleShards("test");
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
+        createFieldAddingPipleine("pipeline_id", "fieldNameXYZ", "valueXYZ");
+
+        // tag::bulk-processor-mix-parameters
+        try (BulkProcessor processor = initBulkProcessorBuilder(listener)
+                .setGlobalIndex("tweets")
+                .setGlobalType("_doc")
+                .setGlobalRouting("routing")
+                .setGlobalPipeline("pipeline_id")
+                .build()) {
+
+
+            processor.add(new IndexRequest() // <1>
+                .source(XContentType.JSON, "user", "some user"));
+            processor.add(new IndexRequest("blogs", "post_type", "1") // <2>
+                .source(XContentType.JSON, "title", "some title"));
+        }
+        // end::bulk-request-mix-pipeline
+        latch.await();
+
+        Iterable<SearchHit> hits = searchAll(new SearchRequest("tweets").routing("routing"));
+        assertThat(hits, everyItem(hasProperty(fieldFromSource("user"), equalTo("some user"))));
+        assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
+
+
+        Iterable<SearchHit> blogs = searchAll(new SearchRequest("blogs").routing("routing"));
+        assertThat(blogs, everyItem(hasProperty(fieldFromSource("title"), equalTo("some title"))));
+        assertThat(blogs, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
+    }
+
+    @SuppressWarnings("unchecked")
     public void testGlobalParametersAndBulkProcessor() throws Exception {
         createIndexWithMultipleShards("test");
 
@@ -424,13 +457,5 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    private void createIndexWithMultipleShards(String index) throws IOException {
-        CreateIndexRequest indexRequest = new CreateIndexRequest(index);
-        int shards = randomIntBetween(2,10);
-        indexRequest.settings(Settings.builder()
-            .put("index.number_of_shards", shards)
-            .put("index.number_of_replicas", 0)
-        );
-        highLevelClient().indices().create(indexRequest, RequestOptions.DEFAULT);
-    }
+
 }

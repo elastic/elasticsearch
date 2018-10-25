@@ -58,8 +58,10 @@ docs.
 
 Nodes may join or leave the cluster, and Elasticsearch reacts by making
 corresponding changes to the voting configuration in order to ensure that the
-cluster is as resilient as possible.  The current voting configuration is
-stored in the cluster state so you can inspect its current contents as follows:
+cluster is as resilient as possible. The default auto-reconfiguration behaviour
+is expected to give the best results for almost all use-cases. The current
+voting configuration is stored in the cluster state so you can inspect its
+current contents as follows:
 
 [source,js]
 --------------------------------------------------
@@ -136,12 +138,12 @@ cluster, and to scale the cluster up and down by adding and removing
 non-master-eligible nodes only. However there are situations in which it may be
 desirable to remove some master-eligible nodes from a cluster.
 
-You must be careful not to remove too many master-eligible nodes all at the
-same time. For instance, if you currently have seven master-eligible nodes and
-you wish to reduce this to three, you cannot simply stop four of the nodes all
-at the same time: to do so would leave only three nodes remaining, which is
-less than half of the voting configuration, which means it cannot take any
-further actions.
+It is important not to remove too many master-eligible nodes all at the same
+time. For instance, if there are currently seven master-eligible nodes and you
+wish to reduce this to three, it is not possible simply to stop four of the
+nodes all at the same time: to do so would leave only three nodes remaining,
+which is less than half of the voting configuration, which means the cluster
+cannot take any further actions.
 
 As long as there are at least three master-eligible nodes in the cluster, as a
 general rule it is best to remove nodes one-at-a-time, allowing enough time for

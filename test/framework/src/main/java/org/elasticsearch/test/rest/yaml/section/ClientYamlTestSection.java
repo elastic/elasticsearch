@@ -99,6 +99,13 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
                     + doSection.getLocation().lineNumber + "]");
             }
         }
+        if (executableSection instanceof ContainsAssertion) {
+            if (false == skipSection.getFeatures().contains("contains")) {
+                throw new IllegalArgumentException("Attempted to add a [contains] assertion without a corresponding "
+                    + "[skip: \"features\": \"contains\"] so runners that do not support the [contains] assertion " +
+                    "can skip the test at line [" + executableSection.getLocation().lineNumber + "]");
+            }
+        }
         this.executableSections.add(executableSection);
     }
 

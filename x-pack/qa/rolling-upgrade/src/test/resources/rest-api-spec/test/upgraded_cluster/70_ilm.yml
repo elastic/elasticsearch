@@ -1,13 +1,11 @@
 ---
 "Test Lifecycle Still There And Indices Are Still Managed":
   - do:
-      acknowledged: true
       ilm.get_lifecycle:
         policy: "my_lifecycle"
   - match: { my_lifecycle.policy.phases.warm.minimum_age: "1000d" }
 
   - do:
-      acknowledged: true
       ilm.explain_lifecycle:
         index: "my_old_index"
   - is_true: indices.my_old_index.managed
@@ -15,11 +13,9 @@
   - match: { indices.my_old_index.policy: "my_lifecycle" }
 
   - do:
-      acknowledged: true
       indices.delete:
         index: my_old_index
 
   - do:
-      acknowledged: true
       ilm.delete_lifecycle:
         policy: "my_lifecycle"

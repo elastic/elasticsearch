@@ -11,7 +11,6 @@
         policy: "my_lifecycle"
 
   - do:
-      acknowledged: true
       ilm.put_lifecycle:
         policy: "my_lifecycle"
         body: |
@@ -31,7 +30,6 @@
            }
 
   - do:
-      acknowledged: true
       ilm.get_lifecycle:
         policy: "my_lifecycle"
   - match: { my_lifecycle.policy.phases.warm.minimum_age: "1000d" }
@@ -44,7 +42,6 @@
             index.lifecycle.name: "my_lifecycle"
 
   - do:
-      acknowledged: true
       ilm.explain_lifecycle:
         index: "my_old_index"
   - is_true: indices.my_old_index.managed

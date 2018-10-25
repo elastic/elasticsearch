@@ -1,13 +1,11 @@
 ---
 "Test Set Policy On Index":
   - do:
-      acknowledged: true
       ilm.get_lifecycle:
         policy: "my_lifecycle"
   - match: { my_lifecycle.policy.phases.warm.minimum_age: "1000d" }
 
   - do:
-      acknowledged: true
       ilm.explain_lifecycle:
         index: "my_old_index"
   - is_true: indices.my_old_index.managed
@@ -22,7 +20,6 @@
             index.lifecycle.name: "my_lifecycle"
 
   - do:
-      acknowledged: true
       ilm.explain_lifecycle:
         index: "my_mixed_index"
   - is_true: indices.my_mixed_index.managed
@@ -30,6 +27,5 @@
   - match: { indices.my_mixed_index.policy: "my_lifecycle" }
 
   - do:
-      acknowledged: true
       indices.delete:
         index: my_mixed_index

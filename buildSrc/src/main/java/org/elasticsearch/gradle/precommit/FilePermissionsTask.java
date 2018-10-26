@@ -35,6 +35,7 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
@@ -78,12 +79,13 @@ public class FilePermissionsTask extends DefaultTask {
      * Returns the files this task will check
      */
     @InputFiles
+    @SkipWhenEmpty
     public FileCollection getFiles() {
         SourceSetContainer sourceSets = getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
         return sourceSets.stream()
                 .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
                 .reduce(FileTree::plus)
-                .orElse(null);
+                .orElse(getProject().files().getAsFileTree());
     }
 
     @TaskAction

@@ -27,6 +27,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.JsonFieldMapper.RootJsonFieldType;
 import org.elasticsearch.plugins.Plugin;
@@ -132,14 +133,35 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties")
                     .startObject("field")
                         .field("type", "json")
+                        .field("index", false)
                         .field("store", true)
                     .endObject()
                 .endObject()
             .endObject()
         .endObject());
 
-        expectThrows(UnsupportedOperationException.class, () ->
-            parser.parse("type", new CompressedXContent(mapping)));
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
+                .startObject("field")
+                    .field("key", "value")
+                .endObject()
+            .endObject());
+
+        ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", doc, XContentType.JSON));
+
+        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(1, fields.length);
+        assertTrue(fields[0].fieldType().stored());
+
+        // We make sure to pretty-print here, since the field is always stored in pretty-printed format.
+        BytesReference storedValue = BytesReference.bytes(JsonXContent.contentBuilder()
+            .prettyPrint()
+            .startObject()
+                .field("key", "value")
+            .endObject());
+        assertEquals(storedValue.toBytesRef(), fields[0].binaryValue());
     }
 
     public void testIndexOptions() throws IOException {

@@ -93,7 +93,7 @@ public class MetricAggExtractor implements BucketExtractor {
      * Check if the given aggregate has been executed and has computed values
      * or not (the bucket is null).
      * 
-     * Hopefully solved by
+     * Waiting on https://github.com/elastic/elasticsearch/issues/34903
      */
     private static boolean containsValues(InternalAggregation agg) {
         // Stats & ExtendedStats

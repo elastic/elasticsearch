@@ -35,39 +35,49 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class ParentAggregatorFactory
-        extends ValuesSourceAggregatorFactory<WithOrdinals, ParentAggregatorFactory> {
+public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory<WithOrdinals, ParentAggregatorFactory> {
 
     private final Query parentFilter;
     private final Query childFilter;
 
-    public ParentAggregatorFactory(String name, ValuesSourceConfig<WithOrdinals> config,
-                                     Query childFilter, Query parentFilter, SearchContext context, AggregatorFactory<?> parent,
-                                     AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
+    public ParentAggregatorFactory(String name,
+                                   ValuesSourceConfig<WithOrdinals> config,
+                                   Query childFilter,
+                                   Query parentFilter,
+                                   SearchContext context,
+                                   AggregatorFactory<?> parent,
+                                   AggregatorFactories.Builder subFactoriesBuilder,
+                                   Map<String, Object> metaData) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metaData);
+
         this.childFilter = childFilter;
         this.parentFilter = parentFilter;
     }
 
     @Override
-    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent,
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         return new NonCollectingAggregator(name, context, parent, pipelineAggregators, metaData) {
-
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return new InternalParent(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
             }
-
         };
     }
 
     @Override
-    protected Aggregator doCreateInternal(WithOrdinals valuesSource, Aggregator children,
-            boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-                    throws IOException {
+    protected Aggregator doCreateInternal(WithOrdinals valuesSource,
+                                          Aggregator children,
+                                          boolean collectsFromSingleBucket,
+                                          List<PipelineAggregator> pipelineAggregators,
+                                          Map<String, Object> metaData) throws IOException {
+
         long maxOrd = valuesSource.globalMaxOrd(context.searcher());
-        return new ChildrenToParentAggregator(name, factories, context, children, childFilter,
-            parentFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
+        if (collectsFromSingleBucket) {
+            return new ChildrenToParentAggregator(name, factories, context, children, childFilter,
+                parentFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
+        } else {
+            return asMultiBucketAggregator(this, context, children);
+        }
     }
 }

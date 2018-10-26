@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
-public class JsonFileStructureFinderFactoryTests extends FileStructureTestCase {
+public class NdNdJsonFileStructureFinderFactoryTests extends FileStructureTestCase {
 
-    private FileStructureFinderFactory factory = new JsonFileStructureFinderFactory();
+    private FileStructureFinderFactory factory = new NdJsonFileStructureFinderFactory();
 
-    public void testCanCreateFromSampleGivenJson() {
+    public void testCanCreateFromSampleGivenNdJson() {
 
-        assertTrue(factory.canCreateFromSample(explanation, JSON_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, NDJSON_SAMPLE));
     }
 
     public void testCanCreateFromSampleGivenXml() {

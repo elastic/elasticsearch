@@ -15,7 +15,7 @@ filter on, you can safely disable indexing on this field in your
 PUT index
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "integer",
@@ -38,7 +38,7 @@ to not write norms to the index:
 PUT index
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "text",
@@ -61,7 +61,7 @@ Elasticsearch to not index positions:
 PUT index
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "text",
@@ -84,7 +84,7 @@ and scoring will assume that terms appear only once in every document.
 PUT index
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "text",
@@ -118,7 +118,7 @@ fields as `keyword`:
 PUT index
 {
   "mappings": {
-    "type": {
+    "_doc": {
       "dynamic_templates": [
         {
           "strings": {

@@ -367,7 +367,8 @@ public final class AzureStorageSettings {
                     if (primary == null) {
                         primary = setting;
                     } else {
-                        throw new SettingsException("Multiple default Azure data stores configured: [" + primary.getName() + "] and [" + setting.getName() + "]");
+                        throw new SettingsException("Multiple default Azure data stores configured: [" + primary.getName()
+                                + "] and [" + setting.getName() + "]");
                     }
                 }
             }

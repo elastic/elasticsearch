@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
+import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.TypesTests;
 
@@ -32,6 +33,13 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertTrue(e.getMessage().startsWith("Found "));
         String header = "Found 1 problem(s)\nline ";
         return e.getMessage().substring(header.length());
+    }
+
+    private LogicalPlan accepted(String sql) {
+        Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json");
+        EsIndex test = new EsIndex("test", mapping);
+        Analyzer analyzer = new Analyzer(new FunctionRegistry(), IndexResolution.valid(test), TimeZone.getTimeZone("UTC"));
+        return analyzer.analyze(parser.createStatement(sql), true);
     }
 
     public void testMissingIndex() {
@@ -110,9 +118,24 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY bool"));
     }
 
+    public void testGroupByOrderByNonGrouped_WithHaving() {
+        assertEquals("1:71: Cannot order by non-grouped column [bool], expected [text]",
+            verify("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY bool"));
+    }
+
+    public void testGroupByOrderByAliasedInSelectAllowed() {
+        LogicalPlan lp = accepted("SELECT text t FROM test GROUP BY text ORDER BY t");
+        assertNotNull(lp);
+    }
+
     public void testGroupByOrderByScalarOverNonGrouped() {
         assertEquals("1:50: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
                 verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
+    }
+
+    public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
+        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
+            verify("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY YEAR(date)"));
     }
 
     public void testGroupByHavingNonGrouped() {
@@ -123,6 +146,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByAggregate() {
         assertEquals("1:36: Cannot use an aggregate [AVG] for grouping",
                 verify("SELECT AVG(int) FROM test GROUP BY AVG(int)"));
+    }
+
+    public void testNotSupportedAggregateOnDate() {
+        assertEquals("1:8: Argument required to be numeric ('date' type is 'date')",
+            verify("SELECT AVG(date) FROM test"));
     }
 
     public void testGroupByOnNested() {
@@ -168,5 +196,45 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testHavingOnScalar() {
         assertEquals("1:42: Cannot filter HAVING on non-aggregate [int]; consider using WHERE instead",
                 verify("SELECT int FROM test GROUP BY int HAVING 2 < ABS(int)"));
+    }
+
+    public void testInWithDifferentDataTypes_SelectClause() {
+        assertEquals("1:17: expected data type [INTEGER], value provided is of type [KEYWORD]",
+            verify("SELECT 1 IN (2, '3', 4)"));
+    }
+
+    public void testInNestedWithDifferentDataTypes_SelectClause() {
+        assertEquals("1:27: expected data type [INTEGER], value provided is of type [KEYWORD]",
+            verify("SELECT 1 = 1  OR 1 IN (2, '3', 4)"));
+    }
+
+    public void testInWithDifferentDataTypesFromLeftValue_SelectClause() {
+        assertEquals("1:14: expected data type [INTEGER], value provided is of type [KEYWORD]",
+            verify("SELECT 1 IN ('foo', 'bar')"));
+    }
+
+    public void testInNestedWithDifferentDataTypesFromLeftValue_SelectClause() {
+        assertEquals("1:29: expected data type [KEYWORD], value provided is of type [INTEGER]",
+            verify("SELECT 1 = 1  OR  'foo' IN (2, 3)"));
+    }
+
+    public void testInWithDifferentDataTypes_WhereClause() {
+        assertEquals("1:49: expected data type [TEXT], value provided is of type [INTEGER]",
+            verify("SELECT * FROM test WHERE text IN ('foo', 'bar', 4)"));
+    }
+
+    public void testInNestedWithDifferentDataTypes_WhereClause() {
+        assertEquals("1:60: expected data type [TEXT], value provided is of type [INTEGER]",
+            verify("SELECT * FROM test WHERE int = 1 OR text IN ('foo', 'bar', 2)"));
+    }
+
+    public void testInWithDifferentDataTypesFromLeftValue_WhereClause() {
+        assertEquals("1:35: expected data type [TEXT], value provided is of type [INTEGER]",
+            verify("SELECT * FROM test WHERE text IN (1, 2)"));
+    }
+
+    public void testInNestedWithDifferentDataTypesFromLeftValue_WhereClause() {
+        assertEquals("1:46: expected data type [TEXT], value provided is of type [INTEGER]",
+            verify("SELECT * FROM test WHERE int = 1 OR text IN (1, 2)"));
     }
 }

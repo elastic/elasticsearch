@@ -36,8 +36,11 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 integTestCluster {
-  /* Enable regexes in painless so our tests don't complain about example
-   * snippets that use them. */
+  if ("zip".equals(integTestCluster.distribution)) {
+    setting 'xpack.license.self_generated.type', 'trial'
+  }
+
+  // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
   Closure configFile = {
     extraConfigFile it, "src/test/cluster/config/$it"
@@ -61,17 +64,7 @@ integTestCluster {
   systemProperty 'es.aggregations.enable_scripted_metric_agg_param', 'false'
 }
 
-// remove when https://github.com/elastic/elasticsearch/issues/31305 is fixed
-if (rootProject.ext.compilerJavaVersion.isJava11()) {
-  integTestRunner {
-    systemProperty 'tests.rest.blacklist', [
-            'plugins/ingest-attachment/line_164',
-            'plugins/ingest-attachment/line_117'
-    ].join(',')
-  }
-}
-// Build the cluster with all plugins
-
+// build the cluster with all plugins
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
   /* Skip repositories. We just aren't going to be able to test them so it
    * doesn't make sense to waste time installing them. */
@@ -93,16 +86,6 @@ buildRestTests.docs = fileTree(projectDir) {
   // Just syntax examples
   exclude 'README.asciidoc'
   // Broken code snippet tests
-  exclude 'reference/rollup/rollup-getting-started.asciidoc'
-  exclude 'reference/rollup/apis/rollup-job-config.asciidoc'
-  exclude 'reference/rollup/apis/rollup-index-caps.asciidoc'
-  exclude 'reference/rollup/apis/put-job.asciidoc'
-  exclude 'reference/rollup/apis/stop-job.asciidoc'
-  exclude 'reference/rollup/apis/start-job.asciidoc'
-  exclude 'reference/rollup/apis/rollup-search.asciidoc'
-  exclude 'reference/rollup/apis/delete-job.asciidoc'
-  exclude 'reference/rollup/apis/get-job.asciidoc'
-  exclude 'reference/rollup/apis/rollup-caps.asciidoc'
   exclude 'reference/graph/explore.asciidoc'
 }
 
@@ -637,8 +620,9 @@ buildRestTests.setups['sensor_rollup_job'] = '''
                 node:
                   type: keyword
   - do:
-      xpack.rollup.put_job:
-        id: "sensor"
+      raw:
+        method: PUT
+        path: _xpack/rollup/job/sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -707,8 +691,9 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
           {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
 
   - do:
-      xpack.rollup.put_job:
-        id: "sensor"
+      raw:
+        method: PUT
+        path: _xpack/rollup/job/sensor
         body:  >
             {
                 "index_pattern": "sensor-*",
@@ -737,8 +722,9 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
                 ]
             }
   - do:
-      xpack.rollup.start_job:
-        id: "sensor"
+      raw:
+        method: POST
+        path: _xpack/rollup/job/sensor/_start
 '''
 
 buildRestTests.setups['sensor_index'] = '''
@@ -837,7 +823,7 @@ buildRestTests.setups['sensor_prefab_data'] = '''
                       date_histogram:
                         delay: "7d"
                         field: "timestamp"
-                        interval: "1h"
+                        interval: "60m"
                         time_zone: "UTC"
                       terms:
                         fields:

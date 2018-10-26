@@ -160,6 +160,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         if (withInstance) {
             principalName.append("/").append(randomAlphaOfLength(5));
         }
+        principalName.append("@");
         principalName.append(randomAlphaOfLength(5).toUpperCase(Locale.ROOT));
         return principalName.toString();
     }
@@ -181,6 +182,19 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
             }
         }
         return principalName;
+    }
+
+    /**
+     * Extracts and returns realm part from the principal name.
+     * @param principalName user principal name
+     * @return realm name if found else returns {@code null}
+     */
+    protected String realmName(final String principalName) {
+        String[] values = principalName.split("@");
+        if (values.length > 1) {
+            return values[1];
+        }
+        return null;
     }
 
     /**

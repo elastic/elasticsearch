@@ -89,7 +89,6 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
 
     public void testBadCron() {
         final RollupJobConfig sample = randomRollupJobConfig(random());
-
         Exception e = expectThrows(IllegalArgumentException.class, () ->
             new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(), "0 * * *", sample.getPageSize(),
                 sample.getGroupConfig(), sample.getMetricsConfig(), sample.getTimeout()));

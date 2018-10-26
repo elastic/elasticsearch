@@ -51,6 +51,10 @@ been removed. Also the deprecated `min_word_len` (a synonym for `min_word_length
 
 * The `optimize_bbox` parameter has been removed from `geo_distance` queries.
 
+* An `envelope` crossing the dateline in a `geo_shape `query is now processed
+  correctly when specified using REST API instead of having its left and
+  right corners flipped.
+
 * The `ignore_malformed` and `coerce` parameters have been removed from
   `geo_bounding_box`, `geo_polygon`, and `geo_distance` queries.
 

@@ -175,7 +175,7 @@ ISSUE:
         # uncomment for including/excluding PRs already issued in other versions
         # next if grep {$_->{name}=~/^v2/} @{$issue->{labels}};
         my %labels = map { $_->{name} => 1 } @{ $issue->{labels} };
-        my ($header) = map { m{:[^/]+/(.+)} && $1 }
+        my ($header) = map { m{:([^/]+/)?(.+)} && $2 }
             grep {/^:/} sort keys %labels;
         $header ||= 'NOT CLASSIFIED';
         for (@Groups) {

@@ -20,16 +20,18 @@
 package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.io.IOException;
 import java.util.Arrays;
 
-public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCase<ExplainLifecycleRequest> {
+public class ExplainLifecycleRequestTests extends ESTestCase {
 
-    @Override
-    protected ExplainLifecycleRequest createTestInstance() {
+    public void testEqualsAndHashcode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(createTestInstance(), this::copy, this::mutateInstance);
+    }
+
+    private ExplainLifecycleRequest createTestInstance() {
         ExplainLifecycleRequest request = new ExplainLifecycleRequest();
         if (randomBoolean()) {
             request.indices(generateRandomStringArray(20, 20, false, true));
@@ -42,8 +44,7 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
         return request;
     }
 
-    @Override
-    protected ExplainLifecycleRequest mutateInstance(ExplainLifecycleRequest instance) throws IOException {
+    private ExplainLifecycleRequest mutateInstance(ExplainLifecycleRequest instance) {
         String[] indices = instance.indices();
         IndicesOptions indicesOptions = instance.indicesOptions();
         switch (between(0, 1)) {
@@ -64,9 +65,11 @@ public class ExplainLifecycleRequestTests extends AbstractWireSerializingTestCas
         return newRequest;
     }
 
-    @Override
-    protected Reader<ExplainLifecycleRequest> instanceReader() {
-        return ExplainLifecycleRequest::new;
+    private ExplainLifecycleRequest copy(ExplainLifecycleRequest original) {
+        ExplainLifecycleRequest copy = new ExplainLifecycleRequest();
+        copy.indices(original.indices());
+        copy.indicesOptions(original.indicesOptions());
+        return copy;
     }
 
 }

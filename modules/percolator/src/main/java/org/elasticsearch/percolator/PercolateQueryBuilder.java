@@ -95,7 +95,7 @@ import static org.elasticsearch.percolator.PercolatorFieldMapper.parseQuery;
 public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBuilder> {
     public static final String NAME = "percolate";
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(ParseField.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ParseField.class));
 
     static final ParseField DOCUMENT_FIELD = new ParseField("document");
     static final ParseField DOCUMENTS_FIELD = new ParseField("documents");
@@ -577,7 +577,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final MapperService mapperService = context.getMapperService();
         String type = mapperService.documentMapper().type();
         if (documentType != null) {
-            DEPRECATION_LOGGER.deprecated("[document_type] parameter has been deprecated because types have been deprecated");
+            deprecationLogger.deprecated("[document_type] parameter has been deprecated because types have been deprecated");
             if (documentType.equals(type) == false) {
                 throw new IllegalArgumentException("specified document_type [" + documentType +
                     "] is not equal to the actual type [" + type + "]");

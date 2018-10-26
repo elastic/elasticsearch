@@ -180,23 +180,23 @@ public abstract class TransportBroadcastAction<
                             new TransportResponseHandler<ShardResponse>() {
                                 @Override
                                 public ShardResponse newInstance() {
-                                                                         return newShardResponse();
-                                                                                                   }
+                                    return newShardResponse();
+                                }
 
                                 @Override
                                 public String executor() {
-                                                               return ThreadPool.Names.SAME;
-                                                                                            }
+                                    return ThreadPool.Names.SAME;
+                                }
 
                                 @Override
                                 public void handleResponse(ShardResponse response) {
-                                                                                         onOperation(shard, shardIndex, response);
-                                                                                                                                  }
+                                    onOperation(shard, shardIndex, response);
+                                }
 
                                 @Override
                                 public void handleException(TransportException e) {
-                                                                                        onOperation(shard, shardIt, shardIndex, e);
-                            }
+                                    onOperation(shard, shardIt, shardIndex, e);
+                                }
                         });
                     }
                 } catch (Exception e) {

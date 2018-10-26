@@ -253,23 +253,23 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     new TransportResponseHandler<Response>() {
                         @Override
                         public Response newInstance() {
-                                                            return newResponse();
-                                                                                 }
+                            return newResponse();
+                        }
 
                         @Override
                         public String executor() {
-                                                       return ThreadPool.Names.SAME;
-                                                                                    }
+                            return ThreadPool.Names.SAME;
+                        }
 
                         @Override
                         public void handleResponse(final Response response) {
-                                                                                  listener.onResponse(response);
-                                                                                                                }
+                            listener.onResponse(response);
+                        }
 
                         @Override
                         public void handleException(TransportException exp) {
-                                                                                  onFailure(shardRouting, exp);
-                    }
+                            onFailure(shardRouting, exp);
+                        }
                 });
             }
         }

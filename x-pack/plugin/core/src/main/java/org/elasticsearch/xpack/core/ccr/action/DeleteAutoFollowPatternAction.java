@@ -35,6 +35,9 @@ public class DeleteAutoFollowPatternAction extends Action<AcknowledgedResponse> 
 
         private String name;
 
+        public Request() {
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
@@ -52,9 +55,8 @@ public class DeleteAutoFollowPatternAction extends Action<AcknowledgedResponse> 
             this.name = name;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             name = in.readString();
         }
 

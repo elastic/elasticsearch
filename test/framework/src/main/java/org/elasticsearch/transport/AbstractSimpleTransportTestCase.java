@@ -110,7 +110,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected abstract MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
 
     protected int channelsPerNodeConnection() {
-        return 13;
+        // This is a customized profile for this test case.
+        return 6;
     }
 
     @Override
@@ -119,9 +120,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
         clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        serviceA = buildService("TS_A", version0, clusterSettings); // this one supports dynamic tracer updates
+        Settings connectionSettings = Settings.builder()
+            .put(TcpTransport.CONNECTIONS_PER_NODE_RECOVERY.getKey(), 1)
+            .put(TcpTransport.CONNECTIONS_PER_NODE_BULK.getKey(), 1)
+            .put(TcpTransport.CONNECTIONS_PER_NODE_REG.getKey(), 2)
+            .put(TcpTransport.CONNECTIONS_PER_NODE_STATE.getKey(), 1)
+            .put(TcpTransport.CONNECTIONS_PER_NODE_PING.getKey(), 1)
+            .build();
+
+        serviceA = buildService("TS_A",  version0, clusterSettings, connectionSettings); // this one supports dynamic tracer updates
         nodeA = serviceA.getLocalNode();
-        serviceB = buildService("TS_B", version1, null); // this one doesn't support dynamic tracer updates
+        serviceB = buildService("TS_B", version1, null, connectionSettings); // this one doesn't support dynamic tracer updates
         nodeB = serviceB.getLocalNode();
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
         // will not get this callback called on the connections done in this setup
@@ -167,8 +176,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         return service;
     }
 
-    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
-        return buildService(name, version, clusterSettings, Settings.EMPTY, true, true);
+    protected MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
+        return buildService(name, version, clusterSettings, Settings.EMPTY);
+    }
+
+    protected MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
+                                                Settings settings) {
+        return buildService(name, version, clusterSettings, settings, true, true);
     }
 
     @Override

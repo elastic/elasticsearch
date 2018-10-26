@@ -23,7 +23,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class DeletePipelineRequestBuilder extends ActionRequestBuilder<DeletePipelineRequest, AcknowledgedResponse, DeletePipelineRequestBuilder> {
+public class DeletePipelineRequestBuilder 
+        extends ActionRequestBuilder<DeletePipelineRequest, AcknowledgedResponse, DeletePipelineRequestBuilder> {
 
     public DeletePipelineRequestBuilder(ElasticsearchClient client, DeletePipelineAction action) {
         super(client, action, new DeletePipelineRequest());

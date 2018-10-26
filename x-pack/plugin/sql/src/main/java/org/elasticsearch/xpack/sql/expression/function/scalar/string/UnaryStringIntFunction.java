@@ -6,12 +6,10 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 
@@ -51,8 +49,8 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
     }
 
     @Override
-    protected final Pipe makePipe() {
-        return new UnaryPipe(location(), this, Expressions.pipe(field()), new StringProcessor(operation()));
+    protected Processor makeProcessor() {
+        return new StringProcessor(operation());
     }
 
     protected abstract StringOperation operation();
@@ -73,16 +71,16 @@ public abstract class UnaryStringIntFunction extends UnaryScalarFunction {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(field());
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
         UnaryStringIntFunction other = (UnaryStringIntFunction) obj;
         return Objects.equals(other.field(), field());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field());
     }
 }

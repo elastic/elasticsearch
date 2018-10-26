@@ -133,6 +133,10 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         this.items = items;
     }
 
+    MultiSearchResponse(StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     @Override
     public Iterator<Item> iterator() {
         return Arrays.stream(items).iterator();

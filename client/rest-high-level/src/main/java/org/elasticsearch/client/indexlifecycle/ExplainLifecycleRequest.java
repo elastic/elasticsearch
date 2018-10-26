@@ -19,13 +19,14 @@
 
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.TimedRequest;
+import org.elasticsearch.client.ValidationException;
+import org.elasticsearch.common.Strings;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * The request object used by the Explain Lifecycle API.
@@ -33,19 +34,36 @@ import java.util.Objects;
  * Multiple indices may be queried in the same request using the
  * {@link #indices(String...)} method
  */
-public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycleRequest> {
+public class ExplainLifecycleRequest extends TimedRequest {
+
+    private String[] indices = Strings.EMPTY_ARRAY;
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
     public ExplainLifecycleRequest() {
         super();
     }
 
-    public ExplainLifecycleRequest(StreamInput in) throws IOException {
-        super(in);
+    public ExplainLifecycleRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
     }
 
+    public String[] indices() {
+        return indices;
+    }
+
+    public ExplainLifecycleRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
+    }
+
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+    
     @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    public Optional<ValidationException> validate() {
+        return Optional.empty();
     }
 
     @Override

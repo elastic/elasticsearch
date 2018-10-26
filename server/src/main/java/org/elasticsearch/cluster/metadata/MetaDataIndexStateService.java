@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -36,8 +38,10 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
@@ -50,12 +54,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
  * Service responsible for submitting open/close index requests
  */
 public class MetaDataIndexStateService extends AbstractComponent {
+    private static final Logger logger = LogManager.getLogger(MetaDataIndexStateService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final ClusterBlock INDEX_CLOSED_BLOCK = new ClusterBlock(4, "index closed", false, false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE);
 
@@ -175,6 +182,8 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     }
                 }
 
+                validateShardLimit(currentState, request.indices(), deprecationLogger);
+
                 if (indicesToOpen.isEmpty()) {
                     return currentState;
                 }
@@ -215,6 +224,35 @@ public class MetaDataIndexStateService extends AbstractComponent {
                         "indices opened [" + indicesAsString + "]");
             }
         });
+    }
+
+    /**
+     * Validates whether a list of indices can be opened without going over the cluster shard limit.  Only counts indices which are
+     * currently closed and will be opened, ignores indices which are already open.
+     *
+     * @param currentState The current cluster state.
+     * @param indices The indices which are to be opened.
+     * @param deprecationLogger The logger to use to emit a deprecation warning, if appropriate.
+     * @throws ValidationException If this operation would take the cluster over the limit and enforcement is enabled.
+     */
+    static void validateShardLimit(ClusterState currentState, Index[] indices, DeprecationLogger deprecationLogger) {
+        int shardsToOpen = Arrays.stream(indices)
+            .filter(index -> currentState.metaData().index(index).getState().equals(IndexMetaData.State.CLOSE))
+            .mapToInt(index -> getTotalShardCount(currentState, index))
+            .sum();
+
+        Optional<String> error = IndicesService.checkShardLimit(shardsToOpen, currentState, deprecationLogger);
+        if (error.isPresent()) {
+            ValidationException ex = new ValidationException();
+            ex.addValidationError(error.get());
+            throw ex;
+        }
+
+    }
+
+    private static int getTotalShardCount(ClusterState state, Index index) {
+        IndexMetaData indexMetaData = state.metaData().index(index);
+        return indexMetaData.getNumberOfShards() * (1 + indexMetaData.getNumberOfReplicas());
     }
 
 }

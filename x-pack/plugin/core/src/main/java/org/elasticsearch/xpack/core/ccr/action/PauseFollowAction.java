@@ -7,13 +7,14 @@
 package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class PauseFollowAction extends Action<AcknowledgedResponse> {
 
@@ -29,27 +30,26 @@ public class PauseFollowAction extends Action<AcknowledgedResponse> {
         return new AcknowledgedResponse();
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends MasterNodeRequest<Request> {
 
-        private String followIndex;
+        private final String followIndex;
+
+        public Request(String followIndex) {
+            this.followIndex = Objects.requireNonNull(followIndex, "followIndex");
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.followIndex = in.readString();
+        }
 
         public String getFollowIndex() {
             return followIndex;
         }
 
-        public void setFollowIndex(final String followIndex) {
-            this.followIndex = followIndex;
-        }
-
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            followIndex = in.readString();
         }
 
         @Override

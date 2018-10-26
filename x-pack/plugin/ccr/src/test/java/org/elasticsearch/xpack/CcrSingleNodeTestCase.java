@@ -16,6 +16,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.junit.After;
@@ -26,6 +28,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.CcrIntegTestCase.removeCCRRelatedMetadataFromClusterState;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
@@ -68,16 +71,28 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
         request.setFollowerIndex("follower");
         request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
-        request.setPollTimeout(TimeValue.timeValueMillis(10));
+        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
         return request;
     }
 
     protected PutFollowAction.Request getPutFollowRequest() {
         PutFollowAction.Request request = new PutFollowAction.Request();
-        request.setLeaderCluster("local");
+        request.setRemoteCluster("local");
         request.setLeaderIndex("leader");
         request.setFollowRequest(getResumeFollowRequest());
         return request;
+    }
+
+    protected void ensureEmptyWriteBuffers() throws Exception {
+        assertBusy(() -> {
+            FollowStatsAction.StatsResponses statsResponses =
+                client().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
+            for (FollowStatsAction.StatsResponse statsResponse : statsResponses.getStatsResponses()) {
+                ShardFollowNodeTaskStatus status = statsResponse.status();
+                assertThat(status.writeBufferOperationCount(), equalTo(0));
+                assertThat(status.writeBufferSizeInBytes(), equalTo(0L));
+            }
+        });
     }
 
 }

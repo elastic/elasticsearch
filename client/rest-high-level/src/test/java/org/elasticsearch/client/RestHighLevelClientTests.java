@@ -650,7 +650,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "cluster.remote_info",
             "count",
             "create",
-            "exists_source",
             "get_source",
             "indices.delete_alias",
             "indices.delete_template",
@@ -661,8 +660,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "mtermvectors",
             "render_search_template",
             "scripts_painless_execute",
-            "tasks.get",
-            "termvectors"
+            "tasks.get"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -713,41 +711,49 @@ public class RestHighLevelClientTests extends ESTestCase {
 
             assertTrue("method [" + apiName + "] is not final",
                     Modifier.isFinal(method.getClass().getModifiers()) || Modifier.isFinal(method.getModifiers()));
-            assertTrue(Modifier.isPublic(method.getModifiers()));
+            assertTrue("method [" + method + "] should be public", Modifier.isPublic(method.getModifiers()));
 
             //we convert all the method names to snake case, hence we need to look for the '_async' suffix rather than 'Async'
             if (apiName.endsWith("_async")) {
                 assertTrue("async method [" + method.getName() + "] doesn't have corresponding sync method",
                         methods.containsKey(apiName.substring(0, apiName.length() - 6)));
-                assertThat(method.getReturnType(), equalTo(Void.TYPE));
-                assertEquals(0, method.getExceptionTypes().length);
+                assertThat("async method [" + method + "] should return void", method.getReturnType(), equalTo(Void.TYPE));
+                assertEquals("async method [" + method + "] should not throw any exceptions", 0, method.getExceptionTypes().length);
                 if (apiName.equals("security.get_ssl_certificates_async")) {
                     assertEquals(2, method.getParameterTypes().length);
                     assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
                     assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
                 } else {
-                    assertEquals(3, method.getParameterTypes().length);
-                    assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-                    assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
-                    assertThat(method.getParameterTypes()[2], equalTo(ActionListener.class));
+                    assertEquals("async method [" + method + "] has the wrong number of arguments", 3, method.getParameterTypes().length);
+                    assertThat("the first parameter to async method [" + method + "] should be a request type",
+                        method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                    assertThat("the second parameter to async method [" + method + "] is the wrong type",
+                        method.getParameterTypes()[1], equalTo(RequestOptions.class));
+                    assertThat("the third parameter to async method [" + method + "] is the wrong type",
+                        method.getParameterTypes()[2], equalTo(ActionListener.class));
                 }
             } else {
                 //A few methods return a boolean rather than a response object
                 if (apiName.equals("ping") || apiName.contains("exist")) {
-                    assertThat(method.getReturnType().getSimpleName(), equalTo("boolean"));
+                    assertThat("the return type for method [" + method + "] is incorrect",
+                        method.getReturnType().getSimpleName(), equalTo("boolean"));
                 } else {
-                    assertThat(method.getReturnType().getSimpleName(), endsWith("Response"));
+                    assertThat("the return type for method [" + method + "] is incorrect",
+                        method.getReturnType().getSimpleName(), endsWith("Response"));
                 }
 
-                assertEquals(1, method.getExceptionTypes().length);
+                assertEquals("incorrect number of exceptions for method [" + method + "]", 1, method.getExceptionTypes().length);
                 //a few methods don't accept a request object as argument
                 if (apiName.equals("ping") || apiName.equals("info") || apiName.equals("security.get_ssl_certificates")) {
-                    assertEquals(1, method.getParameterTypes().length);
-                    assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
+                    assertEquals("incorrect number of arguments for method [" + method + "]", 1, method.getParameterTypes().length);
+                    assertThat("the parameter to method [" + method + "] is the wrong type",
+                        method.getParameterTypes()[0], equalTo(RequestOptions.class));
                 } else {
-                    assertEquals(apiName, 2, method.getParameterTypes().length);
-                    assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-                    assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
+                    assertEquals("incorrect number of arguments for method [" + method + "]", 2, method.getParameterTypes().length);
+                    assertThat("the first parameter to method [" + method + "] is the wrong type",
+                        method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                    assertThat("the second parameter to method [" + method + "] is the wrong type",
+                        method.getParameterTypes()[1], equalTo(RequestOptions.class));
                 }
 
                 boolean remove = apiSpec.remove(apiName);

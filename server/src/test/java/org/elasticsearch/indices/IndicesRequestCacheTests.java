@@ -502,11 +502,6 @@ public class IndicesRequestCacheTests extends ESTestCase {
         }
 
         @Override
-        public Collection<Accountable> getChildResources() {
-            return null;
-        }
-
-        @Override
         public boolean isFragment() {
             return false;
         }

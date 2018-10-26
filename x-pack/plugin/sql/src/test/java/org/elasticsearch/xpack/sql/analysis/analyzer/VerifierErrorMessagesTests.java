@@ -118,6 +118,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY bool"));
     }
 
+    public void testGroupByOrderByNonGrouped_WithHaving() {
+        assertEquals("1:71: Cannot order by non-grouped column [bool], expected [text]",
+            verify("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY bool"));
+    }
+
     public void testGroupByOrderByAliasedInSelectAllowed() {
         LogicalPlan lp = accepted("SELECT text t FROM test GROUP BY text ORDER BY t");
         assertNotNull(lp);
@@ -126,6 +131,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByOrderByScalarOverNonGrouped() {
         assertEquals("1:50: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
                 verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
+    }
+
+    public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
+        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
+            verify("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY YEAR(date)"));
     }
 
     public void testGroupByHavingNonGrouped() {

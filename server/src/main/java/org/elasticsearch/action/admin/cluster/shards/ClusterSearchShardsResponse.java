@@ -38,12 +38,50 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
     public static final ClusterSearchShardsResponse EMPTY = new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
             new DiscoveryNode[0], Collections.emptyMap());
 
-    private ClusterSearchShardsGroup[] groups;
-    private DiscoveryNode[] nodes;
-    private Map<String, AliasFilter> indicesAndFilters;
+    private final ClusterSearchShardsGroup[] groups;
+    private final DiscoveryNode[] nodes;
+    private final Map<String, AliasFilter> indicesAndFilters;
 
-    public ClusterSearchShardsResponse() {
+    public ClusterSearchShardsResponse(StreamInput in) throws IOException {
+        super(in);
+        groups = new ClusterSearchShardsGroup[in.readVInt()];
+        for (int i = 0; i < groups.length; i++) {
+            groups[i] = ClusterSearchShardsGroup.readSearchShardsGroupResponse(in);
+        }
+        nodes = new DiscoveryNode[in.readVInt()];
+        for (int i = 0; i < nodes.length; i++) {
+            nodes[i] = new DiscoveryNode(in);
+        }
+        int size = in.readVInt();
+        indicesAndFilters = new HashMap<>();
+        for (int i = 0; i < size; i++) {
+            String index = in.readString();
+            AliasFilter aliasFilter = new AliasFilter(in);
+            indicesAndFilters.put(index, aliasFilter);
+        }
+    }
 
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeVInt(groups.length);
+        for (ClusterSearchShardsGroup response : groups) {
+            response.writeTo(out);
+        }
+        out.writeVInt(nodes.length);
+        for (DiscoveryNode node : nodes) {
+            node.writeTo(out);
+        }
+        out.writeVInt(indicesAndFilters.size());
+        for (Map.Entry<String, AliasFilter> entry : indicesAndFilters.entrySet()) {
+            out.writeString(entry.getKey());
+            entry.getValue().writeTo(out);
+        }
     }
 
     public ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes,
@@ -63,44 +101,6 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
 
     public Map<String, AliasFilter> getIndicesAndFilters() {
         return indicesAndFilters;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        groups = new ClusterSearchShardsGroup[in.readVInt()];
-        for (int i = 0; i < groups.length; i++) {
-            groups[i] = ClusterSearchShardsGroup.readSearchShardsGroupResponse(in);
-        }
-        nodes = new DiscoveryNode[in.readVInt()];
-        for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = new DiscoveryNode(in);
-        }
-        int size = in.readVInt();
-        indicesAndFilters = new HashMap<>();
-        for (int i = 0; i < size; i++) {
-            String index = in.readString();
-            AliasFilter aliasFilter = new AliasFilter(in);
-            indicesAndFilters.put(index, aliasFilter);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(groups.length);
-        for (ClusterSearchShardsGroup response : groups) {
-            response.writeTo(out);
-        }
-        out.writeVInt(nodes.length);
-        for (DiscoveryNode node : nodes) {
-            node.writeTo(out);
-        }
-        out.writeVInt(indicesAndFilters.size());
-        for (Map.Entry<String, AliasFilter> entry : indicesAndFilters.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
-        }
     }
 
     @Override

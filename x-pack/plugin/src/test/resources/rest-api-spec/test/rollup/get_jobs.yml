@@ -1,6 +1,6 @@
 setup:
   - skip:
-    features: headers
+      features: headers
   - do:
       indices.create:
         index: foo

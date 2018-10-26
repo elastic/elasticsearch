@@ -50,9 +50,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Supplier;
 
-public abstract class TransportBroadcastAction<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse,
-        ShardRequest extends BroadcastShardRequest, ShardResponse extends BroadcastShardResponse>
-        extends HandledTransportAction<Request, Response> {
+public abstract class TransportBroadcastAction<
+            Request extends BroadcastRequest<Request>,
+            Response extends BroadcastResponse,
+            ShardRequest extends BroadcastShardRequest,
+            ShardResponse extends BroadcastShardResponse
+        > extends HandledTransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
@@ -173,26 +176,26 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                         // no node connected, act as failure
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
-                        transportService.sendRequest(node, transportShardAction, shardRequest, new TransportResponseHandler<ShardResponse>()
-                        {
-                            @Override
-                            public ShardResponse newInstance() {
-                                return newShardResponse();
-                            }
+                        transportService.sendRequest(node, transportShardAction, shardRequest,
+                            new TransportResponseHandler<ShardResponse>() {
+                                @Override
+                                public ShardResponse newInstance() {
+                                                                         return newShardResponse();
+                                                                                                   }
 
-                            @Override
-                            public String executor() {
-                                return ThreadPool.Names.SAME;
-                            }
+                                @Override
+                                public String executor() {
+                                                               return ThreadPool.Names.SAME;
+                                                                                            }
 
-                            @Override
-                            public void handleResponse(ShardResponse response) {
-                                onOperation(shard, shardIndex, response);
-                            }
+                                @Override
+                                public void handleResponse(ShardResponse response) {
+                                                                                         onOperation(shard, shardIndex, response);
+                                                                                                                                  }
 
-                            @Override
-                            public void handleException(TransportException e) {
-                                onOperation(shard, shardIt, shardIndex, e);
+                                @Override
+                                public void handleException(TransportException e) {
+                                                                                        onOperation(shard, shardIt, shardIndex, e);
                             }
                         });
                     }

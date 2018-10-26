@@ -129,8 +129,8 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         for (String index : concreteIndices) {
             IndexMetaData indexMetaData = clusterState.metaData().getIndices().get(index);
             if (indexMetaData != null) {
-                for (IntObjectCursor<IndexShardRoutingTable> shardRouting :
-                    clusterState.getRoutingTable().indicesRouting().get(index).getShards()) {
+                for (IntObjectCursor<IndexShardRoutingTable> shardRouting
+                        : clusterState.getRoutingTable().indicesRouting().get(index).getShards()) {
                     shardIds.add(shardRouting.value.shardId());
                 }
             }

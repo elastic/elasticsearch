@@ -4,25 +4,26 @@
 :response: DeleteByQueryResponse
 --
 
-[[java-rest-high-document-delete-by-query]]
+[id="{upid}-{api}"]
 === Delete By Query API
 
-[[java-rest-high-document-delete-by-query-request]]
+[id="{upid}-{api}-request"]
 ==== Delete By Query Request
 
-A `DeleteByQueryRequest` can be used to delete documents from an index. It requires an existing index (or a set of indices)
-on which deletion is to be performed.
+A +{request}+ can be used to delete documents from an index. It requires an
+existing index (or a set of indices) on which deletion is to be performed.
 
-The simplest form of a `DeleteByQueryRequest` looks like:
+The simplest form of a +{request}+ looks like this and deletes all documents
+in an index:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Creates the `DeleteByQueryRequest` on a set of indices.
+<1> Creates the +{request}+ on a set of indices.
 
-By default version conflicts abort the `DeleteByQueryRequest` process but you can just count them by settings it to
-`proceed` in the request body
+By default version conflicts abort the +{request}+ process but you can just
+count them with this:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -46,7 +47,8 @@ include-tagged::{doc-tests-file}[{api}-request-size]
 --------------------------------------------------
 <1> Only copy 10 documents
 
-By default `DeleteByQueryRequest` uses batches of 1000. You can change the batch size with `setBatchSize`.
+By default +{request}+ uses batches of 1000. You can change the batch size
+with `setBatchSize`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -54,8 +56,7 @@ include-tagged::{doc-tests-file}[{api}-request-scrollSize]
 --------------------------------------------------
 <1> Use batches of 100 documents
 
-`DeleteByQueryRequest` also helps in automatically parallelizing using `sliced-scroll` to
-slice on `_uid`. Use `setSlices` to specify the number of slices to use.
++{request}+ can also be parallelized using `sliced-scroll` with `setSlices`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -63,7 +64,8 @@ include-tagged::{doc-tests-file}[{api}-request-slices]
 --------------------------------------------------
 <1> set number of slices to use
 
-`DeleteByQueryRequest` uses the `scroll` parameter to control how long it keeps the "search context" alive.
++{request}+ uses the `scroll` parameter to control how long it keeps the
+"search context" alive.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -102,52 +104,13 @@ include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Set indices options
 
+include::../execution.asciidoc[]
 
-[[java-rest-high-document-delete-by-query-sync]]
-==== Synchronous Execution
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute]
---------------------------------------------------
-
-[[java-rest-high-document-delete-by-query-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of an delete by query request requires both the `DeleteByQueryRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-async]
---------------------------------------------------
-<1> The `DeleteByQueryRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `BulkByScrollResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument and contains a list of individual results for each
-operation that was executed. Note that one or more operations might have
-failed while the others have been successfully executed.
-<2> Called when the whole `DeleteByQueryRequest` fails. In this case the raised
-exception is provided as an argument and no operation has been executed.
-
-[[java-rest-high-document-delete-by-query-execute-listener-response]]
+[id="{upid}-{api}-response"]
 ==== Delete By Query Response
 
-The returned `BulkByScrollResponse` contains information about the executed operations and
- allows to iterate over each result as follows:
+The returned +{response}+ contains information about the executed operations and
+allows to iterate over each result as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

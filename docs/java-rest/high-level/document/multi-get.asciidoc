@@ -4,17 +4,17 @@
 :response: MultiGetResponse
 --
 
-[[java-rest-high-document-multi-get]]
+[id="{upid}-{api}"]
 === Multi-Get API
 
 The `multiGet` API executes multiple <<java-rest-high-document-get,`get`>>
 requests in a single http request in parallel.
 
-[[java-rest-high-document-mulit-get-request]]
+[id="{upid}-{api}-request"]
 ==== Multi-Get Request
 
-A `MultiGetRequest` is built empty and you add `MultiGetRequest.Item`s to
-configure what to fetch:
+A +{request}+ is built empty and you add `MultiGetRequest.Item`s to configure
+what to fetch:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -80,50 +80,12 @@ include-tagged::{doc-tests-file}[{api}-request-top-level-extras]
 <2> Set realtime flag to `false` (`true` by default)
 <3> Perform a refresh before retrieving the document (`false` by default)
 
-[[java-rest-high-document-multi-get-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-After building the `MultiGetRequest` you can execute it synchronously with
-`multiGet`:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute]
---------------------------------------------------
-
-[[java-rest-high-document-multi-get-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a multi get request requires both the
-`MultiGetRequest` instance and an `ActionListener` instance to be passed to
-the asynchronous method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-async]
---------------------------------------------------
-<1> The `MultiGetRequest` to execute and the `ActionListener` to use when
-the execution completes.
-
-The asynchronous method does not block and returns immediately. Once the
-request completed the `ActionListener` is called back using the `onResponse`
-method if the execution successfully completed or using the `onFailure` method
-if it failed.
-
-A typical listener for `MultiGetResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument.
-<2> Called in case of failure. The raised exception is provided as an argument.
-
-[[java-rest-high-document-multi-get-response]]
+[id="{upid}-{api}-response"]
 ==== Multi Get Response
 
-The returned `MultiGetResponse` contains a list of `MultiGetItemResponse`s in
+The returned +{response}+ contains a list of `MultiGetItemResponse`s in
 `getResponses` in the same order that they were requested.
 `MultiGetItemResponse` contains *either* a
 <<java-rest-high-document-get-response, `GetResponse`>> if the get succeeded

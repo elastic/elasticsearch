@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.ml.process.StateProcessor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,17 +29,22 @@ import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 /**
  * Reads the autodetect state and persists via a bulk request
  */
-public class StateProcessor extends AbstractComponent {
+public class AutodetectStateProcessor implements StateProcessor {
+
+    private static final Logger LOGGER = LogManager.getLogger(AutodetectStateProcessor.class);
 
     private static final int READ_BUF_SIZE = 8192;
-    private final Client client;
 
-    public StateProcessor(Settings settings, Client client) {
-        super(settings);
+    private final Client client;
+    private final String jobId;
+
+    public AutodetectStateProcessor(Client client, String jobId) {
         this.client = client;
+        this.jobId = jobId;
     }
 
-    public void process(String jobId, InputStream in) throws IOException {
+    @Override
+    public void process(InputStream in) throws IOException {
         BytesReference bytesToDate = null;
         List<BytesReference> newBlocks = new ArrayList<>();
         byte[] readBuf = new byte[READ_BUF_SIZE];
@@ -56,7 +62,7 @@ public class StateProcessor extends AbstractComponent {
             } else {
                 BytesReference newBytes = new CompositeBytesReference(newBlocks.toArray(new BytesReference[0]));
                 bytesToDate = (bytesToDate == null) ? newBytes : new CompositeBytesReference(bytesToDate, newBytes);
-                bytesToDate = splitAndPersist(jobId, bytesToDate, searchFrom);
+                bytesToDate = splitAndPersist(bytesToDate, searchFrom);
                 searchFrom = (bytesToDate == null) ? 0 : bytesToDate.length();
                 newBlocks.clear();
             }
@@ -69,7 +75,7 @@ public class StateProcessor extends AbstractComponent {
      * data is expected to be a series of Elasticsearch bulk requests in UTF-8 JSON
      * (as would be uploaded to the public REST API) separated by zero bytes ('\0').
      */
-    private BytesReference splitAndPersist(String jobId, BytesReference bytesRef, int searchFrom) throws IOException {
+    private BytesReference splitAndPersist(BytesReference bytesRef, int searchFrom) throws IOException {
         int splitFrom = 0;
         while (true) {
             int nextZeroByte = findNextZeroByte(bytesRef, searchFrom, splitFrom);
@@ -80,7 +86,7 @@ public class StateProcessor extends AbstractComponent {
             // Ignore completely empty chunks
             if (nextZeroByte > splitFrom) {
                 // No validation - assume the native process has formatted the state correctly
-                persist(jobId, bytesRef.slice(splitFrom, nextZeroByte - splitFrom));
+                persist(bytesRef.slice(splitFrom, nextZeroByte - splitFrom));
             }
             splitFrom = nextZeroByte + 1;
         }
@@ -90,11 +96,11 @@ public class StateProcessor extends AbstractComponent {
         return bytesRef.slice(splitFrom, bytesRef.length() - splitFrom);
     }
 
-    void persist(String jobId, BytesReference bytes) throws IOException {
+    void persist(BytesReference bytes) throws IOException {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bytes, AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE, XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
-            logger.trace("[{}] Persisting job state document", jobId);
+            LOGGER.trace("[{}] Persisting job state document", jobId);
             try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
                 client.bulk(bulkRequest).actionGet();
             }

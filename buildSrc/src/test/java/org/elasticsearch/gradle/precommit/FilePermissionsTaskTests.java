@@ -53,8 +53,21 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         } catch (GradleException e) {
             assertTrue(e.getMessage().startsWith("Found invalid file permissions"));
         }
+        file.delete();
     }
 
+
+    public void testCheckPermissionsWhenNoFileExists() throws Exception {
+        Project project = createProject();
+
+        FilePermissionsTask filePermissionsTask = createTask(project);
+
+        filePermissionsTask.checkInvalidPermissions();
+
+        File outputMarker = new File(project.getBuildDir(), "markers/filePermissions");
+        List<String> result = Files.readAllLines(outputMarker.toPath(), Charset.forName("UTF-8"));
+        assertEquals("done", result.get(0));
+    }
 
     public void testCheckPermissionsWhenNoExecutableFileExists() throws Exception {
         Project project = createProject();
@@ -70,6 +83,9 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         File outputMarker = new File(project.getBuildDir(), "markers/filePermissions");
         List<String> result = Files.readAllLines(outputMarker.toPath(), Charset.forName("UTF-8"));
         assertEquals("done", result.get(0));
+
+        file.delete();
+
     }
 
     private Project createProject() throws IOException {

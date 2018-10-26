@@ -26,15 +26,6 @@ The Hadoop HDFS Repository plugin adds support for using HDFS as a repository.
 
 The GCS repository plugin adds support for using Google Cloud Storage service as a repository.
 
-
-[float]
-=== Community contributed repository plugins
-
-The following plugin has been contributed by our community:
-
-* https://github.com/wikimedia/search-repository-swift[Openstack Swift] (by Wikimedia Foundation)
-
-
 include::repository-azure.asciidoc[]
 
 include::repository-s3.asciidoc[]

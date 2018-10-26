@@ -63,10 +63,19 @@ public final class CreateTokenRequest implements Validatable, ToXContentObject {
     }
 
     public static CreateTokenRequest passwordGrant(String username, char[] password) {
+        if (Strings.isNullOrEmpty(username)) {
+            throw new IllegalArgumentException("username is required");
+        }
+        if (password == null || password.length == 0) {
+            throw new IllegalArgumentException("password is required");
+        }
         return new CreateTokenRequest("password", null, username, password, null);
     }
 
     public static CreateTokenRequest refreshTokenGrant(String refreshToken) {
+        if (Strings.isNullOrEmpty(refreshToken)) {
+            throw new IllegalArgumentException("refresh_token is required");
+        }
         return new CreateTokenRequest("refresh_token", null, null, null, refreshToken);
     }
 

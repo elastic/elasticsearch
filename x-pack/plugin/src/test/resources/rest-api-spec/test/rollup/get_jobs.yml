@@ -1,5 +1,5 @@
 setup:
-  -skip:
+  - skip:
     features: headers
   - do:
       indices.create:

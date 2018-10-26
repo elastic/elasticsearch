@@ -122,3 +122,18 @@ null                 |2.2215791166941923    |-0.03373126000214023
 F                    |1.7873117044424276    |0.05504995122217512 
 M                    |2.280646181070106     |0.44302407229580243
 ;
+
+nullAggs
+SELECT MAX(languages) max, MIN(languages) min, SUM(languages) sum, AVG(languages) avg,
+       PERCENTILE(languages, 80) percent, PERCENTILE_RANK(languages, 3) percent_rank, 
+       KURTOSIS(languages) kurtosis, SKEWNESS(languages) skewness  
+       FROM test_emp GROUP BY languages ORDER BY languages ASC LIMIT 5;
+
+      max:bt   |      min:bt   |      sum:bt   |      avg:bt   |    percent:d  | percent_rank:d|   kurtosis:d  |   skewness:d    
+---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------
+null           |null           |null           |null           |null           |null           |null           |null           
+1              |1              |15             |1              |1.0            |100.0          |NaN            |NaN            
+2              |2              |38             |2              |2.0            |100.0          |NaN            |NaN            
+3              |3              |51             |3              |3.0            |100.0          |NaN            |NaN            
+4              |4              |72             |4              |4.0            |0.0            |NaN            |NaN   
+;

@@ -117,7 +117,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             "_size", "_timestamp", "_ttl", IgnoredFieldMapper.NAME
     );
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(MapperService.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MapperService.class));
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -408,7 +408,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new IllegalArgumentException("The [default] mapping cannot be updated on index [" + index().getName() +
                         "]: defaults mappings are not useful anymore now that indices can have at most one type.");
             } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
-                DEPRECATION_LOGGER.deprecated("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
+                deprecationLogger.deprecated("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
                         "cannot have more than one type");
             }
             assert defaultMapper.type().equals(DEFAULT_MAPPING);

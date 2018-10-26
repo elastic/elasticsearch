@@ -77,7 +77,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
-    private static final DeprecationLogger DEPRECATION_LOGGER =
+    private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(SearchSourceBuilder.class));
 
     public static final ParseField FROM_FIELD = new ParseField("from");
@@ -1052,7 +1052,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         scriptFields.add(new ScriptField(parser));
                     }
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    DEPRECATION_LOGGER.deprecated(
+                    deprecationLogger.deprecated(
                         "Object format in indices_boost is deprecated, please use array format instead");
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {

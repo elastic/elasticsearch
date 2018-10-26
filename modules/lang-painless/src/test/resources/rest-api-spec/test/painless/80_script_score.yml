@@ -30,8 +30,8 @@
         indices.refresh: {}
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -49,8 +49,8 @@
 
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -67,8 +67,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -113,8 +113,8 @@
         indices.refresh: {}
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -132,8 +132,8 @@
 
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -150,8 +150,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -205,8 +205,8 @@
         indices.refresh: {}
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -223,8 +223,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -241,8 +241,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -259,8 +259,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -277,8 +277,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -295,8 +295,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -313,8 +313,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -331,8 +331,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -349,8 +349,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -367,8 +367,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -385,8 +385,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:
@@ -403,8 +403,8 @@
     - match: { hits.hits.1._id : "1" }
 
     - do:
-        index: test
         search:
+            index: test
             body:
                 query:
                     script_score:

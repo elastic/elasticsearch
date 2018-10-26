@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.painless;
+package org.elasticsearch.script;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -27,79 +26,14 @@ import org.elasticsearch.common.joda.JodaDateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
-import org.elasticsearch.script.ScoreScript;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.time.ZoneId;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.DoubleSupplier;
-import java.util.function.Function;
 
 /**
  * ScoringScriptImpl can be used as {@link ScoreScript}
  * to run a previously compiled Painless script.
  */
-public final class ScoreScriptImpl extends ScoreScript {
-
-    /**
-     * The Painless script that can be run.
-     */
-    private final GenericElasticsearchScript script;
-
-    /**
-     * A map that can be used to access input parameters at run-time.
-     */
-    private final Map<String, Object> variables;
-
-    /**
-     * Looks up the {@code _score} from {@code #scorer} if {@code _score} is used, otherwise returns {@code 0.0}.
-     */
-    private final DoubleSupplier scoreLookup;
-
-    /**
-     * Looks up the {@code ctx} from the {@link #variables} if {@code ctx} is used, otherwise return {@code null}.
-     */
-    private final Function<Map<String, Object>, Map<?, ?>> ctxLookup;
-
-    /**
-     * Creates a ScriptImpl for the a previously compiled Painless script.
-     * @param script The previously compiled Painless script.
-     * @param vars The initial variables to run the script with.
-     * @param lookup The lookup to allow search fields to be available if this is run as a search script.
-     */
-    ScoreScriptImpl(GenericElasticsearchScript script, Map<String, Object> vars, SearchLookup lookup, LeafReaderContext leafContext) {
-        super(null, lookup, leafContext);
-        this.script = script;
-        this.variables = new HashMap<>();
-
-        if (vars != null) {
-            variables.putAll(vars);
-        }
-        LeafSearchLookup leafLookup = getLeafLookup();
-        if (leafLookup != null) {
-            variables.putAll(leafLookup.asMap());
-        }
-
-        scoreLookup = script.needs_score() ? this::getScore : () -> 0.0;
-        ctxLookup = script.needsCtx() ? variables -> (Map<?, ?>) variables.get("ctx") : variables -> null;
-    }
-
-    @Override
-    public Map<String, Object> getParams() {
-        return variables;
-    }
-
-    public void setNextVar(final String name, final Object value) {
-        variables.put(name, value);
-    }
-
-    @Override
-    public double execute() {
-        return ((Number) script.execute(variables, scoreLookup.getAsDouble(), getDoc(), null, ctxLookup.apply(variables))).doubleValue();
-    }
+public final class ScoreScriptUtils {
 
     /****** STATIC FUNCTIONS that can be used by users for score calculations **/
 

@@ -1,3 +1,9 @@
+--
+:api: rethrottle
+:request: RethrottleRequest
+:response: RethrottleResponse
+--
+
 [[java-rest-high-document-rethrottle]]
 === Rethrottle API
 

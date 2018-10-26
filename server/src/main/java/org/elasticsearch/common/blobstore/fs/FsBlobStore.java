@@ -48,7 +48,8 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
         if (!this.readOnly) {
             Files.createDirectories(path);
         }
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.fs.buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
+        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.fs.buffer_size",
+            new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
     }
 
     @Override

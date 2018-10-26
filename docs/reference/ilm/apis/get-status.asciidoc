@@ -10,7 +10,7 @@ Gets the current status for ILM.
 
 ==== Request
 
-`POST /_ilm/status`
+`GET /_ilm/status`
 
 ==== Description
 
@@ -42,7 +42,6 @@ The following example stops the ILM plugin.
 GET _ilm/status
 --------------------------------------------------
 // CONSOLE
-// TEST
 
 If the request does not encounter errors, you receive the following result:
 

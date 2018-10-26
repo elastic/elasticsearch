@@ -1,3 +1,4 @@
+[role="xpack"]
 [[get-index-lifecycle-information]]
 == Get index lifecycle information
 

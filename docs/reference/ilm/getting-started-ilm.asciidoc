@@ -1,3 +1,4 @@
+[role="xpack"]
 [[getting-started-index-lifecycle-management]]
 == Getting started with {ilm}
 

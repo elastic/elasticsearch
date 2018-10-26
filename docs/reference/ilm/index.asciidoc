@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[index-lifecycle-management]]
 = Managing Indices
 
@@ -66,4 +68,4 @@ include::get-index-lifecycle-information.asciidoc[]
 include::start-stop-ilm.asciidoc[]
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/apis/ilm-api.asciidoc
-include::{xes-repo-dir}/ilm/apis/ilm-api.asciidoc[]
+include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]

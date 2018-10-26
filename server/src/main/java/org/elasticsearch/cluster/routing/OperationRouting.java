@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -27,6 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationD
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +48,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class OperationRouting extends AbstractComponent {
+    private static final Logger logger = LogManager.getLogger(OperationRouting.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING =
             Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", false,

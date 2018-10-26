@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -54,7 +55,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -100,8 +100,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
  * Service responsible for submitting create index requests
  */
 public class MetaDataCreateIndexService extends AbstractComponent {
-
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(MetaDataCreateIndexService.class));
+    private static final Logger logger = LogManager.getLogger(MetaDataCreateIndexService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 

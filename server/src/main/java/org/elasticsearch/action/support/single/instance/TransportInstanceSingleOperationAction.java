@@ -48,8 +48,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Supplier;
 
-public abstract class TransportInstanceSingleOperationAction<Request extends InstanceShardOperationRequest<Request>,
-        Response extends ActionResponse> extends HandledTransportAction<Request, Response> {
+public abstract class TransportInstanceSingleOperationAction<
+            Request extends InstanceShardOperationRequest<Request>,
+            Response extends ActionResponse
+        > extends HandledTransportAction<Request, Response> {
     protected final ClusterService clusterService;
     protected final TransportService transportService;
 

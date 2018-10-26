@@ -246,27 +246,27 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     );
                 }
                 transportService.sendRequest(node, transportShardAction, internalRequest.request(),
-                        new TransportResponseHandler<Response>(){
+                    new TransportResponseHandler<Response>(){
 
-                    @Override
-                    public Response newInstance() {
-                        return newResponse();
-                    }
+                        @Override
+                        public Response newInstance() {
+                            return newResponse();
+                        }
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
 
-                    @Override
-                    public void handleResponse(final Response response) {
-                        listener.onResponse(response);
-                    }
+                        @Override
+                        public void handleResponse(final Response response) {
+                            listener.onResponse(response);
+                        }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        onFailure(shardRouting, exp);
-                    }
+                        @Override
+                        public void handleException(TransportException exp) {
+                            onFailure(shardRouting, exp);
+                        }
                 });
             }
         }

@@ -16,10 +16,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.process.NativeController;
-import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
+import org.elasticsearch.xpack.ml.process.NativeController;
+import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectStateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
@@ -67,7 +67,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         // The extra 1 is the control field
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 
-        StateProcessor stateProcessor = new StateProcessor(settings, client);
+        AutodetectStateProcessor stateProcessor = new AutodetectStateProcessor(client, job.getId());
         AutodetectResultsParser resultsParser = new AutodetectResultsParser(settings);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
                 job.getId(), processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),

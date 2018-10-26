@@ -261,6 +261,18 @@ final class RequestConverters {
 
         return request;
     }
+    
+    static Request sourceExists(GetRequest getRequest) {
+        Request request = new Request(HttpHead.METHOD_NAME, endpoint(getRequest.index(), getRequest.type(), getRequest.id(), "_source"));
+
+        Params parameters = new Params(request);
+        parameters.withPreference(getRequest.preference());
+        parameters.withRouting(getRequest.routing());
+        parameters.withRefresh(getRequest.refresh());
+        parameters.withRealtime(getRequest.realtime());
+        // Version params are not currently supported by the source exists API so are not passed
+        return request;
+    }    
 
     static Request multiGet(MultiGetRequest multiGetRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_mget");

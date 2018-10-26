@@ -527,7 +527,7 @@ public class InternalOrder extends BucketOrder {
      */
     public static class Parser {
 
-        private static final DeprecationLogger DEPRECATION_LOGGER =
+        private static final DeprecationLogger deprecationLogger =
             new DeprecationLogger(LogManager.getLogger(Parser.class));
 
         /**
@@ -565,7 +565,7 @@ public class InternalOrder extends BucketOrder {
             }
             // _term and _time order deprecated in 6.0; replaced by _key
             if ("_term".equals(orderKey) || "_time".equals(orderKey)) {
-                DEPRECATION_LOGGER.deprecated("Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
+                deprecationLogger.deprecated("Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
             }
             switch (orderKey) {
                 case "_term":

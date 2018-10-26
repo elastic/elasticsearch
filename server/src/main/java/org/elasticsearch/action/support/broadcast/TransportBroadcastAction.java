@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.tasks.Task;
@@ -173,8 +174,10 @@ public abstract class TransportBroadcastAction<Request extends BroadcastRequest<
                     } else {
                         transportService.sendRequest(node, transportShardAction, shardRequest, new TransportResponseHandler<ShardResponse>() {
                             @Override
-                            public ShardResponse newInstance() {
-                                return newShardResponse();
+                            public ShardResponse read(StreamInput in) throws IOException {
+                                ShardResponse response = newShardResponse();
+                                response.readFrom(in);
+                                return response;
                             }
 
                             @Override

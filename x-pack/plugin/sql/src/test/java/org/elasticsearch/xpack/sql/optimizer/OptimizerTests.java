@@ -95,7 +95,7 @@ public class OptimizerTests extends ESTestCase {
     private static final Literal FOUR = L(4);
     private static final Literal FIVE = L(5);
     private static final Literal SIX = L(6);
-
+    private static final Literal NULL = L(null);
 
     public static class DummyBooleanExpression extends Expression {
 
@@ -321,6 +321,18 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(1, p.projections().size());
         In in = (In) p.projections().get(0);
         assertThat(Foldables.valuesOf(in.list(), DataType.INTEGER), contains(1 ,2 ,3 ,4));
+    }
+
+    public void testConstantFoldingIn_RightValueIsNull() {
+        In in = new In(EMPTY, getFieldAttribute(), Arrays.asList(NULL, NULL));
+        Literal result= (Literal) new ConstantFolding().rule(in);
+        assertEquals(false, result.value());
+    }
+
+    public void testConstantFoldingIn_LeftValueIsNull() {
+        In in = new In(EMPTY, NULL, Arrays.asList(ONE, TWO, THREE));
+        Literal result= (Literal) new ConstantFolding().rule(in);
+        assertNull(result.value());
     }
 
     public void testArithmeticFolding() {

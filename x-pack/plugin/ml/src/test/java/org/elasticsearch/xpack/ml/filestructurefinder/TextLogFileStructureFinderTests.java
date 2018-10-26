@@ -7,11 +7,16 @@ package org.elasticsearch.xpack.ml.filestructurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FieldStats;
 import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.xpack.ml.filestructurefinder.TimestampFormatFinder.TimestampMatch;
 
 import java.util.Collections;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class TextLogFileStructureFinderTests extends FileStructureTestCase {
 
@@ -127,6 +132,11 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         assertEquals("\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]\\[.*", structure.getGrokPattern());
         assertEquals("timestamp", structure.getTimestampField());
         assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
+        FieldStats messageFieldStats = structure.getFieldStats().get("message");
+        assertNotNull(messageFieldStats);
+        for (String statMessage : messageFieldStats.getTopHits().stream().map(m -> (String) m.get("value")).collect(Collectors.toList())) {
+            assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
+        }
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndTimestampFieldOverride() throws Exception {
@@ -158,6 +168,11 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         assertEquals("\\[%{TIMESTAMP_ISO8601:my_time}\\]\\[%{LOGLEVEL:loglevel} \\]\\[.*", structure.getGrokPattern());
         assertEquals("my_time", structure.getTimestampField());
         assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
+        FieldStats messageFieldStats = structure.getFieldStats().get("message");
+        assertNotNull(messageFieldStats);
+        for (String statMessage : messageFieldStats.getTopHits().stream().map(m -> (String) m.get("value")).collect(Collectors.toList())) {
+            assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
+        }
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndGrokPatternOverride() throws Exception {
@@ -191,6 +206,13 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
             "\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}", structure.getGrokPattern());
         assertEquals("timestamp", structure.getTimestampField());
         assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
+        FieldStats messageFieldStats = structure.getFieldStats().get("message");
+        assertNotNull(messageFieldStats);
+        for (String statMessage : messageFieldStats.getTopHits().stream().map(m -> (String) m.get("value")).collect(Collectors.toList())) {
+            // In this case the "message" field was output by the Grok pattern, so "message"
+            // at the end of the processing will _not_ contain a complete sample message
+            assertThat(structureFinder.getSampleMessages(), not(hasItem(statMessage)));
+        }
     }
 
     public void testCreateConfigsGivenElasticsearchLogAndImpossibleGrokPatternOverride() {

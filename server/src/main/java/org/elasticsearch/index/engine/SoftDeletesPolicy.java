@@ -20,8 +20,12 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -34,18 +38,23 @@ import java.util.function.LongSupplier;
  */
 final class SoftDeletesPolicy {
     private final LongSupplier globalCheckpointSupplier;
+    private final LongSupplier absoluteTimeInSeconds;
     private long localCheckpointOfSafeCommit;
     // This lock count is used to prevent `minRetainedSeqNo` from advancing.
     private int retentionLockCount;
     // The extra number of operations before the global checkpoint are retained
-    private long retentionOperations;
+    private long retentionOperationCount;
+    private TimeValue retentionAge;
     // The min seq_no value that is retained - ops after this seq# should exist in the Lucene index.
     private long minRetainedSeqNo;
 
-    SoftDeletesPolicy(LongSupplier globalCheckpointSupplier, long minRetainedSeqNo, long retentionOperations) {
+    SoftDeletesPolicy(LongSupplier globalCheckpointSupplier, LongSupplier absoluteTimeInSeconds,
+                      long retentionOperationCount, TimeValue retentionAge, long lastMinRetainedSeqNo) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.retentionOperations = retentionOperations;
-        this.minRetainedSeqNo = minRetainedSeqNo;
+        this.absoluteTimeInSeconds = absoluteTimeInSeconds;
+        this.retentionOperationCount = retentionOperationCount;
+        this.retentionAge = retentionAge;
+        this.minRetainedSeqNo = lastMinRetainedSeqNo;
         this.localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
         this.retentionLockCount = 0;
     }
@@ -54,8 +63,12 @@ final class SoftDeletesPolicy {
      * Updates the number of soft-deleted documents prior to the global checkpoint to be retained
      * See {@link org.elasticsearch.index.IndexSettings#INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING}
      */
-    synchronized void setRetentionOperations(long retentionOperations) {
-        this.retentionOperations = retentionOperations;
+    synchronized void setRetentionOperationCount(long retentionOperationCount) {
+        this.retentionOperationCount = retentionOperationCount;
+    }
+
+    synchronized void setRetentionAge(TimeValue retentionAge) {
+        this.retentionAge = retentionAge;
     }
 
     /**
@@ -102,9 +115,9 @@ final class SoftDeletesPolicy {
             // then sends ops after the local checkpoint of that commit. This requires keeping all ops after localCheckpointOfSafeCommit;
             // - Changes APIs are driven the combination of the global checkpoint and retention ops. Here we prefer using the global
             // checkpoint instead of max_seqno because only operations up to the global checkpoint are exposed in the the changes APIs.
-            final long minSeqNoForQueryingChanges = globalCheckpointSupplier.getAsLong() - retentionOperations;
+            final long minSeqNoForQueryingChanges = globalCheckpointSupplier.getAsLong() - retentionOperationCount;
             final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, localCheckpointOfSafeCommit) + 1;
-            // This can go backward as the retentionOperations value can be changed in settings.
+            // This can go backward as the retentionOperationCount value can be changed in settings.
             minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);
         }
         return minRetainedSeqNo;
@@ -114,7 +127,20 @@ final class SoftDeletesPolicy {
      * Returns a soft-deletes retention query that will be used in {@link org.apache.lucene.index.SoftDeletesRetentionMergePolicy}
      * Documents including tombstones are soft-deleted and matched this query will be retained and won't cleaned up by merges.
      */
-    Query getRetentionQuery() {
-        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getMinRetainedSeqNo(), Long.MAX_VALUE);
+    synchronized Query getRetentionQuery() {
+        final BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
+        queryBuilder.add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getMinRetainedSeqNo(), Long.MAX_VALUE), BooleanClause.Occur.SHOULD);
+        if (retentionAge.seconds() > 0) {
+            // we prefer using a docValues instead of an indexed field to avoid impact on append-only indices.
+            // however, it's a trade-off as we have to linearly scan to find the most recent documents.
+            final Query timestampQuery = NumericDocValuesField.newSlowRangeQuery(SeqNoFieldMapper.UPDATE_TIMESTAMP_IN_SECONDS_NAME,
+                absoluteTimeInSeconds.getAsLong() - retentionAge.seconds(), Long.MAX_VALUE);
+            queryBuilder.add(timestampQuery, BooleanClause.Occur.SHOULD);
+        }
+        return queryBuilder.build();
+    }
+
+    NumericDocValuesField timestampDVField() {
+        return new NumericDocValuesField(SeqNoFieldMapper.UPDATE_TIMESTAMP_IN_SECONDS_NAME, absoluteTimeInSeconds.getAsLong());
     }
 }

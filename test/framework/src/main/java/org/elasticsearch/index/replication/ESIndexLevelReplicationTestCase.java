@@ -131,6 +131,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
                 randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_AGE_SETTING.getKey(), randomBoolean() ? "-1" : between(0, 3600) + "s")
             .put(indexSettings)
             .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(index.getName())

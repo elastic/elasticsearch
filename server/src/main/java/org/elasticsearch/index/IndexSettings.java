@@ -252,6 +252,14 @@ public final class IndexSettings {
         Setting.longSetting("index.soft_deletes.retention.operations", 0, 0, Property.IndexScope, Property.Dynamic);
 
     /**
+     * Controls how long soft-deleted documents will be kept around before being merged away. Keeping more deleted
+     * documents increases the chance of operation-based recoveries and allows querying a longer history of documents.
+     * If soft-deletes is enabled, an engine by default will retain soft-deleted documents for at least 4 hours.
+     **/
+    public static final Setting<TimeValue> INDEX_SOFT_DELETES_RETENTION_AGE_SETTING =
+        Setting.timeSetting("index.soft_deletes.retention.age", TimeValue.timeValueHours(4), Property.IndexScope, Property.Dynamic);
+
+    /**
      * The maximum number of refresh listeners allows on this shard.
      */
     public static final Setting<Integer> MAX_REFRESH_LISTENERS_PER_SHARD = Setting.intSetting("index.max_refresh_listeners", 1000, 0,
@@ -311,6 +319,7 @@ public final class IndexSettings {
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
+    private volatile TimeValue softDeleteRetentionAge;
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
@@ -426,6 +435,7 @@ public final class IndexSettings {
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = version.onOrAfter(Version.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
+        softDeleteRetentionAge = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_AGE_SETTING);
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
@@ -486,6 +496,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_AGE_SETTING, this::setSoftDeleteRetentionAge);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
     }
 
@@ -898,6 +909,14 @@ public final class IndexSettings {
      */
     public long getSoftDeleteRetentionOperations() {
         return this.softDeleteRetentionOperations;
+    }
+
+    public void setSoftDeleteRetentionAge(TimeValue softDeleteRetentionAge) {
+        this.softDeleteRetentionAge = softDeleteRetentionAge;
+    }
+
+    public TimeValue getSoftDeleteRetentionAge() {
+        return softDeleteRetentionAge;
     }
 
     /**

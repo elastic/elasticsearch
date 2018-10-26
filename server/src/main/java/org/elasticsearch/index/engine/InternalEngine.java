@@ -275,8 +275,11 @@ public class InternalEngine extends Engine {
         } else {
             lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
         }
-        return new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint, lastMinRetainedSeqNo,
-            engineConfig.getIndexSettings().getSoftDeleteRetentionOperations());
+        final LongSupplier absoluteTimeInSeconds = () -> engineConfig.getThreadPool().absoluteTimeInMillis() / 1000;
+        return new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint, absoluteTimeInSeconds,
+            engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
+            engineConfig.getIndexSettings().getSoftDeleteRetentionAge(),
+            lastMinRetainedSeqNo);
     }
 
     /**
@@ -1064,6 +1067,7 @@ public class InternalEngine extends Engine {
         assert softDeleteEnabled : "Add history documents but soft-deletes is disabled";
         for (ParseContext.Document doc : docs) {
             doc.add(softDeletesField); // soft-deleted every document before adding to Lucene
+            doc.add(softDeletesPolicy.timestampDVField());
         }
         if (docs.size() > 1) {
             indexWriter.addDocuments(docs);
@@ -1158,9 +1162,9 @@ public class InternalEngine extends Engine {
     private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
         if (softDeleteEnabled) {
             if (docs.size() > 1) {
-                indexWriter.softUpdateDocuments(uid, docs, softDeletesField);
+                indexWriter.softUpdateDocuments(uid, docs, softDeletesField, softDeletesPolicy.timestampDVField());
             } else {
-                indexWriter.softUpdateDocument(uid, docs.get(0), softDeletesField);
+                indexWriter.softUpdateDocument(uid, docs.get(0), softDeletesField, softDeletesPolicy.timestampDVField());
             }
         } else {
             if (docs.size() > 1) {
@@ -1300,6 +1304,7 @@ public class InternalEngine extends Engine {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), plan.seqNoOfDeletion, false, false);
         try {
             if (softDeleteEnabled) {
+                final NumericDocValuesField timestampField = softDeletesPolicy.timestampDVField();
                 final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
                 assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
                 tombstone.updateSeqID(plan.seqNoOfDeletion, delete.primaryTerm());
@@ -1308,10 +1313,11 @@ public class InternalEngine extends Engine {
                 assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null :
                     "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
                 doc.add(softDeletesField);
+                doc.add(timestampField);
                 if (plan.addStaleOpToLucene || plan.currentlyDeleted) {
                     indexWriter.addDocument(doc);
                 } else {
-                    indexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField);
+                    indexWriter.softUpdateDocument(delete.uid(), doc, softDeletesField, timestampField);
                 }
             } else if (plan.currentlyDeleted == false) {
                 // any exception that comes from this is a either an ACE or a fatal exception there
@@ -1428,6 +1434,7 @@ public class InternalEngine extends Engine {
                         assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
                             : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
                         doc.add(softDeletesField);
+                        doc.add(softDeletesPolicy.timestampDVField());
                         indexWriter.addDocument(doc);
                     } catch (Exception ex) {
                         if (maybeFailEngine("noop", ex)) {
@@ -2342,7 +2349,8 @@ public class InternalEngine extends Engine {
         final IndexSettings indexSettings = engineConfig.getIndexSettings();
         translogDeletionPolicy.setRetentionAgeInMillis(indexSettings.getTranslogRetentionAge().getMillis());
         translogDeletionPolicy.setRetentionSizeInBytes(indexSettings.getTranslogRetentionSize().getBytes());
-        softDeletesPolicy.setRetentionOperations(indexSettings.getSoftDeleteRetentionOperations());
+        softDeletesPolicy.setRetentionOperationCount(indexSettings.getSoftDeleteRetentionOperations());
+        softDeletesPolicy.setRetentionAge(indexSettings.getSoftDeleteRetentionAge());
     }
 
     public MergeStats getMergeStats() {

@@ -96,6 +96,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
                 .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
                     randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_AGE_SETTING.getKey(), randomBoolean() ? "-1" : between(0, 3600) + "s")
             ).get();
     }
 

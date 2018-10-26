@@ -722,6 +722,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (randomBoolean()) {
             builder.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000));
         }
+        builder.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_AGE_SETTING.getKey(), randomBoolean() ? "-1" : between(0, 3600) + "s");
         return builder.build();
     }
 

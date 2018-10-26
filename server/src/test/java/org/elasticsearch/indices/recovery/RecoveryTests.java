@@ -215,7 +215,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     logger.info("--> flushing shard (translog/soft-deletes will be trimmed)");
                     IndexMetaData.Builder builder = IndexMetaData.builder(orgReplica.indexSettings().getIndexMetaData());
                     builder.settings(Settings.builder().put(orgReplica.indexSettings().getSettings())
-                        .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0));
+                        .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
+                        .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_AGE_SETTING.getKey(), "-1"));
                     orgReplica.indexSettings().updateIndexMetaData(builder.build());
                     orgReplica.onSettingsChanged();
                 }

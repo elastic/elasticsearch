@@ -140,6 +140,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -1383,32 +1384,49 @@ public class InternalEngineTests extends EngineTestCase {
 
     public void testForceMergeWithSoftDeletesRetention() throws Exception {
         final long retainedExtraOps = randomLongBetween(0, 10);
+        final long retainedExtraSeconds = between(-1, 360);
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), retainedExtraOps);
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), retainedExtraOps)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_AGE_SETTING.getKey(),
+                retainedExtraSeconds > 0 ? retainedExtraSeconds + "s" : "-1");
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         final MapperService mapperService = createMapperService("test");
-        final Set<String> liveDocs = new HashSet<>();
+        final Map<String, Long> liveDocs = new HashMap<>();
+        final Map<Long, Long> timestamps = new HashMap<>();
+        final AtomicLong clock = new AtomicLong(0);
+        threadPool = spy(threadPool);
+        when(threadPool.absoluteTimeInMillis()).thenAnswer(invocation -> clock.get() * 1000);
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get))) {
             int numDocs = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < numDocs; i++) {
+                clock.addAndGet(between(0, 3));
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
-                engine.index(indexForDoc(doc));
-                liveDocs.add(doc.id());
+                Engine.IndexResult result = engine.index(indexForDoc(doc));
+                liveDocs.put(doc.id(), result.getSeqNo());
             }
             for (int i = 0; i < numDocs; i++) {
+                clock.addAndGet(between(0, 3));
                 ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), B_1, null);
                 if (randomBoolean()) {
-                    engine.delete(new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
-                    liveDocs.remove(doc.id());
+                    Engine.DeleteResult result = engine.delete(
+                        new Engine.Delete(doc.type(), doc.id(), newUid(doc.id()), primaryTerm.get()));
+                    if (liveDocs.containsKey(doc.id())) {
+                        timestamps.put(liveDocs.remove(doc.id()), clock.get());
+                    }
+                    timestamps.put(result.getSeqNo(), clock.get());
                 }
                 if (randomBoolean()) {
-                    engine.index(indexForDoc(doc));
-                    liveDocs.add(doc.id());
+                    Engine.IndexResult result = engine.index(indexForDoc(doc));
+                    if (liveDocs.containsKey(doc.id())) {
+                        timestamps.put(liveDocs.remove(doc.id()), clock.get());
+                    }
+                    timestamps.put(result.getSeqNo(), clock.get());
+                    liveDocs.put(doc.id(), result.getSeqNo());
                 }
                 if (randomBoolean()) {
                     engine.flush(randomBoolean(), true);
@@ -1423,25 +1441,30 @@ public class InternalEngineTests extends EngineTestCase {
             try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
                 safeCommitCheckpoint = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
             }
+            clock.addAndGet(between(0, 10));
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
             for (long seqno = 0; seqno <= localCheckpoint; seqno++) {
                 long minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitCheckpoint + 1);
-                String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]";
-                if (seqno < minSeqNoToRetain) {
+                final long minTimestampToRetain = clock.get() - Math.max(0, retainedExtraSeconds);
+                String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]"
+                    + " retained-age [" + retainedExtraSeconds + "] clock [" + clock.get() + "] timestamps[" + timestamps.get(seqno) + "]";
+                if (seqno < minSeqNoToRetain && timestamps.getOrDefault(seqno, Long.MIN_VALUE) < minTimestampToRetain) {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
                         assertThat(op, instanceOf(Translog.Index.class));
-                        assertThat(msg, ((Translog.Index) op).id(), isIn(liveDocs));
+                        assertThat(msg, liveDocs, hasKey(((Translog.Index) op).id()));
                         assertEquals(msg, ((Translog.Index) op).source(), B_1);
                     }
                 } else {
                     assertThat(msg, ops.get(seqno), notNullValue());
                 }
             }
+            clock.addAndGet(between(0, 10));
             settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
+            settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_AGE_SETTING.getKey(), "-1");
             indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
             engine.onSettingsChanged();
             globalCheckpoint.set(localCheckpoint);
@@ -1458,7 +1481,8 @@ public class InternalEngineTests extends EngineTestCase {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), retainedExtraOps);
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), retainedExtraOps)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_AGE_SETTING.getKey(), "-1");
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.ESTestCase;
 
@@ -36,8 +37,10 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
     public void testSoftDeletesRetentionLock() {
         long retainedOps = between(0, 10000);
         AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        AtomicLong clock = new AtomicLong();
         long safeCommitCheckpoint = globalCheckpoint.get();
-        SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, between(1, 10000), retainedOps);
+        SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, clock::getAndIncrement, retainedOps,
+            TimeValue.timeValueSeconds(between(0, 3600)), between(1, 10000));
         long minRetainedSeqNo = policy.getMinRetainedSeqNo();
         List<Releasable> locks = new ArrayList<>();
         int iters = scaledRandomIntBetween(10, 1000);
@@ -51,7 +54,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
             policy.setLocalCheckpointOfSafeCommit(safeCommitCheckpoint);
             if (rarely()) {
                 retainedOps = between(0, 10000);
-                policy.setRetentionOperations(retainedOps);
+                policy.setRetentionOperationCount(retainedOps);
             }
             // Release some locks
             List<Releasable> releasingLocks = randomSubsetOf(locks);

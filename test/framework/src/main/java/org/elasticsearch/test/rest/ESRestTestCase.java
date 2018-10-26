@@ -26,6 +26,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -68,10 +69,12 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
@@ -104,25 +107,13 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Does the cluster being tested have xpack installed?
+     * Does any node in the cluster being tested have x-pack installed?
      */
     public static boolean hasXPack() throws IOException {
-        RestClient client = adminClient();
-        if (client == null) {
+        if (hasXPack == null) {
             throw new IllegalStateException("must be called inside of a rest test case test");
         }
-        Map<?, ?> response = entityAsMap(client.performRequest(new Request("GET", "_nodes/plugins")));
-        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-        for (Map.Entry<?, ?> node : nodes.entrySet()) {
-            Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-            for (Object module: (List<?>) nodeInfo.get("modules")) {
-                Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                if (moduleInfo.get("name").toString().startsWith("x-pack-")) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return hasXPack;
     }
 
     private static List<HttpHost> clusterHosts;
@@ -135,12 +126,16 @@ public abstract class ESRestTestCase extends ESTestCase {
      * completes
      */
     private static RestClient adminClient;
+    private static Boolean hasXPack;
+    private static TreeSet<Version> nodeVersions;
 
     @Before
     public void initClient() throws IOException {
         if (client == null) {
             assert adminClient == null;
             assert clusterHosts == null;
+            assert hasXPack == null;
+            assert nodeVersions == null;
             String cluster = System.getProperty("tests.rest.cluster");
             if (cluster == null) {
                 throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
@@ -161,10 +156,27 @@ public abstract class ESRestTestCase extends ESTestCase {
             logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+
+            hasXPack = false;
+            nodeVersions = new TreeSet<>();
+            Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
+            Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+            for (Map.Entry<?, ?> node : nodes.entrySet()) {
+                Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
+                nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
+                for (Object module: (List<?>) nodeInfo.get("modules")) {
+                    Map<?, ?> moduleInfo = (Map<?, ?>) module;
+                    if (moduleInfo.get("name").toString().startsWith("x-pack-")) {
+                        hasXPack = true;
+                    }
+                }
+            }
         }
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
+        assert hasXPack != null;
+        assert nodeVersions != null;
     }
 
     /**
@@ -194,6 +206,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             clusterHosts = null;
             client = null;
             adminClient = null;
+            hasXPack = null;
+            nodeVersions = null;
         }
     }
 
@@ -334,8 +348,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
-        boolean hasXPack = hasXPack();
-
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
@@ -449,7 +461,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    private void wipeRollupJobs() throws IOException {
+    private void wipeRollupJobs() throws IOException, InterruptedException {
         Response response = adminClient().performRequest(new Request("GET", "/_xpack/rollup/job/_all"));
         Map<String, Object> jobs = entityAsMap(response);
         @SuppressWarnings("unchecked")
@@ -459,6 +471,29 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (jobConfigs == null) {
             return;
         }
+
+        for (Map<String, Object> jobConfig : jobConfigs) {
+            @SuppressWarnings("unchecked")
+            String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
+            Request request = new Request("POST", "/_xpack/rollup/job/" + jobId + "/_stop");
+            request.addParameter("ignore", "404");
+            logger.debug("stopping rollup job [{}]", jobId);
+            adminClient().performRequest(request);
+        }
+
+        // TODO this is temporary until StopJob API gains the ability to block until stopped
+        awaitBusy(() -> {
+            Request request = new Request("GET", "/_xpack/rollup/job/_all");
+            try {
+                Response jobsResponse = adminClient().performRequest(request);
+                String body = EntityUtils.toString(jobsResponse.getEntity());
+                logger.error(body);
+                // If the body contains any of the non-stopped states, at least one job is not finished yet
+                return Arrays.stream(new String[]{"started", "aborting", "stopping", "indexing"}).noneMatch(body::contains);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 10, TimeUnit.SECONDS);
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             @SuppressWarnings("unchecked")
@@ -553,7 +588,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
+        builder.setStrictDeprecationMode(getStrictDeprecationMode());
         return builder.build();
+    }
+
+    /**
+     * Whether the used REST client should return any response containing at
+     * least one warning header as a failure.
+     */
+    protected boolean getStrictDeprecationMode() {
+        return true;
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {

@@ -41,7 +41,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
 
     // test that we use the primary term on the follower when applying operations from the leader
     public void testPrimaryTermFromFollower() throws IOException {
-        final Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true).build();
+        final Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexShard followerPrimary = newStartedShard(true, settings, new FollowingEngineFactory());
 
         // we use this primary on the operations yet we expect the applied operations to have the primary term of the follower

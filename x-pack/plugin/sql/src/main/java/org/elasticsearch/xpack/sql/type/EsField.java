@@ -15,14 +15,14 @@ import java.util.Objects;
  */
 public class EsField {
     private final DataType esDataType;
-    private final boolean hasDocValues;
+    private final boolean aggregatable;
     private final Map<String, EsField> properties;
     private final String name;
 
-    public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean hasDocValues) {
+    public EsField(String name, DataType esDataType, Map<String, EsField> properties, boolean aggregatable) {
         this.name = name;
         this.esDataType = esDataType;
-        this.hasDocValues = hasDocValues;
+        this.aggregatable = aggregatable;
         this.properties = properties;
     }
 
@@ -41,10 +41,10 @@ public class EsField {
     }
 
     /**
-     * The field supports doc values
+     * This field can be aggregated
      */
-    public boolean hasDocValues() {
-        return hasDocValues;
+    public boolean isAggregatable() {
+        return aggregatable;
     }
 
     /**
@@ -86,18 +86,26 @@ public class EsField {
     }
 
     @Override
+    public String toString() {
+        return name + "@" + esDataType.name() + "=" + properties;
+    }
+
+    @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         EsField field = (EsField) o;
-        return hasDocValues == field.hasDocValues &&
-                esDataType == field.esDataType &&
-                Objects.equals(properties, field.properties) &&
-                Objects.equals(name, field.name);
+        return aggregatable == field.aggregatable && esDataType == field.esDataType 
+                && Objects.equals(name, field.name)
+                && Objects.equals(properties, field.properties);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(esDataType, hasDocValues, properties, name);
+        return Objects.hash(esDataType, aggregatable, properties, name);
     }
 }

@@ -29,7 +29,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Logical
 #
   Boolean and(Boolean, Boolean)
-  Boolean or(Boolean, Boolean)    
+  Boolean or(Boolean, Boolean)
+  Boolean not(Boolean)
+  Boolean notNull(Object)    
 
 #
 # Regex
@@ -43,6 +45,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Number div(Number, Number)
   Number mod(Number, Number)
   Number mul(Number, Number)
+  Number neg(Number)
   Number sub(Number, Number)
   Number round(Number, Number)
   Number truncate(Number, Number)

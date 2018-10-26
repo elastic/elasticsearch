@@ -1495,8 +1495,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::bulk-processor-listener
 
             // tag::bulk-processor-options
-            BulkProcessor.Builder builder = BulkProcessor.builder(
-                    (request, bulkListener) -> client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
+            BulkProcessor.Builder builder = BulkProcessor.builder((request, bulkListener) ->
+                    client.bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener);
             builder.setBulkActions(500); // <1>
             builder.setBulkSize(new ByteSizeValue(1L, ByteSizeUnit.MB)); // <2>
             builder.setConcurrentRequests(0); // <3>
@@ -1563,7 +1563,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         request.setFields("user");
 
         // tag::term-vectors-execute
-        TermVectorsResponse response = client.termvectors(request, RequestOptions.DEFAULT);
+        TermVectorsResponse response =
+                client.termvectors(request, RequestOptions.DEFAULT);
         // end::term-vectors-execute
 
 
@@ -1574,16 +1575,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         boolean found = response.getFound(); // <4>
         // end::term-vectors-response
 
-        // tag::term-vectors-term-vectors
         if (response.getTermVectorsList() != null) {
-            List<TermVectorsResponse.TermVector> tvList = response.getTermVectorsList();
-            for (TermVectorsResponse.TermVector tv : tvList) {
+            // tag::term-vectors-term-vectors
+            for (TermVectorsResponse.TermVector tv : response.getTermVectorsList()) {
                 String fieldname = tv.getFieldName(); // <1>
                 int docCount = tv.getFieldStatistics().getDocCount(); // <2>
-                long sumTotalTermFreq = tv.getFieldStatistics().getSumTotalTermFreq(); // <3>
+                long sumTotalTermFreq =
+                        tv.getFieldStatistics().getSumTotalTermFreq(); // <3>
                 long sumDocFreq = tv.getFieldStatistics().getSumDocFreq(); // <4>
                 if (tv.getTerms() != null) {
-                    List<TermVectorsResponse.TermVector.Term> terms = tv.getTerms(); // <5>
+                    List<TermVectorsResponse.TermVector.Term> terms =
+                            tv.getTerms(); // <5>
                     for (TermVectorsResponse.TermVector.Term term : terms) {
                         String termStr = term.getTerm(); // <6>
                         int termFreq = term.getTermFreq(); // <7>
@@ -1591,7 +1593,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                         long totalTermFreq = term.getTotalTermFreq(); // <9>
                         float score = term.getScore(); // <10>
                         if (term.getTokens() != null) {
-                            List<TermVectorsResponse.TermVector.Token> tokens = term.getTokens(); // <11>
+                            List<TermVectorsResponse.TermVector.Token> tokens =
+                                    term.getTokens(); // <11>
                             for (TermVectorsResponse.TermVector.Token token : tokens) {
                                 int position = token.getPosition(); // <12>
                                 int startOffset = token.getStartOffset(); // <13>
@@ -1602,11 +1605,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     }
                 }
             }
+            // end::term-vectors-term-vectors
         }
-        // end::term-vectors-term-vectors
 
+        ActionListener<TermVectorsResponse> listener;
         // tag::term-vectors-execute-listener
-        ActionListener<TermVectorsResponse> listener = new ActionListener<TermVectorsResponse>() {
+        listener = new ActionListener<TermVectorsResponse>() {
             @Override
             public void onResponse(TermVectorsResponse termVectorsResponse) {
                 // <1>
@@ -1664,7 +1668,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 "index",         // <1>
                 "type",          // <2>
                 "example_id"));  // <3>
-            request.add(new MultiGetRequest.Item("index", "type", "another_id"));  // <4>
+            request.add(new MultiGetRequest.Item("index", "type", "another_id")); // <4>
             // end::multi-get-request
 
             // Add a missing index so we can test it.
@@ -1715,11 +1719,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // TODO status is broken! fix in a followup
             // assertEquals(RestStatus.NOT_FOUND, ee.status());        // <4>
             assertThat(e.getMessage(),
-                containsString("reason=no such index [missing_index]"));               // <5>
+                containsString("reason=no such index [missing_index]")); // <5>
             // end::multi-get-indexnotfound
 
+            ActionListener<MultiGetResponse> listener;
             // tag::multi-get-execute-listener
-            ActionListener<MultiGetResponse> listener = new ActionListener<MultiGetResponse>() {
+            listener = new ActionListener<MultiGetResponse>() {
                 @Override
                 public void onResponse(MultiGetResponse response) {
                     // <1>

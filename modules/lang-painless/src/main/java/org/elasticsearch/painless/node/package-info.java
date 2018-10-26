@@ -143,7 +143,7 @@
  * described by later documentation.
  * <p>
  * Storebable nodes have three methods for writing -- setup, load, and store.  These methods
- * are used in conjuction with a parent node aware of the storeable node (lhs) that has a node
+ * are used in conjunction with a parent node aware of the storeable node (lhs) that has a node
  * representing a value to store (rhs). The setup method is always once called before a store
  * to give storeable nodes a chance to write any prefixes they may have and any values such as
  * array indices before the store happens.  Load is called on a storeable node that must also
@@ -152,7 +152,7 @@
  * Sub nodes are partial nodes that require a parent to work correctly.  These nodes can really
  * represent anything the parent node would like to split up into logical pieces and don't really
  * have any distinct set of rules.  The currently existing subnodes all have ANode as a super class
- * somewhere in their class heirachy so the parent node can defer some analysis and writing to
+ * somewhere in their class hierarchy so the parent node can defer some analysis and writing to
  * the sub node.
  */
 package org.elasticsearch.painless.node;

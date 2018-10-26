@@ -18,14 +18,11 @@
  */
 package org.elasticsearch.join.aggregations;
 
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -34,17 +31,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-// The RecordingPerReaderBucketCollector assumes per segment recording which isn't the case for this
-// aggregation, for this reason that collector can't be used
-public class ParentToChildrenAggregator  extends AbstractParentChildAggregator {
+public class ParentToChildrenAggregator extends ParentJoinAggregator {
+
+    static final ParseField TYPE_FIELD = new ParseField("type");
 
     public ParentToChildrenAggregator(String name, AggregatorFactories factories,
             SearchContext context, Aggregator parent, Query childFilter,
             Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
-            long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
-            throws IOException {
-        super(name, factories, context, parent, childFilter, parentFilter,
-            valuesSource, maxOrd, pipelineAggregators, metaData);
+            long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        super(name, factories, context, parent, parentFilter, childFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
     }
 
     @Override
@@ -57,36 +52,5 @@ public class ParentToChildrenAggregator  extends AbstractParentChildAggregator {
     public InternalAggregation buildEmptyAggregation() {
         return new InternalChildren(name, 0, buildEmptySubAggregations(), pipelineAggregators(),
                 metaData());
-    }
-
-    @Override
-    LeafBucketCollector getLeafBucketCollector(SortedSetDocValues globalOrdinals, Bits parentDocs) {
-        return new LeafBucketCollector() {
-
-            @Override
-            public void collect(int docId, long bucket) throws IOException {
-                if (parentDocs.get(docId) && globalOrdinals.advanceExact(docId)) {
-                    long globalOrdinal = globalOrdinals.nextOrd();
-                    assert globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
-                    if (globalOrdinal != -1) {
-                        if (ordinalToBuckets.get(globalOrdinal) == -1) {
-                            ordinalToBuckets.set(globalOrdinal, bucket);
-                        } else {
-                            storeToOtherBuckets(globalOrdinal, bucket);
-                        }
-                    }
-                }
-            }
-        };
-    }
-
-    @Override
-    Weight getCollectionFilter() {
-        return parentFilter;
-    }
-
-    @Override
-    Weight getPostCollectionFilter() {
-        return childFilter;
     }
 }

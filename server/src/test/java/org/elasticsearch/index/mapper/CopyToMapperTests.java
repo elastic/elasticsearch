@@ -389,28 +389,28 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         assertEquals(6, doc.docs().size());
 
         Document nested = doc.docs().get(0);
-        assertFieldValue(nested, "n1.n2.target", 7L);
+        assertFieldValue(nested, "n1.n2.target", 3L);
         assertFieldValue(nested, "n1.target");
         assertFieldValue(nested, "target");
 
-        nested = doc.docs().get(2);
+        nested = doc.docs().get(1);
         assertFieldValue(nested, "n1.n2.target", 5L);
         assertFieldValue(nested, "n1.target");
         assertFieldValue(nested, "target");
 
         nested = doc.docs().get(3);
-        assertFieldValue(nested, "n1.n2.target", 3L);
+        assertFieldValue(nested, "n1.n2.target", 7L);
         assertFieldValue(nested, "n1.target");
         assertFieldValue(nested, "target");
 
-        Document parent = doc.docs().get(1);
+        Document parent = doc.docs().get(2);
         assertFieldValue(parent, "target");
-        assertFieldValue(parent, "n1.target", 7L);
+        assertFieldValue(parent, "n1.target", 3L, 5L);
         assertFieldValue(parent, "n1.n2.target");
 
         parent = doc.docs().get(4);
         assertFieldValue(parent, "target");
-        assertFieldValue(parent, "n1.target", 3L, 5L);
+        assertFieldValue(parent, "n1.target", 7L);
         assertFieldValue(parent, "n1.n2.target");
 
         Document root = doc.docs().get(5);

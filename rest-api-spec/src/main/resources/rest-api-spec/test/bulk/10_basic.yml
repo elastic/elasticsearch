@@ -68,6 +68,7 @@
 
   - skip:
       version: " - 6.99.99"
+      features: headers
       reason:  include_type_name was introduced in 7.0.0
 
   - do:

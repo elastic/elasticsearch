@@ -88,7 +88,7 @@ queryTerm
     ;
 
 orderBy
-    : expression ordering=(ASC | DESC)?
+    : expression ordering=(ASC | DESC)? (NULLS nullOrdering=(FIRST | LAST))?
     ;
 
 querySpecification
@@ -226,14 +226,20 @@ primaryExpression
     ;
 
 castExpression
-    : castTemplate                                                                   
-    | FUNCTION_ESC castTemplate ESC_END                                              
+    : castTemplate
+    | FUNCTION_ESC castTemplate ESC_END
+    | convertTemplate
+    | FUNCTION_ESC convertTemplate ESC_END
     ;
     
 castTemplate
     : CAST '(' expression AS dataType ')'
     ;
-    
+
+convertTemplate
+    : CONVERT '(' expression ',' dataType ')'
+    ;
+
 extractExpression
     : extractTemplate
     | FUNCTION_ESC extractTemplate ESC_END
@@ -307,8 +313,8 @@ unquoteIdentifier
     ;
 
 number
-    : (PLUS | MINUS)? DECIMAL_VALUE  #decimalLiteral
-    | (PLUS | MINUS)? INTEGER_VALUE  #integerLiteral
+    : DECIMAL_VALUE         #decimalLiteral
+    | INTEGER_VALUE         #integerLiteral
     ;
 
 string
@@ -347,6 +353,7 @@ CAST: 'CAST';
 CATALOG: 'CATALOG';
 CATALOGS: 'CATALOGS';
 COLUMNS: 'COLUMNS';
+CONVERT: 'CONVERT';
 DEBUG: 'DEBUG';
 DESC: 'DESC';
 DESCRIBE: 'DESCRIBE';
@@ -357,6 +364,7 @@ EXISTS: 'EXISTS';
 EXPLAIN: 'EXPLAIN';
 EXTRACT: 'EXTRACT';
 FALSE: 'FALSE';
+FIRST: 'FIRST';
 FORMAT: 'FORMAT';
 FROM: 'FROM';
 FULL: 'FULL';
@@ -368,6 +376,7 @@ IN: 'IN';
 INNER: 'INNER';
 IS: 'IS';
 JOIN: 'JOIN';
+LAST: 'LAST';
 LEFT: 'LEFT';
 LIKE: 'LIKE';
 LIMIT: 'LIMIT';
@@ -376,6 +385,7 @@ MATCH: 'MATCH';
 NATURAL: 'NATURAL';
 NOT: 'NOT';
 NULL: 'NULL';
+NULLS: 'NULLS';
 ON: 'ON';
 OPTIMIZED: 'OPTIMIZED';
 OR: 'OR';
@@ -454,7 +464,7 @@ DIGIT_IDENTIFIER
     ;
 
 TABLE_IDENTIFIER
-    : (LETTER | DIGIT | '_' | '@' | ASTERISK)+
+    : (LETTER | DIGIT | '_')+
     ;
 
 QUOTED_IDENTIFIER

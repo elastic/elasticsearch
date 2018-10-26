@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
+import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -168,7 +169,7 @@ public class ControlMsgToProcessWriter {
             builder.field("tmp_storage", params.getTmpStorage());
         }
         builder.endObject();
-        
+
         writeMessage(FORECAST_MESSAGE_CODE + Strings.toString(builder));
         fillCommandBuffer();
         lengthEncodedWriter.flush();

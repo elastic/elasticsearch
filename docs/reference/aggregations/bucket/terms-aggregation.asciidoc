@@ -615,7 +615,7 @@ GET /_search
     "aggs" : {
         "genres" : {
             "terms" : {
-                "field" : "gender",
+                "field" : "genre",
                 "script" : {
                     "source" : "'Genre: ' +_value",
                     "lang" : "painless"

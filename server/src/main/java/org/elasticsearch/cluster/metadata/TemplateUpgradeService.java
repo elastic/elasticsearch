@@ -200,7 +200,7 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                 if (anyUpgradeFailed.get()) {
                     logger.info("Templates were partially upgraded to version {}", Version.CURRENT);
                 } else {
-                    logger.info("Templates were upgraded successfuly to version {}", Version.CURRENT);
+                    logger.info("Templates were upgraded successfully to version {}", Version.CURRENT);
                 }
                 // Check upgraders are satisfied after the update completed. If they still
                 // report that changes are required, this might indicate a bug or that something

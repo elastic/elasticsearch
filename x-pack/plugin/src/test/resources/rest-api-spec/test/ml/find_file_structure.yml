@@ -36,6 +36,9 @@
   - match: { mappings.sourcetype.type: keyword }
   - match: { mappings.time.type: date }
   - match: { mappings.time.format: epoch_second }
+  - match: { ingest_pipeline.description: "Ingest pipeline created by file structure finder" }
+  - match: { ingest_pipeline.processors.0.date.field: time }
+  - match: { ingest_pipeline.processors.0.date.formats.0: UNIX }
   - match: { field_stats.airline.count: 3 }
   - match: { field_stats.airline.cardinality: 2 }
   - match: { field_stats.responsetime.count: 3 }
@@ -93,6 +96,9 @@
   - match: { mappings.sourcetype.type: keyword }
   - match: { mappings.time.type: date }
   - match: { mappings.time.format: epoch_second }
+  - match: { ingest_pipeline.description: "Ingest pipeline created by file structure finder" }
+  - match: { ingest_pipeline.processors.0.date.field: time }
+  - match: { ingest_pipeline.processors.0.date.formats.0: UNIX }
   - match: { field_stats.airline.count: 3 }
   - match: { field_stats.airline.cardinality: 2 }
   - match: { field_stats.responsetime.count: 3 }

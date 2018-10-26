@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.shard.ShardId;
@@ -51,24 +53,24 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
     }
 
     private void startAndAssertAndStopTask(ShardFollowNodeTask task, TestRun testRun) throws Exception {
-        task.start(testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1);
+        task.start("uuid", testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1, testRun.startSeqNo - 1);
         assertBusy(() -> {
             ShardFollowNodeTaskStatus status = task.getStatus();
             assertThat(status.leaderGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
             assertThat(status.followerGlobalCheckpoint(), equalTo(testRun.finalExpectedGlobalCheckpoint));
             final long numberOfFailedFetches =
                     testRun.responses.values().stream().flatMap(List::stream).filter(f -> f.exception != null).count();
-            assertThat(status.numberOfFailedFetches(), equalTo(numberOfFailedFetches));
+            assertThat(status.failedReadRequests(), equalTo(numberOfFailedFetches));
             // the failures were able to be retried so fetch failures should have cleared
-            assertThat(status.fetchExceptions().entrySet(), hasSize(0));
-            assertThat(status.mappingVersion(), equalTo(testRun.finalMappingVersion));
+            assertThat(status.readExceptions().entrySet(), hasSize(0));
+            assertThat(status.followerMappingVersion(), equalTo(testRun.finalMappingVersion));
         });
 
         task.markAsCompleted();
         assertBusy(() -> {
             ShardFollowNodeTaskStatus status = task.getStatus();
-            assertThat(status.numberOfConcurrentReads(), equalTo(0));
-            assertThat(status.numberOfConcurrentWrites(), equalTo(0));
+            assertThat(status.outstandingReadRequests(), equalTo(0));
+            assertThat(status.outstandingWriteRequests(), equalTo(0));
         });
     }
 
@@ -79,13 +81,15 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             new ShardId("follow_index", "", 0),
             new ShardId("leader_index", "", 0),
             testRun.maxOperationCount,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             concurrency,
-            TransportResumeFollowAction.DEFAULT_MAX_BATCH_SIZE,
+            testRun.maxOperationCount,
+            TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             concurrency,
             10240,
+            new ByteSizeValue(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
-            "uuid",
             Collections.emptyMap()
         );
 
@@ -111,10 +115,10 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
             @Override
             protected void innerSendBulkShardOperationsRequest(
-                    List<Translog.Operation> operations,
-                    long maxSeqNoOfUpdates,
-                    Consumer<BulkShardOperationsResponse> handler,
-                    Consumer<Exception> errorHandler) {
+                String followerHistoryUUID, List<Translog.Operation> operations,
+                long maxSeqNoOfUpdates,
+                Consumer<BulkShardOperationsResponse> handler,
+                Consumer<Exception> errorHandler) {
                 for(Translog.Operation op : operations) {
                     tracker.markSeqNoAsCompleted(op.seqNo());
                 }
@@ -159,7 +163,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         final long globalCheckpoint = tracker.getCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
                         handler.accept(new ShardChangesAction.Response(
-                            0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(), new Translog.Operation[0]));
+                            0L, globalCheckpoint, maxSeqNo, randomNonNegativeLong(), new Translog.Operation[0], 1L));
                     }
                 };
                 threadPool.generic().execute(task);
@@ -234,7 +238,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         nextGlobalCheckPoint,
                         nextGlobalCheckPoint,
                         randomNonNegativeLong(),
-                        ops.toArray(EMPTY))
+                        ops.toArray(EMPTY),
+                        randomNonNegativeLong())
                     )
                 );
                 responses.put(prevGlobalCheckpoint, item);
@@ -257,7 +262,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                             prevGlobalCheckpoint,
                             prevGlobalCheckpoint,
                             randomNonNegativeLong(),
-                            EMPTY
+                            EMPTY,
+                            randomNonNegativeLong()
                         );
                         item.add(new TestResponse(null, mappingVersion, response));
                     }
@@ -274,7 +280,8 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         localLeaderGCP,
                         localLeaderGCP,
                         randomNonNegativeLong(),
-                        ops.toArray(EMPTY)
+                        ops.toArray(EMPTY),
+                        randomNonNegativeLong()
                     );
                     item.add(new TestResponse(null, mappingVersion, response));
                     responses.put(fromSeqNo, Collections.unmodifiableList(item));

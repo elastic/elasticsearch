@@ -53,7 +53,7 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
 
     private final XContentLocation location;
     private final String name;
-    private SkipSection skipSection = SkipSection.EMPTY;
+    private SkipSection skipSection;
     private final List<ExecutableSection> executableSections;
 
     public ClientYamlTestSection(XContentLocation location, String name) {

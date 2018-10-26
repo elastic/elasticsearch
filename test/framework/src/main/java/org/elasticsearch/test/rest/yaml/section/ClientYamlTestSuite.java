@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Stream;
 
 /**
  * Holds a REST test suite loaded from a specific yaml file.
@@ -107,8 +108,8 @@ public class ClientYamlTestSuite {
     private final String api;
     private final String name;
 
-    private SetupSection setupSection = SetupSection.EMPTY;
-    private TeardownSection teardownSection = TeardownSection.EMPTY;
+    private SetupSection setupSection;
+    private TeardownSection teardownSection;
 
     private Set<ClientYamlTestSection> testSections = new TreeSet<>();
 
@@ -148,12 +149,19 @@ public class ClientYamlTestSuite {
     /**
      * Adds a {@link org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection} to the REST suite
      * @return true if the test section was not already present, false otherwise
+     * @throws IllegalArgumentException when the test section is not valid
      */
     boolean addTestSection(ClientYamlTestSection testSection) {
-        for (ExecutableSection executableSection : testSection.getExecutableSections()) {
+        Stream<ExecutableSection> executableSectionStream = testSection.getExecutableSections().stream();
+        if (setupSection != null) {
+            executableSectionStream = Stream.concat(executableSectionStream, setupSection.getExecutableSections().stream());
+        }
+        if (teardownSection != null) {
+            executableSectionStream = Stream.concat(executableSectionStream, teardownSection.getDoSections().stream());
+        }
+        executableSectionStream.forEach(executableSection -> {
             if (executableSection instanceof DoSection) {
                 DoSection doSection = (DoSection) executableSection;
-                //TODO skip sections from setup and teardown sections should also be checked here, but they are not available at this time.
                 if (false == doSection.getExpectedWarningHeaders().isEmpty()
                     && false == hasSkipFeature("warnings", testSection, setupSection, teardownSection)) {
                     throw new IllegalArgumentException("Attempted to add a [do] with a [warnings] section without a corresponding " +
@@ -173,15 +181,19 @@ public class ClientYamlTestSuite {
                         "line [" + doSection.getLocation().lineNumber + "]");
                 }
             }
-        }
+        });
         return this.testSections.add(testSection);
     }
 
     private static boolean hasSkipFeature(String feature, ClientYamlTestSection testSection,
                                           SetupSection setupSection, TeardownSection teardownSection) {
-        return testSection.getSkipSection().getFeatures().contains(feature) ||
-            setupSection.getSkipSection().getFeatures().contains(feature) ||
-            teardownSection.getSkipSection().getFeatures().contains(feature);
+        return hasSkipFeature(feature, testSection.getSkipSection()) ||
+            (setupSection != null && hasSkipFeature(feature, setupSection.getSkipSection())) ||
+            (teardownSection != null && hasSkipFeature(feature, teardownSection.getSkipSection()));
+    }
+
+    private static boolean hasSkipFeature(String feature, SkipSection skipSection) {
+        return skipSection != null && skipSection.getFeatures().contains(feature);
     }
 
     public List<ClientYamlTestSection> getTestSections() {

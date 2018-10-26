@@ -73,7 +73,7 @@ public class SetupSection {
         EMPTY.setSkipSection(SkipSection.EMPTY);
     }
 
-    private SkipSection skipSection = SkipSection.EMPTY;
+    private SkipSection skipSection;
 
     private List<ExecutableSection> executableSections = new ArrayList<>();
 

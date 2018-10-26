@@ -19,17 +19,17 @@
 
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-
 public class StartRollupJobResponse extends AcknowledgedResponse {
 
     private static final String PARSE_FIELD_NAME = "started";
+
+    private static final ConstructingObjectParser<StartRollupJobResponse, Void> PARSER = AcknowledgedResponse
+            .generateParser("delete_rollup_job_response", StartRollupJobResponse::new, PARSE_FIELD_NAME);
 
     public StartRollupJobResponse(boolean acknowledged) {
         super(acknowledged);
@@ -37,13 +37,6 @@ public class StartRollupJobResponse extends AcknowledgedResponse {
 
     public static StartRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    private static final ConstructingObjectParser<StartRollupJobResponse, Void> PARSER
-        = new ConstructingObjectParser<>("start_rollup_job_response", true,
-        args -> new StartRollupJobResponse((boolean) args[0]));
-    static {
-        PARSER.declareBoolean(constructorArg(), new ParseField(PARSE_FIELD_NAME));
     }
 
     @Override

@@ -33,7 +33,7 @@ import java.util.Objects;
 /**
  * Request to create a new OAuth2 token from the Elasticsearch cluster.
  */
-public class CreateTokenRequest implements Validatable, ToXContentObject {
+public final class CreateTokenRequest implements Validatable, ToXContentObject {
 
     private final String grantType;
     private final String scope;

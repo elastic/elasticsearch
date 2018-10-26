@@ -21,10 +21,13 @@ public abstract class ArithmeticOperation extends BinaryOperator<Number, Number,
     }
     
     @Override
-    protected TypeResolution resolveInputType(DataType inputType) {
-        return inputType.isNumeric() ?
-                TypeResolution.TYPE_RESOLVED :
-                new TypeResolution("'%s' requires a numeric type, received %s", symbol(), inputType.esType);
+    protected TypeResolution resolveInputTypeFirstArg(Expression e) {
+        return Expressions.typeMustBeNumeric(e, symbol(), Expressions.FunctionArgument.first);
+    }
+
+    @Override
+    protected TypeResolution resolveInputTypeSecondArg(Expression e) {
+        return Expressions.typeMustBeNumeric(e, symbol(), Expressions.FunctionArgument.second);
     }
 
     @Override

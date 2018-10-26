@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.type.DataType;
 
 /**
  * Operator is a specialized binary predicate where both sides have the compatible types
@@ -23,7 +22,9 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
         super(location, left, right, function);
     }
 
-    protected abstract TypeResolution resolveInputType(DataType inputType);
+    protected abstract TypeResolution resolveInputTypeFirstArg(Expression e);
+
+    protected abstract TypeResolution resolveInputTypeSecondArg(Expression e);
 
     public abstract BinaryOperator<T, U, R, F> swapLeftAndRight();
 
@@ -32,14 +33,11 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
         if (!childrenResolved()) {
             return new TypeResolution("Unresolved children");
         }
-        DataType l = left().dataType();
-        DataType r = right().dataType();
 
-        TypeResolution resolution = resolveInputType(l);
-
-        if (resolution == TypeResolution.TYPE_RESOLVED) {
-            return resolveInputType(r);
+        TypeResolution resolution = resolveInputTypeFirstArg(left());
+        if (resolution.unresolved()) {
+            return resolution;
         }
-        return resolution;
+        return resolveInputTypeSecondArg(right());
     }
 }

@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -20,6 +21,14 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 public final class Expressions {
+
+    public enum FunctionArgument {
+        one_arg,
+        first,
+        second,
+        third,
+        fourth
+    }
 
     private Expressions() {}
 
@@ -127,22 +136,48 @@ public final class Expressions {
         throw new SqlIllegalArgumentException("Cannot create pipe for {}", e);
     }
 
-    public static TypeResolution typeMustBe(Expression e, Predicate<Expression> predicate, String message) {
-        return predicate.test(e) ? TypeResolution.TYPE_RESOLVED : new TypeResolution(message);
-    }
-
-    public static TypeResolution typeMustBeNumeric(Expression e) {
-        return e.dataType().isNumeric() ? TypeResolution.TYPE_RESOLVED : new TypeResolution(incorrectTypeErrorMessage(e, "numeric"));
-    }
-
-    public static TypeResolution typeMustBeNumericOrDate(Expression e) {
-        return e.dataType().isNumeric() || e.dataType() == DataType.DATE ?
+    public static TypeResolution typeMustBeBoolean(Expression e, String functionName, FunctionArgument fArg) {
+        return e.dataType() == DataType.BOOLEAN || DataTypes.isNull(e.dataType())?
             TypeResolution.TYPE_RESOLVED :
-                new TypeResolution(incorrectTypeErrorMessage(e, "numeric", "date"));
+            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.BOOLEAN));
     }
-    
-    private static String incorrectTypeErrorMessage(Expression e, String...acceptedTypes) {
-        return "Argument required to be " + Strings.arrayToDelimitedString(acceptedTypes, " or ")
-                + " ('" + Expressions.name(e) + "' type is '" + e.dataType().esType + "')";
+
+    public static TypeResolution typeMustBeInteger(Expression e, String functionName, FunctionArgument fArg) {
+        return e.dataType().isNumeric() || DataTypes.isNull(e.dataType()) ?
+            TypeResolution.TYPE_RESOLVED :
+            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.INTEGER));
+    }
+
+    public static TypeResolution typeMustBeNumeric(Expression e, String functionName, FunctionArgument fArg) {
+        return e.dataType().isNumeric() || DataTypes.isNull(e.dataType()) ?
+            TypeResolution.TYPE_RESOLVED :
+            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.NUMERIC));
+    }
+
+    public static TypeResolution typeMustBeString(Expression e, String functionName, FunctionArgument fArg) {
+        return e.dataType().isString() || DataTypes.isNull(e.dataType()) ?
+            TypeResolution.TYPE_RESOLVED :
+            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.STRING));
+    }
+
+    public static TypeResolution typeMustBeDate(Expression e, String functionName, FunctionArgument fArg) {
+        return e.dataType() == DataType.DATE || DataTypes.isNull(e.dataType())?
+            TypeResolution.TYPE_RESOLVED :
+            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.DATE));
+    }
+
+    public static TypeResolution typeMustBeNumericOrDate(Expression e, String functionName, FunctionArgument fArg) {
+        return e.dataType().isNumeric() || e.dataType() == DataType.DATE || DataTypes.isNull(e.dataType())?
+            TypeResolution.TYPE_RESOLVED :
+            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.NUMERIC, DataTypes.DATE));
+    }
+
+    private static String incorrectTypeErrorMessage(Expression e,
+                                                    String functionName,
+                                                    FunctionArgument fArg,
+                                                    String... acceptedTypes) {
+        return "'" + functionName + "' requires " + (fArg == null || fArg == FunctionArgument.one_arg ? "" : fArg + " ") +
+            "argument to be be of type " + Strings.arrayToDelimitedString(acceptedTypes, " or ") +
+            " (type of '" + Expressions.name(e) + "' is '" + e.dataType().esType + "')";
     }
 }

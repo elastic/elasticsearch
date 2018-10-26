@@ -148,11 +148,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 verify("SELECT AVG(int) FROM test GROUP BY AVG(int)"));
     }
 
-    public void testNotSupportedAggregateOnDate() {
-        assertEquals("1:8: Argument required to be numeric ('date' type is 'date')",
-            verify("SELECT AVG(date) FROM test"));
-    }
-
     public void testGroupByOnNested() {
         assertEquals("1:38: Grouping isn't (yet) compatible with nested fields [dep.dep_id]",
                 verify("SELECT dep.dep_id FROM test GROUP BY dep.dep_id"));
@@ -236,5 +231,66 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testInNestedWithDifferentDataTypesFromLeftValue_WhereClause() {
         assertEquals("1:46: expected data type [TEXT], value provided is of type [INTEGER]",
             verify("SELECT * FROM test WHERE int = 1 OR text IN (1, 2)"));
+    }
+
+    public void testNotSupportedAggregateOnDate() {
+        assertEquals("1:8: 'AVG' requires argument to be be of type numeric (type of 'date' is 'date')",
+            verify("SELECT AVG(date) FROM test"));
+    }
+
+    public void testInvalidTypeForStringFunction_WithOneArg() {
+        assertEquals("1:8: 'LENGTH' requires argument to be be of type string (type of '1' is 'integer')",
+            verify("SELECT LENGTH(1)"));
+    }
+
+    public void testInvalidTypeForNumericFunction_WithOneArg() {
+        assertEquals("1:8: 'COS' requires argument to be be of type numeric (type of 'foo' is 'keyword')",
+            verify("SELECT COS('foo')"));
+    }
+
+    public void testInvalidTypeForBooleanFunction_WithOneArg() {
+        assertEquals("1:8: 'NOT' requires argument to be be of type boolean (type of 'foo' is 'keyword')",
+            verify("SELECT NOT 'foo'"));
+    }
+
+    public void testInvalidTypeForStringFunction_WithTwoArgs() {
+        assertEquals("1:8: 'CONCAT' requires first argument to be be of type string (type of '1' is 'integer')",
+            verify("SELECT CONCAT(1, 'bar')"));
+        assertEquals("1:8: 'CONCAT' requires second argument to be be of type string (type of '2' is 'integer')",
+            verify("SELECT CONCAT('foo', 2)"));
+    }
+
+    public void testInvalidTypeForNumericFunction_WithTwoArgs() {
+        assertEquals("1:8: 'TRUNCATE' requires first argument to be be of type numeric (type of 'foo' is 'keyword')",
+            verify("SELECT TRUNCATE('foo', 2)"));
+        assertEquals("1:8: 'TRUNCATE' requires second argument to be be of type numeric (type of 'bar' is 'keyword')",
+            verify("SELECT TRUNCATE(1.2, 'bar')"));
+    }
+
+    public void testInvalidTypeForBooleanFuntion_WithTwoArgs() {
+        assertEquals("1:8: 'OR' requires first argument to be be of type boolean (type of '1' is 'integer')",
+            verify("SELECT 1 OR true"));
+        assertEquals("1:8: 'OR' requires second argument to be be of type boolean (type of '2' is 'integer')",
+            verify("SELECT true OR 2"));
+    }
+
+    public void testInvalidTypeForFunction_WithThreeArgs() {
+        assertEquals("1:8: 'REPLACE' requires first argument to be be of type string (type of '1' is 'integer')",
+            verify("SELECT REPLACE(1, 'foo', 'bar')"));
+        assertEquals("1:8: 'REPLACE' requires second argument to be be of type string (type of '2' is 'integer')",
+            verify("SELECT REPLACE('text', 2, 'bar')"));
+        assertEquals("1:8: 'REPLACE' requires third argument to be be of type string (type of '3' is 'integer')",
+            verify("SELECT REPLACE('text', 'foo', 3)"));
+    }
+
+    public void testInvalidTypeForFunction_WithFourArgs() {
+        assertEquals("1:8: 'INSERT' requires first argument to be be of type string (type of '1' is 'integer')",
+            verify("SELECT INSERT(1, 1, 2, 'new')"));
+        assertEquals("1:8: 'INSERT' requires second argument to be be of type numeric (type of 'foo' is 'keyword')",
+            verify("SELECT INSERT('text', 'foo', 2, 'new')"));
+        assertEquals("1:8: 'INSERT' requires third argument to be be of type numeric (type of 'bar' is 'keyword')",
+            verify("SELECT INSERT('text', 1, 'bar', 'new')"));
+        assertEquals("1:8: 'INSERT' requires fourth argument to be be of type string (type of '3' is 'integer')",
+            verify("SELECT INSERT('text', 1, 2, 3)"));
     }
 }

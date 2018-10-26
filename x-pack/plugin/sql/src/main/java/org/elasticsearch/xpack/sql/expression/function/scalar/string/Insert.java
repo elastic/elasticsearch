@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.FunctionArgument;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -45,22 +46,22 @@ public class Insert extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = StringFunctionUtils.resolveStringInputType(source.dataType(), functionName());
-        if (sourceResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), FunctionArgument.first);
+        if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
         
-        TypeResolution startResolution = StringFunctionUtils.resolveNumericInputType(start.dataType(), functionName());
-        if (startResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution startResolution = Expressions.typeMustBeNumeric(start, functionName(), FunctionArgument.second);
+        if (startResolution.unresolved()) {
             return startResolution;
         }
         
-        TypeResolution lengthResolution = StringFunctionUtils.resolveNumericInputType(length.dataType(), functionName());
-        if (lengthResolution != TypeResolution.TYPE_RESOLVED) {
+        TypeResolution lengthResolution = Expressions.typeMustBeNumeric(length, functionName(), FunctionArgument.third);
+        if (lengthResolution.unresolved()) {
             return lengthResolution;
         }
         
-        return StringFunctionUtils.resolveStringInputType(replacement.dataType(), functionName());
+        return Expressions.typeMustBeString(replacement, functionName(), FunctionArgument.fourth);
     }
 
     @Override

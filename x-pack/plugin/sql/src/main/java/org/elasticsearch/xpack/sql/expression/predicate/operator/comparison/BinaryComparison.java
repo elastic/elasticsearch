@@ -21,7 +21,12 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
     }
 
     @Override
-    protected TypeResolution resolveInputType(DataType inputType) {
+    protected TypeResolution resolveInputTypeFirstArg(Expression e) {
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    @Override
+    protected TypeResolution resolveInputTypeSecondArg(Expression e) {
         return TypeResolution.TYPE_RESOLVED;
     }
 

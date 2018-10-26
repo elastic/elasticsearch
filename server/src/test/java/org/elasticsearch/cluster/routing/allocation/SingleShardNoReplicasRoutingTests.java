@@ -19,25 +19,22 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -53,7 +50,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = Loggers.getLogger(SingleShardNoReplicasRoutingTests.class);
+    private final Logger logger = LogManager.getLogger(SingleShardNoReplicasRoutingTests.class);
 
     public void testSingleIndexStartedShard() {
         AllocationService strategy = createAllocationService(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());
@@ -238,7 +235,6 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Adding " + (numberOfIndices / 2) + " nodes");
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = 0; i < (numberOfIndices / 2); i++) {
             nodesBuilder.add(newNode("node" + i));
         }

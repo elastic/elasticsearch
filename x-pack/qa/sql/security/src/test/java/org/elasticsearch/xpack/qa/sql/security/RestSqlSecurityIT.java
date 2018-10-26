@@ -93,15 +93,19 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         }
 
         @Override
-        public void expectDescribe(Map<String, String> columns, String user) throws Exception {
+        public void expectDescribe(Map<String, List<String>> columns, String user) throws Exception {
             String mode = randomMode();
             Map<String, Object> expected = new HashMap<>(3);
             expected.put("columns", Arrays.asList(
                     columnInfo(mode, "column", "keyword", JDBCType.VARCHAR, 0),
-                    columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 0)));
+                    columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 0),
+                    columnInfo(mode, "mapping", "keyword", JDBCType.VARCHAR, 0)));
             List<List<String>> rows = new ArrayList<>(columns.size());
-            for (Map.Entry<String, String> column : columns.entrySet()) {
-                rows.add(Arrays.asList(column.getKey(), column.getValue()));
+            for (Map.Entry<String, List<String>> column : columns.entrySet()) {
+                List<String> cols = new ArrayList<>();
+                cols.add(column.getKey());
+                cols.addAll(column.getValue());
+                rows.add(cols);
             }
             expected.put("rows", rows);
 
@@ -213,7 +217,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
     /**
      * Test the hijacking a scroll fails. This test is only implemented for
      * REST because it is the only API where it is simple to hijack a scroll.
-     * It should excercise the same code as the other APIs but if we were truly
+     * It should exercise the same code as the other APIs but if we were truly
      * paranoid we'd hack together something to test the others as well.
      */
     public void testHijackScrollFails() throws Exception {
@@ -232,7 +236,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
 
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
             .expect(true, SQL_ACTION_NAME, "full_access", empty())
             // one scroll access denied per shard
             .expect("access_denied", SQL_ACTION_NAME, "full_access", "default_native", empty(), "InternalScrollSearchRequest")
@@ -248,14 +252,14 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             final Matcher<String> runByRealmMatcher = realm.equals("default_file") ? Matchers.nullValue(String.class)
                     : Matchers.is("default_file");
             logCheckers.add(
-                    m -> eventType.equals(m.get("event_type"))
+                    m -> eventType.equals(m.get("event.action"))
                         && action.equals(m.get("action"))
-                        && principal.equals(m.get("principal"))
-                        && realm.equals(m.get("realm"))
-                        && runByPrincipalMatcher.matches(m.get("run_by_principal"))
-                        && runByRealmMatcher.matches(m.get("run_by_realm"))
+                        && principal.equals(m.get("user.name"))
+                        && realm.equals(m.get("user.realm"))
+                        && runByPrincipalMatcher.matches(m.get("user.run_by.name"))
+                        && runByRealmMatcher.matches(m.get("user.run_by.realm"))
                         && indicesMatcher.matches(m.get("indices"))
-                        && request.equals(m.get("request")));
+                        && request.equals(m.get("request.name")));
             return this;
         }
 

@@ -151,7 +151,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             client().admin().indices().prepareValidateQuery().get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
+            assertThat(e.getMessage(), is("no such index [null]"));
         }
     }
 
@@ -178,42 +178,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getIndex(), equalTo("test"));
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:value1"));
-    }
-
-    public void testExplainMatchPhrasePrefix() {
-        assertAcked(prepareCreate("test").setSettings(
-                Settings.builder().put(indexSettings())
-                        .put("index.analysis.filter.syns.type", "synonym")
-                        .putList("index.analysis.filter.syns.synonyms", "one,two")
-                        .put("index.analysis.analyzer.syns.tokenizer", "standard")
-                        .putList("index.analysis.analyzer.syns.filter", "syns")
-                    ).addMapping("test", "field","type=text,analyzer=syns"));
-        ensureGreen();
-
-        ValidateQueryResponse validateQueryResponse = client().admin().indices().prepareValidateQuery("test")
-                .setQuery(QueryBuilders.matchPhrasePrefixQuery("field", "foo")).setExplain(true).get();
-        assertThat(validateQueryResponse.isValid(), equalTo(true));
-        assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
-        assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo*\""));
-
-        validateQueryResponse = client().admin().indices().prepareValidateQuery("test")
-                .setQuery(QueryBuilders.matchPhrasePrefixQuery("field", "foo bar")).setExplain(true).get();
-        assertThat(validateQueryResponse.isValid(), equalTo(true));
-        assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
-        assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo bar*\""));
-
-        // Stacked tokens
-        validateQueryResponse = client().admin().indices().prepareValidateQuery("test")
-                .setQuery(QueryBuilders.matchPhrasePrefixQuery("field", "one bar")).setExplain(true).get();
-        assertThat(validateQueryResponse.isValid(), equalTo(true));
-        assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
-        assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"(one two) bar*\""));
-
-        validateQueryResponse = client().admin().indices().prepareValidateQuery("test")
-                .setQuery(QueryBuilders.matchPhrasePrefixQuery("field", "foo one")).setExplain(true).get();
-        assertThat(validateQueryResponse.isValid(), equalTo(true));
-        assertThat(validateQueryResponse.getQueryExplanation().size(), equalTo(1));
-        assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:\"foo (one* two*)\""));
     }
 
     public void testExplainWithRewriteValidateQuery() throws Exception {

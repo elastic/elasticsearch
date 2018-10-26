@@ -30,20 +30,22 @@ import org.apache.lucene.util.SetOnce;
 
 /**
  * Converts {@code %node_name} in log4j patterns into the current node name.
- * We *could* use a system property lookup instead but this is very explicit
- * and fails fast if we try to use the logger without initializing the node
- * name. As a bonus it ought to be ever so slightly faster because it doesn't
- * have to look up the system property every time.
+ * We can't use a system property for this because the node name system
+ * property is only set if the node name is explicitly defined in
+ * elasticsearch.yml.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
 @ConverterKeys({"node_name"})
-public class NodeNamePatternConverter extends LogEventPatternConverter {
+public final class NodeNamePatternConverter extends LogEventPatternConverter {
+    /**
+     * The name of this node.
+     */
     private static final SetOnce<String> NODE_NAME = new SetOnce<>();
 
     /**
      * Set the name of this node.
      */
-    public static void setNodeName(String nodeName) {
+    static void setNodeName(String nodeName) {
         NODE_NAME.set(nodeName);
     }
 
@@ -55,7 +57,11 @@ public class NodeNamePatternConverter extends LogEventPatternConverter {
             throw new IllegalArgumentException("no options supported but options provided: "
                     + Arrays.toString(options));
         }
-        return new NodeNamePatternConverter(NODE_NAME.get());
+        String nodeName = NODE_NAME.get();
+        if (nodeName == null) {
+            throw new IllegalStateException("the node name hasn't been set");
+        }
+        return new NodeNamePatternConverter(nodeName);
     }
 
     private final String nodeName;

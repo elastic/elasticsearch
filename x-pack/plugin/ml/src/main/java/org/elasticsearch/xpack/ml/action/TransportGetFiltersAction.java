@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.core.ml.utils.MlIndicesUtils;
+import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
 import java.io.IOException;
 import java.io.InputStream;

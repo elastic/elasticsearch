@@ -5,20 +5,28 @@
  */
 package org.elasticsearch.xpack.core.ml.filestructurefinder;
 
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class FileStructureTests extends AbstractXContentTestCase<FileStructure> {
+public class FileStructureTests extends AbstractSerializingTestCase<FileStructure> {
 
+    @Override
     protected FileStructure createTestInstance() {
+        return createTestFileStructure();
+    }
+
+    public static FileStructure createTestFileStructure() {
 
         FileStructure.Format format = randomFrom(EnumSet.allOf(FileStructure.Format.class));
 
@@ -43,20 +51,21 @@ public class FileStructureTests extends AbstractXContentTestCase<FileStructure> 
             builder.setExcludeLinesPattern(randomAlphaOfLength(100));
         }
 
-        if (format == FileStructure.Format.DELIMITED || (format.supportsNesting() && randomBoolean())) {
-            builder.setInputFields(Arrays.asList(generateRandomStringArray(10, 10, false, false)));
-        }
         if (format == FileStructure.Format.DELIMITED) {
+            builder.setColumnNames(Arrays.asList(generateRandomStringArray(10, 10, false, false)));
             builder.setHasHeaderRow(randomBoolean());
             builder.setDelimiter(randomFrom(',', '\t', ';', '|'));
+            builder.setQuote(randomFrom('"', '\''));
         }
-        if (format.isSemiStructured()) {
+
+        if (format == FileStructure.Format.SEMI_STRUCTURED_TEXT) {
             builder.setGrokPattern(randomAlphaOfLength(100));
         }
 
-        if (format.isSemiStructured() || randomBoolean()) {
+        if (format == FileStructure.Format.SEMI_STRUCTURED_TEXT || randomBoolean()) {
             builder.setTimestampField(randomAlphaOfLength(10));
-            builder.setTimestampFormats(Arrays.asList(generateRandomStringArray(3, 20, false, false)));
+            builder.setJodaTimestampFormats(Arrays.asList(generateRandomStringArray(3, 20, false, false)));
+            builder.setJavaTimestampFormats(Arrays.asList(generateRandomStringArray(3, 20, false, false)));
             builder.setNeedClientTimezone(randomBoolean());
         }
 
@@ -66,24 +75,39 @@ public class FileStructureTests extends AbstractXContentTestCase<FileStructure> 
         }
         builder.setMappings(mappings);
 
-        //if (randomBoolean()) {
+        if (randomBoolean()) {
+            Map<String, Object> ingestPipeline = new LinkedHashMap<>();
+            for (String field : generateRandomStringArray(5, 20, false, false)) {
+                ingestPipeline.put(field, Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(10)));
+            }
+            builder.setMappings(ingestPipeline);
+        }
+
+        if (randomBoolean()) {
             Map<String, FieldStats> fieldStats = new TreeMap<>();
             for (String field : generateRandomStringArray(5, 20, false, false)) {
                 fieldStats.put(field, FieldStatsTests.createTestFieldStats());
             }
             builder.setFieldStats(fieldStats);
-        //}
+        }
 
         builder.setExplanation(Arrays.asList(generateRandomStringArray(10, 150, false, false)));
 
         return builder.build();
     }
 
+    @Override
+    protected Writeable.Reader<FileStructure> instanceReader() {
+        return FileStructure::new;
+    }
+
+    @Override
     protected FileStructure doParseInstance(XContentParser parser) {
         return FileStructure.PARSER.apply(parser, null).build();
     }
 
-    protected boolean supportsUnknownFields() {
-        return false;
+    @Override
+    protected ToXContent.Params getToXContentParams() {
+        return new ToXContent.MapParams(Collections.singletonMap(FileStructure.EXPLAIN, "true"));
     }
 }

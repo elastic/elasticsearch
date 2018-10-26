@@ -26,6 +26,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
+
 import org.elasticsearch.script.ScriptService;
 
 /**
@@ -44,12 +47,22 @@ public final class Pipeline {
     @Nullable
     private final Integer version;
     private final CompoundProcessor compoundProcessor;
+    private final IngestMetric metrics;
+    private final LongSupplier relativeTimeProvider;
 
     public Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor) {
+        this(id, description, version, compoundProcessor, System::nanoTime);
+    }
+
+    //package private for testing
+    Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor,
+             LongSupplier relativeTimeProvider) {
         this.id = id;
         this.description = description;
         this.compoundProcessor = compoundProcessor;
         this.version = version;
+        this.metrics = new IngestMetric();
+        this.relativeTimeProvider = relativeTimeProvider;
     }
 
     public static Pipeline create(String id, Map<String, Object> config,
@@ -78,7 +91,17 @@ public final class Pipeline {
      * Modifies the data of a document to be indexed based on the processor this pipeline holds
      */
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        return compoundProcessor.execute(ingestDocument);
+        long startTimeInNanos = relativeTimeProvider.getAsLong();
+        try {
+            metrics.preIngest();
+            return compoundProcessor.execute(ingestDocument);
+        } catch (Exception e) {
+            metrics.ingestFailed();
+            throw e;
+        } finally {
+            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
+            metrics.postIngest(ingestTimeInMillis);
+        }
     }
 
     /**
@@ -136,4 +159,10 @@ public final class Pipeline {
         return compoundProcessor.flattenProcessors();
     }
 
+    /**
+     * The metrics associated with this pipeline.
+     */
+    public IngestMetric getMetrics() {
+        return metrics;
+    }
 }

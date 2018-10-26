@@ -265,7 +265,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(missingValue, MultiValueMode.MIN, null, reverse);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
-        assertEquals(numDocs, topDocs.totalHits);
+        assertEquals(numDocs, topDocs.totalHits.value);
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
             final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");
@@ -319,7 +319,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(first ? "_first" : "_last", MultiValueMode.MIN, null, reverse);
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
-        assertEquals(numDocs, topDocs.totalHits);
+        assertEquals(numDocs, topDocs.totalHits.value);
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
             final String docValue = searcher.doc(topDocs.scoreDocs[i].doc).get("value");

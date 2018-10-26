@@ -235,7 +235,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                         () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
                 assertThat(responseException.getMessage(),
-                        containsString("Missing required setting [cluster.remote.remote1.seeds] " +
+                        containsString("missing required setting [cluster.remote.remote1.seeds] " +
                                 "for setting [cluster.remote.remote1.skip_unavailable]"));
             }
 
@@ -251,7 +251,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 ResponseException responseException = expectThrows(ResponseException.class,
                         () -> client().performRequest(request));
                 assertEquals(400, responseException.getResponse().getStatusLine().getStatusCode());
-                assertThat(responseException.getMessage(), containsString("Missing required setting [cluster.remote.remote1.seeds] " +
+                assertThat(responseException.getMessage(), containsString("missing required setting [cluster.remote.remote1.seeds] " +
                         "for setting [cluster.remote.remote1.skip_unavailable]"));
             }
 

@@ -181,7 +181,7 @@ public class VersionTests extends ESTestCase {
 
         // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
-        Version lastVersion = Version.V_6_5_0; // TODO: remove this once min compat version is a constant instead of method
+        Version lastVersion = Version.V_6_6_0; // TODO: remove this once min compat version is a constant instead of method
         assertEquals(lastVersion.major, Version.V_7_0_0_alpha1.minimumCompatibilityVersion().major);
         assertEquals("did you miss to bump the minor in Version#minimumCompatibilityVersion()",
                 lastVersion.minor, Version.V_7_0_0_alpha1.minimumCompatibilityVersion().minor);
@@ -208,9 +208,9 @@ public class VersionTests extends ESTestCase {
 
 
     public void testIsAlpha() {
-        assertTrue(new Version(5000001, org.apache.lucene.util.Version.LUCENE_6_0_0).isAlpha());
-        assertFalse(new Version(4000002, org.apache.lucene.util.Version.LUCENE_6_0_0).isAlpha());
-        assertTrue(new Version(4000002, org.apache.lucene.util.Version.LUCENE_6_0_0).isBeta());
+        assertTrue(new Version(5000001, org.apache.lucene.util.Version.LUCENE_7_0_0).isAlpha());
+        assertFalse(new Version(4000002, org.apache.lucene.util.Version.LUCENE_7_0_0).isAlpha());
+        assertTrue(new Version(4000002, org.apache.lucene.util.Version.LUCENE_7_0_0).isBeta());
         assertTrue(Version.fromString("5.0.0-alpha14").isAlpha());
         assertEquals(5000014, Version.fromString("5.0.0-alpha14").id);
         assertTrue(Version.fromId(5000015).isAlpha());
@@ -225,7 +225,6 @@ public class VersionTests extends ESTestCase {
             assertEquals("5.0.0-beta" + i, Version.fromId(5000000 + i + 25).toString());
         }
     }
-
 
     public void testParseVersion() {
         final int iters = scaledRandomIntBetween(100, 1000);
@@ -341,7 +340,8 @@ public class VersionTests extends ESTestCase {
 
     public void testIsCompatible() {
         assertTrue(isCompatible(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
-        assertTrue(isCompatible(Version.V_6_5_0, Version.V_7_0_0_alpha1));
+        assertFalse(isCompatible(Version.V_6_5_0, Version.V_7_0_0_alpha1));
+        assertTrue(isCompatible(Version.V_6_6_0, Version.V_7_0_0_alpha1));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_7_0_0_alpha1));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_6_5_0));
         assertFalse(isCompatible(Version.fromString("7.0.0"), Version.fromString("8.0.0")));

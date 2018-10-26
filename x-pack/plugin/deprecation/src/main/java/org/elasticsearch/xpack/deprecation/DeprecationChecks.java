@@ -29,7 +29,7 @@ public class DeprecationChecks {
 
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            // STUB
+            ClusterDeprecationChecks::checkShardLimit
         ));
 
     static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =

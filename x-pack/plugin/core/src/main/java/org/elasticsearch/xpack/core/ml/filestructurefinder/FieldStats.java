@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.core.ml.filestructurefinder;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class FieldStats implements ToXContentObject {
+public class FieldStats implements ToXContentObject, Writeable {
 
     static final ParseField COUNT = new ParseField("count");
     static final ParseField CARDINALITY = new ParseField("cardinality");
@@ -64,6 +67,27 @@ public class FieldStats implements ToXContentObject {
         this.topHits = (topHits == null) ? Collections.emptyList() : Collections.unmodifiableList(topHits);
     }
 
+    public FieldStats(StreamInput in) throws IOException {
+        count = in.readVLong();
+        cardinality = in.readVInt();
+        minValue = in.readOptionalDouble();
+        maxValue = in.readOptionalDouble();
+        meanValue = in.readOptionalDouble();
+        medianValue = in.readOptionalDouble();
+        topHits = in.readList(StreamInput::readMap);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(count);
+        out.writeVInt(cardinality);
+        out.writeOptionalDouble(minValue);
+        out.writeOptionalDouble(maxValue);
+        out.writeOptionalDouble(meanValue);
+        out.writeOptionalDouble(medianValue);
+        out.writeCollection(topHits, StreamOutput::writeMap);
+    }
+
     public long getCount() {
         return count;
     }
@@ -99,16 +123,16 @@ public class FieldStats implements ToXContentObject {
         builder.field(COUNT.getPreferredName(), count);
         builder.field(CARDINALITY.getPreferredName(), cardinality);
         if (minValue != null) {
-            builder.field(MIN_VALUE.getPreferredName(), minValue);
+            builder.field(MIN_VALUE.getPreferredName(), toIntegerIfInteger(minValue));
         }
         if (maxValue != null) {
-            builder.field(MAX_VALUE.getPreferredName(), maxValue);
+            builder.field(MAX_VALUE.getPreferredName(), toIntegerIfInteger(maxValue));
         }
         if (meanValue != null) {
-            builder.field(MEAN_VALUE.getPreferredName(), meanValue);
+            builder.field(MEAN_VALUE.getPreferredName(), toIntegerIfInteger(meanValue));
         }
         if (medianValue != null) {
-            builder.field(MEDIAN_VALUE.getPreferredName(), medianValue);
+            builder.field(MEDIAN_VALUE.getPreferredName(), toIntegerIfInteger(medianValue));
         }
         if (topHits.isEmpty() == false) {
             builder.field(TOP_HITS.getPreferredName(), topHits);
@@ -116,6 +140,15 @@ public class FieldStats implements ToXContentObject {
         builder.endObject();
 
         return builder;
+    }
+
+    public static Number toIntegerIfInteger(double d) {
+
+        if (d >= Integer.MIN_VALUE && d <= Integer.MAX_VALUE && Double.compare(d, StrictMath.rint(d)) == 0) {
+            return (int) d;
+        }
+
+        return d;
     }
 
     @Override

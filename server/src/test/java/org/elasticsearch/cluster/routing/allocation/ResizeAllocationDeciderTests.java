@@ -134,8 +134,8 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider(Settings.EMPTY);
         RoutingAllocation routingAllocation = new RoutingAllocation(null, null, clusterState, null, 0);
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, 0), null, true, RecoverySource
-            .LocalShardsRecoverySource.INSTANCE, ShardRoutingState.UNASSIGNED);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, 0), null, true, ShardRoutingState.UNASSIGNED,
+            RecoverySource.LocalShardsRecoverySource.INSTANCE);
         assertEquals(Decision.ALWAYS, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
         assertEquals(Decision.ALWAYS, resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"),
             routingAllocation));
@@ -164,8 +164,8 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, 0);
         int shardId = randomIntBetween(0, 3);
         int sourceShardId = IndexMetaData.selectSplitShard(shardId, clusterState.metaData().index("source"), 4).id();
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, shardId), null, true, RecoverySource
-            .LocalShardsRecoverySource.INSTANCE, ShardRoutingState.UNASSIGNED);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED,
+            RecoverySource.LocalShardsRecoverySource.INSTANCE);
         assertEquals(Decision.NO, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
         assertEquals(Decision.NO, resizeAllocationDecider.canAllocate(shardRouting, clusterState.getRoutingNodes().node("node1"),
             routingAllocation));
@@ -204,8 +204,8 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, null, 0);
         int shardId = randomIntBetween(0, 3);
         int sourceShardId = IndexMetaData.selectSplitShard(shardId, clusterState.metaData().index("source"), 4).id();
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, shardId), null, true, RecoverySource
-            .LocalShardsRecoverySource.INSTANCE, ShardRoutingState.UNASSIGNED);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(idx, shardId), null, true, ShardRoutingState.UNASSIGNED,
+            RecoverySource.LocalShardsRecoverySource.INSTANCE);
         assertEquals(Decision.YES, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
 
         String allowedNode = clusterState.getRoutingTable().index("source").shard(sourceShardId).primaryShard().currentNodeId();

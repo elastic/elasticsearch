@@ -27,7 +27,7 @@ import java.net.InetSocketAddress;
 public interface HttpChannel extends CloseableChannel {
 
     /**
-     * Sends a http response to the channel. The listener will be executed once the send process has been
+     * Sends an http response to the channel. The listener will be executed once the send process has been
      * completed.
      *
      * @param response to send to channel

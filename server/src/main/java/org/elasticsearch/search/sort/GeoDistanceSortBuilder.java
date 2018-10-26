@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -36,7 +37,6 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -54,6 +54,7 @@ import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -71,7 +72,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  * A geo distance based sorting on a geo point like field.
  */
 public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> {
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(GeoDistanceSortBuilder.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(GeoDistanceSortBuilder.class));
 
     public static final String NAME = "_geo_distance";
     public static final String ALTERNATIVE_NAME = "_geoDistance";
@@ -501,7 +502,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (NESTED_FILTER_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    DEPRECATION_LOGGER.deprecated("[nested_filter] has been deprecated in favour of the [nested] parameter");
+                    deprecationLogger.deprecated("[nested_filter] has been deprecated in favour of the [nested] parameter");
                     nestedFilter = parseInnerQueryBuilder(parser);
                 } else if (NESTED_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     nestedSort = NestedSortBuilder.fromXContent(parser);
@@ -531,7 +532,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 } else if (SORTMODE_FIELD.match(currentName, parser.getDeprecationHandler())) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if (NESTED_PATH_FIELD.match(currentName, parser.getDeprecationHandler())) {
-                    DEPRECATION_LOGGER.deprecated("[nested_path] has been deprecated in favour of the [nested] parameter");
+                    deprecationLogger.deprecated("[nested_path] has been deprecated in favour of the [nested] parameter");
                     nestedPath = parser.text();
                 } else if (IGNORE_UNMAPPED.match(currentName, parser.getDeprecationHandler())) {
                     ignoreUnmapped = parser.booleanValue();
@@ -633,6 +634,14 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
         final Nested nested;
         if (nestedSort != null) {
+            if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+                throw new QueryShardException(context,
+                    "max_children is only supported on v6.5.0 or higher");
+            }
+            if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
+                throw new QueryShardException(context,
+                    "max_children is only supported on last level of nested sort");
+            }
             // new nested sorts takes priority
             nested = resolveNested(context, nestedSort);
         } else {
@@ -672,8 +681,10 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                         } else {
                             final BitSet rootDocs = nested.rootDocs(context);
                             final DocIdSetIterator innerDocs = nested.innerDocs(context);
+                            final int maxChildren = nested.getNestedSort() != null ?
+                                nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
                             selectedValues = finalSortMode.select(distanceValues, Double.POSITIVE_INFINITY, rootDocs, innerDocs,
-                                    context.reader().maxDoc());
+                                    context.reader().maxDoc(), maxChildren);
                         }
                         return selectedValues.getRawDoubleValues();
                     }

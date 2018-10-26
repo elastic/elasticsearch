@@ -33,7 +33,6 @@ import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.X509Certificate;
 import org.opensaml.xmlsec.signature.X509Data;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
-import org.w3c.dom.Element;
 
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -385,7 +384,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final MockTerminal terminal = new MockTerminal();
 
         final EntityDescriptor descriptor = command.buildEntityDescriptor(terminal, options, env);
-        Element e = command.possiblySignDescriptor(terminal, options, descriptor, env);
+        command.possiblySignDescriptor(terminal, options, descriptor, env);
         assertThat(descriptor, notNullValue());
         // Verify generated signature
         assertThat(descriptor.getSignature(), notNullValue());

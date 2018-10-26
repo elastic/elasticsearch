@@ -19,6 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
@@ -44,18 +45,18 @@ public class TransportLoggerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        Loggers.addAppender(Loggers.getLogger(TransportLogger.class), appender);
+        Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
         appender.start();
     }
 
     public void tearDown() throws Exception {
-        Loggers.removeAppender(Loggers.getLogger(TransportLogger.class), appender);
+        Loggers.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
         appender.stop();
         super.tearDown();
     }
 
     public void testLoggingHandler() throws IOException {
-        TransportLogger transportLogger = new TransportLogger(Settings.EMPTY);
+        TransportLogger transportLogger = new TransportLogger();
 
         final String writePattern =
             ".*\\[length: \\d+" +

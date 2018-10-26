@@ -24,6 +24,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
@@ -50,6 +53,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.RethrottleRequest;
+import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -75,6 +81,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collections;
 import java.util.Date;
@@ -92,25 +99,12 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 /**
- * This class is used to generate the Java CRUD API documentation.
- * You need to wrap your code between two tags like:
- * // tag::example
- * // end::example
- *
- * Where example is your tag name.
- *
- * Then in the documentation, you can extract what is between tag and end tags with
- * ["source","java",subs="attributes,callouts,macros"]
- * --------------------------------------------------
- * include-tagged::{doc-tests}/CRUDDocumentationIT.java[example]
- * --------------------------------------------------
- *
- * The column width of the code block is 84. If the code contains a line longer
- * than 84, the line will be cut and a horizontal scroll bar will be displayed.
- * (the code indentation of the tag is not included in the width)
+ * Documentation for CRUD APIs in the high level java client.
+ * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    @SuppressWarnings("unused")
     public void testIndex() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -186,7 +180,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <3>
             }
             if (shardInfo.getFailed() > 0) {
-                for (ReplicationResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {
+                for (ReplicationResponse.ShardInfo.Failure failure :
+                        shardInfo.getFailures()) {
                     String reason = failure.reason(); // <4>
                 }
             }
@@ -249,8 +244,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             IndexRequest request = new IndexRequest("posts", "doc", "async").source("field", "value");
+            ActionListener<IndexResponse> listener;
             // tag::index-execute-listener
-            ActionListener<IndexResponse> listener = new ActionListener<IndexResponse>() {
+            listener = new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {
                     // <1>
@@ -275,6 +271,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testUpdate() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -287,7 +284,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     .startObject()
                         .startObject("script")
                             .field("lang", "painless")
-                            .field("code", "ctx._source.field += params.count")
+                            .field("source", "ctx._source.field += params.count")
                         .endObject()
                     .endObject()));
             Response response = client().performRequest(request);
@@ -314,8 +311,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             request = new UpdateRequest("posts", "doc", "1").fetchSource(true);
             //tag::update-request-with-stored-script
-            Script stored =
-                    new Script(ScriptType.STORED, null, "increment-field", parameters);  // <1>
+            Script stored = new Script(
+                    ScriptType.STORED, null, "increment-field", parameters);  // <1>
             request.script(stored);  // <2>
             //end::update-request-with-stored-script
             updateResponse = client.update(request, RequestOptions.DEFAULT);
@@ -368,7 +365,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::update-request-with-doc-as-string
             request.fetchSource(true);
             // tag::update-execute
-            UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
+            UpdateResponse updateResponse = client.update(
+                    request, RequestOptions.DEFAULT);
             // end::update-execute
             assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
 
@@ -406,7 +404,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <1>
             }
             if (shardInfo.getFailed() > 0) {
-                for (ReplicationResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {
+                for (ReplicationResponse.ShardInfo.Failure failure :
+                        shardInfo.getFailures()) {
                     String reason = failure.reason(); // <2>
                 }
             }
@@ -417,7 +416,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             UpdateRequest request = new UpdateRequest("posts", "type", "does_not_exist")
                     .doc("field", "value");
             try {
-                UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
+                UpdateResponse updateResponse = client.update(
+                        request, RequestOptions.DEFAULT);
             } catch (ElasticsearchException e) {
                 if (e.status() == RestStatus.NOT_FOUND) {
                     // <1>
@@ -431,7 +431,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     .doc("field", "value")
                     .version(1);
             try {
-                UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
+                UpdateResponse updateResponse = client.update(
+                        request, RequestOptions.DEFAULT);
             } catch(ElasticsearchException e) {
                 if (e.status() == RestStatus.CONFLICT) {
                     // <1>
@@ -454,7 +455,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::update-request-source-include
             String[] includes = new String[]{"updated", "r*"};
             String[] excludes = Strings.EMPTY_ARRAY;
-            request.fetchSource(new FetchSourceContext(true, includes, excludes)); // <1>
+            request.fetchSource(
+                    new FetchSourceContext(true, includes, excludes)); // <1>
             //end::update-request-source-include
             UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
             assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
@@ -468,7 +470,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::update-request-source-exclude
             String[] includes = Strings.EMPTY_ARRAY;
             String[] excludes = new String[]{"updated"};
-            request.fetchSource(new FetchSourceContext(true, includes, excludes)); // <1>
+            request.fetchSource(
+                    new FetchSourceContext(true, includes, excludes)); // <1>
             //end::update-request-source-exclude
             UpdateResponse updateResponse = client.update(request, RequestOptions.DEFAULT);
             assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
@@ -517,8 +520,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             UpdateRequest request = new UpdateRequest("posts", "doc", "async").doc("reason", "async update").docAsUpsert(true);
 
+            ActionListener<UpdateResponse> listener;
             // tag::update-execute-listener
-            ActionListener<UpdateResponse> listener = new ActionListener<UpdateResponse>() {
+            listener = new ActionListener<UpdateResponse>() {
                 @Override
                 public void onResponse(UpdateResponse updateResponse) {
                     // <1>
@@ -543,6 +547,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testDelete() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -556,12 +561,13 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-request
             DeleteRequest request = new DeleteRequest(
                     "posts",    // <1>
-                    "doc",     // <2>
-                    "1");      // <3>
+                    "doc",      // <2>
+                    "1");       // <3>
             // end::delete-request
 
             // tag::delete-execute
-            DeleteResponse deleteResponse = client.delete(request, RequestOptions.DEFAULT);
+            DeleteResponse deleteResponse = client.delete(
+                    request, RequestOptions.DEFAULT);
             // end::delete-execute
             assertSame(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
 
@@ -575,7 +581,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <1>
             }
             if (shardInfo.getFailed() > 0) {
-                for (ReplicationResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {
+                for (ReplicationResponse.ShardInfo.Failure failure :
+                        shardInfo.getFailures()) {
                     String reason = failure.reason(); // <2>
                 }
             }
@@ -606,7 +613,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::delete-notfound
             DeleteRequest request = new DeleteRequest("posts", "doc", "does_not_exist");
-            DeleteResponse deleteResponse = client.delete(request, RequestOptions.DEFAULT);
+            DeleteResponse deleteResponse = client.delete(
+                    request, RequestOptions.DEFAULT);
             if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
                 // <1>
             }
@@ -620,8 +628,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::delete-conflict
             try {
-                DeleteRequest request = new DeleteRequest("posts", "doc", "1").version(2);
-                DeleteResponse deleteResponse = client.delete(request, RequestOptions.DEFAULT);
+                DeleteResponse deleteResponse = client.delete(
+                        new DeleteRequest("posts", "doc", "1").version(2),
+                        RequestOptions.DEFAULT);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {
                     // <1>
@@ -636,8 +645,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
             DeleteRequest request = new DeleteRequest("posts", "doc", "async");
 
+            ActionListener<DeleteResponse> listener;
             // tag::delete-execute-listener
-            ActionListener<DeleteResponse> listener = new ActionListener<DeleteResponse>() {
+            listener = new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
                     // <1>
@@ -662,6 +672,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testBulk() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -764,6 +775,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testReindex() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -902,6 +914,59 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
+    public void testReindexRethrottle() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        TaskId taskId = new TaskId("oTUltX4IQMOUUVeiohTt8A:124");
+        {
+            // tag::rethrottle-disable-request
+            RethrottleRequest request = new RethrottleRequest(taskId); // <1>
+            // end::rethrottle-disable-request
+        }
+
+        {
+            // tag::rethrottle-request
+            RethrottleRequest request = new RethrottleRequest(taskId, 100.0f); // <1>
+            // end::rethrottle-request
+        }
+
+        {
+            RethrottleRequest request = new RethrottleRequest(taskId);
+            // tag::rethrottle-request-execution
+            client.reindexRethrottle(request, RequestOptions.DEFAULT);       // <1>
+            client.updateByQueryRethrottle(request, RequestOptions.DEFAULT); // <2>
+            client.deleteByQueryRethrottle(request, RequestOptions.DEFAULT); // <3>
+            // end::rethrottle-request-execution
+        }
+
+        // tag::rethrottle-request-async-listener
+        ActionListener<ListTasksResponse> listener = new ActionListener<ListTasksResponse>() {
+            @Override
+            public void onResponse(ListTasksResponse response) {
+                // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::rethrottle-request-async-listener
+
+        // Replace the empty listener by a blocking listener in test
+        final CountDownLatch latch = new CountDownLatch(3);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        RethrottleRequest request = new RethrottleRequest(taskId);
+        // tag::rethrottle-execute-async
+        client.reindexRethrottleAsync(request, RequestOptions.DEFAULT, listener);       // <1>
+        client.updateByQueryRethrottleAsync(request, RequestOptions.DEFAULT, listener); // <2>
+        client.deleteByQueryRethrottleAsync(request, RequestOptions.DEFAULT, listener); // <3>
+        // end::rethrottle-execute-async
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    @SuppressWarnings("unused")
     public void testUpdateByQuery() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -930,10 +995,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-by-query-request-conflicts
             request.setConflicts("proceed"); // <1>
             // end::update-by-query-request-conflicts
-            // tag::update-by-query-request-typeOrQuery
-            request.setDocTypes("doc"); // <1>
-            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <2>
-            // end::update-by-query-request-typeOrQuery
+            // tag::update-by-query-request-query
+            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
+            // end::update-by-query-request-query
             // tag::update-by-query-request-size
             request.setSize(10); // <1>
             // end::update-by-query-request-size
@@ -1021,6 +1085,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testDeleteByQuery() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -1048,10 +1113,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-by-query-request-conflicts
             request.setConflicts("proceed"); // <1>
             // end::delete-by-query-request-conflicts
-            // tag::delete-by-query-request-typeOrQuery
-            request.setDocTypes("doc"); // <1>
-            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <2>
-            // end::delete-by-query-request-typeOrQuery
+            // tag::delete-by-query-request-query
+            request.setQuery(new TermQueryBuilder("user", "kimchy")); // <1>
+            // end::delete-by-query-request-query
             // tag::delete-by-query-request-size
             request.setSize(10); // <1>
             // end::delete-by-query-request-size
@@ -1128,6 +1192,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void testGet() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -1442,6 +1507,126 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    // Not entirely sure if _termvectors belongs to CRUD, and in the absence of a better place, will have it here
+    public void testTermVectors() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping("doc", "user", "type=keyword");
+        CreateIndexResponse authorsResponse = client.indices().create(authorsRequest, RequestOptions.DEFAULT);
+        assertTrue(authorsResponse.isAcknowledged());
+        client.index(new IndexRequest("index", "doc", "1").source("user", "kimchy"), RequestOptions.DEFAULT);
+        Response refreshResponse = client().performRequest(new Request("POST", "/authors/_refresh"));
+        assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
+
+        {
+            // tag::term-vectors-request
+            TermVectorsRequest request = new TermVectorsRequest("authors", "doc", "1");
+            request.setFields("user");
+            // end::term-vectors-request
+        }
+
+        {
+            // tag::term-vectors-request-artificial
+            TermVectorsRequest request = new TermVectorsRequest("authors", "doc");
+            XContentBuilder docBuilder = XContentFactory.jsonBuilder();
+            docBuilder.startObject().field("user", "guest-user").endObject();
+            request.setDoc(docBuilder); // <1>
+            // end::term-vectors-request-artificial
+
+            // tag::term-vectors-request-optional-arguments
+            request.setFieldStatistics(false); // <1>
+            request.setTermStatistics(true); // <2>
+            request.setPositions(false); // <3>
+            request.setOffsets(false); // <4>
+            request.setPayloads(false); // <5>
+
+            Map<String, Integer> filterSettings = new HashMap<>();
+            filterSettings.put("max_num_terms", 3);
+            filterSettings.put("min_term_freq", 1);
+            filterSettings.put("max_term_freq", 10);
+            filterSettings.put("min_doc_freq", 1);
+            filterSettings.put("max_doc_freq", 100);
+            filterSettings.put("min_word_length", 1);
+            filterSettings.put("max_word_length", 10);
+
+            request.setFilterSettings(filterSettings);  // <6>
+
+            Map<String, String> perFieldAnalyzer = new HashMap<>();
+            perFieldAnalyzer.put("user", "keyword");
+            request.setPerFieldAnalyzer(perFieldAnalyzer);  // <7>
+
+            request.setRealtime(false); // <8>
+            request.setRouting("routing"); // <9>
+            // end::term-vectors-request-optional-arguments
+        }
+
+        TermVectorsRequest request = new TermVectorsRequest("authors", "doc", "1");
+        request.setFields("user");
+
+        // tag::term-vectors-execute
+        TermVectorsResponse response = client.termvectors(request, RequestOptions.DEFAULT);
+        // end::term-vectors-execute
+
+
+        // tag::term-vectors-response
+        String index = response.getIndex(); // <1>
+        String type = response.getType(); // <2>
+        String id = response.getId(); // <3>
+        boolean found = response.getFound(); // <4>
+        // end::term-vectors-response
+
+        // tag::term-vectors-term-vectors
+        if (response.getTermVectorsList() != null) {
+            List<TermVectorsResponse.TermVector> tvList = response.getTermVectorsList();
+            for (TermVectorsResponse.TermVector tv : tvList) {
+                String fieldname = tv.getFieldName(); // <1>
+                int docCount = tv.getFieldStatistics().getDocCount(); // <2>
+                long sumTotalTermFreq = tv.getFieldStatistics().getSumTotalTermFreq(); // <3>
+                long sumDocFreq = tv.getFieldStatistics().getSumDocFreq(); // <4>
+                if (tv.getTerms() != null) {
+                    List<TermVectorsResponse.TermVector.Term> terms = tv.getTerms(); // <5>
+                    for (TermVectorsResponse.TermVector.Term term : terms) {
+                        String termStr = term.getTerm(); // <6>
+                        int termFreq = term.getTermFreq(); // <7>
+                        int docFreq = term.getDocFreq(); // <8>
+                        long totalTermFreq = term.getTotalTermFreq(); // <9>
+                        float score = term.getScore(); // <10>
+                        if (term.getTokens() != null) {
+                            List<TermVectorsResponse.TermVector.Token> tokens = term.getTokens(); // <11>
+                            for (TermVectorsResponse.TermVector.Token token : tokens) {
+                                int position = token.getPosition(); // <12>
+                                int startOffset = token.getStartOffset(); // <13>
+                                int endOffset = token.getEndOffset(); // <14>
+                                String payload = token.getPayload(); // <15>
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // end::term-vectors-term-vectors
+
+        // tag::term-vectors-execute-listener
+        ActionListener<TermVectorsResponse> listener = new ActionListener<TermVectorsResponse>() {
+            @Override
+            public void onResponse(TermVectorsResponse termVectorsResponse) {
+                // <1>
+            }
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::term-vectors-execute-listener
+        CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+        // tag::term-vectors-execute-async
+        client.termvectorsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::term-vectors-execute-async
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+    }
+
+    @SuppressWarnings("unused")
     public void testMultiGet() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
@@ -1530,7 +1715,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // TODO status is broken! fix in a followup
             // assertEquals(RestStatus.NOT_FOUND, ee.status());        // <4>
             assertThat(e.getMessage(),
-                containsString("reason=no such index"));               // <5>
+                containsString("reason=no such index [missing_index]"));               // <5>
             // end::multi-get-indexnotfound
 
             // tag::multi-get-execute-listener

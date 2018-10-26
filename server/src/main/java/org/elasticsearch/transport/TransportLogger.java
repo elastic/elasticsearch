@@ -19,13 +19,13 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -34,12 +34,8 @@ import java.io.IOException;
 
 public final class TransportLogger {
 
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(TransportLogger.class);
     private static final int HEADER_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-
-    TransportLogger(Settings settings) {
-        logger = Loggers.getLogger(TransportLogger.class, settings);
-    }
 
     void logInboundMessage(TcpChannel channel, BytesReference message) {
         if (logger.isTraceEnabled()) {

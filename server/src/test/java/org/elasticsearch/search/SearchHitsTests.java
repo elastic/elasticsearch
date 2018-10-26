@@ -112,8 +112,8 @@ public class SearchHitsTests extends ESTestCase {
         searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals("{\"hits\":{\"total\":1000,\"max_score\":1.5," +
-                "\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":\"-Infinity\"},"+
-                          "{\"_type\":\"type\",\"_id\":\"id2\",\"_score\":\"-Infinity\"}]}}", Strings.toString(builder));
+                "\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":null},"+
+                          "{\"_type\":\"type\",\"_id\":\"id2\",\"_score\":null}]}}", Strings.toString(builder));
     }
 
 }

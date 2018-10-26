@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
@@ -53,7 +54,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     @AfterClass
     public static void cleanupClient() throws IOException {
-        restHighLevelClient.close();
+        IOUtils.close(restHighLevelClient);
         restHighLevelClient = null;
     }
 
@@ -130,7 +131,8 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
     }
 
     protected static void createPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
-        assertOK(client().performRequest(RequestConverters.putPipeline(putPipelineRequest)));
+        assertTrue(execute(
+            putPipelineRequest, highLevelClient().ingest()::putPipeline, highLevelClient().ingest()::putPipelineAsync).isAcknowledged());
     }
 
     protected static void clusterUpdateSettings(Settings persistentSettings,

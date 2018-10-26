@@ -375,6 +375,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     class FieldNamesTerms extends FilterTerms {
         final long size;
         final long sumDocFreq;
+        final long sumTotalFreq;
 
         FieldNamesTerms(Terms in) throws IOException {
             super(in);
@@ -382,13 +383,15 @@ public final class FieldSubsetReader extends FilterLeafReader {
             // re-compute the stats for the field to take
             // into account the filtered terms.
             final TermsEnum e = iterator();
-            long size = 0, sumDocFreq = 0;
+            long size = 0, sumDocFreq = 0, sumTotalFreq = 0;
             while (e.next() != null) {
                 size ++;
                 sumDocFreq += e.docFreq();
+                sumTotalFreq += e.totalTermFreq();
             }
             this.size = size;
             this.sumDocFreq = sumDocFreq;
+            this.sumTotalFreq = sumTotalFreq;
         }
 
         @Override
@@ -404,6 +407,11 @@ public final class FieldSubsetReader extends FilterLeafReader {
         @Override
         public long getSumDocFreq() throws IOException {
             return sumDocFreq;
+        }
+
+        @Override
+        public long getSumTotalTermFreq() throws IOException {
+            return sumTotalFreq;
         }
 
         @Override

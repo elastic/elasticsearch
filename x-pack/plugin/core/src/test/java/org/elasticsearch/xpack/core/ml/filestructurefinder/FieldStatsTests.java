@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.xpack.core.ml.filestructurefinder;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class FieldStatsTests extends AbstractXContentTestCase<FieldStats> {
+public class FieldStatsTests extends AbstractSerializingTestCase<FieldStats> {
 
+    @Override
     protected FieldStats createTestInstance() {
         return createTestFieldStats();
     }
@@ -30,8 +32,13 @@ public class FieldStatsTests extends AbstractXContentTestCase<FieldStats> {
         Double medianValue = null;
         boolean isMetric = randomBoolean();
         if (isMetric) {
-            minValue = randomDouble();
-            maxValue = randomDouble();
+            if (randomBoolean()) {
+                minValue = randomDouble();
+                maxValue = randomDouble();
+            } else {
+                minValue = (double) randomInt();
+                maxValue = (double) randomInt();
+            }
             meanValue = randomDouble();
             medianValue = randomDouble();
         }
@@ -40,7 +47,7 @@ public class FieldStatsTests extends AbstractXContentTestCase<FieldStats> {
         for (int i = 0; i < Math.min(10, cardinality); ++i) {
             Map<String, Object> topHit = new LinkedHashMap<>();
             if (isMetric) {
-                topHit.put("value", randomDouble());
+                topHit.put("value", randomBoolean() ? randomDouble() : (double) randomInt());
             } else {
                 topHit.put("value", randomAlphaOfLength(20));
             }
@@ -51,11 +58,13 @@ public class FieldStatsTests extends AbstractXContentTestCase<FieldStats> {
         return new FieldStats(count, cardinality, minValue, maxValue, meanValue, medianValue, topHits);
     }
 
-    protected FieldStats doParseInstance(XContentParser parser) {
-        return FieldStats.PARSER.apply(parser, null);
+    @Override
+    protected Writeable.Reader<FieldStats> instanceReader() {
+        return FieldStats::new;
     }
 
-    protected boolean supportsUnknownFields() {
-        return false;
+    @Override
+    protected FieldStats doParseInstance(XContentParser parser) {
+        return FieldStats.PARSER.apply(parser, null);
     }
 }

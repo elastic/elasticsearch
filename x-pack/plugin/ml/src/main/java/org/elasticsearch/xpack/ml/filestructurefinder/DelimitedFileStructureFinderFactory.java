@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.IOException;
@@ -17,10 +18,21 @@ public class DelimitedFileStructureFinderFactory implements FileStructureFinderF
     private final int minFieldsPerRow;
     private final boolean trimFields;
 
-    DelimitedFileStructureFinderFactory(char delimiter, int minFieldsPerRow, boolean trimFields) {
-        csvPreference = new CsvPreference.Builder('"', delimiter, "\n").build();
+    DelimitedFileStructureFinderFactory(char delimiter, char quote, int minFieldsPerRow, boolean trimFields) {
+        csvPreference = new CsvPreference.Builder(quote, delimiter, "\n").build();
         this.minFieldsPerRow = minFieldsPerRow;
         this.trimFields = trimFields;
+    }
+
+    DelimitedFileStructureFinderFactory makeSimilar(Character quote, Boolean trimFields) {
+
+        return new DelimitedFileStructureFinderFactory((char) csvPreference.getDelimiterChar(),
+            (quote == null) ? csvPreference.getQuoteChar() : quote, minFieldsPerRow, (trimFields == null) ? this.trimFields : trimFields);
+    }
+
+    @Override
+    public boolean canFindFormat(FileStructure.Format format) {
+        return format == null || format == FileStructure.Format.DELIMITED;
     }
 
     /**
@@ -49,9 +61,9 @@ public class DelimitedFileStructureFinderFactory implements FileStructureFinderF
     }
 
     @Override
-    public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker)
-        throws IOException {
+    public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
+                                                FileStructureOverrides overrides, TimeoutChecker timeoutChecker) throws IOException {
         return DelimitedFileStructureFinder.makeDelimitedFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker,
-            csvPreference, trimFields);
+            csvPreference, trimFields, overrides, timeoutChecker);
     }
 }

@@ -165,6 +165,12 @@ POST _xpack/security/role_mapping/kerbrolemapping
 --------------------------------------------------
 // CONSOLE
 
+In case you want to support Kerberos cross realm authentication you may 
+need to map roles based on the Kerberos realm name. For such scenarios 
+following are the additional user metadata available for role mapping:
+- `kerberos_realm` will be set to Kerberos realm name.
+- `kerberos_user_principal_name` will be set to user principal name from the Kerberos ticket.
+
 For more information, see {stack-ov}/mapping-roles.html[Mapping users and groups to roles].
 
 NOTE: The Kerberos realm supports

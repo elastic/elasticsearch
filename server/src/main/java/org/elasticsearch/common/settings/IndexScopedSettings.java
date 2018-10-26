@@ -142,6 +142,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
         IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
         IndexSettings.INDEX_SEARCH_IDLE_AFTER,
+        IndexSettings.INDEX_SEARCH_THROTTLED,
         IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
         FieldMapper.IGNORE_MALFORMED_SETTING,
         FieldMapper.COERCE_SETTING,
@@ -178,7 +179,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 
     public IndexScopedSettings(Settings settings, Set<Setting<?>> settingsSet) {
-        super(settings, settingsSet, Property.IndexScope);
+        super(settings, settingsSet, Collections.emptySet(), Property.IndexScope);
     }
 
     private IndexScopedSettings(Settings settings, IndexScopedSettings other, IndexMetaData metaData) {

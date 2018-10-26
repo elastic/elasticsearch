@@ -62,7 +62,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             new NoneCircuitBreakerService()) {
 
             @Override
-            protected Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
+            public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
                 InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, channel, timeout);
@@ -77,7 +77,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             }
         };
         MockTransportService mockTransportService =
-            MockTransportService.createNewService(Settings.EMPTY, transport, version, threadPool, clusterSettings, Collections.emptySet());
+            MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());
         mockTransportService.start();
         return mockTransportService;
     }

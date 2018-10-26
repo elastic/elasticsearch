@@ -51,7 +51,7 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
 
     @Override
     protected PagerDutyAccount createAccount(String name, Settings accountSettings) {
-        return new PagerDutyAccount(name, accountSettings, accountSettings, httpClient, logger);
+        return new PagerDutyAccount(name, accountSettings, accountSettings, httpClient);
     }
 
     public static List<Setting<?>> getSettings() {

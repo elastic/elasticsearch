@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.action.user;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -18,7 +18,7 @@ import java.io.IOException;
  * Response when adding a user to the security index. Returns a
  * single boolean field for whether the user was created or updated.
  */
-public class PutUserResponse extends ActionResponse implements ToXContentFragment {
+public class PutUserResponse extends ActionResponse implements ToXContentObject {
 
     private boolean created;
 
@@ -47,6 +47,8 @@ public class PutUserResponse extends ActionResponse implements ToXContentFragmen
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field("created", created);
+        return builder.startObject()
+            .field("created", created)
+            .endObject();
     }
 }

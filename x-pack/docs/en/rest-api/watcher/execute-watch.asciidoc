@@ -57,7 +57,7 @@ This API supports the following fields:
 
 | `ignore_condition`  | no       | false    | When set to `true`, the watch execution uses the
                                               {xpack-ref}/condition-always.html[Always Condition].
-                                              This can also be specified as a HTTP parameter.
+                                              This can also be specified as an HTTP parameter.
 
 | `alternative_input` | no       | null     | When present, the watch uses this object as a payload
                                               instead of executing its own input.
@@ -70,7 +70,7 @@ This API supports the following fields:
                                               execution result is persisted to the `.watcher-history`
                                               index for the current time. In addition, the status of the
                                               watch is updated, possibly throttling subsequent executions.
-                                              This can also be specified as a HTTP parameter.
+                                              This can also be specified as an HTTP parameter.
 
 | `watch`             | no       | null     | When present, this
                                               {xpack-ref}/how-watcher-works.html#watch-definition[watch] is used

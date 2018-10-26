@@ -47,7 +47,7 @@ public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuil
     @Override
     protected IpRangeAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
-        IpRangeAggregationBuilder factory = new IpRangeAggregationBuilder("foo");
+        IpRangeAggregationBuilder factory = new IpRangeAggregationBuilder(randomAlphaOfLengthBetween(3, 10));
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {

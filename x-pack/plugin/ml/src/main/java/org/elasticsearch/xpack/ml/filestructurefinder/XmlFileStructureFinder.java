@@ -38,7 +38,8 @@ public class XmlFileStructureFinder implements FileStructureFinder {
     private final FileStructure structure;
 
     static XmlFileStructureFinder makeXmlFileStructureFinder(List<String> explanation, String sample, String charsetName,
-                                                             Boolean hasByteOrderMarker)
+                                                             Boolean hasByteOrderMarker, FileStructureOverrides overrides,
+                                                             TimeoutChecker timeoutChecker)
         throws IOException, ParserConfigurationException, SAXException {
 
         String messagePrefix;
@@ -66,6 +67,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
                 sampleRecords.add(docToMap(docBuilder.parse(is)));
                 sampleMessages.add(sampleDoc);
                 linesConsumed += numNewlinesIn(sampleDoc);
+                timeoutChecker.check("XML parsing");
             } catch (SAXException e) {
                 // Tolerate an incomplete last record as long as we have one complete record
                 if (sampleRecords.isEmpty() || i < sampleDocEnds.length - 1) {
@@ -90,15 +92,21 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             .setNumMessagesAnalyzed(sampleRecords.size())
             .setMultilineStartPattern("^\\s*<" + topLevelTag);
 
-        Tuple<String, TimestampMatch> timeField = FileStructureUtils.guessTimestampField(explanation, sampleRecords);
+        Tuple<String, TimestampMatch> timeField =
+            FileStructureUtils.guessTimestampField(explanation, sampleRecords, overrides, timeoutChecker);
         if (timeField != null) {
+            boolean needClientTimeZone = timeField.v2().hasTimezoneDependentParsing();
+
             structureBuilder.setTimestampField(timeField.v1())
-                .setTimestampFormats(timeField.v2().dateFormats)
-                .setNeedClientTimezone(timeField.v2().hasTimezoneDependentParsing());
+                .setJodaTimestampFormats(timeField.v2().jodaTimestampFormats)
+                .setJavaTimestampFormats(timeField.v2().javaTimestampFormats)
+                .setNeedClientTimezone(needClientTimeZone)
+                .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(null, topLevelTag + "." + timeField.v1(),
+                    timeField.v2().jodaTimestampFormats, needClientTimeZone));
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats =
-            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords);
+            FileStructureUtils.guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
 
         if (mappingsAndFieldStats.v2() != null) {
             structureBuilder.setFieldStats(mappingsAndFieldStats.v2());
@@ -110,8 +118,10 @@ public class XmlFileStructureFinder implements FileStructureFinder {
         secondLevelProperties.put(FileStructureUtils.MAPPING_PROPERTIES_SETTING, innerMappings);
         SortedMap<String, Object> outerMappings = new TreeMap<>();
         outerMappings.put(topLevelTag, secondLevelProperties);
-        outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
-            Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+        if (timeField != null) {
+            outerMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD,
+                Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
+        }
 
         FileStructure structure = structureBuilder
             .setMappings(outerMappings)

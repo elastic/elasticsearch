@@ -1,0 +1,28 @@
+---
+"Internal version":
+
+ - do:
+      index:
+          index:   test_1
+          type:    test
+          id:      1
+          body:    { foo: bar }
+
+ - match:   { _version: 1}
+
+ - do:
+      catch:       conflict
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
+          version: 2
+
+ - do:
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
+          version: 1
+
+ - match: { _version: 2 }

@@ -38,8 +38,8 @@ import java.util.Objects;
 /**
  * Request object to get {@link org.elasticsearch.client.ml.job.stats.JobStats} by their respective jobIds
  *
- * `_all` explicitly gets all the jobs' statistics in the cluster
- * An empty request (no `jobId`s) implicitly gets all the jobs' statistics in the cluster
+ * {@code _all} explicitly gets all the jobs' statistics in the cluster
+ * An empty request (no {@code jobId}s) implicitly gets all the jobs' statistics in the cluster
  */
 public class GetJobStatsRequest extends ActionRequest implements ToXContentObject {
 
@@ -93,16 +93,16 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
         return jobIds;
     }
 
-    public Boolean isAllowNoJobs() {
+    public Boolean getAllowNoJobs() {
         return this.allowNoJobs;
     }
 
     /**
      * Whether to ignore if a wildcard expression matches no jobs.
      *
-     * This includes `_all` string or when no jobs have been specified
+     * This includes {@code _all} string or when no jobs have been specified
      *
-     * @param allowNoJobs When {@code true} ignore if wildcard or `_all` matches no jobs. Defaults to {@code true}
+     * @param allowNoJobs When {@code true} ignore if wildcard or {@code _all} matches no jobs. Defaults to {@code true}
      */
     public void setAllowNoJobs(boolean allowNoJobs) {
         this.allowNoJobs = allowNoJobs;

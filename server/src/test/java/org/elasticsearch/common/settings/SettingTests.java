@@ -19,6 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -33,6 +34,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -178,6 +181,14 @@ public class SettingTests extends ESTestCase {
                     cause,
                     hasToString(containsString("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.")));
         }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/33135")
+    public void testValidateStringSetting() {
+        Settings settings = Settings.builder().putList("foo.bar", Arrays.asList("bla-a", "bla-b")).build();
+        Setting<String> stringSetting = Setting.simpleString("foo.bar", Property.NodeScope);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stringSetting.get(settings));
+        assertEquals("Found list type value for setting [foo.bar] but but did not expect a list for it.", e.getMessage());
     }
 
     private static final Setting<String> FOO_BAR_SETTING = new Setting<>(
@@ -856,4 +867,65 @@ public class SettingTests extends ESTestCase {
         assertThat(affixSetting.getNamespaces(Settings.builder().put("prefix.infix.suffix", "anything").build()), hasSize(1));
         assertThat(affixSetting.getNamespaces(Settings.builder().put("prefix.infix.suffix.anything", "anything").build()), hasSize(1));
     }
+
+    public void testExists() {
+        final Setting<?> fooSetting = Setting.simpleString("foo", Property.NodeScope);
+        assertFalse(fooSetting.exists(Settings.EMPTY));
+        assertTrue(fooSetting.exists(Settings.builder().put("foo", "bar").build()));
+    }
+
+    public void testExistsWithFallback() {
+        final int count = randomIntBetween(1, 16);
+        Setting<String> current = Setting.simpleString("fallback0", Property.NodeScope);
+        for (int i = 1; i < count; i++) {
+            final Setting<String> next =
+                    new Setting<>(new Setting.SimpleKey("fallback" + i), current, Function.identity(), Property.NodeScope);
+            current = next;
+        }
+        final Setting<String> fooSetting = new Setting<>(new Setting.SimpleKey("foo"), current, Function.identity(), Property.NodeScope);
+        assertFalse(fooSetting.exists(Settings.EMPTY));
+        if (randomBoolean()) {
+            assertTrue(fooSetting.exists(Settings.builder().put("foo", "bar").build()));
+        } else {
+            final String setting = "fallback" + randomIntBetween(0, count - 1);
+            assertFalse(fooSetting.exists(Settings.builder().put(setting, "bar").build()));
+            assertTrue(fooSetting.existsOrFallbackExists(Settings.builder().put(setting, "bar").build()));
+        }
+    }
+
+    public void testAffixMapUpdateWithNullSettingValue() {
+        // GIVEN an affix setting changed from "prefix._foo"="bar" to "prefix._foo"=null
+        final Settings current = Settings.builder()
+            .put("prefix._foo", (String) null)
+            .build();
+
+        final Settings previous = Settings.builder()
+            .put("prefix._foo", "bar")
+            .build();
+
+        final Setting.AffixSetting<String> affixSetting =
+            Setting.prefixKeySetting("prefix" + ".",
+                (key) -> Setting.simpleString(key, (value, map) -> {}, Property.Dynamic, Property.NodeScope));
+
+        final Consumer<Map<String, String>> consumer = (map) -> {};
+        final BiConsumer<String, String> validator = (s1, s2) -> {};
+
+        // WHEN creating an affix updater
+        final SettingUpdater<Map<String, String>> updater = affixSetting.newAffixMapUpdater(consumer, logger, validator);
+
+        // THEN affix updater is always expected to have changed (even when defaults are omitted)
+        assertTrue(updater.hasChanged(current, previous));
+
+        // THEN changes are expected when defaults aren't omitted
+        final Map<String, String> updatedSettings = updater.getValue(current, previous);
+        assertNotNull(updatedSettings);
+        assertEquals(1, updatedSettings.size());
+
+        // THEN changes are reported when defaults aren't omitted
+        final String key = updatedSettings.keySet().iterator().next();
+        final String value = updatedSettings.get(key);
+        assertEquals("_foo", key);
+        assertEquals("", value);
+    }
+
 }

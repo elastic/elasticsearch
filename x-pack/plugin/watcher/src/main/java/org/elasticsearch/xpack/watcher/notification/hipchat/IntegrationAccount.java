@@ -88,7 +88,6 @@ public class IntegrationAccount extends HipChatAccount {
             sentMessages.add(SentMessages.SentMessage.responded(room, SentMessages.SentMessage.TargetType.ROOM, message, request,
                     response));
         } catch (Exception e) {
-            logger.error("failed to execute hipchat api http request", e);
             sentMessages.add(SentMessages.SentMessage.error(room, SentMessages.SentMessage.TargetType.ROOM, message, e));
         }
         return new SentMessages(name, sentMessages);

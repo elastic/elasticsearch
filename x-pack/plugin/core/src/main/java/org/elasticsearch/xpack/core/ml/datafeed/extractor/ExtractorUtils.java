@@ -26,7 +26,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -83,7 +83,7 @@ public final class ExtractorUtils {
      * @param aggregations List of aggregations
      * @return A {@link HistogramAggregationBuilder} or a {@link DateHistogramAggregationBuilder}
      */
-    public static AggregationBuilder getHistogramAggregation(List<AggregationBuilder> aggregations) {
+    public static AggregationBuilder getHistogramAggregation(Collection<AggregationBuilder> aggregations) {
         if (aggregations.isEmpty()) {
             throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM));
         }
@@ -91,7 +91,7 @@ public final class ExtractorUtils {
             throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM_NO_SIBLINGS);
         }
 
-        AggregationBuilder agg = aggregations.get(0);
+        AggregationBuilder agg = aggregations.iterator().next();
         if (isHistogram(agg)) {
             return agg;
         } else {

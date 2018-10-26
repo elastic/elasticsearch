@@ -275,7 +275,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("foo", typeFilterSuggest, "suggestion9", "suggestion6", "suggestion5", "suggestion2", "suggestion1");
     }
 
-    @AwaitsFix(bugUrl = "multiple context boosting is broken, as a suggestion, contexts pair is treated as (num(context) entries)")
     public void testMultiContextBoosting() throws Exception {
         LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("cat", ContextBuilder.category("cat").field("cat").build());
@@ -328,7 +327,8 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             CategoryQueryContext.builder().setCategory("cat1").build())
         );
         multiContextBoostSuggest.contexts(contextMap);
-        assertSuggestions("foo", multiContextBoostSuggest, "suggestion9", "suggestion6", "suggestion5", "suggestion2", "suggestion1");
+        // the score of each suggestion is the maximum score among the matching contexts
+        assertSuggestions("foo", multiContextBoostSuggest, "suggestion9", "suggestion8", "suggestion5", "suggestion6", "suggestion4");
     }
 
     public void testSeveralContexts() throws Exception {

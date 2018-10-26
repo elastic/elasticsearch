@@ -34,20 +34,41 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToBoxe
 
 public final class PainlessLookup {
 
+    private final Map<String, Class<?>> javaClassNamesToClasses;
     private final Map<String, Class<?>> canonicalClassNamesToClasses;
     private final Map<Class<?>, PainlessClass> classesToPainlessClasses;
 
-    private final Map<String, PainlessBinding> painlessMethodKeysToPainlessBindings;
+    private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
+    private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
+    private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
-    PainlessLookup(Map<String, Class<?>> canonicalClassNamesToClasses, Map<Class<?>, PainlessClass> classesToPainlessClasses,
-            Map<String, PainlessBinding> painlessMethodKeysToPainlessBindings) {
+    PainlessLookup(
+            Map<String, Class<?>> javaClassNamesToClasses,
+            Map<String, Class<?>> canonicalClassNamesToClasses,
+            Map<Class<?>, PainlessClass> classesToPainlessClasses,
+            Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
+            Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
+            Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings) {
+
+        Objects.requireNonNull(javaClassNamesToClasses);
         Objects.requireNonNull(canonicalClassNamesToClasses);
         Objects.requireNonNull(classesToPainlessClasses);
 
+        Objects.requireNonNull(painlessMethodKeysToImportedPainlessMethods);
+        Objects.requireNonNull(painlessMethodKeysToPainlessClassBindings);
+        Objects.requireNonNull(painlessMethodKeysToPainlessInstanceBindings);
+
+        this.javaClassNamesToClasses = javaClassNamesToClasses;
         this.canonicalClassNamesToClasses = Collections.unmodifiableMap(canonicalClassNamesToClasses);
         this.classesToPainlessClasses = Collections.unmodifiableMap(classesToPainlessClasses);
 
-        this.painlessMethodKeysToPainlessBindings = Collections.unmodifiableMap(painlessMethodKeysToPainlessBindings);
+        this.painlessMethodKeysToImportedPainlessMethods = Collections.unmodifiableMap(painlessMethodKeysToImportedPainlessMethods);
+        this.painlessMethodKeysToPainlessClassBindings = Collections.unmodifiableMap(painlessMethodKeysToPainlessClassBindings);
+        this.painlessMethodKeysToPainlessInstanceBindings = Collections.unmodifiableMap(painlessMethodKeysToPainlessInstanceBindings);
+    }
+
+    public Class<?> javaClassNameToClass(String javaClassName) {
+        return javaClassNamesToClasses.get(javaClassName);
     }
 
     public boolean isValidCanonicalClassName(String canonicalClassName) {
@@ -167,12 +188,28 @@ public final class PainlessLookup {
         return painlessField;
     }
 
-    public PainlessBinding lookupPainlessBinding(String methodName, int arity) {
+    public PainlessMethod lookupImportedPainlessMethod(String methodName, int arity) {
         Objects.requireNonNull(methodName);
 
         String painlessMethodKey = buildPainlessMethodKey(methodName, arity);
 
-        return painlessMethodKeysToPainlessBindings.get(painlessMethodKey);
+        return painlessMethodKeysToImportedPainlessMethods.get(painlessMethodKey);
+    }
+
+    public PainlessClassBinding lookupPainlessClassBinding(String methodName, int arity) {
+        Objects.requireNonNull(methodName);
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, arity);
+
+        return painlessMethodKeysToPainlessClassBindings.get(painlessMethodKey);
+    }
+
+    public PainlessInstanceBinding lookupPainlessInstanceBinding(String methodName, int arity) {
+        Objects.requireNonNull(methodName);
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, arity);
+
+        return painlessMethodKeysToPainlessInstanceBindings.get(painlessMethodKey);
     }
 
     public PainlessMethod lookupFunctionalInterfacePainlessMethod(Class<?> targetClass) {

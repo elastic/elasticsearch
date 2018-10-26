@@ -1,18 +1,22 @@
 ---
 "Internal version":
 
+ - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
  - do:
       index:
+          include_type_name: false
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
  - match:   { _version: 1}
 
  - do:
       index:
+          include_type_name: false
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
  - match:   { _version: 2}
@@ -20,15 +24,15 @@
  - do:
       catch:       conflict
       index:
+          include_type_name: false
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
           version: 1
  - do:
       index:
+          include_type_name: false
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
           version: 2

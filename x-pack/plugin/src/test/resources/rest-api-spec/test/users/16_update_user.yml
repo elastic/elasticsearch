@@ -66,7 +66,7 @@ teardown:
                 "key2" : "val2"
               }
             }
-  - match: { user: { created: false } }
+  - match: { created: false }
 
 # validate existing password works
   - do:
@@ -103,7 +103,7 @@ teardown:
                 "key3" : "val3"
               }
             }
-  - match: { user: { created: false } }
+  - match: { created: false }
 
 # validate old password doesn't work
   - do:

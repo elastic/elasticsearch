@@ -29,10 +29,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -146,6 +146,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     /**
      * Get the field name for this query.
      */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }
@@ -302,7 +303,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     DateMathParser getForceDateParser() { // pkg private for testing
         if (this.format != null) {
-            return new DateMathParser(this.format);
+            return this.format.toDateMathParser();
         }
         return null;
     }

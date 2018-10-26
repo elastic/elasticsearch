@@ -74,7 +74,6 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         int recCount = randomIntBetween(200, 600);
-        int numberOfTypes = randomIntBetween(1, 5);
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type";

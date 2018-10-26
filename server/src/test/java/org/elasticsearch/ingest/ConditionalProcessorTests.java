@@ -19,13 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -34,10 +27,24 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.LongSupplier;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ConditionalProcessorTests extends ESTestCase {
 
@@ -52,12 +59,15 @@ public class ConditionalProcessorTests extends ESTestCase {
                     Script.DEFAULT_SCRIPT_LANG,
                     Collections.singletonMap(
                         scriptName, ctx -> trueValue.equals(ctx.get(conditionalField))
-                    )
+                    ),
+                    Collections.emptyMap()
                 )
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS)
         );
         Map<String, Object> document = new HashMap<>();
+        LongSupplier relativeTimeProvider = mock(LongSupplier.class);
+        when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(1), 0L, TimeUnit.MILLISECONDS.toNanos(2));
         ConditionalProcessor processor = new ConditionalProcessor(
             randomAlphaOfLength(10),
             new Script(
@@ -65,7 +75,10 @@ public class ConditionalProcessorTests extends ESTestCase {
                 scriptName, Collections.emptyMap()), scriptService,
             new Processor() {
                 @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                public IngestDocument execute(final IngestDocument ingestDocument){
+                    if(ingestDocument.hasField("error")){
+                        throw new RuntimeException("error");
+                    }
                     ingestDocument.setFieldValue("foo", "bar");
                     return ingestDocument;
                 }
@@ -79,20 +92,37 @@ public class ConditionalProcessorTests extends ESTestCase {
                 public String getTag() {
                     return null;
                 }
-            });
+            }, relativeTimeProvider);
 
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        ingestDocument.setFieldValue(conditionalField, trueValue);
-        processor.execute(ingestDocument);
-        assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(trueValue));
-        assertThat(ingestDocument.getSourceAndMetadata().get("foo"), is("bar"));
-
+        //false, never call processor never increments metrics
         String falseValue = "falsy";
-        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         ingestDocument.setFieldValue(conditionalField, falseValue);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(falseValue));
         assertThat(ingestDocument.getSourceAndMetadata(), not(hasKey("foo")));
+        assertStats(processor, 0, 0, 0);
+
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument.setFieldValue(conditionalField, falseValue);
+        ingestDocument.setFieldValue("error", true);
+        processor.execute(ingestDocument);
+        assertStats(processor, 0, 0, 0);
+
+        //true, always call processor and increments metrics
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument.setFieldValue(conditionalField, trueValue);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSourceAndMetadata().get(conditionalField), is(trueValue));
+        assertThat(ingestDocument.getSourceAndMetadata().get("foo"), is("bar"));
+        assertStats(processor, 1, 0, 1);
+
+        ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument.setFieldValue(conditionalField, trueValue);
+        ingestDocument.setFieldValue("error", true);
+        IngestDocument finalIngestDocument = ingestDocument;
+        expectThrows(RuntimeException.class, () -> processor.execute(finalIngestDocument));
+        assertStats(processor, 2, 1, 2);
     }
 
     @SuppressWarnings("unchecked")
@@ -120,7 +150,8 @@ public class ConditionalProcessorTests extends ESTestCase {
                             }
                             return false;
                         }
-                    )
+                    ),
+                    Collections.emptyMap()
                 )
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS)
@@ -138,5 +169,14 @@ public class ConditionalProcessorTests extends ESTestCase {
         Exception e = expectedException.get();
         assertThat(e, instanceOf(UnsupportedOperationException.class));
         assertEquals("Mutating ingest documents in conditionals is not supported", e.getMessage());
+        assertStats(processor, 0, 0, 0);
+    }
+
+    private static void assertStats(ConditionalProcessor conditionalProcessor, long count, long failed, long time) {
+        IngestStats.Stats stats = conditionalProcessor.getMetric().createStats();
+        assertThat(stats.getIngestCount(), equalTo(count));
+        assertThat(stats.getIngestCurrent(), equalTo(0L));
+        assertThat(stats.getIngestFailedCount(), equalTo(failed));
+        assertThat(stats.getIngestTimeInMillis(), greaterThanOrEqualTo(time));
     }
 }

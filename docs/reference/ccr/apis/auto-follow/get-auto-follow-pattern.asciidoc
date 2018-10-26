@@ -56,7 +56,7 @@ GET /_ccr/auto_follow/<auto_follow_pattern_name>
 // CONSOLE
 // TEST[s/<auto_follow_pattern_name>/my_auto_follow_pattern/]
 
-==== Path Components
+==== Path Parameters
 `auto_follow_pattern_name`::
   (string) specifies the auto-follow pattern collection that you want to
   retrieve; if you do not specify a name, the API returns information for all

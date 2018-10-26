@@ -15,7 +15,7 @@
   the follower
 
 `max_write_request_size`::
-  (integer) the maximum total bytes of operations per bulk write request
+  (<<byte-units,byte value>>) the maximum total bytes of operations per bulk write request
   executed on the follower
 
 `max_outstanding_write_requests`::
@@ -27,7 +27,7 @@
   until the number of queued operations goes below the limit
 
 `max_write_buffer_size`::
-  (integer) the maximum total bytes of operations that can be queued for
+  (<<byte-units,byte value>>) the maximum total bytes of operations that can be queued for
   writing; when this limit is reached, reads from the remote cluster will be
   deferred until the total bytes of queued operations goes below the limit
 

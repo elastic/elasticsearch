@@ -41,7 +41,7 @@ PUT /<follower_index>/_ccr/follow
 // TEST[s/<remote_cluster>/remote_cluster/]
 // TEST[s/<leader_index>/leader_index/]
 
-==== Path Components
+==== Path Parameters
 
 `follower_index` (required)::
   (string) the name of the follower index

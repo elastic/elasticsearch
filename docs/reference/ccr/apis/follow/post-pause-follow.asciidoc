@@ -41,7 +41,7 @@ POST /<follower_index>/_ccr/pause_follow
 // CONSOLE
 // TEST[s/<follower_index>/follower_index/]
 
-==== Path Components
+==== Path Parameters
 
 `follower_index` (required)::
   (string) the name of the follower index

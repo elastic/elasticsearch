@@ -121,7 +121,7 @@ include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-
 
 By default, metrics `min`/`max` for the fields in `DateHistogramGroupConfig` and
 `HistogramGroupConfig` are added to the configuration unless the user already provided
-metrics for those fields.
+metrics for those fields (or empty metrics).
 
 So, for the following configuration:
 
@@ -181,6 +181,28 @@ provided for the fields `timestamp` and `net_out`
 ]
 --------------------------------------------------
 // NOTCONSOLE
+
+If the default metrics are not desired, then empty metrics can
+be supplied for the fields
+
+[source,js]
+--------------------------------------------------
+"metrics": [
+    {
+        "field": "timestamp",
+        "metrics": []
+    },
+    {
+        "field": "net_out",
+        "metrics": []
+    }
+]
+--------------------------------------------------
+// NOTCONSOLE
+
+NOTE: Machine Learning Datafeeds require `min` and `max` aggregations over the
+      timefield of the data. By not allowing `min` and `max` metrics for a timefield
+      Machine Learning will not be able to take advantage of the Rollup Indexed data.
 
 [[java-rest-high-x-pack-rollup-put-rollup-job-execution]]
 ==== Execution

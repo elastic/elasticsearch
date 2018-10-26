@@ -18,7 +18,6 @@ import org.joda.time.DateTimeZone;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomHistogramGroupConfig;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomRollupJobConfig;
@@ -36,11 +35,8 @@ public class ConfigTests extends ESTestCase {
     }
 
     public void testEmptyMetrics() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("foo", emptyList()));
-        assertThat(e.getMessage(), equalTo("Metrics must be a non-null, non-empty array of strings"));
-
-        e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("foo", null));
-        assertThat(e.getMessage(), equalTo("Metrics must be a non-null, non-empty array of strings"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new MetricConfig("foo", null));
+        assertThat(e.getMessage(), equalTo("Metrics must be a non-null"));
     }
 
     public void testEmptyGroup() {

@@ -85,6 +85,71 @@ setup:
                 - agg: "sum"
 
 ---
+"Verify job with no default metrics caps by rollup index":
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      xpack.rollup.put_job:
+        id: foo_no_default
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "value_field",
+                "metrics": ["min", "max", "sum"]
+              },
+              {
+                "field": "the_field",
+                "metrics": []
+              }
+            ]
+          }
+  - do:
+      xpack.rollup.get_rollup_index_caps:
+         index: "foo_rollup"
+
+  - match:
+      foo_rollup:
+        rollup_jobs:
+        - job_id: "foo"
+          rollup_index: "foo_rollup"
+          index_pattern: "foo"
+          fields:
+            the_field:
+            - agg: "date_histogram"
+              interval: "1h"
+              time_zone: "UTC"
+            - agg: "max"
+            - agg: "min"
+            value_field:
+            - agg: "min"
+            - agg: "max"
+            - agg: "sum"
+        - job_id: "foo_no_default"
+          rollup_index: "foo_rollup"
+          index_pattern: "foo"
+          fields:
+            the_field:
+            - agg: "date_histogram"
+              interval: "1h"
+              time_zone: "UTC"
+            value_field:
+            - agg: "min"
+            - agg: "max"
+            - agg: "sum"
+
+---
 "Verify two job caps by rollup index":
 
   - do:

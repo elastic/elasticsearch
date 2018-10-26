@@ -71,8 +71,8 @@ public class MetricConfig implements Writeable, ToXContentObject {
         if (field == null || field.isEmpty()) {
             throw new IllegalArgumentException("Field must be a non-null, non-empty string");
         }
-        if (metrics == null || metrics.isEmpty()) {
-            throw new IllegalArgumentException("Metrics must be a non-null, non-empty array of strings");
+        if (metrics == null) {
+            throw new IllegalArgumentException("Metrics must be a non-null");
         }
         metrics.forEach(m -> {
             if (RollupField.SUPPORTED_METRICS.contains(m) == false) {

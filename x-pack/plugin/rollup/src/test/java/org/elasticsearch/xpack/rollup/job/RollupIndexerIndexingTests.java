@@ -95,7 +95,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         String rollupIndex = randomAlphaOfLength(10);
         String field = "the_histo";
         DateHistogramGroupConfig dateHistoConfig = new DateHistogramGroupConfig(field, new DateHistogramInterval("1ms"));
-        RollupJobConfig job = createJob(rollupIndex, new GroupConfig(dateHistoConfig), Collections.emptyList());
+        RollupJobConfig job = createJob(rollupIndex, new GroupConfig(dateHistoConfig),
+            Collections.singletonList(new MetricConfig("counter", Collections.emptyList())));
         final List<Map<String, Object>> dataset = new ArrayList<>();
         dataset.addAll(
                 Arrays.asList(

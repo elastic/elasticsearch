@@ -13,6 +13,7 @@ import org.junit.Before;
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.rollup.ConfigTestHelpers.randomRollupJobConfig;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -162,5 +163,11 @@ public class RollupJobConfigTests extends AbstractSerializingTestCase<RollupJobC
             new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(), sample.getCron(), sample.getPageSize(),
                 null, emptyList(), sample.getTimeout()));
         assertThat(e.getMessage(), equalTo("At least one grouping or metric must be configured"));
+
+        e = expectThrows(IllegalArgumentException.class, () ->
+            new RollupJobConfig(sample.getId(), sample.getIndexPattern(), sample.getRollupIndex(), sample.getCron(), sample.getPageSize(),
+                null, singletonList(new MetricConfig("field", emptyList())), sample.getTimeout()));
+        assertThat(e.getMessage(), equalTo("At least one grouping or metric must be configured"));
+
     }
 }

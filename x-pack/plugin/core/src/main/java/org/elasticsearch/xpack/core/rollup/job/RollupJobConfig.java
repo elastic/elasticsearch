@@ -119,7 +119,8 @@ public class RollupJobConfig implements NamedWriteable, ToXContentObject {
         if (pageSize <= 0) {
             throw new IllegalArgumentException("Page size is mandatory and  must be a positive long");
         }
-        if (groupConfig == null && (metricsConfig == null || metricsConfig.isEmpty())) {
+        if (groupConfig == null && (metricsConfig == null ||
+            metricsConfig.stream().flatMap(metricConfig -> metricConfig.getMetrics().stream()).findAny().isPresent() == false)) {
             throw new IllegalArgumentException("At least one grouping or metric must be configured");
         }
 

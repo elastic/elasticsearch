@@ -103,7 +103,8 @@ When the job is created, you receive the following results:
 By default the metrics `min`/`max` are added
 for the fields in the `date_histogram` and `histogram` configurations.
 If this behavior is not desired, explicitly configure metrics
-for those fields. This will override the defaults.
+for those fields (or provide empty metrics for the field).
+This will override the defaults.
 
 If the following is provided
 
@@ -179,3 +180,51 @@ The actual config when created in the cluster will look as follows.
     `groups.date_histogram` configurations
     respectively and no metrics were requested for them,
     they both got the default metrics of `["min", "max"]`.
+
+If the defaults are NOT desired, then the empty metrics can be provided for the
+fields.
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/rollup/job/sensor_no_defaults
+{
+    "index_pattern": "sensor-*",
+    "rollup_index": "sensor_rollup",
+    "cron": "*/30 * * * * ?",
+    "page_size" :1000,
+    "groups" : {
+      "date_histogram": {
+        "field": "timestamp",
+        "interval": "60m",
+        "delay": "7d"
+      },
+      "histogram": {
+        "fields": ["voltage", "temperature"],
+        "interval": 5
+      }
+    },
+    "metrics": [
+        {
+            "field": "temperature",
+            "metrics": ["min", "max", "sum"]
+        },
+        {
+            "field": "timestamp",
+            "metrics": [] <1>
+        },
+        {
+            "field": "voltage",
+            "metrics": [] <1>
+        }
+    ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+// TEST[setup:sensor_index]
+<1> Notice the empty metrics for `timestamp` and `voltage`.
+    This indicates that the default metrics should not be gathered
+    for those fields.
+
+NOTE: Machine Learning Datafeeds require `min` and `max` aggregations over the
+      timefield of the data. By not allowing `min` and `max` metrics for a timefield
+      Machine Learning will not be able to take advantage of the Rollup Indexed data.

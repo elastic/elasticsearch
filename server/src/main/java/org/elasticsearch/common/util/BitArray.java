@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.composite;
+package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -30,11 +30,11 @@ import org.elasticsearch.common.util.LongArray;
  * The underlying long array grows lazily based on the biggest index
  * that needs to be set.
  */
-final class BitArray implements Releasable {
+public final class BitArray implements Releasable {
     private final BigArrays bigArrays;
     private LongArray bits;
 
-    BitArray(BigArrays bigArrays, int initialSize) {
+    public BitArray(int initialSize, BigArrays bigArrays) {
         this.bigArrays = bigArrays;
         this.bits = bigArrays.newLongArray(initialSize, true);
     }

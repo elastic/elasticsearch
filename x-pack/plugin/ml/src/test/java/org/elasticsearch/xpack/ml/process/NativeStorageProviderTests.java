@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ml.job.process;
+package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -21,12 +21,11 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.any;
-
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class NativeStorageProviderTests extends ESTestCase {
 

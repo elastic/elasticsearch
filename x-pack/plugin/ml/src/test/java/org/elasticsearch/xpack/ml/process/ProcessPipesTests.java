@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.job.process;
+package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;

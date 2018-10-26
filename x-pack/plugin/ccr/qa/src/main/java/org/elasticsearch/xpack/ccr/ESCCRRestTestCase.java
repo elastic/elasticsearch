@@ -59,7 +59,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void resumeFollow(String followIndex) throws IOException {
         final Request request = new Request("POST", "/" + followIndex + "/_ccr/resume_follow");
-        request.setJsonEntity("{\"poll_timeout\": \"10ms\"}");
+        request.setJsonEntity("{\"read_poll_timeout\": \"10ms\"}");
         assertOK(client().performRequest(request));
     }
 
@@ -74,7 +74,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     protected static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow");
         request.setJsonEntity("{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
-            "\", \"poll_timeout\": \"10ms\"}");
+            "\", \"read_poll_timeout\": \"10ms\"}");
         assertOK(client.performRequest(request));
     }
 
@@ -136,10 +136,10 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             assertThat(followerIndex, equalTo(expectedFollowerIndex));
 
             int foundNumberOfOperationsReceived =
-                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_received", hit);
+                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_read", hit);
             numberOfOperationsReceived = Math.max(numberOfOperationsReceived, foundNumberOfOperationsReceived);
             int foundNumberOfOperationsIndexed =
-                (int) XContentMapValues.extractValue("_source.ccr_stats.number_of_operations_indexed", hit);
+                (int) XContentMapValues.extractValue("_source.ccr_stats.operations_written", hit);
             numberOfOperationsIndexed = Math.max(numberOfOperationsIndexed, foundNumberOfOperationsIndexed);
         }
 

@@ -134,11 +134,12 @@ public class TermVectorsResponseTests extends ESTestCase {
             boolean hasPayloads = randomBoolean();
             int fieldsCount = randomIntBetween(1, 3);
             tvList = new ArrayList<>(fieldsCount);
-            List<String> usedStrings = new ArrayList<>(fieldsCount);
+            List<String> usedFieldNames = new ArrayList<>(fieldsCount);
             for (int i = 0; i < fieldsCount; i++) {
-                String fieldName = produceUniqueString(usedStrings);
-                usedStrings.add(fieldName);
-                tvList.add(randomTermVector(fieldName, hasFieldStatistics, hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
+                String fieldName = randomValueOtherThanMany(usedFieldNames::contains, () -> randomAlphaOfLength(7));
+                usedFieldNames.add(fieldName);
+                tvList.add(randomTermVector(
+                    fieldName, hasFieldStatistics, hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
             }
         }
         TermVectorsResponse tvresponse = new TermVectorsResponse(index, type, id, version, found, tookInMillis, tvList);
@@ -159,10 +160,10 @@ public class TermVectorsResponseTests extends ESTestCase {
 
         int termsCount = randomIntBetween(1, 5);
         List<TermVectorsResponse.TermVector.Term> terms = new ArrayList<>(termsCount);
-        List<String> usedStrings = new ArrayList<>(termsCount);
+        List<String> usedTerms = new ArrayList<>(termsCount);
         for (int i = 0; i < termsCount; i++) {
-            String termTxt = produceUniqueString(usedStrings);
-            usedStrings.add(termTxt);
+            String termTxt = randomValueOtherThanMany(usedTerms::contains, () -> randomAlphaOfLength(7));
+            usedTerms.add(termTxt);
             terms.add(randomTerm(termTxt, hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
         }
 
@@ -206,15 +207,4 @@ public class TermVectorsResponseTests extends ESTestCase {
             new TermVectorsResponse.TermVector.Term(termTxt, termFreq, docFreq, totalTermFreq, score, tokens);
         return term;
     }
-
-    // generate a new string different from the supplied usedStrings
-    private String produceUniqueString(List<String> usedStrings) {
-        String newString = randomAlphaOfLength(7);
-        for (String usedString : usedStrings) {
-            // check if this name is already used, try again
-            if (usedString.equals(newString)) return produceUniqueString(usedStrings);
-        }
-        return newString;
-    }
-
 }

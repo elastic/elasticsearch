@@ -375,6 +375,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             return GeoUtils.arcDistance(point.lat(), point.lon(), GeoHashUtils.decodeLatitude(geohash),
                 GeoHashUtils.decodeLongitude(geohash));
         }
+
+        public double geohashDistanceWithDefault(String geohash, double defaultValue) {
+            if (isEmpty()) {
+                return defaultValue;
+            }
+            return geohashDistance(geohash);
+        }
     }
 
     public static final class Booleans extends ScriptDocValues<Boolean> {

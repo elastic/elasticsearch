@@ -65,7 +65,7 @@ public class Cast extends UnaryScalarFunction {
     protected TypeResolution resolveType() {
         return DataTypeConversion.canConvert(from(), to()) ?
                 TypeResolution.TYPE_RESOLVED :
-                    new TypeResolution("Cannot cast '" + from() + "' to '" + to()+ "'");
+                    new TypeResolution("Cannot cast [" + from() + "] to [" + to()+ "]");
     }
 
     @Override

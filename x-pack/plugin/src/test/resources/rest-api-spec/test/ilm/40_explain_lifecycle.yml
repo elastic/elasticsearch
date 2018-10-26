@@ -4,7 +4,6 @@ setup:
       cluster.health:
           wait_for_status: yellow
   - do:
-      acknowlege: true
       ilm.put_lifecycle:
         policy: "my_moveable_timeseries_lifecycle"
         body: |
@@ -28,7 +27,6 @@ setup:
            }
 
   - do:
-      acknowledge: true
       ilm.get_lifecycle:
         policy: "my_moveable_timeseries_lifecycle"
 
@@ -67,29 +65,23 @@ setup:
 teardown:
 
   - do:
-      acknowledge: true
       indices.delete:
         index: my_index
   - do:
-      acknowledge: true
       indices.delete:
         index: my_index2
   - do:
-      acknowledge: true
       indices.delete:
         index: another_index
   - do:
-      acknowledge: true
       indices.delete:
         index: unmanaged_index
 
   - do:
-      acknowledge: true
       indices.delete:
         index: my_index_no_policy
 
   - do:
-      acknowledge: true
       ilm.delete_lifecycle:
         policy: "my_moveable_timeseries_lifecycle"
 
@@ -102,7 +94,6 @@ teardown:
 "Test Basic Lifecycle Explain":
 
   - do:
-      acknowledge: true
       ilm.explain_lifecycle:
         index: "my_index"
 
@@ -125,7 +116,6 @@ teardown:
 "Test Wildcard Index Lifecycle Explain":
 
   - do:
-      acknowledge: true
       ilm.explain_lifecycle:
         index: "my_*"
 
@@ -159,7 +149,6 @@ teardown:
 "Test All Indexes Lifecycle Explain":
 
   - do:
-      acknowledge: true
       ilm.explain_lifecycle:
         index: "*"
 
@@ -209,7 +198,6 @@ teardown:
 "Test Unmanaged Index Lifecycle Explain":
 
   - do:
-      acknowledge: true
       ilm.explain_lifecycle:
         index: "unmanaged_index"
 
@@ -230,7 +218,6 @@ teardown:
 "Test new phase still has phase_time":
 
   - do:
-      acknowlege: true
       ilm.put_lifecycle:
         policy: "mypolicy"
         body: |
@@ -261,7 +248,6 @@ teardown:
             index.lifecycle.name: "mypolicy"
 
   - do:
-      acknowledge: true
       ilm.explain_lifecycle:
         index: "foo"
 

@@ -63,7 +63,7 @@ include::update-lifecycle-policy.asciidoc[]
 include::get-index-lifecycle-information.asciidoc[]
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/pause-resume-ilm.asciidoc
-include::pause-resume-ilm.asciidoc[]
+include::start-stop-ilm.asciidoc[]
 
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/apis/ilm-api.asciidoc
 include::{xes-repo-dir}/ilm/apis/ilm-api.asciidoc[]

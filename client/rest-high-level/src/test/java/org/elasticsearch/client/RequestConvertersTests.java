@@ -53,18 +53,9 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
-import org.elasticsearch.client.indexlifecycle.DeleteLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.ExplainLifecycleRequest;
-import org.elasticsearch.client.indexlifecycle.GetLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.LifecycleManagementStatusRequest;
-import org.elasticsearch.client.indexlifecycle.LifecyclePolicy;
-import org.elasticsearch.client.indexlifecycle.PutLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RetryLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.RemoveIndexLifecyclePolicyRequest;
-import org.elasticsearch.client.indexlifecycle.StartILMRequest;
-import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -129,7 +120,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
 import static org.elasticsearch.client.RequestConverters.enforceSameContentType;
-import static org.elasticsearch.client.indexlifecycle.LifecyclePolicyTests.createRandomPolicy;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -1188,6 +1178,46 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(explainRequest, request.getEntity());
     }
 
+    public void testTermVectors() throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+        TermVectorsRequest tvRequest = new TermVectorsRequest(index, type, id);
+        Map<String, String> expectedParams = new HashMap<>();
+        String[] fields;
+        if (randomBoolean()) {
+            String routing = randomAlphaOfLengthBetween(3, 10);
+            tvRequest.setRouting(routing);
+            expectedParams.put("routing", routing);
+        }
+        if (randomBoolean()) {
+            tvRequest.setRealtime(false);
+            expectedParams.put("realtime", "false");
+        }
+
+        boolean hasFields = randomBoolean();
+        if (hasFields) {
+            fields = generateRandomStringArray(10, 5, false, false);
+            tvRequest.setFields(fields);
+        }
+
+        Request request = RequestConverters.termVectors(tvRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add(index).add(type).add(id).add("_termvectors");
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        if (hasFields) {
+            assertThat(request.getParameters(), hasKey("fields"));
+            String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
+            assertArrayEquals(tvRequest.getFields(), requestFields);
+        }
+        for (Map.Entry<String, String> param : expectedParams.entrySet()) {
+            assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
+        }
+        assertToXContentBody(tvRequest, request.getEntity());
+    }
+
     public void testFieldCaps() {
         // Create a random request.
         String[] indices = randomIndicesNames(0, 5);
@@ -1468,125 +1498,6 @@ public class RequestConvertersTests extends ESTestCase {
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
     }
 
-    public void testGetLifecyclePolicy() {
-        String[] policies = rarely() ? null : randomIndicesNames(0, 10);
-        GetLifecyclePolicyRequest req = new GetLifecyclePolicyRequest(policies);
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
-        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request request = RequestConverters.getLifecyclePolicy(req);
-        assertEquals(request.getMethod(), HttpGet.METHOD_NAME);
-        String policiesStr = Strings.arrayToCommaDelimitedString(policies);
-        assertEquals(request.getEndpoint(), "/_ilm" + (policiesStr.isEmpty() ? "" : ("/" + policiesStr)));
-        assertEquals(request.getParameters(), expectedParams);
-    }
-
-    public void testPutLifecyclePolicy() throws Exception {
-        String name = randomAlphaOfLengthBetween(2, 20);
-        LifecyclePolicy policy = createRandomPolicy(name);
-        PutLifecyclePolicyRequest req = new PutLifecyclePolicyRequest(policy);
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
-        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request request = RequestConverters.putLifecyclePolicy(req);
-        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_ilm/" + name, request.getEndpoint());
-        assertEquals(expectedParams, request.getParameters());
-    }
-
-    public void testDeleteLifecycle() {
-        String lifecycleName = randomAlphaOfLengthBetween(2,20);
-        DeleteLifecyclePolicyRequest req = new DeleteLifecyclePolicyRequest(lifecycleName);
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
-        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request request = RequestConverters.deleteLifecyclePolicy(req);
-        assertEquals(request.getMethod(), HttpDelete.METHOD_NAME);
-        assertEquals(request.getEndpoint(), "/_ilm/" + lifecycleName);
-        assertEquals(request.getParameters(), expectedParams);
-    }
-
-    public void testRemoveIndexLifecyclePolicy() {
-        Map<String, String> expectedParams = new HashMap<>();
-        String[] indices = randomIndicesNames(0, 10);
-        IndicesOptions indicesOptions = setRandomIndicesOptions(IndicesOptions.strictExpandOpen(), expectedParams);
-        RemoveIndexLifecyclePolicyRequest req = new RemoveIndexLifecyclePolicyRequest(Arrays.asList(indices), indicesOptions);
-        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
-
-        Request request = RequestConverters.removeIndexLifecyclePolicy(req);
-        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
-        String idxString = Strings.arrayToCommaDelimitedString(indices);
-        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm"));
-        assertThat(request.getParameters(), equalTo(expectedParams));
-    }
-
-    public void testStartILM() throws Exception {
-        StartILMRequest req = new StartILMRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
-        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request request = RequestConverters.startILM(req);
-        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
-        assertThat(request.getEndpoint(), equalTo("/_ilm/start"));
-        assertThat(request.getParameters(), equalTo(expectedParams));
-    }
-
-    public void testStopILM() throws Exception {
-        StopILMRequest req = new StopILMRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
-        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request request = RequestConverters.stopILM(req);
-        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
-        assertThat(request.getEndpoint(), equalTo("/_ilm/stop"));
-        assertThat(request.getParameters(), equalTo(expectedParams));
-    }
-
-    public void testLifecycleManagementStatus() throws Exception {
-        LifecycleManagementStatusRequest req = new LifecycleManagementStatusRequest();
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
-        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-
-        Request request = RequestConverters.lifecycleManagementStatus(req);
-        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        assertThat(request.getEndpoint(), equalTo("/_ilm/status"));
-        assertThat(request.getParameters(), equalTo(expectedParams));
-    }
-
-    public void testExplainLifecycle() throws Exception {
-        ExplainLifecycleRequest req = new ExplainLifecycleRequest();
-        String[] indices = rarely() ? null : randomIndicesNames(0, 10);
-        req.indices(indices);
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req, expectedParams);
-        setRandomIndicesOptions(req::indicesOptions, req::indicesOptions, expectedParams);
-
-        Request request = RequestConverters.explainLifecycle(req);
-        assertThat(request.getMethod(), equalTo(HttpGet.METHOD_NAME));
-        String idxString = Strings.arrayToCommaDelimitedString(indices);
-        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm/explain"));
-        assertThat(request.getParameters(), equalTo(expectedParams));
-    }
-
-    public void testRetryLifecycle() throws Exception {
-        String[] indices = randomIndicesNames(1, 10);
-        RetryLifecyclePolicyRequest req = new RetryLifecyclePolicyRequest(indices);
-        Map<String, String> expectedParams = new HashMap<>();
-        setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
-        setRandomTimeoutTimeValue(req::setTimeout, TimedRequest.DEFAULT_ACK_TIMEOUT, expectedParams);
-        Request request = RequestConverters.retryLifecycle(req);
-        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
-        String idxString = Strings.arrayToCommaDelimitedString(indices);
-        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm/retry"));
-        assertThat(request.getParameters(), equalTo(expectedParams));
-    }
-
     /**
      * Randomize the {@link FetchSourceContext} request parameters.
      */
@@ -1736,7 +1647,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomTimeoutTimeValue(Consumer<TimeValue> setter, TimeValue defaultTimeout,
+    static void setRandomTimeoutTimeValue(Consumer<TimeValue> setter, TimeValue defaultTimeout,
                                                   Map<String, String> expectedParams) {
         if (randomBoolean()) {
             TimeValue timeout = TimeValue.parseTimeValue(randomTimeValue(), "random_timeout");
@@ -1767,7 +1678,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
-    private static void setRandomMasterTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+    static void setRandomMasterTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             TimeValue masterTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_master_timeout");
             setter.accept(masterTimeout);

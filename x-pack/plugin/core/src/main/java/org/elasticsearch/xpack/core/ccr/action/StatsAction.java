@@ -19,12 +19,12 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import java.io.IOException;
 import java.util.Objects;
 
-public class AutoFollowStatsAction extends Action<AutoFollowStatsAction.Response> {
+public class StatsAction extends Action<StatsAction.Response> {
 
-    public static final String NAME = "cluster:monitor/ccr/auto_follow_stats";
-    public static final AutoFollowStatsAction INSTANCE = new AutoFollowStatsAction();
+    public static final String NAME = "cluster:monitor/ccr/stats";
+    public static final StatsAction INSTANCE = new StatsAction();
 
-    private AutoFollowStatsAction() {
+    private StatsAction() {
         super(NAME);
     }
 
@@ -55,34 +55,48 @@ public class AutoFollowStatsAction extends Action<AutoFollowStatsAction.Response
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private AutoFollowStats stats;
+        private AutoFollowStats autoFollowStats;
+        private FollowStatsAction.StatsResponses followStats;
 
-        public Response(AutoFollowStats stats) {
-            this.stats = stats;
+        public Response(AutoFollowStats autoFollowStats, FollowStatsAction.StatsResponses followStats) {
+            this.autoFollowStats = Objects.requireNonNull(autoFollowStats);
+            this.followStats = Objects.requireNonNull(followStats);
         }
 
         public Response() {
         }
 
-        public AutoFollowStats getStats() {
-            return stats;
+        public AutoFollowStats getAutoFollowStats() {
+            return autoFollowStats;
+        }
+
+        public FollowStatsAction.StatsResponses getFollowStats() {
+            return followStats;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            stats = new AutoFollowStats(in);
+            autoFollowStats = new AutoFollowStats(in);
+            followStats = new FollowStatsAction.StatsResponses();
+            followStats.readFrom(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            stats.writeTo(out);
+            autoFollowStats.writeTo(out);
+            followStats.writeTo(out);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            stats.toXContent(builder, params);
+            builder.startObject();
+            {
+                builder.field("auto_follow_stats", autoFollowStats, params);
+                builder.field("follow_stats", followStats, params);
+            }
+            builder.endObject();
             return builder;
         }
 
@@ -91,12 +105,13 @@ public class AutoFollowStatsAction extends Action<AutoFollowStatsAction.Response
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return Objects.equals(stats, response.stats);
+            return Objects.equals(autoFollowStats, response.autoFollowStats) &&
+                    Objects.equals(followStats, response.followStats);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(stats);
+            return Objects.hash(autoFollowStats, followStats);
         }
     }
 

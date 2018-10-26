@@ -19,7 +19,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.StatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
@@ -260,8 +260,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     private AutoFollowStats getAutoFollowStats() {
-        AutoFollowStatsAction.Request request = new AutoFollowStatsAction.Request();
-        return followerClient().execute(AutoFollowStatsAction.INSTANCE, request).actionGet().getStats();
+        StatsAction.Request request = new StatsAction.Request();
+        return followerClient().execute(StatsAction.INSTANCE, request).actionGet().getAutoFollowStats();
     }
 
     private void createLeaderIndex(String index, Settings settings) {

@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.ccr.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
@@ -23,18 +25,19 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.StatsAction;
 
 import java.util.Objects;
 
-public class TransportAutoFollowStatsAction
-    extends TransportMasterNodeAction<AutoFollowStatsAction.Request, AutoFollowStatsAction.Response> {
+public class TransportStatsAction extends TransportMasterNodeAction<StatsAction.Request, StatsAction.Response> {
 
+    private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
     private final AutoFollowCoordinator autoFollowCoordinator;
 
     @Inject
-    public TransportAutoFollowStatsAction(
+    public TransportStatsAction(
             Settings settings,
             TransportService transportService,
             ClusterService clusterService,
@@ -42,18 +45,20 @@ public class TransportAutoFollowStatsAction
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
             AutoFollowCoordinator autoFollowCoordinator,
-            CcrLicenseChecker ccrLicenseChecker
+            CcrLicenseChecker ccrLicenseChecker,
+            Client client
     ) {
         super(
             settings,
-            AutoFollowStatsAction.NAME,
+            StatsAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            AutoFollowStatsAction.Request::new,
+            StatsAction.Request::new,
             indexNameExpressionResolver
         );
+        this.client = client;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
         this.autoFollowCoordinator = Objects.requireNonNull(autoFollowCoordinator);
     }
@@ -64,12 +69,12 @@ public class TransportAutoFollowStatsAction
     }
 
     @Override
-    protected AutoFollowStatsAction.Response newResponse() {
-        return new AutoFollowStatsAction.Response();
+    protected StatsAction.Response newResponse() {
+        return new StatsAction.Response();
     }
 
     @Override
-    protected void doExecute(Task task, AutoFollowStatsAction.Request request, ActionListener<AutoFollowStatsAction.Response> listener) {
+    protected void doExecute(Task task, StatsAction.Request request, ActionListener<StatsAction.Response> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -79,16 +84,20 @@ public class TransportAutoFollowStatsAction
 
     @Override
     protected void masterOperation(
-            AutoFollowStatsAction.Request request,
+            StatsAction.Request request,
             ClusterState state,
-            ActionListener<AutoFollowStatsAction.Response> listener
+            ActionListener<StatsAction.Response> listener
     ) throws Exception {
-        AutoFollowStats stats = autoFollowCoordinator.getStats();
-        listener.onResponse(new AutoFollowStatsAction.Response(stats));
+        CheckedConsumer<FollowStatsAction.StatsResponses, Exception> handler = statsResponse -> {
+            AutoFollowStats stats = autoFollowCoordinator.getStats();
+            listener.onResponse(new StatsAction.Response(stats, statsResponse));
+        };
+        FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
+        client.execute(FollowStatsAction.INSTANCE, statsRequest, ActionListener.wrap(handler, listener::onFailure));
     }
 
     @Override
-    protected ClusterBlockException checkBlock(AutoFollowStatsAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(StatsAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

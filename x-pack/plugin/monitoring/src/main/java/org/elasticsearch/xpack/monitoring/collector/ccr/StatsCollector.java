@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.monitoring.collector.ccr;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -13,30 +14,46 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ccr.action.StatsAction;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.monitoring.collector.ccr.FollowStatsMonitoringDoc.TYPE;
 
-public abstract class AbstractCcrCollector extends Collector {
+public final class StatsCollector extends Collector {
+
+    public static final Setting<TimeValue> CCR_STATS_TIMEOUT = collectionTimeoutSetting("ccr.stats.timeout");
 
     private final ThreadContext threadContext;
-    final CcrClient ccrClient;
+    private final CcrClient ccrClient;
 
-    AbstractCcrCollector(
+    public StatsCollector(
             final Settings settings,
             final ClusterService clusterService,
-            final Setting<TimeValue> timeoutSetting,
             final XPackLicenseState licenseState,
-            final CcrClient ccrClient,
-            final ThreadContext threadContext) {
-        super(settings, TYPE, clusterService, timeoutSetting, licenseState);
+            final Client client) {
+        this(settings, clusterService, licenseState, new XPackClient(client).ccr(), client.threadPool().getThreadContext());
+    }
+
+    StatsCollector(
+        final Settings settings,
+        final ClusterService clusterService,
+        final XPackLicenseState licenseState,
+        final CcrClient ccrClient,
+        final ThreadContext threadContext) {
+        super(settings, TYPE, clusterService, CCR_STATS_TIMEOUT, licenseState);
         this.ccrClient = ccrClient;
         this.threadContext = threadContext;
     }
@@ -59,13 +76,23 @@ public abstract class AbstractCcrCollector extends Collector {
         try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, MONITORING_ORIGIN)) {
             final long timestamp = timestamp();
             final String clusterUuid = clusterUuid(clusterState);
-            return innerDoCollect(timestamp, clusterUuid, interval, node);
+
+            final StatsAction.Request request = new StatsAction.Request();
+            final StatsAction.Response response = ccrClient.stats(request).actionGet(getCollectionTimeout());
+
+            final AutoFollowStatsMonitoringDoc autoFollowStatsDoc =
+                new AutoFollowStatsMonitoringDoc(clusterUuid, timestamp, interval, node, response.getAutoFollowStats());
+
+            Set<String> collectionIndices = new HashSet<>(Arrays.asList(getCollectionIndices()));
+            List<MonitoringDoc> docs = response
+                .getFollowStats()
+                .getStatsResponses()
+                .stream()
+                .filter(statsResponse -> collectionIndices.isEmpty() || collectionIndices.contains(statsResponse.status().followerIndex()))
+                .map(stats -> new FollowStatsMonitoringDoc(clusterUuid, timestamp, interval, node, stats.status()))
+                .collect(Collectors.toList());
+            docs.add(autoFollowStatsDoc);
+            return docs;
         }
     }
-
-    abstract Collection<MonitoringDoc> innerDoCollect(
-            long timestamp,
-            String clusterUuid,
-            long interval,
-            MonitoringDoc.Node node) throws Exception;
 }

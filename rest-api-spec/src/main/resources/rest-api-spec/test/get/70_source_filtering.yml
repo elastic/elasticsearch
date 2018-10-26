@@ -75,8 +75,8 @@
 "Deprecated _source_include and _source_exclude":
 
   - skip:
-      version: " - 6.4.99"
-      reason: _source_include and _source_exclude are deprecated from 6.5.0
+      version: " - 6.99.99"
+      reason: _source_include and _source_exclude are deprecated from 6.6.0
       features: "warnings"
 
   - do:
@@ -84,7 +84,7 @@
         index: test_1
         body:
           mappings:
-            test:
+            _doc:
               properties:
                 count:
                   type: integer
@@ -93,14 +93,14 @@
   - do:
       index:
         index:  test_1
-        type:   test
+        type:   _doc
         id:     1
         body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
   - do:
-      get: { index:  test_1, type: test, id: 1, _source_include: include.field1 }
+      get: { index:  test_1, type: _doc, id: 1, _source_include: include.field1 }
       warnings:
            - "Deprecated parameter [_source_include] used, expected [_source_includes] instead"
   - do:
-      get: { index:  test_1, type: test, id: 1, _source_includes: include, _source_exclude: "*.field2" }
+      get: { index:  test_1, type: _doc, id: 1, _source_includes: include, _source_exclude: "*.field2" }
       warnings:
            - "Deprecated parameter [_source_exclude] used, expected [_source_excludes] instead"

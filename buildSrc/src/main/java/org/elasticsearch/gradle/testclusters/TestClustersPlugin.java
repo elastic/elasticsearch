@@ -39,29 +39,29 @@ import java.util.Map;
 
 public class TestClustersPlugin implements Plugin<Project> {
 
-    public static final String LIST_TASK_NAME = "listElasticSearchClusters";
-    public static final String EXTENSION_NAME = "elasticSearchClusters";
+    private static final String LIST_TASK_NAME = "listTestClusters";
+    private static final String NODE_EXTENSION_NAME = "testClusters";
 
     private final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
     @Override
     public void apply(Project project) {
-        NamedDomainObjectContainer<? extends ElasticsearchConfiguration> container = project.container(
+        NamedDomainObjectContainer<? extends ElasticsearchNode> container = project.container(
             ElasticsearchNode.class,
             (name) -> new ElasticsearchNode(name, GradleServicesAdapter.getInstance(project))
         );
-        project.getExtensions().add(EXTENSION_NAME, container);
+        project.getExtensions().add(NODE_EXTENSION_NAME, container);
 
         Task listTask = project.getTasks().create(LIST_TASK_NAME);
         listTask.setGroup("ES cluster formation");
         listTask.setDescription("Lists all ES clusters configured for this project");
         listTask.doLast((Task task) ->
-            container.forEach((ElasticsearchConfiguration cluster) ->
+            container.forEach((ElasticsearchNode cluster) ->
                 logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getDistribution())
             )
         );
 
-        Map<Task, List<ElasticsearchConfiguration>> taskToCluster = new HashMap<>();
+        Map<Task, List<ElasticsearchNode>> taskToCluster = new HashMap<>();
 
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.
@@ -70,7 +70,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             .set(
                 "useCluster",
                 new Closure<Void>(this, this) {
-                    public void doCall(ElasticsearchConfiguration conf) {
+                    public void doCall(ElasticsearchNode conf) {
                         taskToCluster.computeIfAbsent(task, k -> new ArrayList<>()).add(conf);
                     }
                 })
@@ -79,7 +79,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
             taskExecutionGraph.getAllTasks()
                 .forEach(task ->
-                    taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchConfiguration::claim)
+                    taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchNode::claim)
                 )
         );
         project.getGradle().addListener(
@@ -87,7 +87,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 @Override
                 public void beforeActions(Task task) {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    taskToCluster.getOrDefault(task, new ArrayList<>()).forEach(ElasticsearchConfiguration::start);
+                    taskToCluster.getOrDefault(task, new ArrayList<>()).forEach(ElasticsearchNode::start);
                 }
                 @Override
                 public void afterActions(Task task) {}
@@ -99,7 +99,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 public void afterExecute(Task task, TaskState state) {
                     // always un-claim the cluster, even if _this_ task is up-to-date, as others might not have been and caused the
                     // cluster to start.
-                    taskToCluster.getOrDefault(task, new ArrayList<>()).forEach(ElasticsearchConfiguration::unClaimAndStop);
+                    taskToCluster.getOrDefault(task, new ArrayList<>()).forEach(ElasticsearchNode::unClaimAndStop);
                 }
                 @Override
                 public void beforeExecute(Task task) {}

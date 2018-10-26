@@ -80,7 +80,7 @@ import java.util.stream.Collectors;
  */
 public class JobManager extends AbstractComponent {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
+    private static final DeprecationLogger deprecationLogger =
             new DeprecationLogger(LogManager.getLogger(JobManager.class));
 
     private final Environment environment;
@@ -194,7 +194,7 @@ public class JobManager extends AbstractComponent {
         Job job = request.getJobBuilder().build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            DEPRECATION_LOGGER.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
+            deprecationLogger.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 
         // pre-flight check, not necessarily required, but avoids figuring this out while on the CS update thread

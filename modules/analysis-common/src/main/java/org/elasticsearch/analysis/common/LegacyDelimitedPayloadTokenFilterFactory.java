@@ -27,7 +27,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 public class LegacyDelimitedPayloadTokenFilterFactory extends DelimitedPayloadTokenFilterFactory {
-    private static final DeprecationLogger DEPRECATION_LOGGER =
+
+    private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(LegacyDelimitedPayloadTokenFilterFactory.class));
 
     LegacyDelimitedPayloadTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
@@ -37,7 +38,7 @@ public class LegacyDelimitedPayloadTokenFilterFactory extends DelimitedPayloadTo
                     "[delimited_payload_filter] is not supported for new indices, use [delimited_payload] instead");
         }
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_2_0)) {
-            DEPRECATION_LOGGER.deprecated("Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]");
+            deprecationLogger.deprecated("Deprecated [delimited_payload_filter] used, replaced by [delimited_payload]");
         }
     }
 }

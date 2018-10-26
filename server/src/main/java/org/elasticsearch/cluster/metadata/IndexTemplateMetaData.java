@@ -53,7 +53,7 @@ import java.util.Set;
 
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(IndexTemplateMetaData.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(IndexTemplateMetaData.class));
 
     private final String name;
 
@@ -451,7 +451,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 } else if (token.isValue()) {
                     // Prior to 5.1.0, elasticsearch only supported a single index pattern called `template` (#21009)
                     if("template".equals(currentFieldName)) {
-                        DEPRECATION_LOGGER.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
+                        deprecationLogger.deprecated("Deprecated field [template] used, replaced by [index_patterns]");
                         builder.patterns(Collections.singletonList(parser.text()));
                     } else if ("order".equals(currentFieldName)) {
                         builder.order(parser.intValue());

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -756,33 +755,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         };
     }
 
-    private void pauseFollow(String... indices) throws Exception {
-        for (String index : indices) {
-            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(index);
-            followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).get();
-        }
-        ensureNoCcrTasks();
-    }
-
-    private void ensureNoCcrTasks() throws Exception {
-        assertBusy(() -> {
-            final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-            assertThat(tasks.tasks(), empty());
-
-            ListTasksRequest listTasksRequest = new ListTasksRequest();
-            listTasksRequest.setDetailed(true);
-            ListTasksResponse listTasksResponse = followerClient().admin().cluster().listTasks(listTasksRequest).get();
-            int numNodeTasks = 0;
-            for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
-                if (taskInfo.getAction().startsWith(ListTasksAction.NAME) == false) {
-                    numNodeTasks++;
-                }
-            }
-            assertThat(numNodeTasks, equalTo(0));
-        }, 30, TimeUnit.SECONDS);
-    }
-
     private CheckedRunnable<Exception> assertExpectedDocumentRunnable(final int value) {
         return () -> {
             final GetResponse getResponse = followerClient().prepareGet("index2", "doc", Integer.toString(value)).get();
@@ -790,45 +762,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertTrue((getResponse.getSource().containsKey("f")));
             assertThat(getResponse.getSource().get("f"), equalTo(value));
         };
-    }
-
-    private String getIndexSettings(final int numberOfShards, final int numberOfReplicas,
-                                    final Map<String, String> additionalIndexSettings) throws IOException {
-        final String settings;
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            {
-                builder.startObject("settings");
-                {
-                    builder.field("index.number_of_shards", numberOfShards);
-                    builder.field("index.number_of_replicas", numberOfReplicas);
-                    for (final Map.Entry<String, String> additionalSetting : additionalIndexSettings.entrySet()) {
-                        builder.field(additionalSetting.getKey(), additionalSetting.getValue());
-                    }
-                }
-                builder.endObject();
-                builder.startObject("mappings");
-                {
-                    builder.startObject("doc");
-                    {
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("f");
-                            {
-                                builder.field("type", "integer");
-                            }
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-            settings = BytesReference.bytes(builder).utf8ToString();
-        }
-        return settings;
     }
 
     private String getIndexSettingsWithNestedMapping(final int numberOfShards, final int numberOfReplicas,
@@ -968,19 +901,4 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         });
     }
 
-    public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex) {
-        PutFollowAction.Request request = new PutFollowAction.Request();
-        request.setRemoteCluster("leader_cluster");
-        request.setLeaderIndex(leaderIndex);
-        request.setFollowRequest(resumeFollow(followerIndex));
-        return request;
-    }
-
-    public static ResumeFollowAction.Request resumeFollow(String followerIndex) {
-        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
-        request.setFollowerIndex(followerIndex);
-        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
-        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
-        return request;
-    }
 }

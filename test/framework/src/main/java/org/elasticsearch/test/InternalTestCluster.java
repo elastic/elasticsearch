@@ -28,6 +28,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -57,7 +58,6 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -174,7 +174,7 @@ import static org.junit.Assert.fail;
  */
 public final class InternalTestCluster extends TestCluster {
 
-    private final Logger logger = Loggers.getLogger(getClass());
+    private final Logger logger = LogManager.getLogger(getClass());
 
     public static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
     public static final int DEFAULT_HIGH_NUM_MASTER_NODES = 3;
@@ -696,13 +696,6 @@ public final class InternalTestCluster extends TestCluster {
         return suffix;
     }
 
-    /**
-     * Returns the common node name prefix for this test cluster.
-     */
-    public String nodePrefix() {
-        return nodePrefix;
-    }
-
     @Override
     public synchronized Client client() {
         ensureOpen();
@@ -804,21 +797,6 @@ public final class InternalTestCluster extends TestCluster {
         return null; // can't happen
     }
 
-    /**
-     * Returns a random node that applies to the given predicate.
-     * The predicate can filter nodes based on the nodes settings.
-     * If all nodes are filtered out this method will return <code>null</code>
-     */
-    public synchronized Client client(final Predicate<Settings> filterPredicate) {
-        ensureOpen();
-        final NodeAndClient randomNodeAndClient =
-                getRandomNodeAndClient(nodeAndClient -> filterPredicate.test(nodeAndClient.node.settings()));
-        if (randomNodeAndClient != null) {
-            return randomNodeAndClient.client(random);
-        }
-        return null;
-    }
-
     @Override
     public synchronized void close() {
         if (this.open.compareAndSet(true, false)) {
@@ -914,7 +892,7 @@ public final class InternalTestCluster extends TestCluster {
             return clientWrapper.apply(transportClient);
         }
 
-        void resetClient() throws IOException {
+        void resetClient() {
             if (closed.get() == false) {
                 Releasables.close(nodeClient, transportClient);
                 nodeClient = null;
@@ -1388,7 +1366,7 @@ public final class InternalTestCluster extends TestCluster {
         });
     }
 
-    private void randomlyResetClients() throws IOException {
+    private void randomlyResetClients() {
         // only reset the clients on nightly tests, it causes heavy load...
         if (RandomizedTest.isNightly() && rarely(random)) {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
@@ -1655,20 +1633,6 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Restarts a random node in the cluster
-     */
-    public void restartRandomNode() throws Exception {
-        restartRandomNode(EMPTY_CALLBACK);
-    }
-
-    /**
-     * Restarts a random node in the cluster and calls the callback during restart.
-     */
-    public void restartRandomNode(RestartCallback callback) throws Exception {
-        restartRandomNode(nc -> true, callback);
-    }
-
-    /**
      * Restarts a random data node in the cluster
      */
     public void restartRandomDataNode() throws Exception {
@@ -1716,13 +1680,6 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void fullRestart() throws Exception {
         fullRestart(EMPTY_CALLBACK);
-    }
-
-    /**
-     * Restarts all nodes in a rolling restart fashion ie. only restarts on node a time.
-     */
-    public void rollingRestart() throws Exception {
-        rollingRestart(EMPTY_CALLBACK);
     }
 
     /**

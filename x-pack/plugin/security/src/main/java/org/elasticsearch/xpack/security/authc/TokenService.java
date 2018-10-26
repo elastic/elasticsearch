@@ -25,7 +25,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -116,7 +115,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -696,7 +694,11 @@ public final class TokenService extends AbstractComponent {
                     .setVersion(true)
                     .request();
 
-            if (securityIndex.isAvailable() == false) {
+            final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+            if (frozenSecurityIndex.indexExists() == false) {
+                logger.warn("security index does not exist therefore refresh token [{}] cannot be validated", refreshToken);
+                listener.onFailure(invalidGrantException("could not refresh the requested token"));
+            } else if (frozenSecurityIndex.isAvailable() == false) {
                 logger.debug("security index is not available to find token from refresh token, retrying");
                 attemptCount.incrementAndGet();
                 findTokenFromRefreshToken(refreshToken, listener, attemptCount);
@@ -861,10 +863,13 @@ public final class TokenService extends AbstractComponent {
     public void findActiveTokensForRealm(String realmName, ActionListener<Collection<Tuple<UserToken, String>>> listener) {
         ensureEnabled();
 
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (Strings.isNullOrEmpty(realmName)) {
             listener.onFailure(new IllegalArgumentException("Realm name is required"));
-        } else if (securityIndex.isAvailable() == false) {
+        } else if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
             final Instant now = clock.instant();
             final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
@@ -886,9 +891,8 @@ public final class TokenService extends AbstractComponent {
                 .setFetchSource(true)
                 .request();
 
-            final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
-                ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, listener), this::parseHit));
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure,
+                () -> ScrollHelper.fetchAllByEntity(client, request, listener, this::parseHit));
         }
     }
 

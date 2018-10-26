@@ -25,13 +25,38 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.client.watcher.ExecuteWatchRequest;
+import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchRequest;
+import org.elasticsearch.client.watcher.StartWatchServiceRequest;
+import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 
-public class WatcherRequestConverters {
+final class WatcherRequestConverters {
+
+    private WatcherRequestConverters() {}
+
+    static Request startWatchService(StartWatchServiceRequest startWatchServiceRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("watcher")
+                .addPathPartAsIs("_start")
+                .build();
+
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request stopWatchService(StopWatchServiceRequest stopWatchServiceRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_xpack")
+                .addPathPartAsIs("watcher")
+                .addPathPartAsIs("_stop")
+                .build();
+
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
 
     static Request putWatch(PutWatchRequest putWatchRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
@@ -50,6 +75,17 @@ public class WatcherRequestConverters {
         BytesReference source = putWatchRequest.getSource();
         request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
         return request;
+    }
+
+    static Request deactivateWatch(DeactivateWatchRequest deactivateWatchRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("watcher")
+            .addPathPartAsIs("watch")
+            .addPathPart(deactivateWatchRequest.getWatchId())
+            .addPathPartAsIs("_deactivate")
+            .build();
+        return new Request(HttpPut.METHOD_NAME, endpoint);
     }
 
     static Request deleteWatch(DeleteWatchRequest deleteWatchRequest) {

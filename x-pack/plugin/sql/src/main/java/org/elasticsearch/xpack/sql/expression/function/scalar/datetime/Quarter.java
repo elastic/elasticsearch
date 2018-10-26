@@ -15,9 +15,7 @@ import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.joda.time.DateTime;
 
-import java.util.Objects;
 import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor.quarter;
@@ -25,25 +23,18 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 
 public class Quarter extends BaseDateTimeFunction {
 
-    protected static final String QUARTER_FORMAT = "q";
-    
     public Quarter(Location location, Expression field, TimeZone timeZone) {
         super(location, field, timeZone);
     }
 
     @Override
-    public Object fold() {
-        DateTime folded = (DateTime) field().fold();
-        if (folded == null) {
-            return null;
-        }
-
-        return quarter(folded.getMillis(), timeZone().getID());
+    protected Object doFold(long millis, String tzId) {
+        return quarter(millis, tzId);
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(formatTemplate("{sql}.quarter(doc[{}].value.millis, {})"),
+        return new ScriptTemplate(formatTemplate("{sql}.quarter(doc[{}].value, {})"),
                 paramsBuilder()
                   .variable(field.name())
                   .variable(timeZone().getID())
@@ -69,20 +60,5 @@ public class Quarter extends BaseDateTimeFunction {
     @Override
     public DataType dataType() {
         return DataType.INTEGER;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        BaseDateTimeFunction other = (BaseDateTimeFunction) obj;
-        return Objects.equals(other.field(), field())
-            && Objects.equals(other.timeZone(), timeZone());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field(), timeZone());
     }
 }

@@ -83,9 +83,10 @@ public class AutoCreateIndexTests extends ESTestCase {
     public void testAutoCreationDisabled() {
         Settings settings = Settings.builder().put(AutoCreateIndex.AUTO_CREATE_INDEX_SETTING.getKey(), false).build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
+        String randomIndex = randomAlphaOfLengthBetween(1, 10);
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
-            autoCreateIndex.shouldAutoCreate(randomAlphaOfLengthBetween(1, 10), buildClusterState()));
-        assertEquals("no such index and [action.auto_create_index] is [false]", e.getMessage());
+            autoCreateIndex.shouldAutoCreate(randomIndex, buildClusterState()));
+        assertEquals("no such index [" + randomIndex + "] and [action.auto_create_index] is [false]", e.getMessage());
     }
 
     public void testAutoCreationEnabled() {
@@ -207,14 +208,15 @@ public class AutoCreateIndexTests extends ESTestCase {
     private void expectNotMatch(ClusterState clusterState, AutoCreateIndex autoCreateIndex, String index) {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
             autoCreateIndex.shouldAutoCreate(index, clusterState));
-        assertEquals("no such index and [action.auto_create_index] ([" + autoCreateIndex.getAutoCreate() + "]) doesn't match",
-                e.getMessage());
+        assertEquals(
+            "no such index [" + index + "] and [action.auto_create_index] ([" + autoCreateIndex.getAutoCreate() + "]) doesn't match",
+            e.getMessage());
     }
 
     private void expectForbidden(ClusterState clusterState, AutoCreateIndex autoCreateIndex, String index, String forbiddingPattern) {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
             autoCreateIndex.shouldAutoCreate(index, clusterState));
-        assertEquals("no such index and [action.auto_create_index] contains [" + forbiddingPattern
+        assertEquals("no such index [" + index + "] and [action.auto_create_index] contains [" + forbiddingPattern
                 + "] which forbids automatic creation of the index", e.getMessage());
     }
 }

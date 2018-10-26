@@ -524,8 +524,18 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static void deleteAllPolicies() throws IOException {
-        Response response = adminClient().performRequest(new Request("GET", "/_ilm"));
-        Map<String, Object> policies = entityAsMap(response);
+        Map<String, Object> policies;
+
+        try {
+            Response response = adminClient().performRequest(new Request("GET", "/_ilm"));
+            policies = entityAsMap(response);
+        } catch (ResponseException e) {
+            if (RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+                // If bad request returned, ILM is not enabled.
+                return;
+            }
+            throw e;
+        }
 
         if (policies == null || policies.isEmpty()) {
             return;

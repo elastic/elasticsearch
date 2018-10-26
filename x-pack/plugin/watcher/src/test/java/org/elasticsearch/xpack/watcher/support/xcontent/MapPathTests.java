@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.support.xcontent;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.ObjectPath;
 
 import java.util.ArrayList;
 import java.util.Arrays;

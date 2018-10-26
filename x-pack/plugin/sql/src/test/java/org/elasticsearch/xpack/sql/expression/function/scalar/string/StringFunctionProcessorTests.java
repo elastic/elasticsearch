@@ -202,4 +202,17 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
 
         stringCharInputValidation(proc);
     }
+    
+    public void testOctetLength() {
+        StringProcessor proc = new StringProcessor(StringOperation.OCTET_LENGTH);
+        assertNull(proc.process(null));
+        assertEquals(7, proc.process("foo bar"));
+        assertEquals(0, proc.process(""));
+        assertEquals(1, proc.process('f'));
+        assertEquals(3, proc.process('\u20ac')); // euro symbol
+        // euro (3), lamda (2), theta (2), 'white sun with rays' (3), math 'A' (4) symbols
+        assertEquals(14, proc.process("\u20ac\u039B\u03F4\u263C\u1D400"));
+
+        stringCharInputValidation(proc);
+    }
 }

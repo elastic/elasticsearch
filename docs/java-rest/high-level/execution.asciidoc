@@ -38,7 +38,7 @@ completed the `ActionListener` is called back using the `onResponse` method
 if the execution successfully completed or using the `onFailure` method if
 it failed.
 
-A typical listener for +{response}+ looks like:
+A typical listener for +{api}+ looks like:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

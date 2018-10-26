@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.security.authc.kerberos;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.security.authc.kerberos.KerberosTicketValidator;
 import org.ietf.jgss.GSSContext;
@@ -50,7 +50,7 @@ import javax.security.auth.login.LoginException;
  * {@link GSSContext} after usage.
  */
 class SpnegoClient implements AutoCloseable {
-    private static final Logger LOGGER = ESLoggerFactory.getLogger(SpnegoClient.class);
+    private static final Logger LOGGER = LogManager.getLogger(SpnegoClient.class);
 
     public static final String CRED_CONF_NAME = "PasswordConf";
     private static final String SUN_KRB5_LOGIN_MODULE = "com.sun.security.auth.module.Krb5LoginModule";

@@ -113,13 +113,13 @@ String json = Strings.toString(builder);
 ==== Index document
 
 The following example indexes a JSON document into an index called
-twitter, under a type called tweet, with id valued 1:
+twitter, under a type called `_doc``, with id valued 1:
 
 [source,java]
 --------------------------------------------------
 import static org.elasticsearch.common.xcontent.XContentFactory.*;
 
-IndexResponse response = client.prepareIndex("twitter", "tweet", "1")
+IndexResponse response = client.prepareIndex("twitter", "_doc", "1")
         .setSource(jsonBuilder()
                     .startObject()
                         .field("user", "kimchy")
@@ -141,7 +141,7 @@ String json = "{" +
         "\"message\":\"trying out Elasticsearch\"" +
     "}";
 
-IndexResponse response = client.prepareIndex("twitter", "tweet")
+IndexResponse response = client.prepareIndex("twitter", "_doc")
         .setSource(json, XContentType.JSON)
         .get();
 --------------------------------------------------

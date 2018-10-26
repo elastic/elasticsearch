@@ -50,7 +50,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -223,9 +222,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         Setting.byteSizeSetting("xpack.watcher.bulk.size", new ByteSizeValue(1, ByteSizeUnit.MB),
             new ByteSizeValue(1, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB), NodeScope);
 
-
-    public static final ScriptContext<SearchScript.Factory> SCRIPT_SEARCH_CONTEXT =
-        new ScriptContext<>("xpack", SearchScript.Factory.class);
     public static final ScriptContext<TemplateScript.Factory> SCRIPT_TEMPLATE_CONTEXT
         = new ScriptContext<>("xpack_template", TemplateScript.Factory.class);
 
@@ -476,7 +472,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         settings.add(Setting.simpleString("xpack.watcher.input.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.transform.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
-        settings.add(WatcherLifeCycleService.SETTING_REQUIRE_MANUAL_START);
 
         // bulk processor configuration
         settings.add(SETTING_BULK_ACTIONS);
@@ -671,8 +666,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public List<ScriptContext<?>> getContexts() {
-        return Arrays.asList(Watcher.SCRIPT_SEARCH_CONTEXT, WatcherTransformScript.CONTEXT,
-            WatcherConditionScript.CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+        return Arrays.asList(WatcherTransformScript.CONTEXT, WatcherConditionScript.CONTEXT, Watcher.SCRIPT_TEMPLATE_CONTEXT);
     }
 
     @Override

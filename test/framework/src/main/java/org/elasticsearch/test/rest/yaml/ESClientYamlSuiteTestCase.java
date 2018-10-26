@@ -38,7 +38,6 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
-import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -361,7 +360,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             }
         } finally {
             logger.debug("start teardown test [{}]", testCandidate.getTestPath());
-            for (DoSection doSection : testCandidate.getTeardownSection().getDoSections()) {
+            for (ExecutableSection doSection : testCandidate.getTeardownSection().getDoSections()) {
                 executeSection(doSection);
             }
             logger.debug("end teardown test [{}]", testCandidate.getTestPath());

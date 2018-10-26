@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.Stream;
 
 /**
  * Holds a REST test suite loaded from a specific yaml file.
@@ -81,10 +80,9 @@ public class ClientYamlTestSuite {
                     "expected token to be START_OBJECT but was " + parser.currentToken());
         }
 
-        ClientYamlTestSuite restTestSuite = new ClientYamlTestSuite(api, suiteName);
-
-        restTestSuite.setSetupSection(SetupSection.parseIfNext(parser));
-        restTestSuite.setTeardownSection(TeardownSection.parseIfNext(parser));
+        SetupSection setupSection = SetupSection.parseIfNext(parser);
+        TeardownSection teardownSection = TeardownSection.parseIfNext(parser);
+        ClientYamlTestSuite restTestSuite = new ClientYamlTestSuite(api, suiteName, setupSection, teardownSection);
 
         while(true) {
             //the "---" section separator is not understood by the yaml parser. null is returned, same as when the parser is closed
@@ -107,15 +105,17 @@ public class ClientYamlTestSuite {
 
     private final String api;
     private final String name;
+    private final SetupSection setupSection;
+    private final TeardownSection teardownSection;
+    private final Set<ClientYamlTestSection> testSections = new TreeSet<>();
 
-    private SetupSection setupSection;
-    private TeardownSection teardownSection;
-
-    private Set<ClientYamlTestSection> testSections = new TreeSet<>();
-
-    public ClientYamlTestSuite(String api, String name) {
+    ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection) {
         this.api = api;
         this.name = name;
+        validateExecutableSections(setupSection.getExecutableSections(), null, setupSection, null);
+        this.setupSection = setupSection;
+        validateExecutableSections(teardownSection.getDoSections(), null, null, teardownSection);
+        this.teardownSection = teardownSection;
     }
 
     public String getApi() {
@@ -134,16 +134,8 @@ public class ClientYamlTestSuite {
         return setupSection;
     }
 
-    public void setSetupSection(SetupSection setupSection) {
-        this.setupSection = setupSection;
-    }
-
     public TeardownSection getTeardownSection() {
         return teardownSection;
-    }
-
-    public void setTeardownSection(TeardownSection teardownSection) {
-        this.teardownSection = teardownSection;
     }
 
     /**
@@ -152,16 +144,15 @@ public class ClientYamlTestSuite {
      * @throws IllegalArgumentException when the test section is not valid
      */
     boolean addTestSection(ClientYamlTestSection testSection) {
-        Stream<ExecutableSection> executableSectionStream = testSection.getExecutableSections().stream();
-        if (setupSection != null) {
-            executableSectionStream = Stream.concat(executableSectionStream, setupSection.getExecutableSections().stream());
-        }
-        if (teardownSection != null) {
-            executableSectionStream = Stream.concat(executableSectionStream, teardownSection.getDoSections().stream());
-        }
-        executableSectionStream.forEach(executableSection -> {
-            if (executableSection instanceof DoSection) {
-                DoSection doSection = (DoSection) executableSection;
+        validateExecutableSections(testSection.getExecutableSections(), testSection, setupSection, teardownSection);
+        return this.testSections.add(testSection);
+    }
+
+    private static void validateExecutableSections(List<ExecutableSection> sections, ClientYamlTestSection testSection,
+                                                   SetupSection setupSection, TeardownSection teardownSection) {
+        for (ExecutableSection section : sections) {
+            if (section instanceof DoSection) {
+                DoSection doSection = (DoSection) section;
                 if (false == doSection.getExpectedWarningHeaders().isEmpty()
                     && false == hasSkipFeature("warnings", testSection, setupSection, teardownSection)) {
                     throw new IllegalArgumentException("Attempted to add a [do] with a [warnings] section without a corresponding " +
@@ -180,14 +171,14 @@ public class ClientYamlTestSuite {
                         + "[skip: \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at " +
                         "line [" + doSection.getLocation().lineNumber + "]");
                 }
+
             }
-        });
-        return this.testSections.add(testSection);
+        }
     }
 
     private static boolean hasSkipFeature(String feature, ClientYamlTestSection testSection,
                                           SetupSection setupSection, TeardownSection teardownSection) {
-        return hasSkipFeature(feature, testSection.getSkipSection()) ||
+        return (testSection != null && hasSkipFeature(feature, testSection.getSkipSection())) ||
             (setupSection != null && hasSkipFeature(feature, setupSection.getSkipSection())) ||
             (teardownSection != null && hasSkipFeature(feature, teardownSection.getSkipSection()));
     }

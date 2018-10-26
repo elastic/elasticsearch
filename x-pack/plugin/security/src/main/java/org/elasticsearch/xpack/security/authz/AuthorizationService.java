@@ -410,6 +410,7 @@ public class AuthorizationService {
                         // TODO authzInfo
                         auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
                     }
+                    putTransientIfNonExisting(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, IndicesAccessControl.ALLOW_ALL);
                     listener.onResponse(null);
                 } else {
                     listener.onFailure(denial(authentication, action, unwrappedRequest, authentication.getUser().roles()));

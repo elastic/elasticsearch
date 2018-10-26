@@ -212,10 +212,9 @@ public class BroadcastReplicationTests extends ESTestCase {
 
         TestBroadcastReplicationAction(Settings settings, ClusterService clusterService, TransportService transportService,
                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse>
-                                           replicatedBroadcastShardAction) {
+                TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> action) {
             super("internal:test-broadcast-replication-action", DummyBroadcastRequest::new, settings, clusterService, transportService,
-                    actionFilters, indexNameExpressionResolver, replicatedBroadcastShardAction);
+                    actionFilters, indexNameExpressionResolver, action);
         }
 
         @Override

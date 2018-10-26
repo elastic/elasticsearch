@@ -86,8 +86,10 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
             indices.toArray(new IndexMetaData[indices.size()]));
         transportService.sendRequest(masterNode, ACTION_NAME, request, new TransportResponseHandler<AllocateDangledResponse>() {
             @Override
-            public AllocateDangledResponse newInstance() {
-                return new AllocateDangledResponse();
+            public AllocateDangledResponse read(StreamInput in) throws IOException {
+                final AllocateDangledResponse response = new AllocateDangledResponse();
+                response.readFrom(in);
+                return response;
             }
 
             @Override

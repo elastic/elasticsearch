@@ -34,6 +34,8 @@ import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_RETRY_DELAY_FIELD;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_COUNT;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_SIZE;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_OPERATION_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_SIZE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.READ_POLL_TIMEOUT;
 
 public final class PutFollowAction extends Action<PutFollowAction.Response> {
@@ -66,12 +68,18 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             PARSER.declareString(Request::setLeaderIndex, LEADER_INDEX_FIELD);
             PARSER.declareString((req, val) -> req.followRequest.setFollowerIndex(val), FOLLOWER_INDEX_FIELD);
             PARSER.declareInt((req, val) -> req.followRequest.setMaxReadRequestOperationCount(val), MAX_READ_REQUEST_OPERATION_COUNT);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingReadRequests(val), MAX_OUTSTANDING_READ_REQUESTS);
             PARSER.declareField(
                 (req, val) -> req.followRequest.setMaxReadRequestSize(val),
                 (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
                 MAX_READ_REQUEST_SIZE,
                 ObjectParser.ValueType.STRING);
+            PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingReadRequests(val), MAX_OUTSTANDING_READ_REQUESTS);
+            PARSER.declareInt((req, val) -> req.followRequest.setMaxWriteRequestOperationCount(val), MAX_WRITE_REQUEST_OPERATION_COUNT);
+            PARSER.declareField(
+                    (req, val) -> req.followRequest.setMaxWriteRequestSize(val),
+                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
+                    MAX_WRITE_REQUEST_SIZE,
+                    ObjectParser.ValueType.STRING);
             PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingWriteRequests(val), MAX_OUTSTANDING_WRITE_REQUESTS);
             PARSER.declareInt((req, val) -> req.followRequest.setMaxWriteBufferCount(val), MAX_WRITE_BUFFER_COUNT);
             PARSER.declareField(

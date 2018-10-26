@@ -159,7 +159,8 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     }
 
     public void testSubmitPrioritizedExecutorWithMixed() throws Exception {
-        ExecutorService executor = EsExecutors.newSinglePrioritizing(getTestName(), EsExecutors.daemonThreadFactory(getTestName()), holder, null);
+        ExecutorService executor = EsExecutors.newSinglePrioritizing(getTestName(),
+            EsExecutors.daemonThreadFactory(getTestName()), holder, null);
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);

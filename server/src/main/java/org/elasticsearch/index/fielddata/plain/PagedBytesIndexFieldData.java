@@ -65,7 +65,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         @Override
         public IndexOrdinalsFieldData build(IndexSettings indexSettings, MappedFieldType fieldType,
-            IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
+                IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             return new PagedBytesIndexFieldData(indexSettings, fieldType.name(), cache, breakerService,
                     minFrequency, maxFrequency, minSegmentSize);
         }

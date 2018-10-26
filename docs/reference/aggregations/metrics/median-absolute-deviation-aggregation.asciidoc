@@ -30,7 +30,7 @@ GET reviews/_search
   "aggs": {
     "review_average": {
       "avg": {
-        "field": "rating" <1>
+        "field": "rating"
       }
     },
     "review_variability": {

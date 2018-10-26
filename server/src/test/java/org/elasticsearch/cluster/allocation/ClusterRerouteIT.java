@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.allocation;
 
 import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -74,7 +75,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterRerouteIT extends ESIntegTestCase {
-    private final Logger logger = Loggers.getLogger(ClusterRerouteIT.class);
+    private final Logger logger = LogManager.getLogger(ClusterRerouteIT.class);
 
     public void testRerouteWithCommands_disableAllocationSettings() throws Exception {
         Settings commonSettings = Settings.builder()
@@ -334,7 +335,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1))
         .execute().actionGet();
 
-        Logger actionLogger = Loggers.getLogger(TransportClusterRerouteAction.class);
+        Logger actionLogger = LogManager.getLogger(TransportClusterRerouteAction.class);
 
         MockLogAppender dryRunMockLog = new MockLogAppender();
         dryRunMockLog.start();

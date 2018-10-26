@@ -273,8 +273,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 leaderClient().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
             for (FollowStatsAction.StatsResponse statsResponse : statsResponses.getStatsResponses()) {
                 ShardFollowNodeTaskStatus status = statsResponse.status();
-                assertThat(status.numberOfQueuedWrites(), equalTo(0));
-                assertThat(status.bufferSize(), equalTo(0L));
+                assertThat(status.writeBufferOperationCount(), equalTo(0));
+                assertThat(status.writeBufferSizeInBytes(), equalTo(0L));
             }
         });
     }

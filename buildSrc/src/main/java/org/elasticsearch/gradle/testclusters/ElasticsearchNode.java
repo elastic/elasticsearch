@@ -26,14 +26,12 @@ import org.gradle.api.logging.Logging;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ElasticsearchNode {
 
     private final String name;
     private final GradleServicesAdapter services;
-    private final AtomicInteger noOfClaims = new AtomicInteger();
-    private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicBoolean configurationLocked = new AtomicBoolean(false);
     private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
 
     private Distribution distribution;
@@ -66,47 +64,22 @@ public class ElasticsearchNode {
         this.distribution = distribution;
     }
 
-    public void claim() {
-        noOfClaims.incrementAndGet();
-        logger.debug("{} registered new claim", this);
-    }
-
-    /**
-     * Start the cluster if not running. Does nothing if the cluster is already running.
-     *
-     */
     public void start() {
-        if (started.getAndSet(true)) {
-            logger.info("Already started `{}`", this);
-            return;
-        } else {
-            logger.lifecycle("Starting `{}`", this);
-        }
+        logger.info("Starting `{}`", this);
     }
 
-    /**
-     * Stops a running cluster if it's not claimed. Does nothing otherwise.
-     */
-    public void unClaimAndStop() {
-        int decrementedClaims = noOfClaims.decrementAndGet();
-        if (decrementedClaims > 0) {
-            logger.lifecycle("Not stopping `{}`, since node still has {} claim(s)", this , decrementedClaims);
-            return;
-        }
-        if (started.get() == false) {
-            logger.lifecycle("`{}` was not running, no need to stop", this);
-            return;
-        }
-        logger.lifecycle("Stopping `{}`, number of claims is {}", this, decrementedClaims);
+    public void stop(boolean tailLogs) {
+        logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
     }
 
-    void forceStop() {
-        logger.lifecycle("Forcefully stopping `{}`, number of claims is {}", this, noOfClaims.get());
+    public void lockConfiguration() {
+        logger.info("Locking configuration of `{}`", this);
+        configurationLocked.set(true);
     }
 
     private void checkNotRunning() {
-        if (started.get()) {
-            throw new IllegalStateException("Configuration can not be altered while running ");
+        if (configurationLocked.get()) {
+            throw new IllegalStateException("Configuration can not be altered, already locked");
         }
     }
 
@@ -125,10 +98,6 @@ public class ElasticsearchNode {
 
     @Override
     public String toString() {
-        return "ElasticsearchNode{" +
-            "name='" + name + '\'' +
-            ", noOfClaims=" + noOfClaims +
-            ", started=" + started +
-            '}';
+        return "ElasticsearchNode{name='" + name + "'}";
     }
 }

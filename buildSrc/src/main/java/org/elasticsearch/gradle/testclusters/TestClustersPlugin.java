@@ -33,21 +33,26 @@ import org.gradle.api.tasks.TaskState;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listTestClusters";
     private static final String NODE_EXTENSION_NAME = "testClusters";
-    public static final String PROEPRTY_TESTCLUSTERS_RUN_ONCE = "_testclusters_run_once";
+    public static final String PROPERTY_TESTCLUSTERS_RUN_ONCE = "_testclusters_run_once";
 
     private final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
 
     // this is static because we need a single mapping across multi project builds, as some of the listeners we use,
     // like task graph are singletons across multi project builds.
-    private static final Map<Task, List<ElasticsearchNode>> taskToCluster = new ConcurrentHashMap<>();
+    private static final Map<Task, List<ElasticsearchNode>> usedClusters = new ConcurrentHashMap<>();
+    private static final Map<ElasticsearchNode, Integer> claimsInventory = new ConcurrentHashMap<>();
+    private static final Set<ElasticsearchNode> runningClusters = Collections.synchronizedSet(new HashSet<>());
 
     @Override
     public void apply(Project project) {
@@ -64,10 +69,12 @@ public class TestClustersPlugin implements Plugin<Project> {
         // There's a single Gradle instance for multi project builds, this means that some configuration needs to be
         // done only once even if the plugin is applied multiple times as a part of multi project build
         ExtraPropertiesExtension rootProperties = project.getRootProject().getExtensions().getExtraProperties();
-        if (rootProperties.has(PROEPRTY_TESTCLUSTERS_RUN_ONCE) == false) {
-            rootProperties.set(PROEPRTY_TESTCLUSTERS_RUN_ONCE, true);
+        if (rootProperties.has(PROPERTY_TESTCLUSTERS_RUN_ONCE) == false) {
+            rootProperties.set(PROPERTY_TESTCLUSTERS_RUN_ONCE, true);
             // When running in the Daemon it's possible for this to hold references to past
-            taskToCluster.clear();
+            usedClusters.clear();
+            claimsInventory.clear();
+            runningClusters.clear();
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
             // that are defined in the build script and the ones that will actually be used in this invocation of gradle
@@ -119,7 +126,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     "useCluster",
                     new Closure<Void>(this, task) {
                         public void doCall(ElasticsearchNode node) {
-                            taskToCluster.computeIfAbsent(task, k -> new ArrayList<>()).add(node);
+                            usedClusters.computeIfAbsent(task, k -> new ArrayList<>()).add(node);
                         }
                     })
         );
@@ -129,7 +136,12 @@ public class TestClustersPlugin implements Plugin<Project> {
         project.getGradle().getTaskGraph().whenReady(taskExecutionGraph ->
             taskExecutionGraph.getAllTasks()
                 .forEach(task ->
-                    taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchNode::claim)
+                    usedClusters.getOrDefault(task, Collections.emptyList()).forEach(each -> {
+                        synchronized (claimsInventory) {
+                            claimsInventory.put(each, claimsInventory.getOrDefault(each, 0) + 1);
+                        }
+                        each.lockConfiguration();
+                    })
                 )
         );
     }
@@ -140,7 +152,15 @@ public class TestClustersPlugin implements Plugin<Project> {
                 @Override
                 public void beforeActions(Task task) {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
-                    taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(ElasticsearchNode::start);
+                    final List<ElasticsearchNode> clustersToStart;
+                    synchronized (runningClusters) {
+                        clustersToStart = usedClusters.getOrDefault(task,Collections.emptyList()).stream()
+                            .filter(each -> runningClusters.contains(each) == false)
+                            .collect(Collectors.toList());
+                        runningClusters.addAll(clustersToStart);
+                    }
+                    clustersToStart.forEach(ElasticsearchNode::start);
+
                 }
                 @Override
                 public void afterActions(Task task) {}
@@ -155,18 +175,31 @@ public class TestClustersPlugin implements Plugin<Project> {
                 public void afterExecute(Task task, TaskState state) {
                     // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
                     // and caused the cluster to start.
+                    List<ElasticsearchNode> clustersUsedByTask = usedClusters.getOrDefault(
+                        task,
+                        Collections.emptyList()
+                    );
                     if (state.getFailure() != null) {
                         // If the task fails, and other tasks use this cluster, the other task will likely never be
                         // executed at all, so we will never get to un-claim and terminate it.
                         // The downside is that with multi project builds if that other  task is in a different
                         // project and executing right now, we may terminate the cluster while it's running it.
-                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(
-                            ElasticsearchNode::forceStop
-                        );
+                        clustersUsedByTask.forEach(each -> each.stop(true));
                     } else {
-                        taskToCluster.getOrDefault(task, Collections.emptyList()).forEach(
-                            ElasticsearchNode::unClaimAndStop
-                        );
+                        clustersUsedByTask.forEach(each -> {
+                            synchronized (claimsInventory) {
+                                claimsInventory.put(each, claimsInventory.get(each) - 1);
+                            }
+                        });
+                        final List<ElasticsearchNode> stoppable;
+                        synchronized (runningClusters) {
+                            stoppable = claimsInventory.entrySet().stream()
+                                .filter(entry -> entry.getValue() == 0)
+                                .filter(entry -> runningClusters.contains(entry.getKey()))
+                                .map(Map.Entry::getKey)
+                                .collect(Collectors.toList());
+                        }
+                        stoppable.forEach(each -> each.stop(false));
                     }
                 }
                 @Override

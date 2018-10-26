@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+@Ignore
 public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
     private static List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(

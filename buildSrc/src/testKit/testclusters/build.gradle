@@ -51,3 +51,11 @@ task dependsOnFailed {
     dependsOn itAlwaysFails
     useCluster testClusters.myTestCluster
 }
+
+task illegalConfigAlter {
+    useCluster testClusters.myTestCluster
+    doFirst {
+        println "Going to alter configuration after use"
+        testClusters.myTestCluster.distribution = 'ZIP_OSS'
+    }
+}

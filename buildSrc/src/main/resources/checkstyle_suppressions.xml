@@ -78,58 +78,6 @@
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]stats[/\\]TransportClusterStatsAction.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]tasks[/\\]PendingClusterTasksRequestBuilder.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]tasks[/\\]TransportPendingClusterTasksAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]alias[/\\]TransportIndicesAliasesAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]alias[/\\]exists[/\\]TransportAliasesExistAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]alias[/\\]get[/\\]BaseAliasesRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]alias[/\\]get[/\\]TransportGetAliasesAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]analyze[/\\]TransportAnalyzeAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]cache[/\\]clear[/\\]ClearIndicesCacheRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]close[/\\]TransportCloseIndexAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]create[/\\]CreateIndexRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]create[/\\]TransportCreateIndexAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]delete[/\\]DeleteIndexRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]delete[/\\]TransportDeleteIndexAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]exists[/\\]indices[/\\]IndicesExistsRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]exists[/\\]indices[/\\]TransportIndicesExistsAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]exists[/\\]types[/\\]TransportTypesExistsAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]exists[/\\]types[/\\]TypesExistsRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]flush[/\\]TransportFlushAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]flush[/\\]TransportSyncedFlushAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]forcemerge[/\\]ForceMergeRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]forcemerge[/\\]TransportForceMergeAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]mapping[/\\]get[/\\]GetMappingsRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]mapping[/\\]get[/\\]TransportGetFieldMappingsAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]mapping[/\\]get[/\\]TransportGetFieldMappingsIndexAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]mapping[/\\]put[/\\]TransportPutMappingAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]open[/\\]TransportOpenIndexAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]recovery[/\\]TransportRecoveryAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]refresh[/\\]TransportRefreshAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]segments[/\\]IndexSegments.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]segments[/\\]IndicesSegmentsRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]segments[/\\]TransportIndicesSegmentsAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]settings[/\\]get[/\\]GetSettingsRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]settings[/\\]get[/\\]TransportGetSettingsAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]settings[/\\]put[/\\]TransportUpdateSettingsAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]settings[/\\]put[/\\]UpdateSettingsRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]shards[/\\]IndicesShardStoreRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]shards[/\\]IndicesShardStoresResponse.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]shards[/\\]TransportIndicesShardStoresAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]stats[/\\]IndexStats.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]stats[/\\]IndicesStatsRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]stats[/\\]TransportIndicesStatsAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]template[/\\]delete[/\\]DeleteIndexTemplateRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]template[/\\]delete[/\\]TransportDeleteIndexTemplateAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]template[/\\]get[/\\]GetIndexTemplatesRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]template[/\\]get[/\\]TransportGetIndexTemplatesAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]template[/\\]put[/\\]TransportPutIndexTemplateAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]upgrade[/\\]get[/\\]IndexUpgradeStatus.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]upgrade[/\\]get[/\\]TransportUpgradeStatusAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]upgrade[/\\]get[/\\]UpgradeStatusRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]upgrade[/\\]post[/\\]TransportUpgradeAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]upgrade[/\\]post[/\\]TransportUpgradeSettingsAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]upgrade[/\\]post[/\\]UpgradeSettingsRequestBuilder.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]validate[/\\]query[/\\]TransportValidateQueryAction.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]validate[/\\]query[/\\]ValidateQueryRequestBuilder.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]BackoffPolicy.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]BulkProcessor.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]BulkRequest.java" checks="LineLength" />
@@ -371,12 +319,6 @@
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]snapshots[/\\]SnapshotBlocksIT.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]state[/\\]ClusterStateRequestTests.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]cluster[/\\]stats[/\\]ClusterStatsIT.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]TransportAnalyzeActionTests.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]cache[/\\]clear[/\\]ClearIndicesCacheBlocksIT.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]flush[/\\]SyncedFlushUnitTests.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]get[/\\]GetIndexIT.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]shards[/\\]IndicesShardStoreRequestIT.java" checks="LineLength" />
-  <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]admin[/\\]indices[/\\]shards[/\\]IndicesShardStoreResponseTests.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]BulkRequestTests.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]bulk[/\\]RetryTests.java" checks="LineLength" />
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]action[/\\]get[/\\]MultiGetShardRequestTests.java" checks="LineLength" />

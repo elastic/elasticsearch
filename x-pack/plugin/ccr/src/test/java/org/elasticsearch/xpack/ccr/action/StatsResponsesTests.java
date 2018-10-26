@@ -29,6 +29,7 @@ public class StatsResponsesTests extends AbstractStreamableTestCase<FollowStatsA
             ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
                 randomAlphaOfLength(4),
                 randomAlphaOfLength(4),
+                randomAlphaOfLength(4),
                 randomInt(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
@@ -38,6 +39,8 @@ public class StatsResponsesTests extends AbstractStreamableTestCase<FollowStatsA
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),

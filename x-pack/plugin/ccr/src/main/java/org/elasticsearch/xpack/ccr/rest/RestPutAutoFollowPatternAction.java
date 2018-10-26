@@ -22,7 +22,7 @@ public class RestPutAutoFollowPatternAction extends BaseRestHandler {
 
     public RestPutAutoFollowPatternAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/_ccr/auto_follow/{leader_cluster_alias}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_ccr/auto_follow/{name}", this);
     }
 
     @Override
@@ -38,7 +38,7 @@ public class RestPutAutoFollowPatternAction extends BaseRestHandler {
 
     static Request createRequest(RestRequest restRequest) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-            return Request.fromXContent(parser, restRequest.param("leader_cluster_alias"));
+            return Request.fromXContent(parser, restRequest.param("name"));
         }
     }
 }

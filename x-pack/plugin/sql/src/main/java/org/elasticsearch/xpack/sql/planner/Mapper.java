@@ -64,7 +64,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
             }
 
             if (p instanceof LocalRelation) {
-                return new LocalExec(p.location(), (LocalRelation) p);
+                return new LocalExec(p.location(), ((LocalRelation) p).executable());
             }
 
             if (p instanceof Project) {

@@ -41,7 +41,7 @@ public class PolicyStatsTests extends AbstractWireSerializingTestCase<PolicyStat
             phaseStats.put(randomAlphaOfLengthBetween(21, 25), PhaseStatsTests.createRandomInstance());
             break;
         case 1:
-            indicesManaged = randomIntBetween(11, 50);
+            indicesManaged += randomIntBetween(1, 10);
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

@@ -26,7 +26,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -37,7 +36,7 @@ import static org.mockito.Mockito.when;
 /**
  * Tests for reading state from the native process.
  */
-public class StateProcessorTests extends ESTestCase {
+public class AutodetectStateProcessorTests extends ESTestCase {
 
     private static final String STATE_SAMPLE = ""
             + "{\"index\": {\"_index\": \"test\", \"_type\": \"type1\", \"_id\": \"1\"}}\n"
@@ -50,18 +49,20 @@ public class StateProcessorTests extends ESTestCase {
             + "{ \"field\" : \"value3\" }\n"
             + "\0";
 
+    private static final String JOB_ID = "state-processor-test-job";
+
     private static final int NUM_LARGE_DOCS = 2;
     private static final int LARGE_DOC_SIZE = 1000000;
 
     private Client client;
-    private StateProcessor stateProcessor;
+    private AutodetectStateProcessor stateProcessor;
 
     @Before
     public void initialize() throws IOException {
         client = mock(Client.class);
         @SuppressWarnings("unchecked")
         ActionFuture<BulkResponse> bulkResponseFuture = mock(ActionFuture.class);
-        stateProcessor = spy(new StateProcessor(Settings.EMPTY, client));
+        stateProcessor = spy(new AutodetectStateProcessor(client, JOB_ID));
         when(client.bulk(any(BulkRequest.class))).thenReturn(bulkResponseFuture);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -75,9 +76,9 @@ public class StateProcessorTests extends ESTestCase {
 
     public void testStateRead() throws IOException {
         ByteArrayInputStream stream = new ByteArrayInputStream(STATE_SAMPLE.getBytes(StandardCharsets.UTF_8));
-        stateProcessor.process("_id", stream);
+        stateProcessor.process(stream);
         ArgumentCaptor<BytesReference> bytesRefCaptor = ArgumentCaptor.forClass(BytesReference.class);
-        verify(stateProcessor, times(3)).persist(eq("_id"), bytesRefCaptor.capture());
+        verify(stateProcessor, times(3)).persist(bytesRefCaptor.capture());
 
         String[] threeStates = STATE_SAMPLE.split("\0");
         List<BytesReference> capturedBytes = bytesRefCaptor.getAllValues();
@@ -92,9 +93,9 @@ public class StateProcessorTests extends ESTestCase {
         String zeroBytes = "\0\0\0\0\0\0";
         ByteArrayInputStream stream = new ByteArrayInputStream(zeroBytes.getBytes(StandardCharsets.UTF_8));
 
-        stateProcessor.process("_id", stream);
+        stateProcessor.process(stream);
 
-        verify(stateProcessor, never()).persist(eq("_id"), any());
+        verify(stateProcessor, never()).persist(any());
         Mockito.verifyNoMoreInteractions(client);
     }
 
@@ -102,9 +103,9 @@ public class StateProcessorTests extends ESTestCase {
         String zeroBytes = "        \n\0";
         ByteArrayInputStream stream = new ByteArrayInputStream(zeroBytes.getBytes(StandardCharsets.UTF_8));
 
-        stateProcessor.process("_id", stream);
+        stateProcessor.process(stream);
 
-        verify(stateProcessor, times(1)).persist(eq("_id"), any());
+        verify(stateProcessor, times(1)).persist(any());
         Mockito.verifyNoMoreInteractions(client);
     }
 
@@ -125,8 +126,8 @@ public class StateProcessorTests extends ESTestCase {
         }
 
         ByteArrayInputStream stream = new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8));
-        stateProcessor.process("_id", stream);
-        verify(stateProcessor, times(NUM_LARGE_DOCS)).persist(eq("_id"), any());
+        stateProcessor.process(stream);
+        verify(stateProcessor, times(NUM_LARGE_DOCS)).persist(any());
         verify(client, times(NUM_LARGE_DOCS)).bulk(any(BulkRequest.class));
         verify(client, times(NUM_LARGE_DOCS)).threadPool();
     }

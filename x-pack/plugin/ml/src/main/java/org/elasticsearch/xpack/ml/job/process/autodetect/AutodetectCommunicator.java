@@ -263,7 +263,7 @@ public class AutodetectCommunicator implements Closeable {
 
     public void persistJob(BiConsumer<Void, Exception> handler) {
         submitOperation(() -> {
-            autodetectProcess.persistJob();
+            autodetectProcess.persistState();
             return null;
         }, handler);
     }

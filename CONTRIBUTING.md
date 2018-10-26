@@ -159,7 +159,9 @@ Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
 * Line width is 140 characters
-* Line width for code snippets that are included in the documentation (the ones surrounded by `// tag` and `// end` comments) is 76 characters
+* Lines of code surrounded by `// tag` and `// end` comments are included in the
+documentation and should only be 76 characters wide not counting
+leading indentation
 * The rest is left to Java coding standards
 * Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. This can be done automatically by your IDE:

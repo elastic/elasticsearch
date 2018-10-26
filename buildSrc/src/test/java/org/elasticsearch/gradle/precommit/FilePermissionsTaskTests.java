@@ -41,8 +41,6 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         Project project = createProject();
 
         FilePermissionsTask filePermissionsTask = createTask(project);
-        File outputMarker = temporaryFolder.newFile();
-        filePermissionsTask.setOutputMarker(outputMarker);
 
         File file = new File(project.getProjectDir(), "src/main/java/Code.java");
         file.getParentFile().mkdirs();
@@ -62,8 +60,6 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         Project project = createProject();
 
         FilePermissionsTask filePermissionsTask = createTask(project);
-        File outputMarker = temporaryFolder.newFile();
-        filePermissionsTask.setOutputMarker(outputMarker);
 
         File file = new File(project.getProjectDir(), "src/main/java/Code.java");
         file.getParentFile().mkdirs();
@@ -71,6 +67,7 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
 
         filePermissionsTask.checkInvalidPermissions();
 
+        File outputMarker = new File(project.getBuildDir(), "markers/filePermissions");
         List<String> result = Files.readAllLines(outputMarker.toPath(), Charset.forName("UTF-8"));
         assertEquals("done", result.get(0));
     }

@@ -31,6 +31,7 @@ import org.apache.tools.ant.taskdefs.condition.Os;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
@@ -79,9 +80,11 @@ public class FilePermissionsTask extends DefaultTask {
     @InputFiles
     public FileCollection getFiles() {
         SourceSetContainer sourceSets = getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
-        return getProject().files(sourceSets.stream()
+        return sourceSets.stream()
                 .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
-                .toArray());
+                .reduce(FileTree::plus)
+                .orElse(null)
+                ;
     }
 
     @TaskAction
@@ -98,6 +101,7 @@ public class FilePermissionsTask extends DefaultTask {
             throw new GradleException("Found invalid file permissions:\n" + String.join("\n", failures));
         }
 
+        outputMarker.getParentFile().mkdirs();
         Files.write(outputMarker.toPath(), "done".getBytes("UTF-8"));
     }
 
@@ -106,7 +110,4 @@ public class FilePermissionsTask extends DefaultTask {
         return outputMarker;
     }
 
-    public void setOutputMarker(File outputMarker) {
-        this.outputMarker = outputMarker;
-    }
 }

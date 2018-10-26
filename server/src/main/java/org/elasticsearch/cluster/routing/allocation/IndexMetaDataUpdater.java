@@ -150,7 +150,6 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
         Set<String> oldInSyncAllocationIds = oldIndexMetaData.inSyncAllocationIds(shardId.id());
 
         // check if we have been force-initializing an empty primary or a stale primary
-        // the same is applicable for snapshot/restore as it can be considered as allocating a stale primary.
         if (updates.initializedPrimary != null && oldInSyncAllocationIds.isEmpty() == false &&
             oldInSyncAllocationIds.contains(updates.initializedPrimary.allocationId().getId()) == false) {
             // we're not reusing an existing in-sync allocation id to initialize a primary, which means that we're either force-allocating
@@ -168,12 +167,15 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
                 // forcing an empty primary resets the in-sync allocations to the empty set (ShardRouting.allocatedPostIndexCreate)
                 indexMetaDataBuilder.putInSyncAllocationIds(shardId.id(), Collections.emptySet());
             } else {
-                assert recoverySource == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
-                    || recoverySource instanceof RecoverySource.SnapshotRecoverySource
-                    : recoverySource;
+                final String allocationId;
+                if (recoverySource == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE) {
+                    allocationId = RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID;
+                } else {
+                    assert recoverySource instanceof RecoverySource.SnapshotRecoverySource : recoverySource;
+                    allocationId = updates.initializedPrimary.allocationId().getId();
+                }
                 // forcing a stale primary resets the in-sync allocations to the singleton set with the stale id
-                indexMetaDataBuilder.putInSyncAllocationIds(shardId.id(),
-                    Collections.singleton(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID));
+                indexMetaDataBuilder.putInSyncAllocationIds(shardId.id(), Collections.singleton(allocationId));
             }
         } else {
             // standard path for updating in-sync ids
@@ -182,8 +184,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
             inSyncAllocationIds.removeAll(updates.removedAllocationIds);
 
             assert oldInSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID) == false
-                || inSyncAllocationIds.size() == 1
-                    && inSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID) == false :
+                || inSyncAllocationIds.contains(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID) == false :
                 "fake allocation id has to be removed, inSyncAllocationIds:" + inSyncAllocationIds;
 
             // Prevent set of inSyncAllocationIds to grow unboundedly. This can happen for example if we don't write to a primary

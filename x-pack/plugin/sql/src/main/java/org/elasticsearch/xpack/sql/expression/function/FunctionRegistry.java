@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
@@ -116,14 +117,14 @@ public class FunctionRegistry {
     public FunctionRegistry() {
         defineDefaultFunctions();
     }
-    
+
     /**
      * Constructor specifying alternate functions for testing.
      */
     FunctionRegistry(FunctionDefinition... functions) {
         addToMap(functions);
     }
-    
+
     private void defineDefaultFunctions() {
         // Aggregate functions
         addToMap(def(Avg.class, Avg::new),
@@ -206,11 +207,13 @@ public class FunctionRegistry {
                 def(Space.class, Space::new),
                 def(Substring.class, Substring::new),
                 def(UCase.class, UCase::new));
+        // DataType conversion
+        addToMap(defCast("CONVERT"));
         // Special
         addToMap(def(Score.class, Score::new));
     }
-    
-    protected void addToMap(FunctionDefinition...functions) {
+
+    void addToMap(FunctionDefinition...functions) {
         // temporary map to hold [function_name/alias_name : function instance]
         Map<String, FunctionDefinition> batchMap = new HashMap<>();
         for (FunctionDefinition f : functions) {
@@ -227,7 +230,7 @@ public class FunctionRegistry {
         // sort the temporary map by key name and add it to the global map of functions
         defs.putAll(batchMap.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
-                .collect(Collectors.<Entry<String, FunctionDefinition>, String, 
+                .collect(Collectors.<Entry<String, FunctionDefinition>, String,
                         FunctionDefinition, LinkedHashMap<String, FunctionDefinition>> toMap(Map.Entry::getKey, Map.Entry::getValue,
                 (oldValue, newValue) -> oldValue, LinkedHashMap::new)));
     }
@@ -390,7 +393,7 @@ public class FunctionRegistry {
     private interface FunctionBuilder {
         Function build(Location location, List<Expression> children, boolean distinct, TimeZone tz);
     }
-    
+
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
             ThreeParametersFunctionBuilder<T> ctorRef, String... aliases) {
@@ -408,11 +411,11 @@ public class FunctionRegistry {
         };
         return def(function, builder, false, aliases);
     }
-    
+
     interface ThreeParametersFunctionBuilder<T> {
         T build(Location location, Expression source, Expression exp1, Expression exp2);
     }
-    
+
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     static <T extends Function> FunctionDefinition def(Class<T> function,
             FourParametersFunctionBuilder<T> ctorRef, String... aliases) {
@@ -427,9 +430,30 @@ public class FunctionRegistry {
         };
         return def(function, builder, false, aliases);
     }
-    
+
     interface FourParametersFunctionBuilder<T> {
         T build(Location location, Expression source, Expression exp1, Expression exp2, Expression exp3);
+    }
+
+    /**
+     * Special method to create function definition for {@link Cast} as its
+     * signature is not compatible with {@link UnresolvedFunction}
+     * @param aliases aliases for Cast
+     * @return Cast function definition
+     */
+    private static FunctionDefinition defCast(String... aliases) {
+        String primaryName = normalize(Cast.class.getSimpleName());
+        FunctionDefinition.CastBuilder builder = new FunctionDefinition.CastBuilder() {
+            @Override
+            public Function build(Cast cast) {
+                return cast;
+            }
+            @Override
+            public Function build(UnresolvedFunction uf, boolean distinct, TimeZone tz) {
+                return null;
+            }
+        };
+        return new FunctionDefinition(primaryName, unmodifiableList(Arrays.asList(aliases)), Cast.class, false, builder);
     }
 
     private static String normalize(String name) {

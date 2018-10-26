@@ -233,8 +233,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "internal:sayHello",
             new StringMessageRequest("moshe"), new TransportResponseHandler<StringMessageResponse>() {
                 @Override
-                public StringMessageResponse newInstance() {
-                    return new StringMessageResponse();
+                public StringMessageResponse read(StreamInput in) throws IOException {
+                    return new StringMessageResponse(in);
                 }
 
                 @Override
@@ -264,8 +264,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         res = serviceB.submitRequest(nodeA, "internal:sayHello", new StringMessageRequest("moshe"),
             TransportRequestOptions.builder().withCompress(true).build(), new TransportResponseHandler<StringMessageResponse>() {
                 @Override
-                public StringMessageResponse newInstance() {
-                    return new StringMessageResponse();
+                public StringMessageResponse read(StreamInput in) throws IOException {
+                    return new StringMessageResponse(in);
                 }
 
                 @Override
@@ -312,8 +312,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final String executor = randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet().toArray(new String[0]));
         TransportResponseHandler<StringMessageResponse> responseHandler = new TransportResponseHandler<StringMessageResponse>() {
             @Override
-            public StringMessageResponse newInstance() {
-                return new StringMessageResponse();
+            public StringMessageResponse read(StreamInput in) throws IOException {
+                return new StringMessageResponse(in);
             }
 
             @Override
@@ -367,8 +367,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.sendRequest(nodeA, "internal:localNode", new StringMessageRequest("test"),
             new TransportResponseHandler<StringMessageResponse>() {
             @Override
-            public StringMessageResponse newInstance() {
-                return new StringMessageResponse();
+            public StringMessageResponse read(StreamInput in) throws IOException {
+                return new StringMessageResponse(in);
             }
 
             @Override
@@ -516,7 +516,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(true).build(),
             new TransportResponseHandler<TransportResponse.Empty>() {
                 @Override
-                public TransportResponse.Empty newInstance() {
+                public TransportResponse.Empty read(StreamInput in) {
                     return TransportResponse.Empty.INSTANCE;
                 }
 
@@ -564,8 +564,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             new StringMessageRequest("moshe"), TransportRequestOptions.builder().withCompress(true).build(),
             new TransportResponseHandler<StringMessageResponse>() {
                 @Override
-                public StringMessageResponse newInstance() {
-                    return new StringMessageResponse();
+                public StringMessageResponse read(StreamInput in) throws IOException {
+                    return new StringMessageResponse(in);
                 }
 
                 @Override
@@ -606,8 +606,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "internal:sayHelloException",
             new StringMessageRequest("moshe"), new TransportResponseHandler<StringMessageResponse>() {
                 @Override
-                public StringMessageResponse newInstance() {
-                    return new StringMessageResponse();
+                public StringMessageResponse read(StreamInput in) throws IOException {
+                    return new StringMessageResponse(in);
                 }
 
                 @Override
@@ -658,7 +658,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.registerRequestHandler("internal:test", TestRequest::new,
             randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC, (request, channel, task) -> {
                 try {
-                    channel.sendResponse(new TestResponse());
+                    channel.sendResponse(new TestResponse((String) null));
                 } catch (Exception e) {
                     logger.info("caught exception while responding", e);
                     responseErrors.add(e);
@@ -666,7 +666,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             });
         final TransportRequestHandler<TestRequest> ignoringRequestHandler = (request, channel, task) -> {
             try {
-                channel.sendResponse(new TestResponse());
+                channel.sendResponse(new TestResponse((String) null));
             } catch (Exception e) {
                 // we don't really care what's going on B, we're testing through A
                 logger.trace("caught exception while responding from node B", e);
@@ -822,8 +822,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             new StringMessageRequest("moshe"), TransportRequestOptions.builder().withTimeout(100).build(),
             new TransportResponseHandler<StringMessageResponse>() {
                 @Override
-                public StringMessageResponse newInstance() {
-                    return new StringMessageResponse();
+                public StringMessageResponse read(StreamInput in) throws IOException {
+                    return new StringMessageResponse(in);
                 }
 
                 @Override
@@ -886,8 +886,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             new StringMessageRequest("forever"), TransportRequestOptions.builder().withTimeout(100).build(),
             new TransportResponseHandler<StringMessageResponse>() {
                 @Override
-                public StringMessageResponse newInstance() {
-                    return new StringMessageResponse();
+                public StringMessageResponse read(StreamInput in) throws IOException {
+                    return new StringMessageResponse(in);
                 }
 
                 @Override
@@ -924,8 +924,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 new StringMessageRequest(counter + "ms"), TransportRequestOptions.builder().withTimeout(3000).build(),
                 new TransportResponseHandler<StringMessageResponse>() {
                     @Override
-                    public StringMessageResponse newInstance() {
-                        return new StringMessageResponse();
+                    public StringMessageResponse read(StreamInput in) throws IOException {
+                        return new StringMessageResponse(in);
                     }
 
                     @Override
@@ -975,8 +975,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         TransportResponseHandler<StringMessageResponse> noopResponseHandler = new TransportResponseHandler<StringMessageResponse>() {
 
             @Override
-            public StringMessageResponse newInstance() {
-                return new StringMessageResponse();
+            public StringMessageResponse read(StreamInput in) throws IOException {
+                return new StringMessageResponse(in);
             }
 
             @Override
@@ -1174,19 +1174,19 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     static class StringMessageResponse extends TransportResponse {
 
-        private String message;
+        private final String message;
 
         StringMessageResponse(String message) {
             this.message = message;
         }
 
-        StringMessageResponse() {
+        StringMessageResponse(StreamInput in) throws IOException {
+            this.message = in.readString();
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            message = in.readString();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -1238,12 +1238,19 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     static class Version0Response extends TransportResponse {
 
-        int value1;
+        final int value1;
+
+        Version0Response(int value1) {
+            this.value1 = value1;
+        }
+
+        Version0Response(StreamInput in) throws IOException {
+            this.value1 = in.readInt();
+        }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            value1 = in.readInt();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -1255,14 +1262,25 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     static class Version1Response extends Version0Response {
 
-        int value2;
+        final int value2;
+
+        Version1Response(int value1, int value2) {
+            super(value1);
+            this.value2 = value2;
+        }
+
+        Version1Response(StreamInput in) throws IOException {
+            super(in);
+            if (in.getVersion().onOrAfter(version1)) {
+                value2 = in.readInt();
+            } else {
+                value2 = 0;
+            }
+        }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.getVersion().onOrAfter(version1)) {
-                value2 = in.readInt();
-            }
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -1281,9 +1299,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 public void messageReceived(Version1Request request, TransportChannel channel, Task task) throws Exception {
                     assertThat(request.value1, equalTo(1));
                     assertThat(request.value2, equalTo(0)); // not set, coming from service A
-                    Version1Response response = new Version1Response();
-                    response.value1 = 1;
-                    response.value2 = 2;
+                    Version1Response response = new Version1Response(1, 2);
                     channel.sendResponse(response);
                     assertEquals(version0, channel.getVersion());
                 }
@@ -1294,8 +1310,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Version0Response version0Response = serviceA.submitRequest(nodeB, "internal:version", version0Request,
             new TransportResponseHandler<Version0Response>() {
                 @Override
-                public Version0Response newInstance() {
-                    return new Version0Response();
+                public Version0Response read(StreamInput in) throws IOException {
+                    return new Version0Response(in);
                 }
 
                 @Override
@@ -1324,8 +1340,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 @Override
                 public void messageReceived(Version0Request request, TransportChannel channel, Task task) throws Exception {
                     assertThat(request.value1, equalTo(1));
-                    Version0Response response = new Version0Response();
-                    response.value1 = 1;
+                    Version0Response response = new Version0Response(1);
                     channel.sendResponse(response);
                     assertEquals(version0, channel.getVersion());
                 }
@@ -1337,8 +1352,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Version1Response version1Response = serviceB.submitRequest(nodeA, "internal:version", version1Request,
             new TransportResponseHandler<Version1Response>() {
                 @Override
-                public Version1Response newInstance() {
-                    return new Version1Response();
+                public Version1Response read(StreamInput in) throws IOException {
+                    return new Version1Response(in);
                 }
 
                 @Override
@@ -1368,9 +1383,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             (request, channel, task) -> {
                 assertThat(request.value1, equalTo(1));
                 assertThat(request.value2, equalTo(2));
-                Version1Response response = new Version1Response();
-                response.value1 = 1;
-                response.value2 = 2;
+                Version1Response response = new Version1Response(1, 2);
                 channel.sendResponse(response);
                 assertEquals(version1, channel.getVersion());
             });
@@ -1381,8 +1394,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Version1Response version1Response = serviceB.submitRequest(nodeB, "internal:version", version1Request,
             new TransportResponseHandler<Version1Response>() {
                 @Override
-                public Version1Response newInstance() {
-                    return new Version1Response();
+                public Version1Response read(StreamInput in) throws IOException {
+                    return new Version1Response(in);
                 }
 
                 @Override
@@ -1411,8 +1424,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.registerRequestHandler("internal:version", Version0Request::new, ThreadPool.Names.SAME,
             (request, channel, task) -> {
                 assertThat(request.value1, equalTo(1));
-                Version0Response response = new Version0Response();
-                response.value1 = 1;
+                Version0Response response = new Version0Response(1);
                 channel.sendResponse(response);
                 assertEquals(version0, channel.getVersion());
             });
@@ -1422,8 +1434,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         Version0Response version0Response = serviceA.submitRequest(nodeA, "internal:version", version0Request,
             new TransportResponseHandler<Version0Response>() {
                 @Override
-                public Version0Response newInstance() {
-                    return new Version0Response();
+                public Version0Response read(StreamInput in) throws IOException {
+                    return new Version0Response(in);
                 }
 
                 @Override
@@ -1458,8 +1470,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "internal:sayHello",
             new StringMessageRequest("moshe"), new TransportResponseHandler<StringMessageResponse>() {
                 @Override
-                public StringMessageResponse newInstance() {
-                    return new StringMessageResponse();
+                public StringMessageResponse read(StreamInput in) throws IOException {
+                    return new StringMessageResponse(in);
                 }
 
                 @Override
@@ -1516,8 +1528,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             new StringMessageRequest("moshe"), TransportRequestOptions.builder().withTimeout(100).build(),
             new TransportResponseHandler<StringMessageResponse>() {
                 @Override
-                public StringMessageResponse newInstance() {
-                    return new StringMessageResponse();
+                public StringMessageResponse read(StreamInput in) throws IOException {
+                    return new StringMessageResponse(in);
                 }
 
                 @Override
@@ -1561,13 +1573,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final AtomicReference<TransportAddress> addressB = new AtomicReference<>();
         serviceB.registerRequestHandler("internal:action1", TestRequest::new, ThreadPool.Names.SAME, (request, channel, task) -> {
             addressA.set(request.remoteAddress());
-            channel.sendResponse(new TestResponse());
+            channel.sendResponse(new TestResponse((String) null));
             latch.countDown();
         });
         serviceA.sendRequest(nodeB, "internal:action1", new TestRequest(), new TransportResponseHandler<TestResponse>() {
             @Override
-            public TestResponse newInstance() {
-                return new TestResponse();
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse(in);
             }
 
             @Override
@@ -1614,8 +1626,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 serviceA.sendRequest(connection, "internal:action", new TestRequest(), TransportRequestOptions.EMPTY,
                     new TransportResponseHandler<TestResponse>() {
                         @Override
-                        public TestResponse newInstance() {
-                            return new TestResponse();
+                        public TestResponse read(StreamInput in) throws IOException {
+                            return new TestResponse(in);
                         }
 
                         @Override
@@ -1680,9 +1692,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     private static class TestResponse extends TransportResponse {
 
-        String info;
+        final String info;
 
-        TestResponse() {
+        TestResponse(StreamInput in) throws IOException {
+            this.info = in.readOptionalString();
         }
 
         TestResponse(String info) {
@@ -1691,8 +1704,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            info = in.readOptionalString();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -1777,8 +1789,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
                         new TransportResponseHandler<TestResponse>() {
                             @Override
-                            public TestResponse newInstance() {
-                                return new TestResponse();
+                            public TestResponse read(StreamInput in) throws IOException {
+                                return new TestResponse(in);
                             }
 
                             @Override
@@ -1834,8 +1846,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public TestResponse newInstance() {
-                return new TestResponse();
+            public TestResponse read(StreamInput in) throws IOException {
+                return new TestResponse(in);
             }
 
             @Override
@@ -2100,7 +2112,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
             @Override
-            public TransportResponse newInstance() {
+            public TransportResponse read(StreamInput in) {
                 return TransportResponse.Empty.INSTANCE;
             }
 
@@ -2154,7 +2166,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
             @Override
-            public TransportResponse newInstance() {
+            public TransportResponse read(StreamInput in) {
                 return TransportResponse.Empty.INSTANCE;
             }
 
@@ -2231,7 +2243,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         CountDownLatch responseLatch = new CountDownLatch(1);
         TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
             @Override
-            public TransportResponse newInstance() {
+            public TransportResponse read(StreamInput in) {
                 return TransportResponse.Empty.INSTANCE;
             }
 
@@ -2299,7 +2311,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         CountDownLatch responseLatch = new CountDownLatch(1);
         TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
             @Override
-            public TransportResponse newInstance() {
+            public TransportResponse read(StreamInput in) {
                 return TransportResponse.Empty.INSTANCE;
             }
 
@@ -2413,7 +2425,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         AtomicReference<TransportException> receivedException = new AtomicReference<>(null);
         TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
             @Override
-            public TransportResponse newInstance() {
+            public TransportResponse read(StreamInput in) {
                 return TransportResponse.Empty.INSTANCE;
             }
 

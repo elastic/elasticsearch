@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 
@@ -45,8 +46,22 @@ public abstract class Action<Response extends ActionResponse> {
 
     /**
      * Creates a new response instance.
+     * @deprecated Implement {@link #getResponseReader()} instead and make this method throw an
+     *             {@link UnsupportedOperationException}
      */
+    @Deprecated
     public abstract Response newResponse();
+
+    /**
+     * Get a reader that can create a new instance of the class from a {@link org.elasticsearch.common.io.stream.StreamInput}
+     */
+    public Writeable.Reader<Response> getResponseReader() {
+        return in -> {
+            Response response = newResponse();
+            response.readFrom(in);
+            return response;
+        };
+    }
 
     /**
      * Optional request options for the action.

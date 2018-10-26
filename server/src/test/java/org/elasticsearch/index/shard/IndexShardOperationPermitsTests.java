@@ -20,6 +20,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -48,6 +49,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -220,7 +222,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         try (Releasable ignored = blockAndWait()) {
             permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
 
-            permits.asyncBlockOperations(
+            randomAsyncBlockOperations(permits,
                 30,
                 TimeUnit.MINUTES,
                 () -> {
@@ -334,7 +336,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         final CountDownLatch blockAcquired = new CountDownLatch(1);
         final CountDownLatch releaseBlock = new CountDownLatch(1);
         final AtomicBoolean blocked = new AtomicBoolean();
-        permits.asyncBlockOperations(
+        randomAsyncBlockOperations(permits,
                 30,
                 TimeUnit.MINUTES,
                 () -> {
@@ -392,7 +394,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         // now we will delay operations while the first operation is still executing (because it is latched)
         final CountDownLatch blockedLatch = new CountDownLatch(1);
         final AtomicBoolean onBlocked = new AtomicBoolean();
-        permits.asyncBlockOperations(
+        randomAsyncBlockOperations(permits,
                 30,
                 TimeUnit.MINUTES,
                 () -> {
@@ -486,7 +488,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             } catch (final BrokenBarrierException | InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            permits.asyncBlockOperations(
+            randomAsyncBlockOperations(permits,
                     30,
                     TimeUnit.MINUTES,
                     () -> {
@@ -559,7 +561,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public void testAsyncBlockOperationsOnFailure() throws InterruptedException {
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final CountDownLatch onFailureLatch = new CountDownLatch(1);
-        permits.asyncBlockOperations(
+        randomAsyncBlockOperations(permits,
                 10,
                 TimeUnit.MINUTES,
                 () -> {
@@ -596,7 +598,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         {
             final AtomicReference<Exception> reference = new AtomicReference<>();
             final CountDownLatch onFailureLatch = new CountDownLatch(1);
-            permits.asyncBlockOperations(
+            randomAsyncBlockOperations(permits,
                     1,
                     TimeUnit.MILLISECONDS,
                     () -> {},
@@ -715,5 +717,33 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
         assertThat(permits.getActiveOperations(), emptyIterable());
+    }
+
+    /**
+     * Randomizes the usage of {@link IndexShardOperationPermits#asyncBlockOperations(ActionListener, long, TimeUnit)} and
+     * {@link IndexShardOperationPermits#asyncBlockOperations(long, TimeUnit, CheckedRunnable, Consumer)}
+     */
+    private <E extends Exception> void randomAsyncBlockOperations(final IndexShardOperationPermits permits,
+                                                                  final long timeout, final TimeUnit timeUnit,
+                                                                  final CheckedRunnable<E> onBlocked, final Consumer<Exception> onFailure) {
+        if (randomBoolean()) {
+            permits.asyncBlockOperations(timeout, timeUnit, onBlocked, onFailure);
+        } else {
+            permits.asyncBlockOperations(new ActionListener<Releasable>() {
+                @Override
+                public void onResponse(final Releasable releasable) {
+                    try (Releasable ignored = releasable) {
+                        onBlocked.run();
+                    } catch (final Exception e) {
+                        onFailure.accept(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    onFailure.accept(e);
+                }
+            }, timeout, timeUnit);
+        }
     }
 }

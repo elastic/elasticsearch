@@ -104,8 +104,8 @@ final class IndexShardOperationPermits implements Closeable {
             final TimeUnit timeUnit,
             final CheckedRunnable<E> onBlocked) throws InterruptedException, TimeoutException, E {
         delayOperations();
-        try {
-            doBlockOperations(timeout, timeUnit, onBlocked);
+        try (Releasable ignored = acquireAll(timeout, timeUnit)) {
+            onBlocked.run();
         } finally {
             releaseDelayedOperations();
         }
@@ -123,23 +123,66 @@ final class IndexShardOperationPermits implements Closeable {
      * @param onFailure the action to run if a failure occurs while blocking operations
      * @param <E>       the type of checked exception thrown by {@code onBlocked} (not thrown on the calling thread)
      */
-    <E extends Exception> void asyncBlockOperations(
-            final long timeout, final TimeUnit timeUnit, final CheckedRunnable<E> onBlocked, final Consumer<Exception> onFailure) {
-        delayOperations();
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+    <E extends Exception> void asyncBlockOperations(final long timeout, final TimeUnit timeUnit,
+                                                    final CheckedRunnable<E> onBlocked, final Consumer<Exception> onFailure) {
+        asyncBlockOperations(new ActionListener<Releasable>() {
             @Override
             public void onFailure(final Exception e) {
                 onFailure.accept(e);
             }
 
             @Override
-            protected void doRun() throws Exception {
-                doBlockOperations(timeout, timeUnit, onBlocked);
+            public void onResponse(final Releasable releasable) {
+                try (Releasable ignored = releasable) {
+                    onBlocked.run();
+                } catch (final Exception e) {
+                    onFailure.accept(e);
+                }
+            }
+        }, timeout, timeUnit);
+    }
+
+    /**
+     * Immediately delays operations and on another thread waits for in-flight operations to finish and then acquires all permits. When all
+     * permits are acquired, the provided {@link ActionListener} is called under the guarantee that no new operations are started. Delayed
+     * operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in this case the
+     * {@code onFailure} handler will be invoked before running delayed operations.
+     *
+     * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed
+     * @param timeout    the maximum time to wait for the in-flight operations block
+     * @param timeUnit   the time unit of the {@code timeout} argument
+     */
+    public void asyncBlockOperations(final ActionListener<Releasable> onAcquired, final long timeout, final TimeUnit timeUnit)  {
+        delayOperations();
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+
+            final AtomicBoolean released = new AtomicBoolean(false);
+
+            @Override
+            public void onFailure(final Exception e) {
+                try {
+                    onAcquired.onFailure(e);
+                } finally {
+                    releaseDelayedOperationsIfNeeded();
+                }
             }
 
             @Override
-            public void onAfter() {
-                releaseDelayedOperations();
+            protected void doRun() throws Exception {
+                final Releasable releasable = acquireAll(timeout, timeUnit);
+                onAcquired.onResponse(() -> {
+                    try {
+                        releasable.close();
+                    } finally {
+                        releaseDelayedOperationsIfNeeded();
+                    }
+                });
+            }
+
+            private void releaseDelayedOperationsIfNeeded() {
+                if (released.compareAndSet(false, true)) {
+                    releaseDelayedOperations();
+                }
             }
         });
     }
@@ -154,10 +197,7 @@ final class IndexShardOperationPermits implements Closeable {
         }
     }
 
-    private <E extends Exception> void doBlockOperations(
-            final long timeout,
-            final TimeUnit timeUnit,
-            final CheckedRunnable<E> onBlocked) throws InterruptedException, TimeoutException, E {
+    private Releasable acquireAll(final long timeout, final TimeUnit timeUnit) throws InterruptedException, TimeoutException {
         if (Assertions.ENABLED) {
             // since delayed is not volatile, we have to synchronize even here for visibility
             synchronized (this) {
@@ -165,12 +205,13 @@ final class IndexShardOperationPermits implements Closeable {
             }
         }
         if (semaphore.tryAcquire(TOTAL_PERMITS, timeout, timeUnit)) {
-            assert semaphore.availablePermits() == 0;
-            try {
-                onBlocked.run();
-            } finally {
-                semaphore.release(TOTAL_PERMITS);
-            }
+            final AtomicBoolean closed = new AtomicBoolean();
+            return () -> {
+                if (closed.compareAndSet(false, true)) {
+                    assert semaphore.availablePermits() == 0;
+                    semaphore.release(TOTAL_PERMITS);
+                }
+            };
         } else {
             throw new TimeoutException("timeout while blocking operations");
         }

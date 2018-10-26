@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.composite;
+package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -28,7 +27,7 @@ import java.util.List;
 
 public class BitArrayTests extends ESTestCase {
     public void testRandom() {
-        try (BitArray bitArray = new BitArray(BigArrays.NON_RECYCLING_INSTANCE, 1)) {
+        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
             int numBits = randomIntBetween(1000, 10000);
             for (int step = 0; step < 3; step++) {
                 boolean[] bits = new boolean[numBits];

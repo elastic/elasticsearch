@@ -301,13 +301,13 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      * consumer in order to be processed correctly. This consumer will get a namespace to value map instead of each individual namespace
      * and value as in {@link #addAffixUpdateConsumer(Setting.AffixSetting, BiConsumer, BiConsumer)}
      */
-    public synchronized <T> void addAffixMapUpdateConsumer(Setting.AffixSetting<T> setting,  Consumer<Map<String, T>> consumer,
-                                                        BiConsumer<String, T> validator, boolean omitDefaults) {
+    public synchronized <T> void addAffixMapUpdateConsumer(Setting.AffixSetting<T> setting, Consumer<Map<String, T>> consumer,
+                                                           BiConsumer<String, T> validator) {
         final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
         if (setting != registeredSetting) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }
-        addSettingsUpdater(setting.newAffixMapUpdater(consumer, logger, validator, omitDefaults));
+        addSettingsUpdater(setting.newAffixMapUpdater(consumer, logger, validator));
     }
 
     synchronized void addSettingsUpdater(SettingUpdater<?> updater) {

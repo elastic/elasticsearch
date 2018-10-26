@@ -53,7 +53,10 @@ import org.elasticsearch.common.Strings;
 import java.io.IOException;
 import java.util.Locale;
 
-public class IndicesRequestConverters {
+final class IndicesRequestConverters {
+
+    private IndicesRequestConverters() {}
+
     static Request deleteIndex(DeleteIndexRequest deleteIndexRequest) {
         String endpoint = RequestConverters.endpoint(deleteIndexRequest.indices());
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);

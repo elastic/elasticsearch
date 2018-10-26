@@ -73,8 +73,6 @@ public final class ConnectionProfile {
     }
 
     /**
-<<<<<<< HEAD
-=======
      * takes a {@link ConnectionProfile} resolves it to a fully specified (i.e., no nulls) profile
      */
     public static ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile profile, ConnectionProfile fallbackProfile) {
@@ -121,7 +119,7 @@ public final class ConnectionProfile {
     }
 
     /**
->>>>>>> 419ad4569dc...  Reduce channels in AbstractSimpleTransportTestCase (#34863) (#34880)
+     * Reduce channels in AbstractSimpleTransportTestCase (#34863) (#34880)
      * A builder to build a new {@link ConnectionProfile}
      */
     public static class Builder {

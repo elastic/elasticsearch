@@ -22,7 +22,6 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xpack.core.indexlifecycle.ILMRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -242,7 +241,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     public void cleanup() throws Exception {
         disableMonitoring();
         clearMlState();
-        clearILMState();
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).
@@ -259,12 +257,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     private void clearMlState() throws Exception {
         if (isMachineLearningTest()) {
             new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        }
-    }
-
-    private void clearILMState() throws Exception {
-        if (isILMTest()) {
-            ILMRestTestStateCleaner.clearILMMetadata(adminClient());
         }
     }
 
@@ -326,12 +318,6 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
     protected boolean isMachineLearningTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("=ml/") || testName.contains("=ml\\"));
-    }
-
-    protected boolean isILMTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("=ilm/") || testName.contains("=ilm\\"))
-                || (testName.contains("/ilm/") || testName.contains("\\ilm\\"));
     }
 
     /**

@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[start-stop-ilm]]
 == Start And Stop {ilm}
 

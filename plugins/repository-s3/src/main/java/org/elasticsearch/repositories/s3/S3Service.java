@@ -112,8 +112,7 @@ class S3Service extends AbstractComponent implements Closeable {
         //
         // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
         // so this change removes that usage of a deprecated API.
-        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null))
-            .withPathStyleAccessEnabled(true);
+        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null)).enablePathStyleAccess();
 
         return builder.build();
     }

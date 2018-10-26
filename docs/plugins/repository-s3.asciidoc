@@ -304,7 +304,7 @@ You may further restrict the permissions by specifying a prefix within the bucke
 The bucket needs to exist to register a repository for snapshots. If you did not create the bucket then the repository
 registration will fail.
 
-Note: All bucket operations are using the path style access pattern. The DNS style access pattern is never used.
+Note: All bucket operations are using the path style access pattern. The virtual hosted style access pattern is never used.
 
 [[repository-s3-aws-vpc]]
 [float]

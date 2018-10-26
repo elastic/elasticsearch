@@ -64,6 +64,16 @@ public class QueryFolderTests extends AbstractBuilderTestCase {
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
     }
 
+    public void testFoldingToLocalExecWithProject_FoldableIn() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE int IN (null, null)");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
     public void testFoldingToLocalExecWithProject_WithOrderAndLimit() {
         PhysicalPlan p = plan("SELECT keyword FROM test WHERE 1 = 2 ORDER BY int LIMIT 10");
         assertEquals(LocalExec.class, p.getClass());

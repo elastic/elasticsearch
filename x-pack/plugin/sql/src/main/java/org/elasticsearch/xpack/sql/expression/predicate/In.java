@@ -42,7 +42,7 @@ public class In extends NamedExpression implements ScriptWeaver {
     public In(Location location, Expression value, List<Expression> list) {
         super(location, null, CollectionUtils.combine(list, value), null);
         this.value = value;
-        this.list = list.stream().distinct().collect(Collectors.toList());
+        this.list = new ArrayList<>(new LinkedHashSet<>(list));
     }
 
     @Override
@@ -78,11 +78,19 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public boolean foldable() {
-        return Expressions.foldable(children());
+        return Expressions.foldable(children()) ||
+            (Expressions.foldable(list) && list().stream().allMatch(e -> e.dataType() == DataType.NULL));
     }
 
     @Override
     public Boolean fold() {
+        if (value.dataType() == DataType.NULL) {
+            return null;
+        }
+        if (list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
+            return false;
+        }
+
         Object foldedLeftValue = value.fold();
         Boolean result = false;
         for (Expression rightValue : list) {

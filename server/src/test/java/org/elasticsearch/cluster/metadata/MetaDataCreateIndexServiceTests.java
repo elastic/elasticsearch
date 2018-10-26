@@ -124,9 +124,9 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 MetaDataCreateIndexService.validateShrinkIndex(state, "target", Collections.emptySet(), "source", Settings.EMPTY)
             ).getMessage());
 
-        assertEquals("no such index",
+        assertEquals("no such index [no_such_index]",
             expectThrows(IndexNotFoundException.class, () ->
-                MetaDataCreateIndexService.validateShrinkIndex(state, "no such index", Collections.emptySet(), "target", Settings.EMPTY)
+                MetaDataCreateIndexService.validateShrinkIndex(state, "no_such_index", Collections.emptySet(), "target", Settings.EMPTY)
             ).getMessage());
 
         Settings targetSettings = Settings.builder().put("index.number_of_shards", 1).build();
@@ -200,9 +200,9 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 MetaDataCreateIndexService.validateSplitIndex(state, "target", Collections.emptySet(), "source", targetSettings)
             ).getMessage());
 
-        assertEquals("no such index",
+        assertEquals("no such index [no_such_index]",
             expectThrows(IndexNotFoundException.class, () ->
-                MetaDataCreateIndexService.validateSplitIndex(state, "no such index", Collections.emptySet(), "target", targetSettings)
+                MetaDataCreateIndexService.validateSplitIndex(state, "no_such_index", Collections.emptySet(), "target", targetSettings)
             ).getMessage());
 
         assertEquals("the number of source shards [10] must be less that the number of target shards [5]",

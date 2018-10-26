@@ -36,7 +36,7 @@ import java.util.Collections;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RestPutIndexTemplateAction.class));
 
     public RestPutIndexTemplateAction(Settings settings, RestController controller) {
@@ -54,7 +54,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
         if (request.hasParam("template")) {
-            DEPRECATION_LOGGER.deprecated("Deprecated parameter[template] used, replaced by [index_patterns]");
+            deprecationLogger.deprecated("Deprecated parameter[template] used, replaced by [index_patterns]");
             putRequest.patterns(Collections.singletonList(request.param("template")));
         } else {
             putRequest.patterns(Arrays.asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));

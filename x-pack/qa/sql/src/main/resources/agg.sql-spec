@@ -456,6 +456,13 @@ selectHireDateGroupByHireDate
 SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
 selectSalaryGroupBySalary
 SELECT salary, COUNT(*) c FROM test_emp GROUP BY salary ORDER BY salary DESC;
+selectLangGroupByLangHavingCountIsNotNull
+SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING COUNT(*) IS NOT NULL ORDER BY languages DESC;
+selectLangGroupByLangHavingNotEquality
+SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING NOT COUNT(*) = 1 ORDER BY languages DESC;
+selectLangGroupByLangHavingDifferent
+SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING COUNT(*) <> 1 ORDER BY languages DESC;
+
 
 // filter with IN
 aggMultiWithHavingUsingInAndNullHandling

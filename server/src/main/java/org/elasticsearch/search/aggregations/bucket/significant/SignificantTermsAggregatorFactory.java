@@ -60,7 +60,7 @@ import java.util.Map;
 
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, SignificantTermsAggregatorFactory>
         implements Releasable {
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(SignificantTermsAggregatorFactory.class));
 
     private final IncludeExclude includeExclude;
@@ -202,7 +202,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint, DEPRECATION_LOGGER);
+                execution = ExecutionMode.fromString(executionHint, deprecationLogger);
             }
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
                 execution = ExecutionMode.MAP;

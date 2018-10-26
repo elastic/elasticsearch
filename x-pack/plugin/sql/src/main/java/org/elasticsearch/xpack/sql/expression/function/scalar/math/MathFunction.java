@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -64,8 +62,8 @@ public abstract class MathFunction extends UnaryScalarFunction {
     }
 
     @Override
-    protected final Pipe makePipe() {
-        return new UnaryPipe(location(), this, Expressions.pipe(field()), new MathProcessor(operation()));
+    protected Processor makeProcessor() {
+        return new MathProcessor(operation());
     }
 
     protected abstract MathOperation operation();

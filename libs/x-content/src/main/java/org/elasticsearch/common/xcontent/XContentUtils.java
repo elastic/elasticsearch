@@ -3,18 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.watcher.common.xcontent;
-
-import org.elasticsearch.common.xcontent.XContentParser;
+package org.elasticsearch.common.xcontent;
 
 import java.io.IOException;
 
-public class XContentUtils {
+public final class XContentUtils {
 
     private XContentUtils() {
     }
 
-    // TODO open this up in core
+    /**
+     * Convert a {@link XContentParser.Token} to a value
+     */
     public static Object readValue(XContentParser parser, XContentParser.Token token) throws IOException {
         if (token == XContentParser.Token.VALUE_NULL) {
             return null;

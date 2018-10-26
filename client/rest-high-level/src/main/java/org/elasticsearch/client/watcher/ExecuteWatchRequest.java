@@ -10,6 +10,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -22,9 +24,10 @@ import java.util.Optional;
 /**
  * An execute watch request to execute a watch by id
  */
-public class ExecuteWatchRequest implements Validatable {
+public class ExecuteWatchRequest implements Validatable, ToXContentObject {
 
-    public HttpEntity toHttpEntity() {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return null;
     }
 
@@ -33,42 +36,24 @@ public class ExecuteWatchRequest implements Validatable {
     }
 
     private final String id;
-    private final BytesReference watchSource;
 
     private boolean ignoreCondition = false;
     private boolean recordExecution = false;
     private boolean debug = false;
 
     @Nullable
-    private Map<String, Object> triggerData = null;
-    @Nullable private Map<String, Object> alternativeInput = null;
-    private Map<String, ActionExecutionMode> actionModes = new HashMap<>();
+    private XContentBuilder triggerData = null;
 
-    public ExecuteWatchRequest(BytesReference watchSource) {
-        this.id = null;
-        this.watchSource = Objects.requireNonNull(watchSource, "Watch source cannot be null");
-    }
+    @Nullable
+    private XContentBuilder alternativeInput = null;
+
+    private Map<String, ActionExecutionMode> actionModes = new HashMap<>();
 
     /**
      * @param id the id of the watch to execute
      */
     public ExecuteWatchRequest(String id) {
         this.id = Objects.requireNonNull(id, "Watch id cannot be null");
-        this.watchSource = null;
-    }
-
-    /**
-     * @return The id of the watch to be executed
-     */
-    public String getId() {
-        return id;
-    }
-
-    /**
-     * @return Should the condition for this execution be ignored
-     */
-    public boolean isIgnoreCondition() {
-        return ignoreCondition;
     }
 
     /**
@@ -79,63 +64,24 @@ public class ExecuteWatchRequest implements Validatable {
     }
 
     /**
-     * @return Should this execution be recorded in the history index
-     */
-    public boolean isRecordExecution() {
-        return recordExecution;
-    }
-
-    /**
      * @param recordExecution Sets if this execution be recorded in the history index
      */
     public void setRecordExecution(boolean recordExecution) {
-        if (watchSource != null) {
-            throw new IllegalArgumentException("The execution of an line watch cannot be recorded");
-        }
         this.recordExecution = recordExecution;
-    }
-
-    /**
-     * @return The alertnative input to use (may be null)
-     */
-    public Map<String, Object> getAlternativeInput() {
-        return alternativeInput;
     }
 
     /**
      * @param alternativeInput Set's the alternative input
      */
-    public void setAlternativeInput(Map<String, Object> alternativeInput) {
+    public void setAlternativeInput(XContentBuilder alternativeInput) {
         this.alternativeInput = alternativeInput;
     }
 
     /**
      * @param data The data that should be associated with the trigger event.
      */
-    public void setTriggerData(Map<String, Object> data) throws IOException {
+    public void setTriggerData(XContentBuilder data) throws IOException {
         this.triggerData = data;
-    }
-
-    /**
-     * @return the trigger to use
-     */
-    public Map<String, Object> getTriggerData() {
-        return triggerData;
-    }
-
-    /**
-     * @return the source of the watch to execute
-     */
-    public BytesReference getWatchSource() {
-        return watchSource;
-    }
-
-    /**
-     * @return  the execution modes for the actions. These modes determine the nature of the execution
-     *          of the watch actions while the watch is executing.
-     */
-    public Map<String, ActionExecutionMode> getActionModes() {
-        return actionModes;
     }
 
     /**
@@ -147,14 +93,6 @@ public class ExecuteWatchRequest implements Validatable {
     public void setActionMode(String actionId, ActionExecutionMode actionMode) {
         Objects.requireNonNull(actionId, "actionId cannot be null");
         actionModes.put(actionId, actionMode);
-    }
-
-    /**
-     * @return whether the watch should execute in debug mode. In debug mode the execution {@code vars}
-     *         will be returned as part of the watch record.
-     */
-    public boolean isDebug() {
-        return debug;
     }
 
     /**

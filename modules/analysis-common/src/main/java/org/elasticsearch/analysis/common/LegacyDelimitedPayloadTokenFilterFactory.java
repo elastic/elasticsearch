@@ -27,7 +27,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 public class LegacyDelimitedPayloadTokenFilterFactory extends DelimitedPayloadTokenFilterFactory {
-
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(LegacyDelimitedPayloadTokenFilterFactory.class));
 

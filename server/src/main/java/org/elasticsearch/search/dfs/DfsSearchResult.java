@@ -45,6 +45,10 @@ public class DfsSearchResult extends SearchPhaseResult {
     public DfsSearchResult() {
     }
 
+    public DfsSearchResult(StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     public DfsSearchResult(long id, SearchShardTarget shardTarget) {
         this.setSearchShardTarget(shardTarget);
         this.requestId = id;

@@ -19,34 +19,9 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 
-import java.io.IOException;
-
 public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T> {
-
-    /**
-     * @deprecated Implement {@link #read(StreamInput)} instead.
-     */
-    @Deprecated
-    default T newInstance() {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * deserializes a new instance of the return type from the stream.
-     * called by the infra when de-serializing the response.
-     *
-     * @return the deserialized response.
-     */
-    @SuppressWarnings("deprecation")
-    @Override
-    default T read(StreamInput in) throws IOException {
-        T instance = newInstance();
-        instance.readFrom(in);
-        return instance;
-    }
 
     void handleResponse(T response);
 

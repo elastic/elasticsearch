@@ -22,7 +22,9 @@ package org.elasticsearch.cluster.metadata;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,7 +43,6 @@ import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -82,7 +83,7 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, ToXContentFragment {
 
-    private static final Logger logger = Loggers.getLogger(MetaData.class);
+    private static final Logger logger = LogManager.getLogger(MetaData.class);
 
     public static final String ALL = "_all";
 

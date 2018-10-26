@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,7 +32,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -41,7 +41,7 @@ import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.num
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardsLimitAllocationTests extends ESAllocationTestCase {
-    private final Logger logger = Loggers.getLogger(ShardsLimitAllocationTests.class);
+    private final Logger logger = LogManager.getLogger(ShardsLimitAllocationTests.class);
 
     public void testIndexLevelShardsLimitAllocate() {
         AllocationService strategy = createAllocationService(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());

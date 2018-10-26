@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 /**
@@ -22,9 +24,7 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
         super(location, left, right, function);
     }
 
-    protected abstract TypeResolution resolveInputTypeFirstArg(Expression e);
-
-    protected abstract TypeResolution resolveInputTypeSecondArg(Expression e);
+    protected abstract TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal);
 
     public abstract BinaryOperator<T, U, R, F> swapLeftAndRight();
 
@@ -34,10 +34,10 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = resolveInputTypeFirstArg(left());
+        TypeResolution resolution = resolveInputType(left(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
-        return resolveInputTypeSecondArg(right());
+        return resolveInputType(right(), ParamOrdinal.SECOND);
     }
 }

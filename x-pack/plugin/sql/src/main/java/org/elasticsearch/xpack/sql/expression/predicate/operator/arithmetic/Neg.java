@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.FunctionArgument;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
@@ -39,7 +39,7 @@ public class Neg extends UnaryScalarFunction implements ScriptWeaver {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeNumeric(field(), functionName(), FunctionArgument.one_arg);
+        return Expressions.typeMustBeNumeric(field(), functionName(), ParamOrdinal.DEFAULT);
     }
 
     @Override

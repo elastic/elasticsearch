@@ -26,7 +26,7 @@ public abstract class BinaryStringNumericFunction extends BinaryStringFunction<N
 
     @Override
     protected TypeResolution resolveSecondParameterInputType(Expression e) {
-        return Expressions.typeMustBeNumeric(e,functionName(), Expressions.FunctionArgument.second);
+        return Expressions.typeMustBeNumeric(e,functionName(), Expressions.ParamOrdinal.SECOND);
     }
 
     @Override

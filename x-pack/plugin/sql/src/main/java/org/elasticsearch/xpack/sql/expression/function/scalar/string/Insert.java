@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.FunctionArgument;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -46,22 +46,22 @@ public class Insert extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), FunctionArgument.first);
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
         
-        TypeResolution startResolution = Expressions.typeMustBeNumeric(start, functionName(), FunctionArgument.second);
+        TypeResolution startResolution = Expressions.typeMustBeNumeric(start, functionName(), ParamOrdinal.SECOND);
         if (startResolution.unresolved()) {
             return startResolution;
         }
         
-        TypeResolution lengthResolution = Expressions.typeMustBeNumeric(length, functionName(), FunctionArgument.third);
+        TypeResolution lengthResolution = Expressions.typeMustBeNumeric(length, functionName(), ParamOrdinal.THIRD);
         if (lengthResolution.unresolved()) {
             return lengthResolution;
         }
         
-        return Expressions.typeMustBeString(replacement, functionName(), FunctionArgument.fourth);
+        return Expressions.typeMustBeString(replacement, functionName(), ParamOrdinal.FOURTH);
     }
 
     @Override

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.FunctionArgument;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -48,19 +48,19 @@ public class Locate extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, functionName(), FunctionArgument.first);
+        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, functionName(), ParamOrdinal.FIRST);
         if (patternResolution.unresolved()) {
             return patternResolution;
         }
         
-        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), FunctionArgument.second);
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), ParamOrdinal.SECOND);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
         
         return start == null ?
             TypeResolution.TYPE_RESOLVED :
-            Expressions.typeMustBeNumeric(start, functionName(), FunctionArgument.third);
+            Expressions.typeMustBeNumeric(start, functionName(), ParamOrdinal.THIRD);
     }
 
     @Override

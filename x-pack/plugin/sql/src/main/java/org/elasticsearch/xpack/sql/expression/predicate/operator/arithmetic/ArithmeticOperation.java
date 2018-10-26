@@ -21,13 +21,8 @@ public abstract class ArithmeticOperation extends BinaryOperator<Number, Number,
     }
     
     @Override
-    protected TypeResolution resolveInputTypeFirstArg(Expression e) {
-        return Expressions.typeMustBeNumeric(e, symbol(), Expressions.FunctionArgument.first);
-    }
-
-    @Override
-    protected TypeResolution resolveInputTypeSecondArg(Expression e) {
-        return Expressions.typeMustBeNumeric(e, symbol(), Expressions.FunctionArgument.second);
+    protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
+        return Expressions.typeMustBeNumeric(e, symbol(), paramOrdinal);
     }
 
     @Override

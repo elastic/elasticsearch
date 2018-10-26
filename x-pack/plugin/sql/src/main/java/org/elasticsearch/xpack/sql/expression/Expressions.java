@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
@@ -22,12 +23,12 @@ import static java.util.Collections.emptyMap;
 
 public final class Expressions {
 
-    public enum FunctionArgument {
-        one_arg,
-        first,
-        second,
-        third,
-        fourth
+    public enum ParamOrdinal {
+        DEFAULT,
+        FIRST,
+        SECOND,
+        THIRD,
+        FOURTH
     }
 
     private Expressions() {}
@@ -136,48 +137,51 @@ public final class Expressions {
         throw new SqlIllegalArgumentException("Cannot create pipe for {}", e);
     }
 
-    public static TypeResolution typeMustBeBoolean(Expression e, String functionName, FunctionArgument fArg) {
-        return e.dataType() == DataType.BOOLEAN || DataTypes.isNull(e.dataType())?
-            TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.BOOLEAN));
+    public static TypeResolution typeMustBeBoolean(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, dt -> dt == DataType.BOOLEAN, operationName, paramOrd, "boolean");
     }
 
-    public static TypeResolution typeMustBeInteger(Expression e, String functionName, FunctionArgument fArg) {
-        return e.dataType().isNumeric() || DataTypes.isNull(e.dataType()) ?
-            TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.INTEGER));
+    public static TypeResolution typeMustBeInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, dt -> dt.isInteger, operationName, paramOrd, "integer");
     }
 
-    public static TypeResolution typeMustBeNumeric(Expression e, String functionName, FunctionArgument fArg) {
-        return e.dataType().isNumeric() || DataTypes.isNull(e.dataType()) ?
-            TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.NUMERIC));
+    public static TypeResolution typeMustBeNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, DataType::isNumeric, operationName, paramOrd, "numeric");
     }
 
-    public static TypeResolution typeMustBeString(Expression e, String functionName, FunctionArgument fArg) {
-        return e.dataType().isString() || DataTypes.isNull(e.dataType()) ?
-            TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.STRING));
+    public static TypeResolution typeMustBeString(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, DataType::isString, operationName, paramOrd, "string");
     }
 
-    public static TypeResolution typeMustBeDate(Expression e, String functionName, FunctionArgument fArg) {
-        return e.dataType() == DataType.DATE || DataTypes.isNull(e.dataType())?
-            TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.DATE));
+    public static TypeResolution typeMustBeDate(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, dt -> dt == DataType.DATE, operationName, paramOrd, "date");
     }
 
-    public static TypeResolution typeMustBeNumericOrDate(Expression e, String functionName, FunctionArgument fArg) {
-        return e.dataType().isNumeric() || e.dataType() == DataType.DATE || DataTypes.isNull(e.dataType())?
+    public static TypeResolution typeMustBeNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, dt -> dt.isNumeric() || dt == DataType.DATE, operationName, paramOrd, "numeric", "date");
+    }
+
+    private static TypeResolution typeMustBe(Expression e,
+                                             Predicate<DataType> predicate,
+                                             String operationName,
+                                             ParamOrdinal pOrd,
+                                             String... acceptedTypes) {
+
+        return predicate.test(e.dataType()) || DataTypes.isNull(e.dataType())?
             TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(incorrectTypeErrorMessage(e, functionName, fArg, DataTypes.NUMERIC, DataTypes.DATE));
+            new TypeResolution(incorrectTypeErrorMessage(e, operationName, pOrd, acceptedTypes));
+
     }
 
     private static String incorrectTypeErrorMessage(Expression e,
-                                                    String functionName,
-                                                    FunctionArgument fArg,
+                                                    String operationName,
+                                                    ParamOrdinal paramOrd,
                                                     String... acceptedTypes) {
-        return "'" + functionName + "' requires " + (fArg == null || fArg == FunctionArgument.one_arg ? "" : fArg + " ") +
-            "argument to be be of type " + Strings.arrayToDelimitedString(acceptedTypes, " or ") +
-            " (type of '" + Expressions.name(e) + "' is '" + e.dataType().esType + "')";
+        return String.format(Locale.ROOT, "[%s]%s argument must be [%s], found value [%s] type [%s]",
+            operationName,
+            paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
+            Strings.arrayToDelimitedString(acceptedTypes, " or "),
+            Expressions.name(e),
+            e.dataType().esType);
     }
 }

@@ -21,7 +21,7 @@ public abstract class BinaryStringStringFunction extends BinaryStringFunction<St
 
     @Override
     protected TypeResolution resolveSecondParameterInputType(Expression e) {
-        return Expressions.typeMustBeString(e, functionName(), Expressions.FunctionArgument.second);
+        return Expressions.typeMustBeString(e, functionName(), Expressions.ParamOrdinal.SECOND);
     }
 
     @Override

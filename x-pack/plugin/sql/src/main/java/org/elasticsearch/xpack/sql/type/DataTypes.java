@@ -10,13 +10,6 @@ import org.joda.time.DateTime;
 
 public final class DataTypes {
 
-    public static final String BOOLEAN = "boolean";
-    public static final String INTEGER = "integer";
-    public static final String NUMERIC = "numeric";
-    public static final String STRING = "string";
-    public static final String DATE = "date";
-
-
     private DataTypes() {}
 
     public static boolean isNull(DataType from) {

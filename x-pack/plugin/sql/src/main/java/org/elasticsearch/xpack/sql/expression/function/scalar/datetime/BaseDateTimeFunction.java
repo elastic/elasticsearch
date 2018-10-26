@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.FunctionArgument;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
@@ -42,7 +42,7 @@ abstract class BaseDateTimeFunction extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return Expressions.typeMustBeDate(field(), functionName(), FunctionArgument.one_arg);
+        return Expressions.typeMustBeDate(field(), functionName(), ParamOrdinal.DEFAULT);
     }
 
     public TimeZone timeZone() {

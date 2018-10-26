@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.FunctionArgument;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
@@ -46,7 +46,7 @@ public class PercentileRank extends AggregateFunction implements EnclosedAgg {
             return resolution;
         }
 
-        return Expressions.typeMustBeNumeric(value, functionName(), FunctionArgument.one_arg);
+        return Expressions.typeMustBeNumeric(value, functionName(), ParamOrdinal.DEFAULT);
     }
 
     public Expression value() {

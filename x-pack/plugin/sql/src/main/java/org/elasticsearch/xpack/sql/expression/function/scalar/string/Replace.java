@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.FunctionArgument;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -44,17 +44,17 @@ public class Replace extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), FunctionArgument.first);
+        TypeResolution sourceResolution = Expressions.typeMustBeString(source, functionName(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, functionName(), FunctionArgument.second);
+        TypeResolution patternResolution = Expressions.typeMustBeString(pattern, functionName(), ParamOrdinal.SECOND);
         if (patternResolution.unresolved()) {
             return patternResolution;
         }
 
-        return Expressions.typeMustBeString(replacement, functionName(), FunctionArgument.third);
+        return Expressions.typeMustBeString(replacement, functionName(), ParamOrdinal.THIRD);
     }
 
     @Override

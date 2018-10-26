@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.FunctionArgument;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
@@ -59,7 +59,7 @@ public abstract class MathFunction extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return Expressions.typeMustBeNumeric(field(), operation().toString(), FunctionArgument.one_arg);
+        return Expressions.typeMustBeNumeric(field(), operation().toString(), ParamOrdinal.DEFAULT);
     }
 
     @Override

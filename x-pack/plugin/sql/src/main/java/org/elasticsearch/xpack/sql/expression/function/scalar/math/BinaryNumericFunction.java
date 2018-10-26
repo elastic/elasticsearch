@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.Expressions.FunctionArgument;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -36,12 +36,12 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = Expressions.typeMustBeNumeric(left(), functionName(), FunctionArgument.first);
+        TypeResolution resolution = Expressions.typeMustBeNumeric(left(), functionName(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
 
         }
-        return Expressions.typeMustBeNumeric(right(), functionName(), FunctionArgument.second);
+        return Expressions.typeMustBeNumeric(right(), functionName(), ParamOrdinal.SECOND);
     }
 
     @Override

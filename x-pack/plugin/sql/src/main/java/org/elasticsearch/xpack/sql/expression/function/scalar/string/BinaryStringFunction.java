@@ -15,7 +15,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.sql.expression.Expressions.FunctionArgument;
+import static org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import static org.elasticsearch.xpack.sql.expression.Expressions.typeMustBeString;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -42,7 +42,7 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = typeMustBeString(left(), functionName(), FunctionArgument.first);
+        TypeResolution resolution = typeMustBeString(left(), functionName(), ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }

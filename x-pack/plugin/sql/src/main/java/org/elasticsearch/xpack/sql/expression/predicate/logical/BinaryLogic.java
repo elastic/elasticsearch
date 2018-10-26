@@ -25,13 +25,8 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    protected TypeResolution resolveInputTypeFirstArg(Expression e) {
-        return Expressions.typeMustBeBoolean(e, functionName(), Expressions.FunctionArgument.first);
-    }
-
-    @Override
-    protected TypeResolution resolveInputTypeSecondArg(Expression e) {
-        return Expressions.typeMustBeBoolean(e, functionName(), Expressions.FunctionArgument.second);
+    protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
+        return Expressions.typeMustBeBoolean(e, functionName(), paramOrdinal);
     }
 
     @Override

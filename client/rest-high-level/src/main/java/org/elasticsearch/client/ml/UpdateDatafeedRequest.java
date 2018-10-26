@@ -29,7 +29,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Updates a {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} with the passed {@link DatafeedUpdate}
+ * Requests an updates to a {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} with the passed {@link DatafeedUpdate}
  * settings
  */
 public class UpdateDatafeedRequest extends ActionRequest implements ToXContentObject {

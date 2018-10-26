@@ -212,7 +212,7 @@ final class MLRequestConverters {
 
     static Request updateDatafeed(UpdateDatafeedRequest updateDatafeedRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPart("").addPathPartAsIs("_xpack")
+            .addPathPartAsIs("_xpack")
             .addPathPartAsIs("ml")
             .addPathPartAsIs("datafeeds")
             .addPathPart(updateDatafeedRequest.getDatafeedUpdate().getId())

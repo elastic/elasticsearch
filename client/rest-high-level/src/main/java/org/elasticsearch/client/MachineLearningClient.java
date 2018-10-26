@@ -496,7 +496,7 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Updated a Machine Learning Datafeed
+     * Updates a Machine Learning Datafeed
      * <p>
      * For additional info
      * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-datafeed.html">

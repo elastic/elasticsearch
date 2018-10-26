@@ -380,7 +380,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::updateDatafeed,
             machineLearningClient::updateDatafeedAsync);
 
-        DatafeedConfig updatedDatafeed= response.getResponse();
+        DatafeedConfig updatedDatafeed = response.getResponse();
         assertThat(datafeedUpdate.getId(), equalTo(updatedDatafeed.getId()));
         assertThat(datafeedUpdate.getIndices(), equalTo(updatedDatafeed.getIndices()));
         assertThat(datafeedUpdate.getScrollSize(), equalTo(updatedDatafeed.getScrollSize()));

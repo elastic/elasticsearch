@@ -642,47 +642,23 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
         {
-            // tag::update-datafeed-config
-            DatafeedUpdate.Builder datafeedUpdateBuilder = new DatafeedUpdate.Builder(datafeedId); // <1>
-            // end::update-datafeed-config
-
             AggregatorFactories.Builder aggs = AggregatorFactories.builder();
-
-            // tag::update-datafeed-config-set-aggregations
-            datafeedUpdateBuilder.setAggregations(aggs); // <1>
-            // end::update-datafeed-config-set-aggregations
-
-            // tag::update-datafeed-config-set-indices
-            datafeedUpdateBuilder.setIndices("index_1", "index_2"); // <1>
-            // end::update-datafeed-config-set-indices
+            List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
+            // tag::update-datafeed-config
+            DatafeedUpdate.Builder datafeedUpdateBuilder = new DatafeedUpdate.Builder(datafeedId) // <1>
+                .setAggregations(aggs) // <2>
+                .setIndices("index_1", "index_2") // <3>
+                .setChunkingConfig(ChunkingConfig.newAuto()) // <4>
+                .setFrequency(TimeValue.timeValueSeconds(30)) // <5>
+                .setQuery(QueryBuilders.matchAllQuery()) // <6>
+                .setQueryDelay(TimeValue.timeValueMinutes(1)) // <7>
+                .setScriptFields(scriptFields) // <8>
+                .setScrollSize(1000) // <9>
+                .setJobId("update-datafeed-job"); // <10>
+            // end::update-datafeed-config
 
             // Clearing aggregation to avoid complex validation rules
             datafeedUpdateBuilder.setAggregations((String) null);
-
-            // tag::update-datafeed-config-set-chunking-config
-            datafeedUpdateBuilder.setChunkingConfig(ChunkingConfig.newAuto()); // <1>
-            // end::update-datafeed-config-set-chunking-config
-
-            // tag::update-datafeed-config-set-frequency
-            datafeedUpdateBuilder.setFrequency(TimeValue.timeValueSeconds(30)); // <1>
-            // end::update-datafeed-config-set-frequency
-
-            // tag::update-datafeed-config-set-query
-            datafeedUpdateBuilder.setQuery(QueryBuilders.matchAllQuery()); // <1>
-            // end::update-datafeed-config-set-query
-
-            // tag::update-datafeed-config-set-query-delay
-            datafeedUpdateBuilder.setQueryDelay(TimeValue.timeValueMinutes(1)); // <1>
-            // end::update-datafeed-config-set-query-delay
-
-            List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
-            // tag::update-datafeed-config-set-script-fields
-            datafeedUpdateBuilder.setScriptFields(scriptFields); // <1>
-            // end::update-datafeed-config-set-script-fields
-
-            // tag::update-datafeed-config-set-scroll-size
-            datafeedUpdateBuilder.setScrollSize(1000); // <1>
-            // end::update-datafeed-config-set-scroll-size
 
             // tag::update-datafeed-request
             UpdateDatafeedRequest request = new UpdateDatafeedRequest(datafeedUpdateBuilder.build()); // <1>

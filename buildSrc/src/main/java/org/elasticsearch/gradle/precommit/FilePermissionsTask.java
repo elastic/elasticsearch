@@ -83,8 +83,7 @@ public class FilePermissionsTask extends DefaultTask {
         return sourceSets.stream()
                 .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
                 .reduce(FileTree::plus)
-                .orElse(null)
-                ;
+                .orElse(null);
     }
 
     @TaskAction

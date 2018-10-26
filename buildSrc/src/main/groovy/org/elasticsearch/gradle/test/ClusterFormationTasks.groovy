@@ -344,8 +344,10 @@ class ClusterFormationTasks {
             esConfig['discovery.initial_state_timeout'] = '0s'
         }
         if (esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
-            // We use 30s as the default timeout in rest requests waiting for cluster formation
-            // so we need to bail quicker than the default 30s here
+            // If a node decides to become master based on partial information from the pinging, don't let it hang for 30 seconds to correct
+            // its mistake. Instead, only wait 5s to do another round of pinging.
+            // This is necessary since we use 30s as the default timeout in REST requests waiting for cluster formation
+            // so we need to bail quicker than the default 30s for the cluster to form in time.
             esConfig['discovery.zen.master_election.wait_for_joins_timeout'] = '5s'
         }
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes

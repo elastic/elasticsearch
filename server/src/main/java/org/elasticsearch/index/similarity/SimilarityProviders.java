@@ -67,7 +67,7 @@ final class SimilarityProviders {
 
     private SimilarityProviders() {} // no instantiation
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(SimilarityProviders.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SimilarityProviders.class));
     static final String DISCOUNT_OVERLAPS = "discount_overlaps";
 
     private static final Map<String, BasicModel> BASIC_MODELS;
@@ -143,7 +143,7 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("Basic model [" + basicModel + "] isn't supported anymore, " +
                         "please use another model.");
                 } else {
-                    DEPRECATION_LOGGER.deprecated("Basic model [" + basicModel +
+                    deprecationLogger.deprecated("Basic model [" + basicModel +
                         "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     model = BASIC_MODELS.get(replacement);
                     assert model != null;
@@ -174,7 +174,7 @@ final class SimilarityProviders {
                     throw new IllegalArgumentException("After effect [" + afterEffect +
                         "] isn't supported anymore, please use another effect.");
                 } else {
-                    DEPRECATION_LOGGER.deprecated("After effect [" + afterEffect +
+                    deprecationLogger.deprecated("After effect [" + afterEffect +
                         "] isn't supported anymore and has arbitrarily been replaced with [" + replacement + "].");
                     effect = AFTER_EFFECTS.get(replacement);
                     assert effect != null;
@@ -264,7 +264,7 @@ final class SimilarityProviders {
             if (version.onOrAfter(Version.V_7_0_0_alpha1)) {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
-                DEPRECATION_LOGGER.deprecated("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
+                deprecationLogger.deprecated("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             }
         }
     }

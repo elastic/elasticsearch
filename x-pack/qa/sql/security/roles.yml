@@ -7,8 +7,8 @@ rest_minimal:
       privileges: [read, "indices:admin/get"]
 # end::rest
 
-# tag::cli_jdbc
-cli_or_jdbc_minimal:
+# tag::cli_drivers
+cli_or_drivers_minimal:
   cluster:
     - "cluster:monitor/main"
   indices:
@@ -16,7 +16,7 @@ cli_or_jdbc_minimal:
       privileges: [read, "indices:admin/get"]
     - names: bort
       privileges: [read, "indices:admin/get"]
-# end::cli_jdbc
+# end::cli_drivers
 
 read_something_else:
   cluster:
@@ -82,6 +82,6 @@ no_get_index:
     - "cluster:monitor/main"
   indices:
     - names: test
-      privileges: [read]
+      privileges: [monitor]
     - names: bort
-      privileges: [read]
+      privileges: [monitor]

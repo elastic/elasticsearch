@@ -7,9 +7,10 @@ package org.elasticsearch.xpack.qa.sql.security;
 
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.xpack.qa.sql.cli.ErrorsTestCase;
 import org.elasticsearch.xpack.qa.sql.cli.EmbeddedCli;
 import org.elasticsearch.xpack.qa.sql.cli.EmbeddedCli.SecurityConfig;
+import org.elasticsearch.xpack.qa.sql.cli.ErrorsTestCase;
+
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
@@ -20,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.qa.sql.cli.CliIntegrationTestCase.elasticsearchAddress;
-import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -53,7 +53,7 @@ public class CliSecurityIT extends SqlSecurityTestCase {
     private static class CliActions implements Actions {
         @Override
         public String minimalPermissionsForAllActions() {
-            return "cli_or_jdbc_minimal";
+            return "cli_or_drivers_minimal";
         }
 
         private SecurityConfig userSecurity(String user) {
@@ -121,12 +121,19 @@ public class CliSecurityIT extends SqlSecurityTestCase {
         }
 
         @Override
-        public void expectDescribe(Map<String, String> columns, String user) throws Exception {
+        public void expectDescribe(Map<String, List<String>> columns, String user) throws Exception {
             try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, userSecurity(user))) {
-                assertThat(cli.command("DESCRIBE test"), containsString("column     |     type"));
-                assertEquals("---------------+---------------", cli.readLine());
-                for (Map.Entry<String, String> column : columns.entrySet()) {
-                    assertThat(cli.readLine(), both(startsWith(column.getKey())).and(containsString("|" + column.getValue())));
+                String output = cli.command("DESCRIBE test");
+                assertThat(output, containsString("column"));
+                assertThat(output, containsString("type"));
+                assertThat(output, containsString("mapping"));
+                assertThat(cli.readLine(), containsString("-+---------------+---------------"));
+                for (Map.Entry<String, List<String>> column : columns.entrySet()) {
+                    String line = cli.readLine();
+                    assertThat(line, startsWith(column.getKey()));
+                    for (String value : column.getValue()) {
+                        assertThat(line, containsString(value));
+                    }
                 }
                 assertEquals("", cli.readLine());
             }

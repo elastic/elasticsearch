@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.AggRef;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.FilterExec;
@@ -138,6 +140,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         if (pj instanceof ScalarFunction) {
                             ScalarFunction f = (ScalarFunction) pj;
                             processors.put(f.toAttribute(), Expressions.pipe(f));
+                        } else if (pj instanceof In) {
+                            In in = (In) pj;
+                            processors.put(in.toAttribute(), Expressions.pipe(in));
                         }
                     }
                 }
@@ -521,8 +526,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         protected PhysicalPlan rule(PhysicalPlan plan) {
             if (plan.children().size() == 1) {
                 PhysicalPlan p = plan.children().get(0);
-                if (p instanceof LocalExec && ((LocalExec) p).isEmpty()) {
-                    return new LocalExec(plan.location(), new EmptyExecutable(plan.output()));
+                if (p instanceof LocalExec) {
+                    if (((LocalExec) p).isEmpty()) {
+                        return new LocalExec(plan.location(), new EmptyExecutable(plan.output()));
+                    } else {
+                        throw new SqlIllegalArgumentException("Encountered a bug; {} is a LocalExec but is not empty", p);
+                    }
                 }
             }
             return plan;

@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -71,9 +69,8 @@ public class Cast extends UnaryScalarFunction {
     }
 
     @Override
-    protected Pipe makePipe() {
-        return new UnaryPipe(location(), this, Expressions.pipe(field()),
-                new CastProcessor(DataTypeConversion.conversionFor(from(), to())));
+    protected Processor makeProcessor() {
+        return new CastProcessor(DataTypeConversion.conversionFor(from(), to()));
     }
 
     @Override

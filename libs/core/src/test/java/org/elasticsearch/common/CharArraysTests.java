@@ -43,12 +43,12 @@ public class CharArraysTests extends ESTestCase {
         assertArrayEquals(expectedChars, convertedChars);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34765")
     public void testCharsBeginsWith() {
         assertFalse(CharArrays.charsBeginsWith(randomAlphaOfLength(4), null));
         assertFalse(CharArrays.charsBeginsWith(null, null));
         assertFalse(CharArrays.charsBeginsWith(null, randomAlphaOfLength(4).toCharArray()));
-        assertFalse(CharArrays.charsBeginsWith(randomAlphaOfLength(2), randomAlphaOfLengthBetween(3, 8).toCharArray()));
+        final String undesiredPrefix = randomAlphaOfLength(2);
+        assertFalse(CharArrays.charsBeginsWith(undesiredPrefix, randomAlphaOfLengthNotBeginningWith(undesiredPrefix, 3, 8)));
 
         final String prefix = randomAlphaOfLengthBetween(2, 4);
         assertTrue(CharArrays.charsBeginsWith(prefix, prefix.toCharArray()));
@@ -72,5 +72,13 @@ public class CharArraysTests extends ESTestCase {
         final String other = randomAlphaOfLengthBetween(1, 32);
         assertFalse(CharArrays.constantTimeEquals(value, other));
         assertFalse(CharArrays.constantTimeEquals(value.toCharArray(), other.toCharArray()));
+    }
+
+    private char[] randomAlphaOfLengthNotBeginningWith(String undesiredPrefix, int min, int max) {
+        char[] nonMatchingValue;
+        do {
+            nonMatchingValue = randomAlphaOfLengthBetween(min, max).toCharArray();
+        } while (new String(nonMatchingValue).startsWith(undesiredPrefix));
+        return nonMatchingValue;
     }
 }

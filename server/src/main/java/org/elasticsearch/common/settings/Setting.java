@@ -422,6 +422,7 @@ public class Setting<T> implements ToXContentObject {
                 } else {
                     map = Collections.emptyMap();
                 }
+                validator.validate(parsed);
                 validator.validate(parsed, map);
             }
             return parsed;

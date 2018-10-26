@@ -29,6 +29,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
@@ -57,6 +59,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
@@ -250,6 +254,53 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+
+    public void testClearRolesCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::clear-roles-cache-request
+            ClearRolesCacheRequest request = new ClearRolesCacheRequest("my_role");
+            //end::clear-roles-cache-request
+            //tag::clear-roles-cache-execute
+            ClearRolesCacheResponse response = client.security().clearRolesCache(request, RequestOptions.DEFAULT);
+            //end::clear-roles-cache-execute
+
+            assertNotNull(response);
+            assertThat(response.getNodes(), not(empty()));
+
+            //tag::clear-roles-cache-response
+            List<ClearRolesCacheResponse.Node> nodes = response.getNodes(); // <1>
+            //end::clear-roles-cache-response
+        }
+
+        {
+            //tag::clear-roles-cache-execute-listener
+            ClearRolesCacheRequest request = new ClearRolesCacheRequest("my_role");
+            ActionListener<ClearRolesCacheResponse> listener = new ActionListener<ClearRolesCacheResponse>() {
+                @Override
+                public void onResponse(ClearRolesCacheResponse clearRolesCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::clear-roles-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-roles-cache-execute-async
+            client.security().clearRolesCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clear-roles-cache-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testGetSslCertificates() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -316,7 +367,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-
             // end::get-certificates-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -352,7 +402,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", password, RefreshPolicy.NONE);
             ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
                 @Override
-                public void onResponse(EmptyResponse emptyResponse) {
+                public void onResponse(EmptyResponse response) {
                     // <1>
                 }
 

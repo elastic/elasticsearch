@@ -55,11 +55,9 @@ public class WatcherRequestConvertersTests extends ESTestCase {
     }
 
     public void testPutWatch() throws Exception {
-        PutWatchRequest putWatchRequest = new PutWatchRequest();
         String watchId = randomAlphaOfLength(10);
-        putWatchRequest.setId(watchId);
         String body = randomAlphaOfLength(20);
-        putWatchRequest.setSource(new BytesArray(body), XContentType.JSON);
+        PutWatchRequest putWatchRequest = new PutWatchRequest(watchId, new BytesArray(body), XContentType.JSON);
 
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
@@ -84,9 +82,8 @@ public class WatcherRequestConvertersTests extends ESTestCase {
     }
 
     public void testDeleteWatch() {
-        DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
         String watchId = randomAlphaOfLength(10);
-        deleteWatchRequest.setId(watchId);
+        DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest(watchId);
 
         Request request = WatcherRequestConverters.deleteWatch(deleteWatchRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());

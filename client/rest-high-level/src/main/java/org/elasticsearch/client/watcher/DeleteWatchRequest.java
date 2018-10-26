@@ -19,24 +19,22 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.lucene.uid.Versions;
 
-import java.util.Optional;
+import java.util.Objects;
 
 /**
  * A delete watch request to delete an watch by name (id)
  */
 public class DeleteWatchRequest implements Validatable {
 
-    private String id;
-    private long version = Versions.MATCH_ANY;
-
-    public DeleteWatchRequest() {
-        this(null);
-    }
+    private final String id;
 
     public DeleteWatchRequest(String id) {
+        Objects.requireNonNull(id, "watch id is missing");
+        if (PutWatchRequest.isValidId(id) == false) {
+            throw new IllegalArgumentException("watch id contains whitespace");
+        }
         this.id = id;
     }
 
@@ -45,24 +43,6 @@ public class DeleteWatchRequest implements Validatable {
      */
     public String getId() {
         return id;
-    }
-
-    /**
-     * Sets the name of the watch to be deleted
-     */
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    @Override
-    public Optional<ValidationException> validate() {
-        ValidationException exception = new ValidationException();
-        if (id == null) {
-            exception.addValidationError("watch id is missing");
-        } else if (PutWatchRequest.isValidId(id) == false) {
-            exception.addValidationError("watch id contains whitespace");
-        }
-        return exception.validationErrors().isEmpty() ? Optional.empty() : Optional.of(exception);
     }
 
     @Override

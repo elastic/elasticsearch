@@ -19,13 +19,12 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
 
-import java.util.Optional;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -36,15 +35,19 @@ public final class PutWatchRequest implements Validatable {
 
     private static final Pattern NO_WS_PATTERN = Pattern.compile("\\S+");
 
-    private String id;
-    private BytesReference source;
-    private XContentType xContentType = XContentType.JSON;
+    private final String id;
+    private final BytesReference source;
+    private final XContentType xContentType;
     private boolean active = true;
     private long version = Versions.MATCH_ANY;
 
-    public PutWatchRequest() {}
-
     public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
+        Objects.requireNonNull(id, "watch id is missing");
+        if (isValidId(id) == false) {
+            throw new IllegalArgumentException("watch id contains whitespace");
+        }
+        Objects.requireNonNull(source, "watch source is missing");
+        Objects.requireNonNull(xContentType, "request body is missing");
         this.id = id;
         this.source = source;
         this.xContentType = xContentType;
@@ -58,25 +61,10 @@ public final class PutWatchRequest implements Validatable {
     }
 
     /**
-     * Set the watch name
-     */
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    /**
      * @return The source of the watch
      */
     public BytesReference getSource() {
         return source;
-    }
-
-    /**
-     * Set the source of the watch
-     */
-    public void setSource(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.xContentType = xContentType;
     }
 
     /**
@@ -106,23 +94,6 @@ public final class PutWatchRequest implements Validatable {
 
     public void setVersion(long version) {
         this.version = version;
-    }
-
-    @Override
-    public Optional<ValidationException> validate() {
-        ValidationException exception = new ValidationException();
-        if (id == null) {
-            exception.addValidationError("watch id is missing");
-        } else if (isValidId(id) == false) {
-            exception.addValidationError("watch id contains whitespace");
-        }
-        if (source == null) {
-            exception.addValidationError("watch source is missing");
-        }
-        if (xContentType == null) {
-            exception.addValidationError("request body is missing");
-        }
-        return exception.validationErrors().isEmpty() ? Optional.empty() : Optional.of(exception);
     }
 
     public static boolean isValidId(String id) {

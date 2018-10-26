@@ -193,7 +193,12 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                         "$snippet: Use `js` instead of `${snippet.language}`.")
             }
             if (snippet.testSetup) {
-                setup(snippet)
+                testSetup(snippet)
+                previousTest = snippet
+                return
+            }
+            if (snippet.testTearDown) {
+                testTearDown(snippet)
                 previousTest = snippet
                 return
             }
@@ -222,6 +227,10 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 if (previousTest != null && previousTest.testSetup) {
                     throw new InvalidUserDataException("// TEST[continued] " +
                         "cannot immediately follow // TESTSETUP: $test")
+                }
+                if (previousTest != null && previousTest.testTearDown) {
+                    throw new InvalidUserDataException("// TEST[continued] " +
+                        "cannot immediately follow // TEARDOWN: $test")
                 }
             } else {
                 current.println('---')
@@ -259,18 +268,21 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 current.println("      reason: $test.skip")
             }
             if (test.setup != null) {
-                // Insert a setup defined outside of the docs
-                for (String setupName : test.setup.split(',')) {
-                    String setup = setups[setupName]
-                    if (setup == null) {
-                        throw new InvalidUserDataException("Couldn't find setup "
-                                + "for $test")
-                    }
-                    current.println(setup)
-                }
+                setup(test)
             }
 
             body(test, false)
+        }
+
+        private void setup(final Snippet snippet) {
+            // insert a setup defined outside of the docs
+            for (final String setupName : snippet.setup.split(',')) {
+                final String setup = setups[setupName]
+                if (setup == null) {
+                    throw new InvalidUserDataException("Couldn't find setup for $snippet")
+                }
+                current.println(setup)
+            }
         }
 
         private void response(Snippet response) {
@@ -339,14 +351,27 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             }
         }
 
-        private void setup(Snippet setup) {
-            if (lastDocsPath == setup.path) {
-                throw new InvalidUserDataException("$setup: wasn't first")
+        private void testSetup(Snippet snippet) {
+            if (lastDocsPath == snippet.path) {
+                throw new InvalidUserDataException("$snippet: wasn't first")
             }
-            setupCurrent(setup)
+            setupCurrent(snippet)
             current.println('---')
             current.println("setup:")
-            body(setup, true)
+            if (snippet.setup != null) {
+                setup(snippet)
+            }
+            body(snippet, true)
+        }
+
+        private void testTearDown(Snippet snippet) {
+            if (previousTest.testSetup == false && lastDocsPath == snippet.path) {
+                throw new InvalidUserDataException("$snippet must follow test setup or be first")
+            }
+            setupCurrent(snippet)
+            current.println('---')
+            current.println('teardown:')
+            body(snippet, true)
         }
 
         private void body(Snippet snippet, boolean inSetup) {

@@ -27,7 +27,7 @@ irreversible operation.
 --------------------------------------------------
 PUT /follower_index/_ccr/follow
 {
-  "leader_cluster" : "leader_cluster",
+  "remote_cluster" : "remote_cluster",
   "leader_index" : "leader_index"
 }
 
@@ -37,7 +37,7 @@ POST /follower_index/_close
 --------------------------------------------------
 // CONSOLE
 // TESTSETUP
-// TEST[setup:leader_cluster_and_leader_index]
+// TEST[setup:remote_cluster_and_leader_index]
 
 //////////////////////////
 

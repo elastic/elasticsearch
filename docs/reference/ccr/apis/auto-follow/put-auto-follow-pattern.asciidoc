@@ -21,7 +21,7 @@ configured as follower indices.
 --------------------------------------------------
 PUT /_ccr/auto_follow/<auto_follow_pattern_name>
 {
-  "leader_cluster" : "<leader_cluster>",
+  "remote_cluster" : "<remote_cluster>",
   "leader_index_patterns" :
   [
     "<leader_index_pattern>"
@@ -30,9 +30,9 @@ PUT /_ccr/auto_follow/<auto_follow_pattern_name>
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:leader_cluster]
+// TEST[setup:remote_cluster]
 // TEST[s/<auto_follow_pattern_name>/auto_follow_pattern_name/]
-// TEST[s/<leader_cluster>/leader_cluster/]
+// TEST[s/<remote_cluster>/remote_cluster/]
 // TEST[s/<leader_index_patterns>/leader_index*/]
 // TEST[s/<follow_index_pattern>/{{leader_index}}-follower/]
 
@@ -52,13 +52,13 @@ DELETE /_ccr/auto_follow/auto_follow_pattern_name
   (string) name of the collection of auto-follow patterns
 
 ==== Request Body
-`leader_cluster`::
+`remote_cluster`::
   (required string) the <<modules-remote-clusters,remote cluster>> containing the
   leader indices to match against
 
 `leader_index_patterns`::
   (array) an array of simple index patterns to match against indices in the
-  remote cluster specified by the `leader_cluster` field
+  remote cluster specified by the `remote_cluster` field
 
 `follow_index_pattern`::
   (string) the name of follower index; the template `{{leader_index}}` can be
@@ -75,7 +75,7 @@ This example creates an auto-follow pattern named `my_auto_follow_pattern`:
 --------------------------------------------------
 PUT /_ccr/auto_follow/my_auto_follow_pattern
 {
-  "leader_cluster" : "leader_cluster",
+  "remote_cluster" : "remote_cluster",
   "leader_index_patterns" :
   [
     "leader_index*"
@@ -84,7 +84,7 @@ PUT /_ccr/auto_follow/my_auto_follow_pattern
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:leader_cluster]
+// TEST[setup:remote_cluster]
 
 The API returns the following result:
 

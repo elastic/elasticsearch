@@ -20,7 +20,7 @@ This API deletes a configured auto-follow pattern collection.
 --------------------------------------------------
 PUT /_ccr/auto_follow/my_auto_follow_pattern
 {
-  "leader_cluster" : "leader_cluster",
+  "remote_cluster" : "remote_cluster",
   "leader_index_patterns" :
   [
     "leader_index"
@@ -29,7 +29,7 @@ PUT /_ccr/auto_follow/my_auto_follow_pattern
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:leader_cluster]
+// TEST[setup:remote_cluster]
 // TESTSETUP
 
 //////////////////////////
@@ -55,7 +55,7 @@ This example deletes an auto-follow pattern collection named
 DELETE /_ccr/auto_follow/my_auto_follow_pattern
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:leader_cluster]
+// TEST[setup:remote_cluster]
 
 The API returns the following result:
 

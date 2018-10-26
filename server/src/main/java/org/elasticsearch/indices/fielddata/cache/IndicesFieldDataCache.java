@@ -129,7 +129,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
         @Override
         public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(final LeafReaderContext context,
-            final IFD indexFieldData) throws Exception {
+                final IFD indexFieldData) throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(context.reader());
             final IndexReader.CacheHelper cacheHelper = context.reader().getCoreCacheHelper();
             if (cacheHelper == null) {
@@ -156,7 +156,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
         @Override
         public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader,
-            final IFD indexFieldData) throws Exception {
+                final IFD indexFieldData) throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();
             if (cacheHelper == null) {

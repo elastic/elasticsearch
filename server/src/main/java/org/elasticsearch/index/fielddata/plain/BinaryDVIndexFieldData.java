@@ -47,7 +47,7 @@ public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements I
 
     @Override
     public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
-        boolean reverse) {
+            boolean reverse) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         /**
          * Check if we can use a simple {@link SortedSetSortField} compatible with index sorting and

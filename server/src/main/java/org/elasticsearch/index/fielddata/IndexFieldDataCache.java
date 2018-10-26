@@ -68,7 +68,7 @@ public interface IndexFieldDataCache {
         @Override
         @SuppressWarnings("unchecked")
         public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
-            IFD indexFieldData) throws Exception {
+                IFD indexFieldData) throws Exception {
             return (IFD) indexFieldData.localGlobalDirect(indexReader);
         }
 

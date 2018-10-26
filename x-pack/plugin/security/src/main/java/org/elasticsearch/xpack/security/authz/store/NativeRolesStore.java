@@ -153,6 +153,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
                                         }
                                     }
                                     listener.onResponse(RoleRetrievalResult.failure(failure));
+                                    return;
                                 } else if (item.getResponse().isExists()) {
                                     descriptors.add(transformRole(item.getResponse()));
                                 }

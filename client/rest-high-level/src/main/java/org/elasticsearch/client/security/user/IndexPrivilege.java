@@ -66,13 +66,13 @@ public class IndexPrivilege {
     }
 
     @Override
-    public boolean equals(Object other) {
-        if (other == null) {
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || false == getClass().equals(o.getClass())) {
             return false;
         }
-        if (false == getClass().equals(other.getClass())) {
-            return false;
-        }
-        return Objects.equals(name, ((IndexPrivilege) other).name);
+        return Objects.equals(name, ((IndexPrivilege) o).name);
     }
 }

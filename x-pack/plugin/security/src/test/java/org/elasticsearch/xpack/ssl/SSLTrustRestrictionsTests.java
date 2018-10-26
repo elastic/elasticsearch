@@ -108,8 +108,6 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
                 .build();
     }
 
-
-
     @AfterClass
     public static void cleanup() {
         configPath = null;

@@ -62,10 +62,6 @@ setup:
                  - "min"
                  - "max"
                  - "sum"
-              - field: "the_field"
-                metrics:
-                 - "max"
-                 - "min"
             timeout: "20s"
           stats:
             pages_processed: 0
@@ -113,10 +109,6 @@ setup:
                  - "min"
                  - "max"
                  - "sum"
-              - field: "the_field"
-                metrics:
-                 - "max"
-                 - "min"
             timeout: "20s"
           stats:
             pages_processed: 0
@@ -164,10 +156,6 @@ setup:
                  - "min"
                  - "max"
                  - "sum"
-              - field: "the_field"
-                metrics:
-                 - "max"
-                 - "min"
             timeout: "20s"
           stats:
             pages_processed: 0

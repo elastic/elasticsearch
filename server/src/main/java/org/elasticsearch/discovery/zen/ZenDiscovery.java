@@ -561,8 +561,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     // visible for testing
-    public static class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>,
-        ClusterStateTaskListener {
+    public static class NodeRemovalClusterStateTaskExecutor
+        implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>, ClusterStateTaskListener {
 
         private final AllocationService allocationService;
         private final ElectMasterService electMasterService;

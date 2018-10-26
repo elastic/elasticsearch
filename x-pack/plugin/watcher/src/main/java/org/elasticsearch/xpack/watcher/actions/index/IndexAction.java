@@ -14,7 +14,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.common.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;

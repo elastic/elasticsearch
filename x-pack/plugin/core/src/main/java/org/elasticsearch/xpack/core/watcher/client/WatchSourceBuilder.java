@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.core.watcher.support.Exceptions;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
-import org.elasticsearch.common.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;

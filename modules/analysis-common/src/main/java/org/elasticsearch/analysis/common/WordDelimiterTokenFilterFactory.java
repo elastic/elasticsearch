@@ -23,8 +23,6 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -51,8 +49,6 @@ import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.SPLIT
 import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.STEM_ENGLISH_POSSESSIVE;
 
 public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory {
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(org.apache.logging.log4j.LogManager.getLogger(WordDelimiterTokenFilterFactory.class));
 
     private final byte[] charTypeTable;
     private final int flags;
@@ -97,9 +93,6 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         Set<?> protectedWords = Analysis.getWordSet(env, settings, "protected_words");
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(protectedWords);
         this.flags = flags;
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_3_0)) {
-            deprecationLogger.deprecated("[word_delimiter] has been deprecated in favour of [word_delimiter_graph]");
-        }
     }
 
     @Override

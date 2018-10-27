@@ -34,7 +34,8 @@ import java.util.NoSuchElementException;
  * semantics:
  *
  * <ul>
- *     <li><code>#hasNext()</code> determines whether the progression has more elements. Return <code>true</code> for infinite progressions</li>
+ *     <li><code>#hasNext()</code> determines whether the progression has more elements. Return <code>true</code> for infinite progressions
+ *     </li>
  *     <li><code>#next()</code> determines the next element in the progression, i.e. the next wait time period</li>
  * </ul>
  *

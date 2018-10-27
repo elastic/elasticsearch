@@ -41,7 +41,8 @@ public interface AliasOrIndex {
     boolean isAlias();
 
     /**
-     * @return All {@link IndexMetaData} of all concrete indices this alias is referring to or if this is a concrete index its {@link IndexMetaData}
+     * @return All {@link IndexMetaData} of all concrete indices this alias is referring to
+     * or if this is a concrete index its {@link IndexMetaData}
      */
     List<IndexMetaData> getIndices();
 

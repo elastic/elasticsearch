@@ -8,6 +8,9 @@ package org.elasticsearch.xpack;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -24,9 +27,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -35,6 +40,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -48,6 +54,9 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -59,14 +68,17 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -277,6 +289,88 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 assertThat(status.writeBufferSizeInBytes(), equalTo(0L));
             }
         });
+    }
+
+    protected void pauseFollow(String... indices) throws Exception {
+        for (String index : indices) {
+            final PauseFollowAction.Request unfollowRequest = new PauseFollowAction.Request(index);
+            followerClient().execute(PauseFollowAction.INSTANCE, unfollowRequest).get();
+        }
+        ensureNoCcrTasks();
+    }
+
+    protected void ensureNoCcrTasks() throws Exception {
+        assertBusy(() -> {
+            final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
+            final PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            assertThat(tasks.tasks(), empty());
+
+            ListTasksRequest listTasksRequest = new ListTasksRequest();
+            listTasksRequest.setDetailed(true);
+            ListTasksResponse listTasksResponse = followerClient().admin().cluster().listTasks(listTasksRequest).get();
+            int numNodeTasks = 0;
+            for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
+                if (taskInfo.getAction().startsWith(ListTasksAction.NAME) == false) {
+                    numNodeTasks++;
+                }
+            }
+            assertThat(numNodeTasks, equalTo(0));
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    protected String getIndexSettings(final int numberOfShards, final int numberOfReplicas,
+                                    final Map<String, String> additionalIndexSettings) throws IOException {
+        final String settings;
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("settings");
+                {
+                    builder.field("index.number_of_shards", numberOfShards);
+                    builder.field("index.number_of_replicas", numberOfReplicas);
+                    for (final Map.Entry<String, String> additionalSetting : additionalIndexSettings.entrySet()) {
+                        builder.field(additionalSetting.getKey(), additionalSetting.getValue());
+                    }
+                }
+                builder.endObject();
+                builder.startObject("mappings");
+                {
+                    builder.startObject("doc");
+                    {
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("f");
+                            {
+                                builder.field("type", "integer");
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            settings = BytesReference.bytes(builder).utf8ToString();
+        }
+        return settings;
+    }
+
+    public static PutFollowAction.Request putFollow(String leaderIndex, String followerIndex) {
+        PutFollowAction.Request request = new PutFollowAction.Request();
+        request.setRemoteCluster("leader_cluster");
+        request.setLeaderIndex(leaderIndex);
+        request.setFollowRequest(resumeFollow(followerIndex));
+        return request;
+    }
+
+    public static ResumeFollowAction.Request resumeFollow(String followerIndex) {
+        ResumeFollowAction.Request request = new ResumeFollowAction.Request();
+        request.setFollowerIndex(followerIndex);
+        request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
+        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
+        return request;
     }
 
     static void removeCCRRelatedMetadataFromClusterState(ClusterService clusterService) throws Exception {

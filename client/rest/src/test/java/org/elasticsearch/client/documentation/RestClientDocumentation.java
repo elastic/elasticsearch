@@ -36,7 +36,7 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
+import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
@@ -84,7 +84,8 @@ public class RestClientDocumentation {
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.addHeader("Authorization", "Bearer " + TOKEN); // <1>
         builder.setHttpAsyncResponseConsumerFactory(           // <2>
-            new HeapBufferedResponseConsumerFactory(30 * 1024 * 1024 * 1024));
+            new HttpAsyncResponseConsumerFactory
+                .HeapBufferedResponseConsumerFactory(30 * 1024 * 1024 * 1024));
         COMMON_OPTIONS = builder.build();
     }
     // end::rest-client-options-singleton

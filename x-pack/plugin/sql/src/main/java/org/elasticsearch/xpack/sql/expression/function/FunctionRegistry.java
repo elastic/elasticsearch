@@ -85,6 +85,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Arrays;
@@ -208,7 +209,7 @@ public class FunctionRegistry {
                 def(Substring.class, Substring::new),
                 def(UCase.class, UCase::new));
         // DataType conversion
-        addToMap(defCast("CONVERT"));
+        addToMap(def(Cast.class, Cast::new, "CONVERT"));
         // Special
         addToMap(def(Score.class, Score::new));
     }
@@ -438,22 +439,19 @@ public class FunctionRegistry {
     /**
      * Special method to create function definition for {@link Cast} as its
      * signature is not compatible with {@link UnresolvedFunction}
-     * @param aliases aliases for Cast
+     *
      * @return Cast function definition
      */
-    private static FunctionDefinition defCast(String... aliases) {
-        String primaryName = normalize(Cast.class.getSimpleName());
-        FunctionDefinition.CastBuilder builder = new FunctionDefinition.CastBuilder() {
-            @Override
-            public Function build(Cast cast) {
-                return cast;
-            }
-            @Override
-            public Function build(UnresolvedFunction uf, boolean distinct, TimeZone tz) {
-                return null;
-            }
-        };
-        return new FunctionDefinition(primaryName, unmodifiableList(Arrays.asList(aliases)), Cast.class, false, builder);
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    private static <T extends Function> FunctionDefinition def(Class<T> function,
+                                                               CastFunctionBuilder<T> ctorRef,
+                                                               String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) ->
+            ctorRef.build(location, children.get(0), children.get(0).dataType());
+        return def(function, builder, false, aliases);
+    }
+    private interface CastFunctionBuilder<T> {
+        T build(Location location, Expression expression, DataType dataType);
     }
 
     private static String normalize(String name) {

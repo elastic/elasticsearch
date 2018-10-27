@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
-import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-
 import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -20,10 +18,6 @@ public class FunctionDefinition {
     @FunctionalInterface
     public interface Builder {
         Function build(UnresolvedFunction uf, boolean distinct, TimeZone tz);
-    }
-
-    public interface CastBuilder extends Builder {
-        Function build(Cast cast);
     }
 
     private final String name;

@@ -147,11 +147,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return builder;
         }
 
-        public T tokenized(boolean tokenized) {
-            this.fieldType.setTokenized(tokenized);
-            return builder;
-        }
-
         public T boost(float boost) {
             this.fieldType.setBoost(boost);
             return builder;
@@ -252,6 +247,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return fieldType().name();
     }
 
+    @Override
+    public String typeName() {
+        return fieldType.typeName();
+    }
+
     public MappedFieldType fieldType() {
         return fieldType;
     }
@@ -264,11 +264,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     }
 
     /**
-     * Parse using the provided {@link ParseContext} and return a mapping
-     * update if dynamic mappings modified the mappings, or {@code null} if
-     * mappings were not modified.
+     * Parse the field value using the provided {@link ParseContext}.
      */
-    public Mapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         final List<IndexableField> fields = new ArrayList<>(2);
         try {
             parseCreateField(context, fields);
@@ -276,10 +274,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + fieldType().name() + "]", e);
+            throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
+                    fieldType().typeName());
         }
         multiFields.parse(this, context);
-        return null;
     }
 
     /**
@@ -376,9 +374,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         boolean indexed =  fieldType().indexOptions() != IndexOptions.NONE;
         boolean defaultIndexed = defaultFieldType.indexOptions() != IndexOptions.NONE;
-        if (includeDefaults || indexed != defaultIndexed ||
-            fieldType().tokenized() != defaultFieldType.tokenized()) {
-            builder.field("index", indexTokenizeOption(indexed, fieldType().tokenized()));
+        if (includeDefaults || indexed != defaultIndexed) {
+            builder.field("index", indexed);
         }
         if (includeDefaults || fieldType().stored() != defaultFieldType.stored()) {
             builder.field("store", fieldType().stored());
@@ -472,11 +469,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             }
             return builder.toString();
         }
-    }
-
-    /* Only protected so that string can override it */
-    protected Object indexTokenizeOption(boolean indexed, boolean tokenized) {
-        return indexed;
     }
 
     protected abstract String contentType();

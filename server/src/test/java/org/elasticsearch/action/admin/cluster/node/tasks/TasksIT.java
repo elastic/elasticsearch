@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -357,7 +357,7 @@ public class TasksIT extends ESIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         Map<String, String> headers = new HashMap<>();
-        headers.put("X-Opaque-Id", "my_id");
+        headers.put(Task.X_OPAQUE_ID, "my_id");
         headers.put("Foo-Header", "bar");
         headers.put("Custom-Task-Header", "my_value");
         assertSearchResponse(
@@ -404,7 +404,7 @@ public class TasksIT extends ESIntegTestCase {
         int maxSize = Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.getDefault(Settings.EMPTY).getBytes() / 2 + 1);
 
         Map<String, String> headers = new HashMap<>();
-        headers.put("X-Opaque-Id", "my_id");
+        headers.put(Task.X_OPAQUE_ID, "my_id");
         headers.put("Custom-Task-Header", randomAlphaOfLengthBetween(maxSize, maxSize + 100));
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -415,7 +415,7 @@ public class TasksIT extends ESIntegTestCase {
 
     private void assertTaskHeaders(TaskInfo taskInfo) {
         assertThat(taskInfo.getHeaders().keySet(), hasSize(2));
-        assertEquals("my_id", taskInfo.getHeaders().get("X-Opaque-Id"));
+        assertEquals("my_id", taskInfo.getHeaders().get(Task.X_OPAQUE_ID));
         assertEquals("my_value", taskInfo.getHeaders().get("Custom-Task-Header"));
     }
 
@@ -496,7 +496,8 @@ public class TasksIT extends ESIntegTestCase {
     public void testTasksCancellation() throws Exception {
         // Start blocking test task
         // Get real client (the plugin is not registered on transport nodes)
-        ActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client()).execute();
+        ActionFuture<TestTaskPlugin.NodesResponse> future = new TestTaskPlugin.NodesRequestBuilder(client(),
+            TestTaskPlugin.TestTaskAction.INSTANCE).execute();
         logger.info("--> started test tasks");
 
         // Wait for the task to start on all nodes
@@ -517,12 +518,13 @@ public class TasksIT extends ESIntegTestCase {
 
     public void testTasksUnblocking() throws Exception {
         // Start blocking test task
-        ActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client()).execute();
+        ActionFuture<TestTaskPlugin.NodesResponse> future =
+            new TestTaskPlugin.NodesRequestBuilder(client(), TestTaskPlugin.TestTaskAction.INSTANCE).execute();
         // Wait for the task to start on all nodes
         assertBusy(() -> assertEquals(internalCluster().size(),
             client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get().getTasks().size()));
 
-        TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();
+        new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), TestTaskPlugin.UnblockTestTasksAction.INSTANCE).get();
 
         future.get();
         assertEquals(0, client().admin().cluster().prepareListTasks().setActions(TestTaskPlugin.TestTaskAction.NAME + "[n]").get()
@@ -580,8 +582,8 @@ public class TasksIT extends ESIntegTestCase {
     private <T> void waitForCompletionTestCase(boolean storeResult, Function<TaskId, ActionFuture<T>> wait, Consumer<T> validator)
             throws Exception {
         // Start blocking test task
-        ActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client())
-                .setShouldStoreResult(storeResult).execute();
+        ActionFuture<TestTaskPlugin.NodesResponse> future = new TestTaskPlugin.NodesRequestBuilder(client(),
+            TestTaskPlugin.TestTaskAction.INSTANCE).setShouldStoreResult(storeResult).execute();
 
         ActionFuture<T> waitResponseFuture;
         TaskId taskId;
@@ -619,7 +621,7 @@ public class TasksIT extends ESIntegTestCase {
             waitForWaitingToStart.await();
         } finally {
             // Unblock the request so the wait for completion request can finish
-            TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();
+            new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), TestTaskPlugin.UnblockTestTasksAction.INSTANCE).get();
         }
 
         // Now that the task is unblocked the list response will come back
@@ -654,7 +656,8 @@ public class TasksIT extends ESIntegTestCase {
      */
     private void waitForTimeoutTestCase(Function<TaskId, ? extends Iterable<? extends Throwable>> wait) throws Exception {
         // Start blocking test task
-        ActionFuture<TestTaskPlugin.NodesResponse> future = TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client()).execute();
+        ActionFuture<TestTaskPlugin.NodesResponse> future = new TestTaskPlugin.NodesRequestBuilder(client(),
+            TestTaskPlugin.TestTaskAction.INSTANCE).execute();
         try {
             TaskId taskId = waitForTestTaskStartOnAllNodes();
 
@@ -671,7 +674,7 @@ public class TasksIT extends ESIntegTestCase {
             }
         } finally {
             // Now we can unblock those requests
-            TestTaskPlugin.UnblockTestTasksAction.INSTANCE.newRequestBuilder(client()).get();
+            new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), TestTaskPlugin.UnblockTestTasksAction.INSTANCE).get();
         }
         future.get();
     }
@@ -716,7 +719,7 @@ public class TasksIT extends ESIntegTestCase {
             .setTimeout(timeValueSeconds(10)).get();
 
         // It should finish quickly and without complaint and list the list tasks themselves
-        assertThat(response.getNodeFailures(), emptyCollectionOf(FailedNodeException.class));
+        assertThat(response.getNodeFailures(), emptyCollectionOf(ElasticsearchException.class));
         assertThat(response.getTaskFailures(), emptyCollectionOf(TaskOperationFailure.class));
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(1));
     }
@@ -731,7 +734,8 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManageListeners(TestTaskPlugin.TestTaskAction.NAME);  // we need this to get task id of the process
 
         // Start non-blocking test task
-        TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client()).setShouldStoreResult(true).setShouldBlock(false).get();
+        new TestTaskPlugin.NodesRequestBuilder(client(), TestTaskPlugin.TestTaskAction.INSTANCE)
+            .setShouldStoreResult(true).setShouldBlock(false).get();
 
         List<TaskInfo> events = findEvents(TestTaskPlugin.TestTaskAction.NAME, Tuple::v1);
 
@@ -781,7 +785,7 @@ public class TasksIT extends ESIntegTestCase {
 
         // Start non-blocking test task that should fail
         assertThrows(
-            TestTaskPlugin.TestTaskAction.INSTANCE.newRequestBuilder(client())
+            new TestTaskPlugin.NodesRequestBuilder(client(), TestTaskPlugin.TestTaskAction.INSTANCE)
                 .setShouldFail(true)
                 .setShouldStoreResult(true)
                 .setShouldBlock(false),

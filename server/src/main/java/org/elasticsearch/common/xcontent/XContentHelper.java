@@ -42,7 +42,8 @@ public class XContentHelper {
 
     /**
      * Creates a parser based on the bytes provided
-     * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, BytesReference, XContentType)} to avoid content type auto-detection
+     * @deprecated use {@link #createParser(NamedXContentRegistry, DeprecationHandler, BytesReference, XContentType)}
+     * to avoid content type auto-detection
      */
     @Deprecated
     public static XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
@@ -109,7 +110,8 @@ public class XContentHelper {
             }
             contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
             try (InputStream stream = input) {
-                return new Tuple<>(Objects.requireNonNull(contentType), convertToMap(XContentFactory.xContent(contentType), stream, ordered));
+                return new Tuple<>(Objects.requireNonNull(contentType),
+                    convertToMap(XContentFactory.xContent(contentType), stream, ordered));
             }
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -288,97 +290,14 @@ public class XContentHelper {
     }
 
     /**
-     * Low level implementation detail of {@link XContentGenerator#copyCurrentStructure(XContentParser)}.
-     */
-    public static void copyCurrentStructure(XContentGenerator destination, XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-
-        // Let's handle field-name separately first
-        if (token == XContentParser.Token.FIELD_NAME) {
-            destination.writeFieldName(parser.currentName());
-            token = parser.nextToken();
-            // fall-through to copy the associated value
-        }
-
-        switch (token) {
-            case START_ARRAY:
-                destination.writeStartArray();
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    copyCurrentStructure(destination, parser);
-                }
-                destination.writeEndArray();
-                break;
-            case START_OBJECT:
-                destination.writeStartObject();
-                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                    copyCurrentStructure(destination, parser);
-                }
-                destination.writeEndObject();
-                break;
-            default: // others are simple:
-                copyCurrentEvent(destination, parser);
-        }
-    }
-
-    public static void copyCurrentEvent(XContentGenerator generator, XContentParser parser) throws IOException {
-        switch (parser.currentToken()) {
-            case START_OBJECT:
-                generator.writeStartObject();
-                break;
-            case END_OBJECT:
-                generator.writeEndObject();
-                break;
-            case START_ARRAY:
-                generator.writeStartArray();
-                break;
-            case END_ARRAY:
-                generator.writeEndArray();
-                break;
-            case FIELD_NAME:
-                generator.writeFieldName(parser.currentName());
-                break;
-            case VALUE_STRING:
-                if (parser.hasTextCharacters()) {
-                    generator.writeString(parser.textCharacters(), parser.textOffset(), parser.textLength());
-                } else {
-                    generator.writeString(parser.text());
-                }
-                break;
-            case VALUE_NUMBER:
-                switch (parser.numberType()) {
-                    case INT:
-                        generator.writeNumber(parser.intValue());
-                        break;
-                    case LONG:
-                        generator.writeNumber(parser.longValue());
-                        break;
-                    case FLOAT:
-                        generator.writeNumber(parser.floatValue());
-                        break;
-                    case DOUBLE:
-                        generator.writeNumber(parser.doubleValue());
-                        break;
-                }
-                break;
-            case VALUE_BOOLEAN:
-                generator.writeBoolean(parser.booleanValue());
-                break;
-            case VALUE_NULL:
-                generator.writeNull();
-                break;
-            case VALUE_EMBEDDED_OBJECT:
-                generator.writeBinary(parser.binaryValue());
-        }
-    }
-
-    /**
      * Writes a "raw" (bytes) field, handling cases where the bytes are compressed, and tries to optimize writing using
      * {@link XContentBuilder#rawField(String, InputStream)}.
      * @deprecated use {@link #writeRawField(String, BytesReference, XContentType, XContentBuilder, Params)} to avoid content type
      * auto-detection
      */
     @Deprecated
-    public static void writeRawField(String field, BytesReference source, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public static void writeRawField(String field, BytesReference source, XContentBuilder builder,
+                                     ToXContent.Params params) throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
             try (InputStream compressedStreamInput = compressor.streamInput(source.streamInput())) {
@@ -424,7 +343,8 @@ public class XContentHelper {
      * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
      * by the {@link ToXContent#isFragment()} method returns.
      */
-    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable) throws IOException {
+    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params,
+                                            boolean humanReadable) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
             builder.humanReadable(humanReadable);
             if (toXContent.isFragment()) {

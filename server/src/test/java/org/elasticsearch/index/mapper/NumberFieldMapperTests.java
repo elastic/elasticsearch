@@ -255,6 +255,7 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
+        assertArrayEquals(new String[] { "field" }, doc.rootDoc().getValues("_ignored"));
     }
 
     public void testRejectNorms() throws IOException {

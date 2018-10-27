@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.tasks.Task;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
@@ -81,8 +83,8 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     public SearchSlowLog(IndexSettings indexSettings) {
 
-        this.queryLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query", indexSettings.getSettings());
-        this.fetchLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch", indexSettings.getSettings());
+        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
+        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
 
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
         this.queryWarnThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING).nanos();
@@ -173,6 +175,11 @@ public final class SearchSlowLog implements SearchOperationListener {
                 sb.append("source[").append(context.request().source().toString(FORMAT_PARAMS)).append("], ");
             } else {
                 sb.append("source[], ");
+            }
+            if (context.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
+                sb.append("id[").append(context.getTask().getHeader(Task.X_OPAQUE_ID)).append("], ");
+            } else {
+                sb.append("id[], ");
             }
             return sb.toString();
         }

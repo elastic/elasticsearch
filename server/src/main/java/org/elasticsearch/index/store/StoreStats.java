@@ -85,7 +85,7 @@ public class StoreStats implements Streamable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.STORE);
-        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, sizeInBytes);
+        builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, size());
         builder.endObject();
         return builder;
     }

@@ -53,7 +53,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         final long longFlags = in.readLong();
         flags.clear();
         for (Flag flag : Flag.values()) {
-            if ((longFlags & (1 << flag.ordinal())) != 0) {
+            if ((longFlags & (1 << flag.getIndex())) != 0) {
                 flags.add(flag);
             }
         }
@@ -68,7 +68,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     public void writeTo(StreamOutput out) throws IOException {
         long longFlags = 0;
         for (Flag flag : flags) {
-            longFlags |= (1 << flag.ordinal());
+            longFlags |= (1 << flag.getIndex());
         }
         out.writeLong(longFlags);
 
@@ -207,34 +207,39 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     }
 
     public enum Flag {
-        // Do not change the order of these flags we use
-        // the ordinal for encoding! Only append to the end!
-        Store("store"),
-        Indexing("indexing"),
-        Get("get"),
-        Search("search"),
-        Merge("merge"),
-        Flush("flush"),
-        Refresh("refresh"),
-        QueryCache("query_cache"),
-        FieldData("fielddata"),
-        Docs("docs"),
-        Warmer("warmer"),
-        Completion("completion"),
-        Segments("segments"),
-        Translog("translog"),
-        Suggest("suggest"), // unused
-        RequestCache("request_cache"),
-        Recovery("recovery");
+        Store("store", 0),
+        Indexing("indexing", 1),
+        Get("get", 2),
+        Search("search", 3),
+        Merge("merge", 4),
+        Flush("flush", 5),
+        Refresh("refresh", 6),
+        QueryCache("query_cache", 7),
+        FieldData("fielddata", 8),
+        Docs("docs", 9),
+        Warmer("warmer", 10),
+        Completion("completion", 11),
+        Segments("segments", 12),
+        Translog("translog", 13),
+        // 14 was previously used for Suggest
+        RequestCache("request_cache", 15),
+        Recovery("recovery", 16);
 
         private final String restName;
+        private final int index;
 
-        Flag(String restName) {
+        Flag(final String restName, final int index) {
             this.restName = restName;
+            this.index = index;
         }
 
         public String getRestName() {
             return restName;
         }
+
+        private int getIndex() {
+            return index;
+        }
+
     }
 }

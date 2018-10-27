@@ -20,11 +20,11 @@
 package org.elasticsearch.http;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -36,7 +36,9 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
 
     public void testThatErrorTraceWorksByDefault() throws IOException {
         try {
-            getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"));
+            Request request = new Request("DELETE", "/");
+            request.addParameter("error_trace", "true");
+            getRestClient().performRequest(request);
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
@@ -47,7 +49,7 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
         }
 
         try {
-            getRestClient().performRequest("DELETE", "/");
+            getRestClient().performRequest(new Request("DELETE", "/"));
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();

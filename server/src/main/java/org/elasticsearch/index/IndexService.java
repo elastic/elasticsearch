@@ -24,7 +24,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.Assertions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -64,6 +66,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -139,7 +142,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             SimilarityService similarityService,
             ShardStoreDeleter shardStoreDeleter,
             AnalysisRegistry registry,
-            @Nullable EngineFactory engineFactory,
+            EngineFactory engineFactory,
             CircuitBreakerService circuitBreakerService,
             BigArrays bigArrays,
             ThreadPool threadPool,
@@ -188,7 +191,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.warmer = new IndexWarmer(indexSettings.getSettings(), threadPool, indexFieldData,
             bitsetFilterCache.createListener(threadPool));
         this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
-        this.engineFactory = engineFactory;
+        this.engineFactory = Objects.requireNonNull(engineFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
@@ -377,7 +380,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     warmer.warm(searcher, shard, IndexService.this.indexSettings);
                 }
             };
-            store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
+            // TODO we can remove either IndexStore or DirectoryService. All we need is a simple Supplier<Directory>
+            DirectoryService directoryService = indexStore.newDirectoryService(path);
+            store = new Store(shardId, this.indexSettings, directoryService.newDirectory(), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
                 indexCache, mapperService, similarityService, engineFactory,
@@ -431,8 +436,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
-                        logger.debug((org.apache.logging.log4j.util.Supplier<?>)
-                            () -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
+                        logger.debug(() -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
                         // ignore
                     }
                 }
@@ -523,8 +527,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     @Override
-    public boolean updateMapping(IndexMetaData indexMetaData) throws IOException {
-        return mapperService().updateMapping(indexMetaData);
+    public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
+        return mapperService().updateMapping(currentIndexMetaData, newIndexMetaData);
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -615,9 +619,27 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     @Override
-    public synchronized void updateMetaData(final IndexMetaData metadata) {
+    public synchronized void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
         final Translog.Durability oldTranslogDurability = indexSettings.getTranslogDurability();
-        if (indexSettings.updateIndexMetaData(metadata)) {
+
+        final boolean updateIndexMetaData = indexSettings.updateIndexMetaData(newIndexMetaData);
+
+        if (Assertions.ENABLED
+                && currentIndexMetaData != null
+                && currentIndexMetaData.getCreationVersion().onOrAfter(Version.V_6_5_0)) {
+            final long currentSettingsVersion = currentIndexMetaData.getSettingsVersion();
+            final long newSettingsVersion = newIndexMetaData.getSettingsVersion();
+            if (currentSettingsVersion == newSettingsVersion) {
+                assert updateIndexMetaData == false;
+            } else {
+                assert updateIndexMetaData;
+                assert currentSettingsVersion < newSettingsVersion :
+                        "expected current settings version [" + currentSettingsVersion + "] "
+                                + "to be less than new settings version [" + newSettingsVersion + "]";
+            }
+        }
+
+        if (updateIndexMetaData) {
             for (final IndexShard shard : this.shards.values()) {
                 try {
                     shard.onSettingsChanged();
@@ -682,9 +704,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
     }
 
-    final EngineFactory getEngineFactory() {
+    public final EngineFactory getEngineFactory() {
         return engineFactory;
-    } // pkg private for testing
+    }
 
     final IndexSearcherWrapper getSearcherWrapper() {
         return searcherWrapper;
@@ -698,8 +720,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         if (indexSettings.getTranslogDurability() == Translog.Durability.ASYNC) {
             for (IndexShard shard : this.shards.values()) {
                 try {
-                    Translog translog = shard.getTranslog();
-                    if (translog.syncNeeded()) {
+                    if (shard.isSyncNeeded()) {
                         shard.sync();
                     }
                 } catch (AlreadyClosedException ex) {
@@ -732,7 +753,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     continue;
                 case POST_RECOVERY:
                 case STARTED:
-                case RELOCATED:
                     try {
                         shard.trimTranslog();
                     } catch (IndexShardClosedException | AlreadyClosedException ex) {
@@ -752,7 +772,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case CLOSED:
                     case CREATED:
                     case RECOVERING:
-                    case RELOCATED:
                         continue;
                     case POST_RECOVERY:
                         assert false : "shard " + shard.shardId() + " is in post-recovery but marked as active";

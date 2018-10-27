@@ -19,7 +19,6 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -835,7 +834,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected error for {}", future), e);
+                logger.error(() -> new ParameterizedMessage("unexpected error for {}", future), e);
                 future.markAsFailed(e);
             }
         });

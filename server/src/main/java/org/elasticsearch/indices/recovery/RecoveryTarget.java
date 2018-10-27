@@ -21,7 +21,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineDiskUtils;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -119,7 +117,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
-        this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
+        this.logger = Loggers.getLogger(getClass(), indexShard.shardId());
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
@@ -211,7 +209,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             }
             RecoveryState.Stage stage = indexShard.recoveryState().getStage();
             if (indexShard.recoveryState().getPrimary() && (stage == RecoveryState.Stage.FINALIZE || stage == RecoveryState.Stage.DONE)) {
-                // once primary relocation has moved past the finalization step, the relocation source can be moved to RELOCATED state
+                // once primary relocation has moved past the finalization step, the relocation source can put the target into primary mode
                 // and start indexing as primary into the target shard (see TransportReplicationAction). Resetting the target shard in this
                 // state could mean that indexing is halted until the recovery retry attempt is completed and could also destroy existing
                 // documents indexed and acknowledged before the reset.
@@ -331,8 +329,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 try {
                     entry.getValue().close();
                 } catch (Exception e) {
-                    logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
+                    logger.debug(() -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
                 }
                 iterator.remove();
             }
@@ -389,18 +386,32 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
+    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestampOnPrimary,
+                                        long maxSeqNoOfDeletesOrUpdatesOnPrimary) throws IOException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
         if (indexShard().state() != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, indexShard().state());
         }
+        /*
+         * The maxSeenAutoIdTimestampOnPrimary received from the primary is at least the highest auto_id_timestamp from any operation
+         * will be replayed. Bootstrapping this timestamp here will disable the optimization for original append-only requests
+         * (source of these operations) replicated via replication. Without this step, we may have duplicate documents if we
+         * replay these operations first (without timestamp), then optimize append-only requests (with timestamp).
+         */
+        indexShard().updateMaxUnsafeAutoIdTimestamp(maxSeenAutoIdTimestampOnPrimary);
+        /*
+         * Bootstrap the max_seq_no_of_updates from the primary to make sure that the max_seq_no_of_updates on this replica when
+         * replaying any of these operations will be at least the max_seq_no_of_updates on the primary when that operation was executed on.
+         */
+        indexShard().advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNoOfDeletesOrUpdatesOnPrimary);
         for (Translog.Operation operation : operations) {
-            Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY, update -> {
+            Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY);
+            if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
                 throw new MapperException("mapping updates are not allowed [" + operation + "]");
-            });
-            assert result.hasFailure() == false : "unexpected failure while replicating translog entry: " + result.getFailure();
+            }
+            assert result.getFailure() == null: "unexpected failure while replicating translog entry: " + result.getFailure();
             ExceptionsHelper.reThrowIfNotNull(result.getFailure());
         }
         // update stats only after all operations completed (to ensure that mapping updates don't mess with stats)
@@ -441,11 +452,13 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         try {
             store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
             if (indexShard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1)) {
-                EngineDiskUtils.ensureIndexHasHistoryUUID(store.directory());
+                store.ensureIndexHasHistoryUUID();
             }
             // TODO: Assign the global checkpoint to the max_seqno of the safe commit if the index version >= 6.2
-            EngineDiskUtils.createNewTranslog(store.directory(), indexShard.shardPath().resolveTranslog(),
-                SequenceNumbers.UNASSIGNED_SEQ_NO, shardId);
+            final String translogUUID = Translog.createEmptyTranslog(
+                indexShard.shardPath().resolveTranslog(), SequenceNumbers.UNASSIGNED_SEQ_NO, shardId,
+                indexShard.getPendingPrimaryTerm());
+            store.associateIndexWithNewTranslog(translogUUID);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
             // this means we transferred files from the remote that have not be checksummed and they are

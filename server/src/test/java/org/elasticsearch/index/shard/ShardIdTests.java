@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 public class ShardIdTests extends ESTestCase {
@@ -50,5 +51,21 @@ public class ShardIdTests extends ESTestCase {
         String badId3 = "[" + indexName + "][" + shardId; // missing closing bracket
         ex = expectThrows(IllegalArgumentException.class,
                 () -> ShardId.fromString(badId3));
+    }
+
+    public void testEquals() {
+        Index index1 = new Index("a", "a");
+        Index index2 = new Index("a", "b");
+        ShardId shardId1 = new ShardId(index1, 0);
+        ShardId shardId2 = new ShardId(index1, 0);
+        ShardId shardId3 = new ShardId(index2, 0);
+        ShardId shardId4 = new ShardId(index1, 1);
+        String s = "Some random other object";
+        assertEquals(shardId1, shardId1);
+        assertEquals(shardId1, shardId2);
+        assertNotEquals(shardId1, null);
+        assertNotEquals(shardId1, s);
+        assertNotEquals(shardId1, shardId3);
+        assertNotEquals(shardId1, shardId4);
     }
 }

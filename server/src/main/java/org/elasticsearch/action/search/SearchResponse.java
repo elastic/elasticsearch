@@ -374,9 +374,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
-            skippedShards = in.readVInt();
-        }
+        skippedShards = in.readVInt();
     }
 
     @Override
@@ -395,9 +393,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         }
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
-        if(out.getVersion().onOrAfter(Version.V_5_6_0)) {
-            out.writeVInt(skippedShards);
-        }
+        out.writeVInt(skippedShards);
     }
 
     @Override
@@ -422,7 +418,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         private final int successful;
         private final int skipped;
 
-        Clusters(int total, int successful, int skipped) {
+        public Clusters(int total, int successful, int skipped) {
             assert total >= 0 && successful >= 0 && skipped >= 0
                     : "total: " + total + " successful: " + successful + " skipped: " + skipped;
             assert successful <= total && skipped == total - successful

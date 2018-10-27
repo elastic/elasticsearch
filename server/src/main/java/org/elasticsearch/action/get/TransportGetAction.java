@@ -63,13 +63,14 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
+                .getShards(clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(),
+                    request.request().preference());
     }
 
     @Override
     protected void resolveRequest(ClusterState state, InternalRequest request) {
         // update the routing (request#index here is possibly an alias)
-        request.request().routing(state.metaData().resolveIndexRouting(request.request().parent(), request.request().routing(), request.request().index()));
+        request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
         if (request.request().routing() == null && state.getMetaData().routingRequired(request.concreteIndex(), request.request().type())) {
             throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
@@ -81,7 +82,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (request.realtime()) { // we are not tied to a refresh cycle here anyway
-            listener.onResponse(shardOperation(request, shardId));
+            super.asyncShardOperation(request, shardId, listener);
         } else {
             indexShard.awaitShardSearchActive(b -> {
                 try {
@@ -110,5 +111,12 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected GetResponse newResponse() {
         return new GetResponse();
+    }
+
+    @Override
+    protected String getExecutor(GetRequest request, ShardId shardId) {
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
+            shardId);
     }
 }

@@ -21,17 +21,15 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Definition.Method;
-import org.elasticsearch.painless.Definition.MethodKey;
-import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.Definition.def;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.lookup.PainlessCast;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
@@ -42,6 +40,7 @@ import java.util.Set;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_HASNEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_NEXT;
 import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
+import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCanonicalTypeName;
 
 /**
  * Represents a for-each loop for iterables.
@@ -52,9 +51,9 @@ final class SSubEachIterable extends AStatement {
     private final SBlock block;
     private final Variable variable;
 
-    private Cast cast = null;
+    private PainlessCast cast = null;
     private Variable iterator = null;
-    private Method method = null;
+    private PainlessMethod method = null;
 
     SSubEachIterable(Location location, Variable variable, AExpression expression, SBlock block) {
         super(location);
@@ -78,12 +77,11 @@ final class SSubEachIterable extends AStatement {
         if (expression.actual == def.class) {
             method = null;
         } else {
-            Type actualType = locals.getDefinition().ClassToType(expression.actual);
-            method = actualType.struct.methods.get(new MethodKey("iterator", 0));
+            method = locals.getPainlessLookup().lookupPainlessMethod(expression.actual, false, "iterator", 0);
 
             if (method == null) {
-                throw createError(new IllegalArgumentException(
-                    "Unable to create iterator for the type [" + actualType.name + "]."));
+                    throw createError(new IllegalArgumentException(
+                            "method [" + typeToCanonicalTypeName(expression.actual) + ", iterator/0] not found"));
             }
         }
 
@@ -101,7 +99,7 @@ final class SSubEachIterable extends AStatement {
                     .getMethodType(org.objectweb.asm.Type.getType(Iterator.class), org.objectweb.asm.Type.getType(Object.class));
             writer.invokeDefCall("iterator", methodType, DefBootstrap.ITERATOR);
         } else {
-            method.write(writer);
+            writer.invokeMethodCall(method);
         }
 
         writer.visitVarInsn(MethodWriter.getType(iterator.clazz).getOpcode(Opcodes.ISTORE), iterator.getSlot());
@@ -134,6 +132,6 @@ final class SSubEachIterable extends AStatement {
 
     @Override
     public String toString() {
-        return singleLineToString(Definition.ClassToName(variable.clazz), variable.name, expression, block);
+        return singleLineToString(PainlessLookupUtility.typeToCanonicalTypeName(variable.clazz), variable.name, expression, block);
     }
 }

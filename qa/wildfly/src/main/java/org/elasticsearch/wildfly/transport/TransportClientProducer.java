@@ -20,7 +20,6 @@
 package org.elasticsearch.wildfly.transport;
 
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
@@ -29,8 +28,6 @@ import org.elasticsearch.transport.client.PreBuiltTransportClient;
 
 import javax.enterprise.inject.Produces;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;

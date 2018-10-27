@@ -370,10 +370,6 @@ setup:
 ---
 "Partitioned string test":
 
-  - skip:
-      version: " - 5.1.99"
-      reason:  Partitioning is a 5.2.0 feature
-
   - do:
       index:
         index: test_1
@@ -429,10 +425,6 @@ setup:
 ---
 "Partitioned integer test":
 
-  - skip:
-      version: " - 5.1.99"
-      reason:  Partitioning is a 5.2.0 feature
-
   - do:
       index:
         index: test_1
@@ -484,10 +476,6 @@ setup:
 ---
 "Unmapped strings":
 
-  - skip:
-      version: " - 5.1.99"
-      reason: Unmapped fields handling with value_type was added in 5.2
-
   - do:
       index:
         index: test_1
@@ -512,10 +500,6 @@ setup:
 
 ---
 "Unmapped booleans":
-
-  - skip:
-      version: " - 5.1.99"
-      reason: Unmapped fields handling with value_type was added in 5.2
 
   - do:
       index:
@@ -544,10 +528,6 @@ setup:
 ---
 "Unmapped dates":
 
-  - skip:
-      version: " - 5.1.99"
-      reason: Unmapped fields handling with value_type was added in 5.2
-
   - do:
       index:
         index: test_1
@@ -575,10 +555,6 @@ setup:
 ---
 "Unmapped longs":
 
-  - skip:
-      version: " - 5.1.99"
-      reason: Unmapped fields handling with value_type was added in 5.2
-
   - do:
       index:
         index: test_1
@@ -604,10 +580,6 @@ setup:
 ---
 "Unmapped doubles":
 
-  - skip:
-      version: " - 5.1.99"
-      reason: Unmapped fields handling with value_type was added in 5.2
-
   - do:
       index:
         index: test_1
@@ -632,10 +604,6 @@ setup:
 
 ---
 "Mixing longs and doubles":
-
-  - skip:
-      version: " - 5.99.99"
-      reason:  in 6.0 longs and doubles are compatible within a terms agg (longs are promoted to doubles)
 
   - do:
       index:
@@ -699,7 +667,6 @@ setup:
 "Deprecated _term order":
 
   - skip:
-      version: " - 5.99.99"
       reason:  _term order deprecated in 6.0, replaced by _key
       features: "warnings"
 

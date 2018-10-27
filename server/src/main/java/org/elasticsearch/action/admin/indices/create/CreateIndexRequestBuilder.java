@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -35,7 +34,8 @@ import java.util.Map;
 /**
  * Builder for a create index request
  */
-public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder> {
+public class CreateIndexRequestBuilder
+    extends AcknowledgedRequestBuilder<CreateIndexRequest, CreateIndexResponse, CreateIndexRequestBuilder> {
 
     public CreateIndexRequestBuilder(ElasticsearchClient client, CreateIndexAction action) {
         super(client, action, new CreateIndexRequest());
@@ -147,7 +147,7 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     /**
      * Sets the aliases that will be associated with the index when it gets created
      */
-    public CreateIndexRequestBuilder setAliases(Map source) {
+    public CreateIndexRequestBuilder setAliases(Map<String, ?> source) {
         request.aliases(source);
         return this;
     }
@@ -221,14 +221,6 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
      */
     public CreateIndexRequestBuilder setSource(Map<String, ?> source) {
         request.source(source, LoggingDeprecationHandler.INSTANCE);
-        return this;
-    }
-
-    /**
-     * Adds custom metadata to the index to be created.
-     */
-    public CreateIndexRequestBuilder addCustom(IndexMetaData.Custom custom) {
-        request.custom(custom);
         return this;
     }
 

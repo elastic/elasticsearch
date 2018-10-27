@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.termvectors;
 
+import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.payloads.FloatEncoder;
@@ -35,6 +36,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -91,6 +93,12 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
                     }
                 };
             });
+        }
+
+        @Override
+        public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
+            return Collections.singletonList(PreConfiguredTokenizer.singleton("mock-whitespace",
+                () -> new MockTokenizer(MockTokenizer.WHITESPACE, false), null));
         }
 
         // Based on DelimitedPayloadTokenFilter:
@@ -151,7 +159,7 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
                 .startObject("field").field("type", "text").field("term_vector", "with_positions_offsets_payloads")
                 .field("analyzer", "payload_test").endObject().endObject().endObject().endObject();
         Settings setting =  Settings.builder()
-            .put("index.analysis.analyzer.payload_test.tokenizer", "whitespace")
+            .put("index.analysis.analyzer.payload_test.tokenizer", "mock-whitespace")
             .putList("index.analysis.analyzer.payload_test.filter", "my_delimited_payload")
             .put("index.analysis.filter.my_delimited_payload.delimiter", delimiter)
             .put("index.analysis.filter.my_delimited_payload.encoding", encodingString)

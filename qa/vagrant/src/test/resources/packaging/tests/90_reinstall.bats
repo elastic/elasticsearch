@@ -42,6 +42,7 @@ load $BATS_UTILS/packages.bash
 # Cleans everything for the 1st execution
 setup() {
     skip_not_dpkg_or_rpm
+    export PACKAGE_NAME="elasticsearch-oss"
 }
 
 @test "[REINSTALL] install" {

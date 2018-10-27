@@ -23,6 +23,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -75,7 +76,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         MultiTermVectorsResponse response = mtvBuilder.execute().actionGet();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
-        assertThat(response.getResponses()[0].getFailure().getCause().getMessage(), equalTo("no such index"));
+        assertThat(response.getResponses()[0].getFailure().getCause().getMessage(), equalTo("no such index [testX]"));
     }
 
     public void testMultiTermVectorsWithVersion() throws Exception {
@@ -111,7 +112,8 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         checkTermTexts(response.getResponses()[1].getResponse().getFields().terms("field"), new String[]{"value1"});
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
-        assertThat(response.getResponses()[2].getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
+        assertThat(response.getResponses()[2].getFailure().getCause(), instanceOf(ElasticsearchException.class));
+        assertThat(response.getResponses()[2].getFailure().getCause().getCause(), instanceOf(VersionConflictEngineException.class));
 
         //Version from Lucene index
         refresh();
@@ -132,7 +134,8 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         checkTermTexts(response.getResponses()[1].getResponse().getFields().terms("field"), new String[]{"value1"});
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
-        assertThat(response.getResponses()[2].getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
+        assertThat(response.getResponses()[2].getFailure().getCause(), instanceOf(ElasticsearchException.class));
+        assertThat(response.getResponses()[2].getFailure().getCause().getCause(), instanceOf(VersionConflictEngineException.class));
 
 
         for (int i = 0; i < 3; i++) {
@@ -155,7 +158,8 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
-        assertThat(response.getResponses()[1].getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
+        assertThat(response.getResponses()[1].getFailure().getCause(), instanceOf(ElasticsearchException.class));
+        assertThat(response.getResponses()[1].getFailure().getCause().getCause(), instanceOf(VersionConflictEngineException.class));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());
@@ -180,7 +184,8 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
-        assertThat(response.getResponses()[1].getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
+        assertThat(response.getResponses()[1].getFailure().getCause(), instanceOf(ElasticsearchException.class));
+        assertThat(response.getResponses()[1].getFailure().getCause().getCause(), instanceOf(VersionConflictEngineException.class));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());

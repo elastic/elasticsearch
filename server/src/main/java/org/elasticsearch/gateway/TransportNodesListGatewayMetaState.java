@@ -23,13 +23,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -55,17 +55,17 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
     private final GatewayMetaState metaState;
 
     @Inject
-    public TransportNodesListGatewayMetaState(Settings settings, ThreadPool threadPool,
-                                              ClusterService clusterService, TransportService transportService,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                              GatewayMetaState metaState) {
+    public TransportNodesListGatewayMetaState(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                              TransportService transportService, ActionFilters actionFilters, GatewayMetaState metaState) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
-              indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeGatewayMetaState.class);
+            Request::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeGatewayMetaState.class);
         this.metaState = metaState;
     }
 
     public ActionFuture<NodesGatewayMetaState> list(String[] nodesIds, @Nullable TimeValue timeout) {
-        return execute(new Request(nodesIds).timeout(timeout));
+        PlainActionFuture<NodesGatewayMetaState> future = PlainActionFuture.newFuture();
+        execute(new Request(nodesIds).timeout(timeout), future);
+        return future;
     }
 
     @Override

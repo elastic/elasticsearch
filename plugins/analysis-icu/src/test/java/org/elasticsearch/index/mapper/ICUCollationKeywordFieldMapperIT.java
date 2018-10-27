@@ -60,7 +60,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         String index = "foo";
         String type = "mytype";
 
-        String[] equilavent = {"I WİLL USE TURKİSH CASING", "ı will use turkish casıng"};
+        String[] equivalent = {"I WİLL USE TURKİSH CASING", "ı will use turkish casıng"};
 
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
@@ -75,8 +75,8 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         // both values should collate to same value
         indexRandom(true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equilavent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[1] + "\"}", XContentType.JSON)
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         // searching for either of the terms should return both results since they collate to the same value
@@ -85,9 +85,9 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
-                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
+                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
                 .sort("collate")
-                .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
+                .sort("_id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -100,7 +100,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         String index = "foo";
         String type = "mytype";
 
-        String[] equilavent = {"a", "C", "a", "B"};
+        String[] equivalent = {"a", "C", "a", "B"};
 
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
@@ -114,9 +114,9 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         // everything should be indexed fine, no exceptions
         indexRandom(true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":[\"" + equilavent[0] + "\", \""
-                + equilavent[1] + "\"]}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[2] + "\"}", XContentType.JSON)
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":[\"" + equivalent[0] + "\", \""
+                + equivalent[1] + "\"]}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equivalent[2] + "\"}", XContentType.JSON)
         );
 
         // using sort mode = max, values B and C will be used for the sort
@@ -128,7 +128,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                 .query(QueryBuilders.termQuery("collate", "a"))
                 // if mode max we use c and b as sort values, if max we use "a" for both
                 .sort(SortBuilders.fieldSort("collate").sortMode(SortMode.MAX).order(SortOrder.DESC))
-                .sort("_uid", SortOrder.DESC) // will be ignored
+                .sort("_id", SortOrder.DESC) // will be ignored
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -145,7 +145,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
                 .query(QueryBuilders.termQuery("collate", "a"))
                 // if mode max we use c and b as sort values, if max we use "a" for both
                 .sort(SortBuilders.fieldSort("collate").sortMode(SortMode.MIN).order(SortOrder.DESC))
-                .sort("_uid", SortOrder.DESC) // will NOT be ignored and will determine order
+                .sort("_id", SortOrder.DESC) // will NOT be ignored and will determine order
             );
 
         response = client().search(request).actionGet();
@@ -161,7 +161,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         String index = "foo";
         String type = "mytype";
 
-        String[] equilavent = {"I W\u0049\u0307LL USE TURKİSH CASING", "ı will use turkish casıng"};
+        String[] equivalent = {"I W\u0049\u0307LL USE TURKİSH CASING", "ı will use turkish casıng"};
 
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
@@ -176,8 +176,8 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         indexRandom(true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equilavent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[1] + "\"}", XContentType.JSON)
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         // searching for either of the terms should return both results since they collate to the same value
@@ -186,9 +186,9 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
-                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
+                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
                 .sort("collate")
-                .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
+                .sort("_id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -204,7 +204,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         String index = "foo";
         String type = "mytype";
 
-        String[] equilavent = {"TESTING", "testing"};
+        String[] equivalent = {"TESTING", "testing"};
 
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
@@ -219,8 +219,8 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         indexRandom(true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equilavent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[1] + "\"}", XContentType.JSON)
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest()
@@ -228,9 +228,9 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
-                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
+                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
                 .sort("collate")
-                .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
+                .sort("_id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -247,7 +247,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         String index = "foo";
         String type = "mytype";
 
-        String[] equilavent = {"foo-bar", "foo bar"};
+        String[] equivalent = {"foo-bar", "foo bar"};
 
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
@@ -262,8 +262,8 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         indexRandom(true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equilavent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[1] + "\"}", XContentType.JSON)
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest()
@@ -271,9 +271,9 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
-                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
+                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
                 .sort("collate")
-                .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
+                .sort("_id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -316,7 +316,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .sort("collate", SortOrder.ASC)
-                .sort("_uid", SortOrder.ASC) // secondary sort should kick in on docs 1 and 3 because same value collate value
+                .sort("_id", SortOrder.ASC) // secondary sort should kick in on docs 1 and 3 because same value collate value
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -398,7 +398,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .sort("collate", SortOrder.ASC)
-                .sort("_uid", SortOrder.DESC)
+                .sort("_id", SortOrder.DESC)
             );
 
         SearchResponse response = client().search(request).actionGet();
@@ -467,7 +467,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         RuleBasedCollator tailoredCollator = new RuleBasedCollator(baseCollator.getRules() + DIN5007_2_tailorings);
         String tailoredRules = tailoredCollator.getRules();
 
-        String[] equilavent = {"Töne", "Toene"};
+        String[] equivalent = {"Töne", "Toene"};
 
         XContentBuilder builder = jsonBuilder()
             .startObject().startObject("properties")
@@ -481,8 +481,8 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate(index).addMapping(type, builder));
 
         indexRandom(true,
-            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equilavent[0] + "\"}", XContentType.JSON),
-            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equilavent[1] + "\"}", XContentType.JSON)
+            client().prepareIndex(index, type, "1").setSource("{\"collate\":\"" + equivalent[0] + "\"}", XContentType.JSON),
+            client().prepareIndex(index, type, "2").setSource("{\"collate\":\"" + equivalent[1] + "\"}", XContentType.JSON)
         );
 
         SearchRequest request = new SearchRequest()
@@ -490,9 +490,9 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
-                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equilavent[0] : equilavent[1]))
+                .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
                 .sort("collate", SortOrder.ASC)
-                .sort("_uid", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
+                .sort("_id", SortOrder.DESC) // secondary sort should kick in because both will collate to same value
             );
 
         SearchResponse response = client().search(request).actionGet();

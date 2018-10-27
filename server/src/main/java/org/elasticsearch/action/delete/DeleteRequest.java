@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.delete;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -45,14 +46,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  * @see org.elasticsearch.client.Requests#deleteRequest(String)
  */
-public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
+public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
+        implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
     private String type;
     private String id;
     @Nullable
     private String routing;
-    @Nullable
-    private String parent;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
@@ -90,7 +90,8 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
             validationException = addValidationError("id is missing", validationException);
         }
         if (!versionType.validateVersionForWrites(version)) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+            validationException = addValidationError("illegal version value [" + version + "] for version type ["
+                + versionType.name() + "]", validationException);
         }
         if (versionType == VersionType.FORCE) {
             validationException = addValidationError("version type [force] may no longer be used", validationException);
@@ -127,22 +128,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
      */
     public DeleteRequest id(String id) {
         this.id = id;
-        return this;
-    }
-
-    /**
-     * @return The parent for this request.
-     */
-    @Override
-    public String parent() {
-        return parent;
-    }
-
-    /**
-     * Sets the parent id of this document.
-     */
-    public DeleteRequest parent(String parent) {
-        this.parent = parent;
         return this;
     }
 
@@ -202,7 +187,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        parent = in.readOptionalString();
+        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+            in.readOptionalString(); // _parent
+        }
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
     }
@@ -213,7 +200,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
-        out.writeOptionalString(parent());
+        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalString(null); // _parent
+        }
         out.writeLong(version);
         out.writeByte(versionType.getValue());
     }

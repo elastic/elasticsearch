@@ -19,20 +19,64 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.TransportRequestOptions;
 
 /**
- * Base action. Supports building the <code>Request</code> through a <code>RequestBuilder</code>.
+ * A generic action. Should strive to make it a singleton.
  */
-public abstract class Action<Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
-        extends GenericAction<Request, Response> {
+public abstract class Action<Response extends ActionResponse> {
 
+    private final String name;
+
+    /**
+     * @param name The name of the action, must be unique across actions.
+     */
     protected Action(String name) {
-        super(name);
+        this.name = name;
     }
 
     /**
-     * Creates a new request builder given the client provided as argument
+     * The name of the action. Must be unique across actions.
      */
-    public abstract RequestBuilder newRequestBuilder(ElasticsearchClient client);
+    public String name() {
+        return this.name;
+    }
+
+    /**
+     * Creates a new response instance.
+     * @deprecated Implement {@link #getResponseReader()} instead and make this method throw an
+     *             {@link UnsupportedOperationException}
+     */
+    @Deprecated
+    public abstract Response newResponse();
+
+    /**
+     * Get a reader that can create a new instance of the class from a {@link org.elasticsearch.common.io.stream.StreamInput}
+     */
+    public Writeable.Reader<Response> getResponseReader() {
+        return in -> {
+            Response response = newResponse();
+            response.readFrom(in);
+            return response;
+        };
+    }
+
+    /**
+     * Optional request options for the action.
+     */
+    public TransportRequestOptions transportOptions(Settings settings) {
+        return TransportRequestOptions.EMPTY;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof Action && name.equals(((Action<?>) o).name());
+    }
+
+    @Override
+    public int hashCode() {
+        return name.hashCode();
+    }
 }

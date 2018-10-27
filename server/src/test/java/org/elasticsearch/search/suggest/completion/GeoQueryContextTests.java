@@ -19,15 +19,20 @@
 
 package org.elasticsearch.search.suggest.completion;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoQueryContextTests extends QueryContextTestCase<GeoQueryContext> {
@@ -104,5 +109,37 @@ public class GeoQueryContextTests extends QueryContextTestCase<GeoQueryContext> 
         } catch (IllegalArgumentException e) {
             assertEquals(e.getMessage(), "neighbour value must be between 1 and 12");
         }
+    }
+
+    public void testStringPrecision() throws IOException {
+        XContentBuilder builder = jsonBuilder().startObject();
+        {
+            builder.startObject("context").field("lat", 23.654242).field("lon", 90.047153).endObject();
+            builder.field("boost", 10);
+            builder.field("precision", 12);
+            builder.array("neighbours", 1, 2);
+        }
+        builder.endObject();
+        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        parser.nextToken();
+        GeoQueryContext queryContext = fromXContent(parser);
+        assertEquals(10, queryContext.getBoost());
+        assertEquals(12, queryContext.getPrecision());
+        assertEquals(Arrays.asList(1, 2), queryContext.getNeighbours());
+
+        builder = jsonBuilder().startObject();
+        {
+            builder.startObject("context").field("lat", 23.654242).field("lon", 90.047153).endObject();
+            builder.field("boost", 10);
+            builder.field("precision", "12m");
+            builder.array("neighbours", "4km", "10km");
+        }
+        builder.endObject();
+        parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        parser.nextToken();
+        queryContext = fromXContent(parser);
+        assertEquals(10, queryContext.getBoost());
+        assertEquals(9, queryContext.getPrecision());
+        assertEquals(Arrays.asList(6, 5), queryContext.getNeighbours());
     }
 }

@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -502,10 +502,18 @@ public class InternalOrder extends BucketOrder {
                     // convert the new order IDs to the old histogram order IDs.
                     byte id;
                     switch (order.id()) {
-                        case COUNT_DESC_ID: id = 4; break;
-                        case COUNT_ASC_ID: id = 3; break;
-                        case KEY_DESC_ID: id = 2; break;
-                        case KEY_ASC_ID: id = 1; break;
+                        case COUNT_DESC_ID:
+                            id = 4;
+                            break;
+                        case COUNT_ASC_ID:
+                            id = 3;
+                            break;
+                        case KEY_DESC_ID:
+                            id = 2;
+                            break;
+                        case KEY_ASC_ID:
+                            id = 1;
+                            break;
                         default: throw new RuntimeException("unknown order id [" + order.id() + "]");
                     }
                     out.writeByte(id);
@@ -519,8 +527,8 @@ public class InternalOrder extends BucketOrder {
      */
     public static class Parser {
 
-        private static final DeprecationLogger DEPRECATION_LOGGER =
-            new DeprecationLogger(Loggers.getLogger(Parser.class));
+        private static final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(LogManager.getLogger(Parser.class));
 
         /**
          * Parse a {@link BucketOrder} from {@link XContent}.
@@ -557,7 +565,7 @@ public class InternalOrder extends BucketOrder {
             }
             // _term and _time order deprecated in 6.0; replaced by _key
             if ("_term".equals(orderKey) || "_time".equals(orderKey)) {
-                DEPRECATION_LOGGER.deprecated("Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
+                deprecationLogger.deprecated("Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
             }
             switch (orderKey) {
                 case "_term":

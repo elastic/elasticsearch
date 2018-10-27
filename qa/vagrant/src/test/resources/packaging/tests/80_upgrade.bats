@@ -47,6 +47,12 @@ setup() {
     if [ "$(cat upgrade_from_version)" == "$(cat version)" ]; then
         sameVersion="true"
     fi
+    # TODO: this needs to conditionally change based on version > 6.3.0
+    if [ -f upgrade_is_oss ]; then
+      export PACKAGE_NAME="elasticsearch-oss"
+    else    
+      skip "upgrade cannot happen from pre 6.3.0 to elasticsearch-oss"
+    fi
 }
 
 @test "[UPGRADE] install old version" {

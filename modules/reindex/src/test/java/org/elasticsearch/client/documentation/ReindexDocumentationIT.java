@@ -27,10 +27,11 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
 import org.elasticsearch.index.reindex.RethrottleAction;
+import org.elasticsearch.index.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.script.Script;
@@ -44,28 +45,30 @@ import java.util.Collections;
 
 public class ReindexDocumentationIT extends ESIntegTestCase {
 
+    @SuppressWarnings("unused")
     public void reindex() {
         Client client = client();
         // tag::reindex1
-        BulkByScrollResponse response = ReindexAction.INSTANCE.newRequestBuilder(client)
+        BulkByScrollResponse response = new ReindexRequestBuilder(client, ReindexAction.INSTANCE)
             .destination("target_index")
             .filter(QueryBuilders.matchQuery("category", "xzy")) // <1>
             .get();
         // end::reindex1
     }
 
+    @SuppressWarnings("unused")
     public void updateByQuery() {
         Client client = client();
         {
             // tag::update-by-query
-            UpdateByQueryRequestBuilder updateByQuery = UpdateByQueryAction.INSTANCE.newRequestBuilder(client);
+            UpdateByQueryRequestBuilder updateByQuery = new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.source("source_index").abortOnVersionConflict(false);
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query
         }
         {
             // tag::update-by-query-filter
-            UpdateByQueryRequestBuilder updateByQuery = UpdateByQueryAction.INSTANCE.newRequestBuilder(client);
+            UpdateByQueryRequestBuilder updateByQuery = new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.source("source_index")
                 .filter(QueryBuilders.termQuery("level", "awesome"))
                 .size(1000)
@@ -75,7 +78,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         }
         {
             // tag::update-by-query-size
-            UpdateByQueryRequestBuilder updateByQuery = UpdateByQueryAction.INSTANCE.newRequestBuilder(client);
+            UpdateByQueryRequestBuilder updateByQuery = new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.source("source_index")
                 .source().setSize(500);
             BulkByScrollResponse response = updateByQuery.get();
@@ -83,7 +86,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         }
         {
             // tag::update-by-query-sort
-            UpdateByQueryRequestBuilder updateByQuery = UpdateByQueryAction.INSTANCE.newRequestBuilder(client);
+            UpdateByQueryRequestBuilder updateByQuery = new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.source("source_index").size(100)
                 .source().addSort("cat", SortOrder.DESC);
             BulkByScrollResponse response = updateByQuery.get();
@@ -91,11 +94,11 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         }
         {
             // tag::update-by-query-script
-            UpdateByQueryRequestBuilder updateByQuery = UpdateByQueryAction.INSTANCE.newRequestBuilder(client);
+            UpdateByQueryRequestBuilder updateByQuery = new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.source("source_index")
                 .script(new Script(
                     ScriptType.INLINE,
-                    "if (ctx._source.awesome == 'absolutely) {"
+                    "if (ctx._source.awesome == 'absolutely') {"
                         + "  ctx.op='noop'"
                         + "} else if (ctx._source.awesome == 'lame') {"
                         + "  ctx.op='delete'"
@@ -108,21 +111,21 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         }
         {
             // tag::update-by-query-multi-index
-            UpdateByQueryRequestBuilder updateByQuery = UpdateByQueryAction.INSTANCE.newRequestBuilder(client);
+            UpdateByQueryRequestBuilder updateByQuery = new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.source("foo", "bar").source().setTypes("a", "b");
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query-multi-index
         }
         {
             // tag::update-by-query-routing
-            UpdateByQueryRequestBuilder updateByQuery = UpdateByQueryAction.INSTANCE.newRequestBuilder(client);
+            UpdateByQueryRequestBuilder updateByQuery = new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.source().setRouting("cat");
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query-routing
         }
         {
             // tag::update-by-query-pipeline
-            UpdateByQueryRequestBuilder updateByQuery = UpdateByQueryAction.INSTANCE.newRequestBuilder(client);
+            UpdateByQueryRequestBuilder updateByQuery = new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.setPipeline("hurray");
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query-pipeline
@@ -156,7 +159,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         {
             TaskId taskId = null;
             // tag::update-by-query-rethrottle
-            RethrottleAction.INSTANCE.newRequestBuilder(client)
+            new RethrottleRequestBuilder(client, RethrottleAction.INSTANCE)
                 .setTaskId(taskId)
                 .setRequestsPerSecond(2.0f)
                 .get();
@@ -164,10 +167,11 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         }
     }
 
+    @SuppressWarnings("unused")
     public void deleteByQuery() {
         Client client = client();
         // tag::delete-by-query-sync
-        BulkByScrollResponse response = DeleteByQueryAction.INSTANCE.newRequestBuilder(client)
+        BulkByScrollResponse response = new DeleteByQueryRequestBuilder(client, DeleteByQueryAction.INSTANCE)
             .filter(QueryBuilders.matchQuery("gender", "male")) // <1>
             .source("persons")                                  // <2>
             .get();                                             // <3>
@@ -175,7 +179,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         // end::delete-by-query-sync
 
         // tag::delete-by-query-async
-        DeleteByQueryAction.INSTANCE.newRequestBuilder(client)
+        new DeleteByQueryRequestBuilder(client, DeleteByQueryAction.INSTANCE)
             .filter(QueryBuilders.matchQuery("gender", "male"))     // <1>
             .source("persons")                                      // <2>
             .execute(new ActionListener<BulkByScrollResponse>() {   // <3>

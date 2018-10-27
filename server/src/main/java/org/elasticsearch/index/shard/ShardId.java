@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
@@ -30,7 +32,7 @@ import java.io.IOException;
 /**
  * Allows for shard level components to be injected with the shard id.
  */
-public class ShardId implements Streamable, Comparable<ShardId> {
+public class ShardId implements Streamable, Comparable<ShardId>, ToXContentFragment {
 
     private Index index;
 
@@ -91,7 +93,7 @@ public class ShardId implements Streamable, Comparable<ShardId> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null) return false;
+        if (o == null || getClass() != o.getClass()) return false;
         ShardId shardId1 = (ShardId) o;
         return shardId == shardId1.shardId && index.equals(shardId1.index);
     }
@@ -136,5 +138,10 @@ public class ShardId implements Streamable, Comparable<ShardId> {
             return index.getUUID().compareTo(o.getIndex().getUUID());
         }
         return Integer.compare(shardId, o.getId());
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(toString());
     }
 }

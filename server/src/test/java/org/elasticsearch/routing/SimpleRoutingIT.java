@@ -38,7 +38,6 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -173,13 +172,13 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareSearch().setSize(0).setRouting(secondRoutingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(1L));
         }
 
-        logger.info("--> search with {},{} routings , should find two", routingValue, "1");
+        logger.info("--> search with {},{} indexRoutings , should find two", routingValue, "1");
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareSearch().setRouting(routingValue, secondRoutingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
             assertThat(client().prepareSearch().setSize(0).setRouting(routingValue, secondRoutingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
         }
 
-        logger.info("--> search with {},{},{} routings , should find two", routingValue, secondRoutingValue, routingValue);
+        logger.info("--> search with {},{},{} indexRoutings , should find two", routingValue, secondRoutingValue, routingValue);
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareSearch().setRouting(routingValue, secondRoutingValue, routingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));
             assertThat(client().prepareSearch().setSize(0).setRouting(routingValue, secondRoutingValue,routingValue).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits(), equalTo(2L));

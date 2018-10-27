@@ -57,9 +57,8 @@ separately in the mappings)
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-request-item-extras]
 --------------------------------------------------
 <1> Routing value
-<2> Parent value
-<3> Version
-<4> Version type
+<2> Version
+<3> Version type
 
 {ref}/search-request-preference.html[`preference`],
 {ref}/docs-get.html#realtime[`realtime`]

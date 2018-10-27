@@ -57,7 +57,6 @@ public class RestRecoveryActionTests extends ESTestCase {
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;
-        final boolean detailed = randomBoolean();
         final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
         final List<RecoveryState> recoveryStates = new ArrayList<>();
 
@@ -115,7 +114,6 @@ public class RestRecoveryActionTests extends ESTestCase {
                 totalShards,
                 successfulShards,
                 failedShards,
-                detailed,
                 shardRecoveryStates,
                 shardFailures);
         final Table table = action.buildRecoveryTable(null, response);

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -39,8 +38,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.Task.Status;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -51,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -61,13 +59,12 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  * A cluster state record that contains a list of all running persistent tasks
  */
 public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
-    public static final String TYPE = "persistent_tasks";
 
+    public static final String TYPE = "persistent_tasks";
     private static final String API_CONTEXT = MetaData.XContentContext.API.toString();
 
     // TODO: Implement custom Diff for tasks
     private final Map<String, PersistentTask<?>> tasks;
-
     private final long lastAllocationId;
 
     public PersistentTasksCustomMetaData(long lastAllocationId, Map<String, PersistentTask<?>> tasks) {
@@ -94,8 +91,8 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         ObjectParser<TaskDescriptionBuilder<PersistentTaskParams>, String> parser = new ObjectParser<>("named");
         parser.declareObject(TaskDescriptionBuilder::setParams,
                 (p, c) -> p.namedObject(PersistentTaskParams.class, c, null), new ParseField("params"));
-        parser.declareObject(TaskDescriptionBuilder::setStatus,
-                (p, c) -> p.namedObject(Status.class, c, null), new ParseField("status"));
+        parser.declareObject(TaskDescriptionBuilder::setState,
+                (p, c) -> p.namedObject(PersistentTaskState.class, c, null), new ParseField("state", "status"));
         TASK_DESCRIPTION_PARSER = (XContentParser p, Void c, String name) -> parser.parse(p, new TaskDescriptionBuilder<>(name), name);
 
         // Assignment parser
@@ -115,7 +112,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                     TaskDescriptionBuilder<PersistentTaskParams> builder = objects.get(0);
                     taskBuilder.setTaskName(builder.taskName);
                     taskBuilder.setParams(builder.params);
-                    taskBuilder.setStatus(builder.status);
+                    taskBuilder.setState(builder.state);
                 }, TASK_DESCRIPTION_PARSER, new ParseField("task"));
         PERSISTENT_TASK_PARSER.declareObject(TaskBuilder::setAssignment, ASSIGNMENT_PARSER, new ParseField("assignment"));
         PERSISTENT_TASK_PARSER.declareLong(TaskBuilder::setAllocationIdOnLastStatusUpdate,
@@ -123,12 +120,13 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     }
 
     /**
-     * Private builder used in XContent parser to build task-specific portion (params and status)
+     * Private builder used in XContent parser to build task-specific portion (params and state)
      */
     private static class TaskDescriptionBuilder<Params extends PersistentTaskParams> {
+
         private final String taskName;
         private Params params;
-        private Status status;
+        private PersistentTaskState state;
 
         private TaskDescriptionBuilder(String taskName) {
             this.taskName = taskName;
@@ -139,8 +137,8 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             return this;
         }
 
-        private TaskDescriptionBuilder setStatus(Status status) {
-            this.status = status;
+        private TaskDescriptionBuilder setState(PersistentTaskState state) {
+            this.state = state;
             return this;
         }
     }
@@ -190,7 +188,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_4_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
@@ -261,38 +259,34 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
      * A record that represents a single running persistent task
      */
     public static class PersistentTask<P extends PersistentTaskParams> implements Writeable, ToXContentObject {
+
         private final String id;
         private final long allocationId;
         private final String taskName;
-        @Nullable
         private final P params;
-        @Nullable
-        private final Status status;
+        private final @Nullable PersistentTaskState state;
         private final Assignment assignment;
-        @Nullable
-        private final Long allocationIdOnLastStatusUpdate;
+        private final @Nullable Long allocationIdOnLastStatusUpdate;
 
-        public PersistentTask(String id, String taskName, P params, long allocationId, Assignment assignment) {
-            this(id, allocationId, taskName, params, null, assignment, null);
+        public PersistentTask(final String id, final String name, final P params, final long allocationId, final Assignment assignment) {
+            this(id, allocationId, name, params, null, assignment, null);
         }
 
-        public PersistentTask(PersistentTask<P> task, long allocationId, Assignment assignment) {
-            this(task.id, allocationId, task.taskName, task.params, task.status,
-                    assignment, task.allocationId);
+        public PersistentTask(final PersistentTask<P> task, final long allocationId, final Assignment assignment) {
+            this(task.id, allocationId, task.taskName, task.params, task.state, assignment, task.allocationId);
         }
 
-        public PersistentTask(PersistentTask<P> task, Status status) {
-            this(task.id, task.allocationId, task.taskName, task.params, status,
-                    task.assignment, task.allocationId);
+        public PersistentTask(final PersistentTask<P> task, final PersistentTaskState state) {
+            this(task.id, task.allocationId, task.taskName, task.params, state, task.assignment, task.allocationId);
         }
 
-        private PersistentTask(String id, long allocationId, String taskName, P params,
-                               Status status, Assignment assignment, Long allocationIdOnLastStatusUpdate) {
+        private PersistentTask(final String id, final long allocationId, final String name, final P params,
+                               final PersistentTaskState state, final Assignment assignment, final Long allocationIdOnLastStatusUpdate) {
             this.id = id;
             this.allocationId = allocationId;
-            this.taskName = taskName;
+            this.taskName = name;
             this.params = params;
-            this.status = status;
+            this.state = state;
             this.assignment = assignment;
             this.allocationIdOnLastStatusUpdate = allocationIdOnLastStatusUpdate;
             if (params != null) {
@@ -301,10 +295,10 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                             params.getWriteableName() + " task: " + taskName);
                 }
             }
-            if (status != null) {
-                if (status.getWriteableName().equals(taskName) == false) {
+            if (state != null) {
+                if (state.getWriteableName().equals(taskName) == false) {
                     throw new IllegalArgumentException("status has to have the same writeable name as task. status: " +
-                            status.getWriteableName() + " task: " + taskName);
+                            state.getWriteableName() + " task: " + taskName);
                 }
             }
         }
@@ -314,8 +308,12 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             id = in.readString();
             allocationId = in.readLong();
             taskName = in.readString();
-            params = (P) in.readOptionalNamedWriteable(PersistentTaskParams.class);
-            status = in.readOptionalNamedWriteable(Task.Status.class);
+            if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
+                params = (P) in.readNamedWriteable(PersistentTaskParams.class);
+            } else {
+                params = (P) in.readOptionalNamedWriteable(PersistentTaskParams.class);
+            }
+            state = in.readOptionalNamedWriteable(PersistentTaskState.class);
             assignment = new Assignment(in.readOptionalString(), in.readString());
             allocationIdOnLastStatusUpdate = in.readOptionalLong();
         }
@@ -325,8 +323,12 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             out.writeString(id);
             out.writeLong(allocationId);
             out.writeString(taskName);
-            out.writeOptionalNamedWriteable(params);
-            out.writeOptionalNamedWriteable(status);
+            if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
+                out.writeNamedWriteable(params);
+            } else {
+                out.writeOptionalNamedWriteable(params);
+            }
+            out.writeOptionalNamedWriteable(state);
             out.writeOptionalString(assignment.executorNode);
             out.writeString(assignment.explanation);
             out.writeOptionalLong(allocationIdOnLastStatusUpdate);
@@ -341,15 +343,14 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                     allocationId == that.allocationId &&
                     Objects.equals(taskName, that.taskName) &&
                     Objects.equals(params, that.params) &&
-                    Objects.equals(status, that.status) &&
+                    Objects.equals(state, that.state) &&
                     Objects.equals(assignment, that.assignment) &&
                     Objects.equals(allocationIdOnLastStatusUpdate, that.allocationIdOnLastStatusUpdate);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, allocationId, taskName, params, status, assignment,
-                    allocationIdOnLastStatusUpdate);
+            return Objects.hash(id, allocationId, taskName, params, state, assignment, allocationIdOnLastStatusUpdate);
         }
 
         @Override
@@ -388,8 +389,8 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         }
 
         @Nullable
-        public Status getStatus() {
-            return status;
+        public PersistentTaskState getState() {
+            return state;
         }
 
         @Override
@@ -404,8 +405,8 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
                         if (params != null) {
                             builder.field("params", params, xParams);
                         }
-                        if (status != null) {
-                            builder.field("status", status, xParams);
+                        if (state != null) {
+                            builder.field("state", state, xParams);
                         }
                     }
                     builder.endObject();
@@ -441,7 +442,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         private long allocationId;
         private String taskName;
         private Params params;
-        private Status status;
+        private PersistentTaskState state;
         private Assignment assignment = INITIAL_ASSIGNMENT;
         private Long allocationIdOnLastStatusUpdate;
 
@@ -465,8 +466,8 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
             return this;
         }
 
-        public TaskBuilder<Params> setStatus(Status status) {
-            this.status = status;
+        public TaskBuilder<Params> setState(PersistentTaskState state) {
+            this.state = state;
             return this;
         }
 
@@ -482,8 +483,7 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         }
 
         public PersistentTask<Params> build() {
-            return new PersistentTask<>(id, allocationId, taskName, params, status,
-                    assignment, allocationIdOnLastStatusUpdate);
+            return new PersistentTask<>(id, allocationId, taskName, params, state, assignment, allocationIdOnLastStatusUpdate);
         }
     }
 
@@ -500,7 +500,10 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(lastAllocationId);
-        out.writeMap(tasks, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
+        Map<String, PersistentTask<?>> filteredTasks = tasks.values().stream()
+            .filter(t -> ClusterState.FeatureAware.shouldSerialize(out, t.getParams()))
+            .collect(Collectors.toMap(PersistentTask::getId, Function.identity()));
+        out.writeMap(filteredTasks, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
     }
 
     public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -598,13 +601,13 @@ public final class PersistentTasksCustomMetaData extends AbstractNamedDiffable<M
         }
 
         /**
-         * Updates the task status
+         * Updates the task state
          */
-        public Builder updateTaskStatus(String taskId, Status status) {
+        public Builder updateTaskState(final String taskId, final PersistentTaskState taskState) {
             PersistentTask<?> taskInProgress = tasks.get(taskId);
             if (taskInProgress != null) {
                 changed = true;
-                tasks.put(taskId, new PersistentTask<>(taskInProgress, status));
+                tasks.put(taskId, new PersistentTask<>(taskInProgress, taskState));
             } else {
                 throw new ResourceNotFoundException("cannot update task with id {" + taskId + "}, the task no longer exists");
             }

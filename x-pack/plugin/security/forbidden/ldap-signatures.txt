@@ -1,0 +1,5 @@
+@defaultMessage Bind operation is blocking and can lead to deadlocks if called inside LDAP Response handlers. Use LdapUtils methods.
+com.unboundid.ldap.sdk.LDAPConnection#bind(com.unboundid.ldap.sdk.BindRequest)
+com.unboundid.ldap.sdk.LDAPConnection#bind(java.lang.String, java.lang.String)
+com.unboundid.ldap.sdk.LDAPConnectionPool#bindAndRevertAuthentication(com.unboundid.ldap.sdk.BindRequest)
+com.unboundid.ldap.sdk.LDAPConnectionPool#bindAndRevertAuthentication(java.lang.String, java.lang.String, com.unboundid.ldap.sdk.Control[])

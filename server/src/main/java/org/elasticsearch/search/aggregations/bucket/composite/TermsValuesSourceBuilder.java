@@ -19,18 +19,18 @@
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.support.FieldContext;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 
@@ -80,21 +80,19 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     }
 
     @Override
-    protected CompositeValuesSourceConfig innerBuild(SearchContext context,
-                                                     ValuesSourceConfig<?> config,
-                                                     int pos,
-                                                     int numPos,
-                                                     SortField sortField) throws IOException {
+    protected CompositeValuesSourceConfig innerBuild(SearchContext context, ValuesSourceConfig<?> config) throws IOException {
         ValuesSource vs = config.toValuesSource(context.getQueryShardContext());
         if (vs == null) {
             vs = ValuesSource.Numeric.EMPTY;
         }
-        boolean canEarlyTerminate = false;
-        final FieldContext fieldContext = config.fieldContext();
-        if (sortField != null && config.fieldContext() != null) {
-            canEarlyTerminate = checkCanEarlyTerminate(context.searcher().getIndexReader(),
-                fieldContext.field(), order() == SortOrder.ASC ? false : true, sortField);
+        final MappedFieldType fieldType = config.fieldContext() != null ? config.fieldContext().fieldType() : null;
+        final DocValueFormat format;
+        if (format() == null && fieldType instanceof DateFieldMapper.DateFieldType) {
+            // defaults to the raw format on date fields (preserve timestamp as longs).
+            format = DocValueFormat.RAW;
+        } else {
+            format = config.format();
         }
-        return new CompositeValuesSourceConfig(name, vs, config.format(), order(), canEarlyTerminate);
+        return new CompositeValuesSourceConfig(name, fieldType, vs, format, order(), missingBucket());
     }
 }

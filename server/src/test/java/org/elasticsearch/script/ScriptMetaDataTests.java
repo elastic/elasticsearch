@@ -77,12 +77,12 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
 
         XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().startObject("template").field("field", "value").endObject().endObject();
-        builder.storeScript("template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
-
-        sourceBuilder = XContentFactory.jsonBuilder();
-        sourceBuilder.startObject().field("template", "value").endObject();
-        builder.storeScript("template_field", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
+        sourceBuilder.startObject().startObject("script")
+            .field("lang", "_lang")
+            .startObject("source").field("field", "value").endObject()
+            .endObject().endObject();
+        builder.storeScript("source_template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder),
+            sourceBuilder.contentType()));
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("script").field("lang", "_lang").field("source", "_source").endObject().endObject();
@@ -90,21 +90,25 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
 
         ScriptMetaData scriptMetaData = builder.build();
         assertEquals("_source", scriptMetaData.getStoredScript("script").getSource());
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("template").getSource());
-        assertEquals("value", scriptMetaData.getStoredScript("template_field").getSource());
+        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("source_template").getSource());
     }
 
     public void testDiff() throws Exception {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("1", StoredScriptSource.parse(new BytesArray("{\"foo\":\"abc\"}"), XContentType.JSON));
-        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("{\"foo\":\"def\"}"), XContentType.JSON));
-        builder.storeScript("3", StoredScriptSource.parse(new BytesArray("{\"foo\":\"ghi\"}"), XContentType.JSON));
+        builder.storeScript("1", StoredScriptSource.parse(
+            new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"abc\"}}}"), XContentType.JSON));
+        builder.storeScript("2", StoredScriptSource.parse(
+            new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"def\"}}}"), XContentType.JSON));
+        builder.storeScript("3", StoredScriptSource.parse(
+            new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"ghi\"}}}"), XContentType.JSON));
         ScriptMetaData scriptMetaData1 = builder.build();
 
         builder = new ScriptMetaData.Builder(scriptMetaData1);
-        builder.storeScript("2", StoredScriptSource.parse(new BytesArray("{\"foo\":\"changed\"}"), XContentType.JSON));
+        builder.storeScript("2", StoredScriptSource.parse(
+            new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"changed\"}}}"), XContentType.JSON));
         builder.deleteScript("3");
-        builder.storeScript("4", StoredScriptSource.parse(new BytesArray("{\"foo\":\"jkl\"}"), XContentType.JSON));
+        builder.storeScript("4", StoredScriptSource.parse(
+            new BytesArray("{\"script\":{\"lang\":\"mustache\",\"source\":{\"foo\":\"jkl\"}}}"), XContentType.JSON));
         ScriptMetaData scriptMetaData2 = builder.build();
 
         ScriptMetaData.ScriptMetadataDiff diff = (ScriptMetaData.ScriptMetadataDiff) scriptMetaData2.diff(scriptMetaData1);
@@ -128,6 +132,45 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
 
         ScriptMetaData result = builder.build();
         assertEquals("1 + 1", result.getStoredScript("_id").getSource());
+    }
+
+    public void testLoadEmptyScripts() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("mustache#empty", "").endObject();
+        XContentParser parser = XContentType.JSON.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput());
+        ScriptMetaData.fromXContent(parser);
+        assertWarnings("empty templates should no longer be used");
+
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().field("lang#empty", "").endObject();
+        parser = XContentType.JSON.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput());
+        ScriptMetaData.fromXContent(parser);
+        assertWarnings("empty scripts should no longer be used");
+
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().startObject("script").field("lang", "lang").field("source", "").endObject().endObject();
+        parser = XContentType.JSON.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput());
+        ScriptMetaData.fromXContent(parser);
+        assertWarnings("empty scripts should no longer be used");
+
+        builder = XContentFactory.jsonBuilder();
+        builder.startObject().startObject("script").field("lang", "mustache").field("source", "").endObject().endObject();
+        parser = XContentType.JSON.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                BytesReference.bytes(builder).streamInput());
+        ScriptMetaData.fromXContent(parser);
+        assertWarnings("empty templates should no longer be used");
+    }
+
+    @Override
+    protected boolean enableWarningsCheck() {
+        return true;
     }
 
     private ScriptMetaData randomScriptMetaData(XContentType sourceContentType, int minNumberScripts) throws IOException {

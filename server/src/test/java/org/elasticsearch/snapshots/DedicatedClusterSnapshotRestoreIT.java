@@ -21,26 +21,26 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.RestoreInProgress;
-import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -49,6 +49,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -56,6 +57,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -68,6 +70,7 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -78,7 +81,12 @@ import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -96,6 +104,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -151,24 +161,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         return Arrays.asList(MockRepository.Plugin.class, TestCustomMetaDataPlugin.class);
     }
 
-    public void testClusterStateHasCustoms() throws Exception {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().all().get();
-        assertNotNull(clusterStateResponse.getState().custom(SnapshotsInProgress.TYPE));
-        assertNotNull(clusterStateResponse.getState().custom(RestoreInProgress.TYPE));
-        assertNotNull(clusterStateResponse.getState().custom(SnapshotDeletionsInProgress.TYPE));
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        if (randomBoolean()) {
-            internalCluster().fullRestart();
-        } else {
-            internalCluster().rollingRestart();
-        }
-
-        clusterStateResponse = client().admin().cluster().prepareState().all().get();
-        assertNotNull(clusterStateResponse.getState().custom(SnapshotsInProgress.TYPE));
-        assertNotNull(clusterStateResponse.getState().custom(RestoreInProgress.TYPE));
-        assertNotNull(clusterStateResponse.getState().custom(SnapshotDeletionsInProgress.TYPE));
-    }
-
     public void testRestorePersistentSettings() throws Exception {
         logger.info("--> start 2 nodes");
         internalCluster().startNode();
@@ -187,7 +179,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), -1), equalTo(2));
 
         logger.info("--> create repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -242,7 +234,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         });
 
         logger.info("--> create repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", tempDir)).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -358,7 +350,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> create repository");
         logger.info("--> creating repository");
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", randomRepoPath())
@@ -406,7 +398,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> creating repository");
         Path repo = randomRepoPath();
-        PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
                 .setType("mock").setSettings(
                         Settings.builder()
                                 .put("location", repo)
@@ -429,14 +421,14 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         logger.info("--> execution was blocked on node [{}], aborting snapshot", blockedNode);
 
-        ActionFuture<DeleteSnapshotResponse> deleteSnapshotResponseFuture = internalCluster().client(nodes.get(0)).admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").execute();
+        ActionFuture<AcknowledgedResponse> deleteSnapshotResponseFuture = internalCluster().client(nodes.get(0)).admin().cluster().prepareDeleteSnapshot("test-repo", "test-snap").execute();
         // Make sure that abort makes some progress
         Thread.sleep(100);
         unblockNode("test-repo", blockedNode);
         logger.info("--> stopping node [{}]", blockedNode);
         stopNode(blockedNode);
         try {
-            DeleteSnapshotResponse deleteSnapshotResponse = deleteSnapshotResponseFuture.actionGet();
+            AcknowledgedResponse deleteSnapshotResponse = deleteSnapshotResponseFuture.actionGet();
             assertThat(deleteSnapshotResponse.isAcknowledged(), equalTo(true));
         } catch (SnapshotMissingException ex) {
             // When master node is closed during this test, it sometime manages to delete the snapshot files before
@@ -503,7 +495,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertTrue(client().admin().indices().prepareExists("test-idx-none").get().isExists());
 
         logger.info("--> creating repository");
-        PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -610,7 +602,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         cluster().wipeIndices("_all");
 
         logger.info("--> create repository");
-        PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())).execute().actionGet();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         int numberOfShards = 6;
@@ -981,6 +973,161 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         ensureYellow();
     }
 
+    public void testSnapshotWithDateMath() {
+        final String repo = "repo";
+        final AdminClient admin = client().admin();
+
+        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+        final String snapshotName = "<snapshot-{now/d}>";
+
+        logger.info("-->  creating repository");
+        assertAcked(admin.cluster().preparePutRepository(repo).setType("fs")
+            .setSettings(Settings.builder().put("location", randomRepoPath())
+                .put("compress", randomBoolean())));
+
+        final String expression1 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
+        logger.info("-->  creating date math snapshot");
+        CreateSnapshotResponse snapshotResponse =
+            admin.cluster().prepareCreateSnapshot(repo, snapshotName)
+                .setIncludeGlobalState(true)
+                .setWaitForCompletion(true)
+                .get();
+        assertThat(snapshotResponse.status(), equalTo(RestStatus.OK));
+        // snapshot could be taken before or after a day rollover
+        final String expression2 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
+
+        SnapshotsStatusResponse response = admin.cluster().prepareSnapshotStatus(repo)
+            .setSnapshots(Sets.newHashSet(expression1, expression2).toArray(Strings.EMPTY_ARRAY))
+            .setIgnoreUnavailable(true)
+            .get();
+        List<SnapshotStatus> snapshots = response.getSnapshots();
+        assertThat(snapshots, hasSize(1));
+        assertThat(snapshots.get(0).getState().completed(), equalTo(true));
+    }
+
+    public void testSnapshotTotalAndIncrementalSizes() throws IOException {
+        Client client = client();
+        final String indexName = "test-blocks-1";
+        final String repositoryName = "repo-" + indexName;
+        final String snapshot0 = "snapshot-0";
+        final String snapshot1 = "snapshot-1";
+
+        createIndex(indexName);
+
+        int docs = between(10, 100);
+        for (int i = 0; i < docs; i++) {
+            client.prepareIndex(indexName, "type").setSource("test", "init").execute().actionGet();
+        }
+
+        logger.info("--> register a repository");
+
+        final Path repoPath = randomRepoPath();
+        assertAcked(client.admin().cluster().preparePutRepository(repositoryName)
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", repoPath)));
+
+        logger.info("--> create a snapshot");
+        client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot0)
+            .setIncludeGlobalState(true)
+            .setWaitForCompletion(true)
+            .get();
+
+        SnapshotsStatusResponse response = client.admin().cluster().prepareSnapshotStatus(repositoryName)
+            .setSnapshots(snapshot0)
+            .get();
+
+        List<SnapshotStatus> snapshots = response.getSnapshots();
+
+        List<Path> snapshot0Files = scanSnapshotFolder(repoPath);
+        assertThat(snapshots, hasSize(1));
+
+        final int snapshot0FileCount = snapshot0Files.size();
+        final long snapshot0FileSize = calculateTotalFilesSize(snapshot0Files);
+
+        SnapshotStats stats = snapshots.get(0).getStats();
+
+        assertThat(stats.getTotalFileCount(), is(snapshot0FileCount));
+        assertThat(stats.getTotalSize(), is(snapshot0FileSize));
+
+        assertThat(stats.getIncrementalFileCount(), equalTo(snapshot0FileCount));
+        assertThat(stats.getIncrementalSize(), equalTo(snapshot0FileSize));
+
+        assertThat(stats.getIncrementalFileCount(), equalTo(stats.getProcessedFileCount()));
+        assertThat(stats.getIncrementalSize(), equalTo(stats.getProcessedSize()));
+
+        // add few docs - less than initially
+        docs = between(1, 5);
+        for (int i = 0; i < docs; i++) {
+            client.prepareIndex(indexName, "type").setSource("test", "test" + i).execute().actionGet();
+        }
+
+        // create another snapshot
+        // total size has to grow and has to be equal to files on fs
+        assertThat(client.admin().cluster()
+                .prepareCreateSnapshot(repositoryName, snapshot1)
+                .setWaitForCompletion(true).get().status(),
+            equalTo(RestStatus.OK));
+
+        //  drop 1st one to avoid miscalculation as snapshot reuses some files of prev snapshot
+        assertTrue(client.admin().cluster()
+            .prepareDeleteSnapshot(repositoryName, snapshot0)
+            .get().isAcknowledged());
+
+        response = client.admin().cluster().prepareSnapshotStatus(repositoryName)
+            .setSnapshots(snapshot1)
+            .get();
+
+        final List<Path> snapshot1Files = scanSnapshotFolder(repoPath);
+
+        final int snapshot1FileCount = snapshot1Files.size();
+        final long snapshot1FileSize = calculateTotalFilesSize(snapshot1Files);
+
+        snapshots = response.getSnapshots();
+
+        SnapshotStats anotherStats = snapshots.get(0).getStats();
+
+        ArrayList<Path> snapshotFilesDiff = new ArrayList<>(snapshot1Files);
+        snapshotFilesDiff.removeAll(snapshot0Files);
+
+        assertThat(anotherStats.getIncrementalFileCount(), equalTo(snapshotFilesDiff.size()));
+        assertThat(anotherStats.getIncrementalSize(), equalTo(calculateTotalFilesSize(snapshotFilesDiff)));
+
+        assertThat(anotherStats.getIncrementalFileCount(), equalTo(anotherStats.getProcessedFileCount()));
+        assertThat(anotherStats.getIncrementalSize(), equalTo(anotherStats.getProcessedSize()));
+
+        assertThat(stats.getTotalSize(), lessThan(anotherStats.getTotalSize()));
+        assertThat(stats.getTotalFileCount(), lessThan(anotherStats.getTotalFileCount()));
+
+        assertThat(anotherStats.getTotalFileCount(), is(snapshot1FileCount));
+        assertThat(anotherStats.getTotalSize(), is(snapshot1FileSize));
+    }
+
+    private long calculateTotalFilesSize(List<Path> files) {
+        return files.stream().mapToLong(f -> {
+            try {
+                return Files.size(f);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }).sum();
+    }
+
+
+    private List<Path> scanSnapshotFolder(Path repoPath) throws IOException {
+        List<Path> files = new ArrayList<>();
+        Files.walkFileTree(repoPath, new SimpleFileVisitor<Path>(){
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (file.getFileName().toString().startsWith("__")){
+                        files.add(file);
+                    }
+                    return super.visitFile(file, attrs);
+                }
+            }
+        );
+        return files;
+    }
+
     public static class SnapshottableMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_snapshottable";
 
@@ -991,6 +1138,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
         }
 
         public static SnapshottableMetadata readFrom(StreamInput in) throws IOException {
@@ -1024,6 +1176,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             return TYPE;
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
+        }
+
         public static NonSnapshottableMetadata readFrom(StreamInput in) throws IOException {
             return readFrom(NonSnapshottableMetadata::new, in);
         }
@@ -1052,6 +1209,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
         }
 
         public static SnapshottableGatewayMetadata readFrom(StreamInput in) throws IOException {
@@ -1084,6 +1246,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             return TYPE;
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
+        }
+
         public static NonSnapshottableGatewayMetadata readFrom(StreamInput in) throws IOException {
             return readFrom(NonSnapshottableGatewayMetadata::new, in);
         }
@@ -1113,6 +1280,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT;
         }
 
         public static SnapshotableGatewayNoApiMetadata readFrom(StreamInput in) throws IOException {

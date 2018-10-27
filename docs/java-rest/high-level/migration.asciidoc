@@ -2,7 +2,7 @@
 == Migration Guide
 
 This section describes how to migrate existing code from the `TransportClient`
-to the new Java High Level REST Client released with the version 5.6.0
+to the Java High Level REST Client released with the version 5.6.0
 of Elasticsearch.
 
 === Motivations around a new Java client
@@ -107,9 +107,6 @@ More importantly, the high-level client:
  request constructors like `new IndexRequest()` to create requests
  objects. The requests are then executed using synchronous or
  asynchronous dedicated methods like `client.index()` or `client.indexAsync()`.
-- does not provide indices or cluster management APIs. Management
-operations can be executed by external scripts or
-<<java-rest-high-level-migration-manage-indices, using the low-level client>>.
 
 ==== How to migrate the way requests are built
 
@@ -241,71 +238,6 @@ returned by the cluster.
 <4> The `onFailure()` method is called when an error occurs
 during the execution of the request.
 
-[[java-rest-high-level-migration-manage-indices]]
-==== Manage Indices using the Low-Level REST Client
-
-The low-level client is able to execute any kind of HTTP requests, and can
-therefore be used to call the APIs that are not yet supported by the high level client.
-
-For example, creating a new index with the `TransportClient` may look like this:
-
-[source,java]
---------------------------------------------------
-Settings settings = Settings.builder() // <1>
-                                .put(SETTING_NUMBER_OF_SHARDS, 1)
-                                .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                                .build();
-
-String mappings = XContentFactory.jsonBuilder()  // <2>
-                                .startObject()
-                                    .startObject("doc")
-                                        .startObject("properties")
-                                            .startObject("time")
-                                                .field("type", "date")
-                                            .endObject()
-                                        .endObject()
-                                    .endObject()
-                                .endObject()
-                                .string();
-
-CreateIndexResponse response = transportClient.admin().indices()  // <3>
-        .prepareCreate("my-index")
-        .setSettings(indexSettings)
-        .addMapping("doc", docMapping, XContentType.JSON)
-        .get();
-
-if (response.isAcknowledged() == false) {
-    // <4>
-}
---------------------------------------------------
-<1> Define the settings of the index
-<2> Define the mapping for document of type `doc` using a
-`XContentBuilder`
-<3> Create the index with the previous settings and mapping
-using the `prepareCreate()` method. The execution is synchronous
-and blocks on the `get()` method until the remote cluster returns
-a response.
-<4> Handle the situation where the index has not been created
-
-The same operation executed with the low-level client could be:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-create-index]
---------------------------------------------------
-<1> Define the settings of the index
-<2> Define the body of the HTTP request using a `XContentBuilder` with JSON format
-<3> Include the settings in the request body
-<4> Include the mappings in the request body
-<5> Convert the request body from `String` to a `HttpEntity` and
-set its content type (here, JSON)
-<6> Execute the request using the low-level client. The execution is synchronous
-and blocks on the `performRequest()` method until the remote cluster returns
-a response. The low-level client can be retrieved from an existing `RestHighLevelClient`
-instance through the `getLowLevelClient` getter method.
-<7> Handle the situation where the index has not been created
-
-
 [[java-rest-high-level-migration-cluster-health]]
 ==== Checking Cluster Health using the Low-Level REST Client
 
@@ -331,18 +263,18 @@ With the low-level client, the code can be changed to:
 --------------------------------------------------
 include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-cluster-health]
 --------------------------------------------------
-<1> Call the cluster's health REST endpoint and wait for the cluster health to become green,
-then get back a `Response` object.
-<2> Retrieve an `InputStream` object in order to read the response's content
-<3> Parse the response's content using Elasticsearch's helper class `XContentHelper`. This
+<1> Set up the request to wait for the cluster's health to become green if it isn't already.
+<2> Make the request and the get back a `Response` object.
+<3> Retrieve an `InputStream` object in order to read the response's content
+<4> Parse the response's content using Elasticsearch's helper class `XContentHelper`. This
  helper requires the content type of the response to be passed as an argument and returns
  a `Map` of objects. Values in the map can be of any type, including inner `Map` that are
  used to represent the JSON object hierarchy.
-<4> Retrieve the value of the `status` field in the response map, casts it as a a `String`
+<5> Retrieve the value of the `status` field in the response map, casts it as a `String`
 object and use the `ClusterHealthStatus.fromString()` method to convert it as a `ClusterHealthStatus`
 object. This method throws an exception if the value does not corresponds to a valid cluster
 health status.
-<5> Handle the situation where the cluster's health is not green
+<6> Handle the situation where the cluster's health is not green
 
 Note that for convenience this example uses Elasticsearch's helpers to parse the JSON response
 body, but any other JSON parser could have been use instead.

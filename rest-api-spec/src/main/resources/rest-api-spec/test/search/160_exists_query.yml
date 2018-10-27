@@ -582,21 +582,6 @@ setup:
   - match: {hits.total: 4}
 
 ---
-"Test exists query on _uid field":
-  - skip:
-      version: " - 6.0.99"
-      reason: exists on _uid not supported prior to 6.1.0
-  - do:
-      search:
-          index: test
-          body:
-            query:
-              exists:
-                field: _uid
-
-  - match: {hits.total: 4}
-
----
 "Test exists query on _index field":
   - skip:
       version: " - 6.0.99"

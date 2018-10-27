@@ -33,9 +33,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
@@ -43,12 +45,16 @@ import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.MultiMatchQuery.FieldAndFieldType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.MockKeywordPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,13 +66,14 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
     private IndexService indexService;
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(MockKeywordPlugin.class);
+    }
+
     @Before
     public void setup() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.analysis.filter.syns.type","synonym")
-            .putList("index.analysis.filter.syns.synonyms","quick,fast")
-            .put("index.analysis.analyzer.syns.tokenizer","standard")
-            .put("index.analysis.analyzer.syns.filter","syns").build();
+        Settings settings = Settings.builder().build();
         IndexService indexService = createIndex("test", settings);
         MapperService mapperService = indexService.mapperService();
         String mapping = "{\n" +
@@ -76,11 +83,11 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 "                  \"properties\":{\n" +
                 "                        \"first\": {\n" +
                 "                            \"type\":\"text\",\n" +
-                "                            \"analyzer\":\"syns\"\n" +
+                "                            \"analyzer\":\"standard\"\n" +
                 "                        }," +
                 "                        \"last\": {\n" +
                 "                            \"type\":\"text\",\n" +
-                "                            \"analyzer\":\"syns\"\n" +
+                "                            \"analyzer\":\"standard\"\n" +
                 "                        }" +
                 "                   }" +
                 "            }\n" +
@@ -210,25 +217,27 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
         QueryShardContext queryShardContext = indexService.newQueryShardContext(
             randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
 
+        MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
+        parser.setAnalyzer(new MockSynonymAnalyzer());
+        Map<String, Float> fieldNames = new HashMap<>();
+        fieldNames.put("name.first", 1.0f);
+
         // check that synonym query is used for a single field
-        Query parsedQuery =
-            multiMatchQuery("quick").field("name.first")
-                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
+        Query parsedQuery = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, "dogs", null);
         Term[] terms = new Term[2];
-        terms[0] = new Term("name.first", "quick");
-        terms[1] = new Term("name.first", "fast");
+        terms[0] = new Term("name.first", "dog");
+        terms[1] = new Term("name.first", "dogs");
         Query expectedQuery = new SynonymQuery(terms);
         assertThat(parsedQuery, equalTo(expectedQuery));
 
         // check that blended term query is used for multiple fields
-        parsedQuery =
-            multiMatchQuery("quick").field("name.first").field("name.last")
-                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
+        fieldNames.put("name.last", 1.0f);
+        parsedQuery = parser.parse(MultiMatchQueryBuilder.Type.CROSS_FIELDS, fieldNames, "dogs", null);
         terms = new Term[4];
-        terms[0] = new Term("name.first", "quick");
-        terms[1] = new Term("name.first", "fast");
-        terms[2] = new Term("name.last", "quick");
-        terms[3] = new Term("name.last", "fast");
+        terms[0] = new Term("name.first", "dog");
+        terms[1] = new Term("name.first", "dogs");
+        terms[2] = new Term("name.last", "dog");
+        terms[3] = new Term("name.last", "dogs");
         float[] boosts = new float[4];
         Arrays.fill(boosts, 1.0f);
         expectedQuery = BlendedTermQuery.dismaxBlendedQuery(terms, boosts, 1.0f);
@@ -275,5 +284,59 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
             )
             .build();
         assertEquals(expected, query);
+    }
+
+    public void testKeywordSplitQueriesOnWhitespace() throws IOException {
+        IndexService indexService = createIndex("test_keyword", Settings.builder()
+            .put("index.analysis.normalizer.my_lowercase.type", "custom")
+            .putList("index.analysis.normalizer.my_lowercase.filter", "lowercase").build());
+        MapperService mapperService = indexService.mapperService();
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "keyword")
+                    .endObject()
+                    .startObject("field_normalizer")
+                        .field("type", "keyword")
+                        .field("normalizer", "my_lowercase")
+                    .endObject()
+                    .startObject("field_split")
+                        .field("type", "keyword")
+                        .field("split_queries_on_whitespace", true)
+                    .endObject()
+                    .startObject("field_split_normalizer")
+                        .field("type", "keyword")
+                        .field("normalizer", "my_lowercase")
+                        .field("split_queries_on_whitespace", true)
+                    .endObject()
+                .endObject()
+            .endObject().endObject());
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(
+            randomInt(20), null, () -> {
+                throw new UnsupportedOperationException();
+            }, null);
+        MultiMatchQuery parser = new MultiMatchQuery(queryShardContext);
+        Map<String, Float> fieldNames = new HashMap<>();
+        fieldNames.put("field", 1.0f);
+        fieldNames.put("field_split", 1.0f);
+        fieldNames.put("field_normalizer", 1.0f);
+        fieldNames.put("field_split_normalizer", 1.0f);
+        Query query = parser.parse(MultiMatchQueryBuilder.Type.BEST_FIELDS, fieldNames, "Foo Bar", null);
+        DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new TermQuery(new Term("field_normalizer", "foo bar")),
+                new TermQuery(new Term("field", "Foo Bar")),
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term("field_split", "Foo")), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term("field_split", "Bar")), BooleanClause.Occur.SHOULD)
+                    .build(),
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term("field_split_normalizer", "foo")), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term("field_split_normalizer", "bar")), BooleanClause.Occur.SHOULD)
+                    .build()
+        ), 0.0f);
+        assertThat(query, equalTo(expected));
     }
 }

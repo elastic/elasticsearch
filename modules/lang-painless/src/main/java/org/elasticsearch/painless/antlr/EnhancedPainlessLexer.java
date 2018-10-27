@@ -20,14 +20,11 @@
 package org.elasticsearch.painless.antlr;
 
 import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.LexerNoViableAltException;
 import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenSource;
 import org.antlr.v4.runtime.misc.Interval;
-import org.antlr.v4.runtime.misc.Pair;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 
 /**
  * A lexer that is customized for painless. It:
@@ -42,38 +39,20 @@ import org.elasticsearch.painless.Location;
  */
 final class EnhancedPainlessLexer extends PainlessLexer {
     private final String sourceName;
-    private final Definition definition;
+    private final PainlessLookup painlessLookup;
 
-    private Token stashedNext = null;
-    private Token previous = null;
+    private Token current = null;
 
-    EnhancedPainlessLexer(CharStream charStream, String sourceName, Definition definition) {
+    EnhancedPainlessLexer(CharStream charStream, String sourceName, PainlessLookup painlessLookup) {
         super(charStream);
         this.sourceName = sourceName;
-        this.definition = definition;
-    }
-
-    public Token getPreviousToken() {
-        return previous;
+        this.painlessLookup = painlessLookup;
     }
 
     @Override
     public Token nextToken() {
-        if (stashedNext != null) {
-            previous = stashedNext;
-            stashedNext = null;
-            return previous;
-        }
-        Token next = super.nextToken();
-        if (insertSemicolon(previous, next)) {
-            stashedNext = next;
-            previous = _factory.create(new Pair<TokenSource, CharStream>(this, _input), PainlessLexer.SEMICOLON, ";",
-                    Lexer.DEFAULT_TOKEN_CHANNEL, next.getStartIndex(), next.getStopIndex(), next.getLine(), next.getCharPositionInLine());
-            return previous;
-        } else {
-            previous = next;
-            return next;
-        }
+        current = super.nextToken();
+        return current;
     }
 
     @Override
@@ -95,13 +74,13 @@ final class EnhancedPainlessLexer extends PainlessLexer {
     }
 
     @Override
-    protected boolean isSimpleType(String name) {
-        return definition.isSimpleType(name);
+    protected boolean isType(String name) {
+        return painlessLookup.isValidCanonicalClassName(name);
     }
 
     @Override
     protected boolean slashIsRegex() {
-        Token lastToken = getPreviousToken();
+        Token lastToken = current;
         if (lastToken == null) {
             return true;
         }
@@ -115,20 +94,6 @@ final class EnhancedPainlessLexer extends PainlessLexer {
         case PainlessLexer.ID:
         case PainlessLexer.DOTINTEGER:
         case PainlessLexer.DOTID:
-            return false;
-        default:
-            return true;
-        }
-    }
-
-    private static boolean insertSemicolon(Token previous, Token next) {
-        if (previous == null || next.getType() != PainlessLexer.RBRACK) {
-            return false;
-        }
-        switch (previous.getType()) {
-        case PainlessLexer.RBRACK:     // };} would be weird!
-        case PainlessLexer.SEMICOLON:  // already have a semicolon, no need to add one
-        case PainlessLexer.LBRACK:     // empty blocks don't need a semicolon
             return false;
         default:
             return true;

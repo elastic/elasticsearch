@@ -88,14 +88,13 @@ setup:
 
 ---
 "Scripted Field with a null safe dereference (null)":
-    # Change this to ?: once we have it implemented
     - do:
         search:
             body:
                 script_fields:
                     bar:
                         script:
-                            source: "(doc['missing'].value?.length() ?: 0) + params.x;"
+                            source: "(doc['missing'].size() == 0 ? 0 : doc['missing'].value.length()) + params.x;"
                             params:
                                 x: 5
 
@@ -109,7 +108,7 @@ setup:
                 script_fields:
                     bar:
                         script:
-                            source: "doc.date.value.dayOfWeek"
+                            source: "doc.date.value.dayOfWeekEnum.value"
 
     - match: { hits.hits.0.fields.bar.0: 7}
 
@@ -124,7 +123,7 @@ setup:
                             source: >
                               StringBuilder b = new StringBuilder();
                               for (def date : doc.dates) {
-                                b.append(" ").append(date.getDayOfWeek());
+                                b.append(" ").append(date.getDayOfWeekEnum().value);
                               }
                               return b.toString().trim()
 
@@ -133,7 +132,7 @@ setup:
 ---
 "Scripted Field with script error":
     - do:
-        catch: request
+        catch: bad_request
         search:
           body:
             script_fields:

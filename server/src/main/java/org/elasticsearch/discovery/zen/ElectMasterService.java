@@ -134,7 +134,7 @@ public class ElectMasterService extends AbstractComponent {
     }
 
     /**
-     * Elects a new master out of the possible nodes, returning it. Returns <tt>null</tt>
+     * Elects a new master out of the possible nodes, returning it. Returns {@code null}
      * if no master has been elected.
      */
     public MasterCandidate electMaster(Collection<MasterCandidate> candidates) {

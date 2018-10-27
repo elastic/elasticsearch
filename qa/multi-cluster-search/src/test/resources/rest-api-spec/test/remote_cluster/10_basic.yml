@@ -27,6 +27,8 @@
         indices.create:
           index: field_caps_index_1
           body:
+              settings:
+                index.number_of_shards: 1
               mappings:
                 t:
                   properties:
@@ -51,6 +53,8 @@
         indices.create:
           index: field_caps_index_3
           body:
+              settings:
+                index.number_of_shards: 1
               mappings:
                 t:
                   properties:

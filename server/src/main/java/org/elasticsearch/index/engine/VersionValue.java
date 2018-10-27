@@ -21,11 +21,13 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.translog.Translog;
 
 import java.util.Collection;
 import java.util.Collections;
 
-class VersionValue implements Accountable {
+abstract class VersionValue implements Accountable {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(VersionValue.class);
 
@@ -81,9 +83,16 @@ class VersionValue implements Accountable {
     public String toString() {
         return "VersionValue{" +
             "version=" + version +
-
             ", seqNo=" + seqNo +
             ", term=" + term +
             '}';
+    }
+
+    /**
+     * Returns the translog location for this version value or null. This is optional and might not be tracked all the time.
+     */
+    @Nullable
+    public Translog.Location getLocation() {
+        return null;
     }
 }

@@ -1,0 +1,15 @@
+{
+  "index_patterns": "IndexLifeCycleManagerTests",
+  "mappings": {
+    "doc": {
+      "_meta": {
+        "security-version": "5.1.2"
+      },
+      "properties": {
+        "test": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

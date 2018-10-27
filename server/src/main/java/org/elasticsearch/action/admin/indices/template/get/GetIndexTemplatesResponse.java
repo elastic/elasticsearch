@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,9 +35,10 @@ import static java.util.Collections.singletonMap;
 
 public class GetIndexTemplatesResponse extends ActionResponse implements ToXContentObject {
 
-    private List<IndexTemplateMetaData> indexTemplates;
+    private final List<IndexTemplateMetaData> indexTemplates;
 
     GetIndexTemplatesResponse() {
+        indexTemplates = new ArrayList<>();
     }
 
     GetIndexTemplatesResponse(List<IndexTemplateMetaData> indexTemplates) {
@@ -51,7 +53,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        indexTemplates = new ArrayList<>(size);
+        indexTemplates.clear();
         for (int i = 0 ; i < size ; i++) {
             indexTemplates.add(0, IndexTemplateMetaData.readFrom(in));
         }
@@ -75,5 +77,16 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         }
         builder.endObject();
         return builder;
+    }
+
+    public static GetIndexTemplatesResponse fromXContent(XContentParser parser) throws IOException {
+        final List<IndexTemplateMetaData> templates = new ArrayList<>();
+        for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                final IndexTemplateMetaData templateMetaData = IndexTemplateMetaData.Builder.fromXContent(parser, parser.currentName());
+                templates.add(templateMetaData);
+            }
+        }
+        return new GetIndexTemplatesResponse(templates);
     }
 }

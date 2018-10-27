@@ -252,7 +252,7 @@ public class RegexTests extends ScriptTestCase {
         IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("Pattern.compile('aa')");
         });
-        assertEquals("Unknown call [compile] with [1] arguments on type [java.util.regex.Pattern].", e.getMessage());
+        assertTrue(e.getMessage().contains("[java.util.regex.Pattern, compile/1]"));
     }
 
     public void testBadRegexPattern() {

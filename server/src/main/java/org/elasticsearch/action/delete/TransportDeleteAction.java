@@ -46,7 +46,7 @@ public class TransportDeleteAction extends TransportSingleItemBulkWriteAction<De
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                  TransportBulkAction bulkAction, TransportShardBulkAction shardBulkAction) {
         super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-            actionFilters, indexNameExpressionResolver, DeleteRequest::new, DeleteRequest::new, ThreadPool.Names.INDEX,
+            actionFilters, indexNameExpressionResolver, DeleteRequest::new, DeleteRequest::new, ThreadPool.Names.WRITE,
             bulkAction, shardBulkAction);
     }
 

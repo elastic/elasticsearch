@@ -107,9 +107,9 @@ public class TransportStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.TRANSPORT);
         builder.field(Fields.SERVER_OPEN, serverOpen);
         builder.field(Fields.RX_COUNT, rxCount);
-        builder.byteSizeField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, rxSize);
+        builder.humanReadableField(Fields.RX_SIZE_IN_BYTES, Fields.RX_SIZE, new ByteSizeValue(rxSize));
         builder.field(Fields.TX_COUNT, txCount);
-        builder.byteSizeField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, txSize);
+        builder.humanReadableField(Fields.TX_SIZE_IN_BYTES, Fields.TX_SIZE, new ByteSizeValue(txSize));
         builder.endObject();
         return builder;
     }

@@ -41,9 +41,9 @@ public class Strings {
      * </pre>
      *
      * @param s the string whose first character is to be uppercased
-     * @return a string equivalent to <tt>s</tt> with its first character
+     * @return a string equivalent to {@code s} with its first character
      *         converted to uppercase
-     * @throws NullPointerException if <tt>s</tt> is null
+     * @throws NullPointerException if {@code s} is null
      */
     public static String capitalize(String s) {
         if (s.length() == 0) {

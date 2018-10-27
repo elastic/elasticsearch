@@ -70,6 +70,10 @@ final class TermVectorsWriter {
             Terms topLevelTerms = topLevelFields.terms(field);
 
             // if no terms found, take the retrieved term vector fields for stats
+            if (fieldTermVector == null) {
+                fieldTermVector = EMPTY_TERMS;
+            }
+
             if (topLevelTerms == null) {
                 topLevelTerms = EMPTY_TERMS;
             }
@@ -108,13 +112,17 @@ final class TermVectorsWriter {
                     // get the doc frequency
                     if (dfs != null) {
                         final TermStatistics statistics = dfs.termStatistics().get(term);
-                        writeTermStatistics(statistics == null ? new TermStatistics(termBytesRef, 0, 0) : statistics);
+                        if (statistics == null) {
+                            writeMissingTermStatistics();
+                        } else {
+                            writeTermStatistics(statistics);
+                        }
                     } else {
                         boolean foundTerm = topLevelIterator.seekExact(termBytesRef);
                         if (foundTerm) {
                             writeTermStatistics(topLevelIterator);
                         } else {
-                            writeTermStatistics(new TermStatistics(termBytesRef, 0, 0));
+                            writeMissingTermStatistics();
                         }
                     }
                 }
@@ -233,6 +241,11 @@ final class TermVectorsWriter {
     private void startTerm(BytesRef term) throws IOException {
         output.writeVInt(term.length);
         output.writeBytes(term.bytes, term.offset, term.length);
+    }
+
+    private void writeMissingTermStatistics() throws IOException {
+        writePotentiallyNegativeVInt(0);
+        writePotentiallyNegativeVInt(0);
     }
 
     private void writeTermStatistics(TermsEnum topLevelIterator) throws IOException {

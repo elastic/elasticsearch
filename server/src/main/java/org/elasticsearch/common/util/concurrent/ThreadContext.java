@@ -18,15 +18,20 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpTransportSettings;
+
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -39,25 +44,27 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.nio.charset.StandardCharsets;
+
 
 /**
  * A ThreadContext is a map of string headers and a transient map of keyed objects that are associated with
  * a thread. It allows to store and retrieve header information across method calls, network calls as well as threads spawned from a
- * thread that has a {@link ThreadContext} associated with. Threads spawned from a {@link org.elasticsearch.threadpool.ThreadPool} have out of the box
- * support for {@link ThreadContext} and all threads spawned will inherit the {@link ThreadContext} from the thread that it is forking from.".
- * Network calls will also preserve the senders headers automatically.
+ * thread that has a {@link ThreadContext} associated with. Threads spawned from a {@link org.elasticsearch.threadpool.ThreadPool}
+ * have out of the box support for {@link ThreadContext} and all threads spawned will inherit the {@link ThreadContext} from the thread
+ * that it is forking from.". Network calls will also preserve the senders headers automatically.
  * <p>
- * Consumers of ThreadContext usually don't need to interact with adding or stashing contexts. Every elasticsearch thread is managed by a thread pool or executor
- * being responsible for stashing and restoring the threads context. For instance if a network request is received, all headers are deserialized from the network
- * and directly added as the headers of the threads {@link ThreadContext} (see {@link #readHeaders(StreamInput)}. In order to not modify the context that is currently
- * active on this thread the network code uses a try/with pattern to stash it's current context, read headers into a fresh one and once the request is handled or a handler thread
+ * Consumers of ThreadContext usually don't need to interact with adding or stashing contexts. Every elasticsearch thread is managed by
+ * a thread pool or executor being responsible for stashing and restoring the threads context. For instance if a network request is
+ * received, all headers are deserialized from the network and directly added as the headers of the threads {@link ThreadContext}
+ * (see {@link #readHeaders(StreamInput)}. In order to not modify the context that is currently active on this thread the network code
+ * uses a try/with pattern to stash it's current context, read headers into a fresh one and once the request is handled or a handler thread
  * is forked (which in turn inherits the context) it restores the previous context. For instance:
  * </p>
  * <pre>
@@ -78,9 +85,12 @@ public final class ThreadContext implements Closeable, Writeable {
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
+    private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
     private final ContextThreadLocal threadLocal;
+    private final int maxWarningHeaderCount;
+    private final long maxWarningHeaderSize;
 
     /**
      * Creates a new ThreadContext instance
@@ -98,6 +108,8 @@ public final class ThreadContext implements Closeable, Writeable {
             this.defaultHeader = Collections.unmodifiableMap(defaultHeader);
         }
         threadLocal = new ContextThreadLocal();
+        this.maxWarningHeaderCount = SETTING_HTTP_MAX_WARNING_HEADER_COUNT.get(settings);
+        this.maxWarningHeaderSize = SETTING_HTTP_MAX_WARNING_HEADER_SIZE.get(settings).getBytes();
     }
 
     @Override
@@ -116,8 +128,9 @@ public final class ThreadContext implements Closeable, Writeable {
     }
 
     /**
-     * Removes the current context and resets a new context that contains a merge of the current headers and the given headers. The removed context can be
-     * restored when closing the returned {@link StoredContext}. The merge strategy is that headers that are already existing are preserved unless they are defaults.
+     * Removes the current context and resets a new context that contains a merge of the current headers and the given headers.
+     * The removed context can be restored when closing the returned {@link StoredContext}. The merge strategy is that headers
+     * that are already existing are preserved unless they are defaults.
      */
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
         final ThreadContextStruct context = threadLocal.get();
@@ -282,7 +295,7 @@ public final class ThreadContext implements Closeable, Writeable {
      * @param uniqueValue the function that produces de-duplication values
      */
     public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
-        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue));
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize));
     }
 
     /**
@@ -359,7 +372,7 @@ public final class ThreadContext implements Closeable, Writeable {
         private final Map<String, Object> transientHeaders;
         private final Map<String, List<String>> responseHeaders;
         private final boolean isSystemContext;
-
+        private long warningHeadersSize; //saving current warning headers' size not to recalculate the size with every new warning header
         private ThreadContextStruct(StreamInput in) throws IOException {
             final int numRequest = in.readVInt();
             Map<String, String> requestHeaders = numRequest == 0 ? Collections.emptyMap() : new HashMap<>(numRequest);
@@ -371,6 +384,7 @@ public final class ThreadContext implements Closeable, Writeable {
             this.responseHeaders = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
             this.transientHeaders = Collections.emptyMap();
             isSystemContext = false; // we never serialize this it's a transient flag
+            this.warningHeadersSize = 0L;
         }
 
         private ThreadContextStruct setSystemContext() {
@@ -387,6 +401,18 @@ public final class ThreadContext implements Closeable, Writeable {
             this.responseHeaders = responseHeaders;
             this.transientHeaders = transientHeaders;
             this.isSystemContext = isSystemContext;
+            this.warningHeadersSize = 0L;
+        }
+
+        private ThreadContextStruct(Map<String, String> requestHeaders,
+                                    Map<String, List<String>> responseHeaders,
+                                    Map<String, Object> transientHeaders, boolean isSystemContext,
+                                    long warningHeadersSize) {
+            this.requestHeaders = requestHeaders;
+            this.responseHeaders = responseHeaders;
+            this.transientHeaders = transientHeaders;
+            this.isSystemContext = isSystemContext;
+            this.warningHeadersSize = warningHeadersSize;
         }
 
         /**
@@ -440,29 +466,57 @@ public final class ThreadContext implements Closeable, Writeable {
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
         }
 
-        private ThreadContextStruct putResponse(final String key, final String value, final Function<String, String> uniqueValue) {
+        private ThreadContextStruct putResponse(final String key, final String value, final Function<String, String> uniqueValue,
+                final int maxWarningHeaderCount, final long maxWarningHeaderSize) {
             assert value != null;
+            long newWarningHeaderSize = warningHeadersSize;
+            //check if we can add another warning header - if max size within limits
+            if (key.equals("Warning") && (maxWarningHeaderSize != -1)) { //if size is NOT unbounded, check its limits
+                if (warningHeadersSize > maxWarningHeaderSize) { // if max size has already been reached before
+                    logger.warn("Dropping a warning header, as their total size reached the maximum allowed of ["
+                            + maxWarningHeaderSize + "] bytes set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!");
+                    return this;
+                }
+                newWarningHeaderSize += "Warning".getBytes(StandardCharsets.UTF_8).length + value.getBytes(StandardCharsets.UTF_8).length;
+                if (newWarningHeaderSize > maxWarningHeaderSize) {
+                    logger.warn("Dropping a warning header, as their total size reached the maximum allowed of ["
+                            + maxWarningHeaderSize + "] bytes set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE.getKey() + "]!");
+                    return new ThreadContextStruct(requestHeaders, responseHeaders,
+                        transientHeaders, isSystemContext, newWarningHeaderSize);
+                }
+            }
 
             final Map<String, List<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
             final List<String> existingValues = newResponseHeaders.get(key);
-
             if (existingValues != null) {
                 final Set<String> existingUniqueValues = existingValues.stream().map(uniqueValue).collect(Collectors.toSet());
-                assert existingValues.size() == existingUniqueValues.size();
+                assert existingValues.size() == existingUniqueValues.size() :
+                        "existing values: [" + existingValues + "], existing unique values [" + existingUniqueValues + "]";
                 if (existingUniqueValues.contains(uniqueValue.apply(value))) {
                     return this;
                 }
-
                 final List<String> newValues = new ArrayList<>(existingValues);
                 newValues.add(value);
-
                 newResponseHeaders.put(key, Collections.unmodifiableList(newValues));
             } else {
                 newResponseHeaders.put(key, Collections.singletonList(value));
             }
 
-            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
+            //check if we can add another warning header - if max count within limits
+            if ((key.equals("Warning")) && (maxWarningHeaderCount != -1)) { //if count is NOT unbounded, check its limits
+                final int warningHeaderCount = newResponseHeaders.containsKey("Warning") ? newResponseHeaders.get("Warning").size() : 0;
+                if (warningHeaderCount > maxWarningHeaderCount) {
+                    logger.warn("Dropping a warning header, as their total count reached the maximum allowed of ["
+                            + maxWarningHeaderCount + "] set in ["
+                            + HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT.getKey() + "]!");
+                    return this;
+                }
+            }
+            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
         }
+
 
         private ThreadContextStruct putTransient(String key, Object value) {
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
@@ -590,7 +644,7 @@ public final class ThreadContext implements Closeable, Writeable {
                         assert e instanceof CancellationException
                                 || e instanceof InterruptedException
                                 || e instanceof ExecutionException : e;
-                        final Optional<Error> maybeError = ExceptionsHelper.maybeError(e, ESLoggerFactory.getLogger(ThreadContext.class));
+                        final Optional<Error> maybeError = ExceptionsHelper.maybeError(e, logger);
                         if (maybeError.isPresent()) {
                             // throw this error where it will propagate to the uncaught exception handler
                             throw maybeError.get();

@@ -22,7 +22,7 @@ package org.elasticsearch.action.main;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class MainRequestBuilder extends ActionRequestBuilder<MainRequest, MainResponse, MainRequestBuilder> {
+public class MainRequestBuilder extends ActionRequestBuilder<MainRequest, MainResponse> {
 
     public MainRequestBuilder(ElasticsearchClient client, MainAction action) {
         super(client, action, new MainRequest());

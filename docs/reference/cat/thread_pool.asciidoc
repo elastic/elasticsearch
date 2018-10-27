@@ -14,22 +14,24 @@ Which looks like:
 
 [source,txt]
 --------------------------------------------------
-node-0 bulk                0 0 0
+node-0 analyze             0 0 0
+...
 node-0 fetch_shard_started 0 0 0
 node-0 fetch_shard_store   0 0 0
 node-0 flush               0 0 0
-node-0 force_merge         0 0 0
-node-0 generic             0 0 0
-node-0 get                 0 0 0
-node-0 index               0 0 0
-node-0 listener            0 0 0
-node-0 management          1 0 0
-node-0 refresh             0 0 0
-node-0 search              0 0 0
-node-0 snapshot            0 0 0
-node-0 warmer              0 0 0
+...
+node-0 write               0 0 0
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./(node-0 \\S+ 0 0 0\n)*/]
 // TESTRESPONSE[s/\d+/\\d+/ _cat]
+// The substitutions do two things:
+// 1. Expect any number of extra thread pools. This allows us to only list a
+//    few thread pools. The list would be super long otherwise. In addition,
+//    if xpack is installed then the list will contain more thread pools and
+//    this way we don't have to assert about them.
+// 2. Expect any number of active, queued, or rejected items. We really don't
+//    know how many there will be and we just want to assert that there are
+//    numbers in the response, not *which* numbers are there.
 
 The first column is the node name
 
@@ -43,20 +45,27 @@ The second column is the thread pool name
 [source,txt]
 --------------------------------------------------
 name
-bulk
+analyze
+ccr (default distro only)
 fetch_shard_started
 fetch_shard_store
 flush
 force_merge
 generic
 get
-index
 listener
 management
+ml_autodetect (default distro only)
+ml_datafeed (default distro only)
+ml_utility (default distro only)
 refresh
+rollup_indexing (default distro only)`
 search
+security-token-key (default distro only)
 snapshot
 warmer
+watcher (default distro only)
+write
 --------------------------------------------------
 
 
@@ -65,6 +74,7 @@ The next three columns show the active, queue, and rejected statistics for each 
 [source,txt]
 --------------------------------------------------
 active queue rejected
+     0     0        0
      0     0        0
      0     0        0
      0     0        0
@@ -113,14 +123,15 @@ in the table below.
 |Field Name |Alias |Description
 |`type` |`t` |The current (*) type of thread pool (`fixed` or `scaling`)
 |`active` |`a` |The number of active threads in the current thread pool
-|`size` |`s` |The number of threads in the current thread pool
+|`pool_size` |`psz` |The number of threads in the current thread pool
 |`queue` |`q` |The number of tasks in the queue for the current thread pool
 |`queue_size` |`qs` |The maximum number of tasks permitted in the queue for the current thread pool
 |`rejected` |`r` |The number of tasks rejected by the thread pool executor
 |`largest` |`l` |The highest number of active threads in the current thread pool
 |`completed` |`c` |The number of tasks completed by the thread pool executor
-|`min` |`mi` |The configured minimum number of active threads allowed in the current thread pool
-|`max` |`ma` |The configured maximum number of active threads allowed in the current thread pool
+|`core` |`cr` |The configured core number of active threads allowed in the current thread pool
+|`max` |`mx` |The configured maximum number of active threads allowed in the current thread pool
+|`size` |`sz` |The configured fixed number of active threads allowed in the current thread pool
 |`keep_alive` |`k` |The configured keep alive time for threads
 |=======================================================================
 

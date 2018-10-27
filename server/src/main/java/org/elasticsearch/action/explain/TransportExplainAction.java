@@ -44,6 +44,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -67,9 +68,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected void doExecute(ExplainRequest request, ActionListener<ExplainResponse> listener) {
+    protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
-        super.doExecute(request, listener);
+        super.doExecute(task, request, listener);
     }
 
     @Override
@@ -89,7 +90,8 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected void asyncShardOperation(ExplainRequest request, ShardId shardId, ActionListener<ExplainResponse> listener) throws IOException {
+    protected void asyncShardOperation(ExplainRequest request, ShardId shardId,
+                                       ActionListener<ExplainResponse> listener) throws IOException {
         IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         indexShard.awaitShardSearchActive(b -> {
@@ -112,13 +114,13 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             if (uidTerm == null) {
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
             }
-            result = context.indexShard().get(new Engine.Get(false, request.type(), request.id(), uidTerm));
+            result = context.indexShard().get(new Engine.Get(false, false, request.type(), request.id(), uidTerm));
             if (!result.exists()) {
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), false);
             }
             context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
             context.preProcess(true);
-            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().context.docBase;
+            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
             for (RescoreContext ctx : context.rescore()) {
                 Rescorer rescorer = ctx.rescorer();
@@ -128,7 +130,8 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 // Advantage is that we're not opening a second searcher to retrieve the _source. Also
                 // because we are working in the same searcher in engineGetResult we can be sure that a
                 // doc isn't deleted between the initial get and this call.
-                GetResult getResult = context.indexShard().getService().get(result, request.id(), request.type(), request.storedFields(), request.fetchSourceContext());
+                GetResult getResult = context.indexShard().getService().get(result, request.id(), request.type(), request.storedFields(),
+                    request.fetchSourceContext());
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation, getResult);
             } else {
                 return new ExplainResponse(shardId.getIndexName(), request.type(), request.id(), true, explanation);
@@ -148,7 +151,15 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting().getShards(
-                clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference()
+                clusterService.state(), request.concreteIndex(), request.request().id(), request.request().routing(),
+            request.request().preference()
         );
+    }
+
+    @Override
+    protected String getExecutor(ExplainRequest request, ShardId shardId) {
+        IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
+        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
+            shardId);
     }
 }

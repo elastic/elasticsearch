@@ -165,12 +165,15 @@ GET index/_search
 // TEST[continued]
 
 [float]
-=== Mappings
+=== Consider mapping identifiers as `keyword`
 
 The fact that some data is numeric does not mean it should always be mapped as a
-<<number,numeric field>>. Typically, fields storing identifiers such as an `ISBN`
-or any number identifying a record from another database, might benefit from
-being mapped as <<keyword,`keyword`>> rather than `integer` or `long`.
+<<number,numeric field>>. The way that Elasticsearch indexes numbers optimizes
+for `range` queries while `keyword` fields are better at `term` queries. Typically, 
+fields storing identifiers such as an `ISBN` or any number identifying a record 
+from another database are rarely used in `range` queries or aggregations. This is
+why they might benefit from being mapped as <<keyword,`keyword`>> rather than as 
+`integer` or `long`.
 
 [float]
 === Avoid scripts
@@ -348,15 +351,6 @@ setting.
 WARNING: Loading data into the filesystem cache eagerly on too many indices or
 too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.
-
-[float]
-=== Map identifiers as `keyword`
-
-When you have numeric identifiers in your documents, it is tempting to map them
-as numbers, which is consistent with their json type. However, the way that
-Elasticsearch indexes numbers optimizes for `range` queries while `keyword`
-fields are better at `term` queries. Since identifiers are never used in `range`
-queries, they should be mapped as a `keyword`.
 
 [float]
 === Use index sorting to speed up conjunctions

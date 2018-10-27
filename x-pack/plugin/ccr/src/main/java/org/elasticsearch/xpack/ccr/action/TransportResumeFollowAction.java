@@ -366,6 +366,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
         whiteListedSettings.add(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING);
 
         whiteListedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
+        whiteListedSettings.add(IndexSettings.INDEX_SOFT_DELETES_RETENTION_AGE_SETTING);
 
         WHITE_LISTED_SETTINGS = Collections.unmodifiableSet(whiteListedSettings);
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -39,7 +40,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -52,7 +52,7 @@ import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.num
 import static org.hamcrest.Matchers.equalTo;
 
 public class SameShardRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = Loggers.getLogger(SameShardRoutingTests.class);
+    private final Logger logger = LogManager.getLogger(SameShardRoutingTests.class);
 
     public void testSameHost() {
         AllocationService strategy = createAllocationService(

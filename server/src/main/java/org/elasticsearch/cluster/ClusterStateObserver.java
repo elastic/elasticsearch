@@ -138,7 +138,8 @@ public class ClusterStateObserver {
                 timeoutTimeLeftMS = timeOutValue.millis() - timeSinceStartMS;
                 if (timeoutTimeLeftMS <= 0L) {
                     // things have timeout while we were busy -> notify
-                    logger.trace("observer timed out. notifying listener. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStartMS));
+                    logger.trace("observer timed out. notifying listener. timeout setting [{}], time since start [{}]",
+                        timeOutValue, new TimeValue(timeSinceStartMS));
                     // update to latest, in case people want to retry
                     timedOut = true;
                     lastObservedState.set(new StoredState(clusterApplierService.state()));
@@ -169,7 +170,8 @@ public class ClusterStateObserver {
             if (!observingContext.compareAndSet(null, context)) {
                 throw new ElasticsearchException("already waiting for a cluster state change");
             }
-            clusterApplierService.addTimeoutListener(timeoutTimeLeftMS == null ? null : new TimeValue(timeoutTimeLeftMS), clusterStateListener);
+            clusterApplierService.addTimeoutListener(timeoutTimeLeftMS == null ?
+                null : new TimeValue(timeoutTimeLeftMS), clusterStateListener);
         }
     }
 
@@ -190,7 +192,8 @@ public class ClusterStateObserver {
                     lastObservedState.set(new StoredState(state));
                     context.listener.onNewClusterState(state);
                 } else {
-                    logger.trace("observer: predicate approved change but observing context has changed - ignoring (new cluster state version [{}])", state.version());
+                    logger.trace("observer: predicate approved change but observing context has changed " +
+                        "- ignoring (new cluster state version [{}])", state.version());
                 }
             } else {
                 logger.trace("observer: predicate rejected change (new cluster state version [{}])", state.version());

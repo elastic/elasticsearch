@@ -369,20 +369,23 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                             } else if (SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else {
-                                throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]");
+                                throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter ["
+                                    + currentFieldName + "]");
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {
                             throw new IllegalArgumentException("Malformed action/metadata line [" + line +
                                 "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
-                        } else if (token == XContentParser.Token.START_OBJECT && SOURCE.match(currentFieldName, parser.getDeprecationHandler())) {
+                        } else if (token == XContentParser.Token.START_OBJECT && SOURCE.match(currentFieldName,
+                            parser.getDeprecationHandler())) {
                             fetchSourceContext = FetchSourceContext.fromXContent(parser);
                         } else if (token != XContentParser.Token.VALUE_NULL) {
-                            throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
+                            throw new IllegalArgumentException("Malformed action/metadata line [" + line
+                                + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                         }
                     }
                 } else if (token != XContentParser.Token.END_OBJECT) {
-                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected " + XContentParser.Token.START_OBJECT
-                            + " or " + XContentParser.Token.END_OBJECT + " but found [" + token + "]");
+                    throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected "
+                        + XContentParser.Token.START_OBJECT + " or " + XContentParser.Token.END_OBJECT + " but found [" + token + "]");
                 }
 
                 if ("delete".equals(action)) {

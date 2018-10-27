@@ -1,6 +1,6 @@
 setup:
-  -skip:
-    features: headers
+  - skip:
+      features: headers
 ---
 "Test CRUD on two jobs in shared index":
 

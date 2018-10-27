@@ -338,7 +338,7 @@ Supported metrics are:
 * `flush`
 * `get`
 * `indexing`
-* `merge`
+* `merges`
 * `query_cache`
 * `recovery`
 * `refresh`
@@ -412,4 +412,3 @@ keyed by node. For each node:
 
 `rank`::
   The rank of this node; used for shard selection when routing search requests.
-

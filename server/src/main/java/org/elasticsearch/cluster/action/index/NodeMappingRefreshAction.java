@@ -52,7 +52,8 @@ public class NodeMappingRefreshAction extends AbstractComponent {
         super(settings);
         this.transportService = transportService;
         this.metaDataMappingService = metaDataMappingService;
-        transportService.registerRequestHandler(ACTION_NAME, NodeMappingRefreshRequest::new, ThreadPool.Names.SAME, new NodeMappingRefreshTransportHandler());
+        transportService.registerRequestHandler(ACTION_NAME,
+            NodeMappingRefreshRequest::new, ThreadPool.Names.SAME, new NodeMappingRefreshTransportHandler());
     }
 
     public void nodeMappingRefresh(final DiscoveryNode masterNode, final NodeMappingRefreshRequest request) {

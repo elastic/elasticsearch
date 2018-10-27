@@ -20,8 +20,10 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPromise;
+import java.io.IOException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -71,8 +73,14 @@ public class Netty4TcpChannel implements TcpChannel {
     }
 
     @Override
-    public void setSoLinger(int value) {
-        channel.config().setOption(ChannelOption.SO_LINGER, value);
+    public void setSoLinger(int value) throws IOException {
+        if (channel.isOpen()) {
+            try {
+                channel.config().setOption(ChannelOption.SO_LINGER, value);
+            } catch (ChannelException e) {
+                throw new IOException(e);
+            }
+        }
     }
 
     @Override

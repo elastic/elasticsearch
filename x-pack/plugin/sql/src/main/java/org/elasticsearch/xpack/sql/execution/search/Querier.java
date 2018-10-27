@@ -253,8 +253,9 @@ public class Querier {
             List<FieldExtraction> refs = query.columns();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
+            ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits());
             for (FieldExtraction ref : refs) {
-                exts.add(createExtractor(ref, new ConstantExtractor(response.getHits().getTotalHits())));
+                exts.add(createExtractor(ref, totalCount));
             }
             return exts;
         }

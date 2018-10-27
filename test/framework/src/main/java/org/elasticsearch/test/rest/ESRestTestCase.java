@@ -487,7 +487,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             try {
                 Response jobsResponse = adminClient().performRequest(request);
                 String body = EntityUtils.toString(jobsResponse.getEntity());
-                logger.error(body);
                 // If the body contains any of the non-stopped states, at least one job is not finished yet
                 return Arrays.stream(new String[]{"started", "aborting", "stopping", "indexing"}).noneMatch(body::contains);
             } catch (IOException e) {

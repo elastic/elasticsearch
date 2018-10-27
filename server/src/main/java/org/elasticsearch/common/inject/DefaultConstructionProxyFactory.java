@@ -50,7 +50,8 @@ class DefaultConstructionProxyFactory<T> implements ConstructionProxyFactory<T> 
                 } catch (InstantiationException e) {
                     throw new AssertionError(e); // shouldn't happen, we know this is a concrete type
                 } catch (IllegalAccessException e) {
-                    throw new AssertionError("Wrong access modifiers on " + constructor, e); // a security manager is blocking us, we're hosed
+                    // a security manager is blocking us, we're hosed
+                    throw new AssertionError("Wrong access modifiers on " + constructor, e);
                 }
             }
 

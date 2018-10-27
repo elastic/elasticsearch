@@ -29,13 +29,17 @@ public class GetAutoFollowPatternResponseTests extends AbstractStreamableTestCas
         Map<String, AutoFollowPattern> patterns = new HashMap<>(numPatterns);
         for (int i = 0; i < numPatterns; i++) {
             AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
+                "remote",
                 Collections.singletonList(randomAlphaOfLength(4)),
                 randomAlphaOfLength(4),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
+                new ByteSizeValue(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(500),
                 TimeValue.timeValueMillis(500));
             patterns.put(randomAlphaOfLength(4), autoFollowPattern);

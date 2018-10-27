@@ -75,14 +75,15 @@ public class QuorumGatewayIT extends ESIntegTestCase {
                 if (numNodes == 1) {
                     assertBusy(() -> {
                         logger.info("--> running cluster_health (wait for the shards to startup)");
-                        ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(
-                            clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)).actionGet();
+                        ClusterHealthResponse clusterHealth = activeClient.admin().cluster().health(clusterHealthRequest()
+                            .waitForYellowStatus().waitForNodes("2").waitForActiveShards(test.numPrimaries * 2)).actionGet();
                         logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
                         assertFalse(clusterHealth.isTimedOut());
                         assertEquals(ClusterHealthStatus.YELLOW, clusterHealth.getStatus());
                     }, 30, TimeUnit.SECONDS);
                     logger.info("--> one node is closed -- index 1 document into the remaining nodes");
-                    activeClient.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).get();
+                    activeClient.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3")
+                        .endObject()).get();
                     assertNoFailures(activeClient.admin().indices().prepareRefresh().get());
                     for (int i = 0; i < 10; i++) {
                         assertHitCount(activeClient.prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 3L);

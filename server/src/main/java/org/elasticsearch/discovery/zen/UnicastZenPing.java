@@ -45,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -117,6 +118,8 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     private final TimeValue resolveTimeout;
 
+    private final String nodeName;
+
     private volatile boolean closed = false;
 
     public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
@@ -131,6 +134,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         final int concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
 
         resolveTimeout = DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
+        nodeName = Node.NODE_NAME_SETTING.get(settings);
         logger.debug(
             "using concurrent_connects [{}], resolve_timeout [{}]",
             concurrentConnects,
@@ -141,7 +145,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_connect]");
         unicastZenPingExecutorService = EsExecutors.newScaling(
-                nodeName() + "/" + "unicast_connect",
+                nodeName + "/" + "unicast_connect",
                 0,
                 concurrentConnects,
                 60,

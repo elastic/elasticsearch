@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -182,8 +183,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 // just execute it on the local node
                 transportService.sendRequest(clusterService.localNode(), transportShardAction, internalRequest.request(), new TransportResponseHandler<Response>() {
                     @Override
-                    public Response newInstance() {
-                        return newResponse();
+                    public Response read(StreamInput in) throws IOException {
+                        Response response = newResponse();
+                        response.readFrom(in);
+                        return response;
                     }
 
                     @Override
@@ -246,8 +249,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 transportService.sendRequest(node, transportShardAction, internalRequest.request(), new TransportResponseHandler<Response>() {
 
                     @Override
-                    public Response newInstance() {
-                        return newResponse();
+                    public Response read(StreamInput in) throws IOException {
+                        Response response = newResponse();
+                        response.readFrom(in);
+                        return response;
                     }
 
                     @Override

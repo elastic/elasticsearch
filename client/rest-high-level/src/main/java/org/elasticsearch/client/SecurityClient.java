@@ -29,6 +29,8 @@ import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetRoleMappingsRequest;
+import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesRequest;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -110,6 +112,40 @@ public final class SecurityClient {
             final ActionListener<PutRoleMappingResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::putRoleMapping, options,
                 PutRoleMappingResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Synchronously get role mapping(s).
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role-mapping.html">
+     * the docs</a> for more.
+     *
+     * @param request {@link GetRoleMappingsRequest} with role mapping name(s).
+     * If no role mapping name is provided then retrieves all role mappings.
+     * @param options the request options (e.g. headers), use
+     * {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the get role mapping call
+     * @throws IOException in case there is a problem sending the request or
+     * parsing back the response
+     */
+    public GetRoleMappingsResponse getRoleMappings(final GetRoleMappingsRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getRoleMappings,
+            options, GetRoleMappingsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get role mapping(s).
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role-mapping.html">
+     * the docs</a> for more.
+     *
+     * @param request {@link GetRoleMappingsRequest} with role mapping name(s).
+     * If no role mapping name is provided then retrieves all role mappings.
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getRoleMappingsAsync(final GetRoleMappingsRequest request, final RequestOptions options,
+            final ActionListener<GetRoleMappingsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getRoleMappings,
+                options, GetRoleMappingsResponse::fromXContent, listener, emptySet());
     }
 
     /**

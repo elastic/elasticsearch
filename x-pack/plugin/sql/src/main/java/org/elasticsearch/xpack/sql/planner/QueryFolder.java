@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.AggRef;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -525,8 +526,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         protected PhysicalPlan rule(PhysicalPlan plan) {
             if (plan.children().size() == 1) {
                 PhysicalPlan p = plan.children().get(0);
-                if (p instanceof LocalExec && ((LocalExec) p).isEmpty()) {
-                    return new LocalExec(plan.location(), new EmptyExecutable(plan.output()));
+                if (p instanceof LocalExec) {
+                    if (((LocalExec) p).isEmpty()) {
+                        return new LocalExec(plan.location(), new EmptyExecutable(plan.output()));
+                    } else {
+                        throw new SqlIllegalArgumentException("Encountered a bug; {} is a LocalExec but is not empty", p);
+                    }
                 }
             }
             return plan;

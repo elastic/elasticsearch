@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -38,7 +39,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
@@ -63,7 +63,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FailedNodeRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = Loggers.getLogger(FailedNodeRoutingTests.class);
+    private final Logger logger = LogManager.getLogger(FailedNodeRoutingTests.class);
 
     public void testSimpleFailedNodeTest() {
         AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),

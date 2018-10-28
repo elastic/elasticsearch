@@ -217,12 +217,13 @@ public class BulkProcessor implements Closeable {
      * Closes the processor. If flushing by time is enabled, then it's shutdown. Any remaining bulk actions are flushed.
      * <p>
      * If concurrent requests are not enabled, returns {@code true} immediately.
-     * If concurrent requests are enabled, waits for up to the specified timeout for all bulk requests to complete then returns {@code true},
+     * If concurrent requests are enabled, waits for up to the specified timeout for all bulk requests to complete then returns {@code true}
      * If the specified waiting time elapses before all bulk requests complete, {@code false} is returned.
      *
      * @param timeout The maximum time to wait for the bulk requests to complete
      * @param unit    The time unit of the {@code timeout} argument
-     * @return {@code true} if all bulk requests completed and {@code false} if the waiting time elapsed before all the bulk requests completed
+     * @return {@code true} if all bulk requests completed and {@code false} if the waiting time elapsed before all the bulk requests
+     * completed
      * @throws InterruptedException If the current thread is interrupted
      */
     public synchronized boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
@@ -298,7 +299,8 @@ public class BulkProcessor implements Closeable {
      * Adds the data from the bytes to be processed by the bulk processor
      */
     public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
-                                          @Nullable String defaultPipeline, @Nullable Object payload, XContentType xContentType) throws Exception {
+                                          @Nullable String defaultPipeline, @Nullable Object payload,
+                                          XContentType xContentType) throws Exception {
         bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline, payload, true, xContentType);
         executeIfNeeded();
         return this;

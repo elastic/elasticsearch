@@ -38,6 +38,10 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     public QueryFetchSearchResult() {
     }
 
+    public QueryFetchSearchResult(StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
         this.queryResult = queryResult;
         this.fetchResult = fetchResult;

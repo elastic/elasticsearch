@@ -445,7 +445,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().prepareDelete("test", "type", "1").get(); // sets version to 4
         Thread.sleep(300); // wait for cache time to change TODO: this needs to be solved better. To be discussed.
         // delete is should not be in cache
-        assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3).setVersion(4), VersionConflictEngineException.class);
+        assertThrows(client().prepareIndex("test", "type", "1").setSource("f", 3)
+            .setVersion(4), VersionConflictEngineException.class);
 
     }
 

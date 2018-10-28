@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.CastProcessor;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -251,5 +252,13 @@ public class DataTypeConversionTests extends ESTestCase {
             Exception e = expectThrows(SqlIllegalArgumentException.class,
                 () -> DataTypeConversion.conversionFor(DataType.INTEGER, DataType.UNSUPPORTED));
             assertEquals("cannot convert from [INTEGER] to [UNSUPPORTED]", e.getMessage());
+    }
+
+    public void testStringToIp() {
+        CastProcessor proc = new CastProcessor(Conversion.STRING_TO_IP);
+        assertNull(proc.process(null));
+        assertEquals("192.168.1.1", proc.process("192.168.1.1"));
+        Exception e = expectThrows(SqlIllegalArgumentException.class, () -> proc.process("10.1.1.300"));
+        assertEquals("[10.1.1.300] is not a valid IPv4 or IPv6 address", e.getMessage());
     }
 }

@@ -338,7 +338,7 @@ SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY gender OR
 aggAvgWithCastToDouble
 SELECT gender g, CAST(AVG(emp_no) AS DOUBLE) a FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvg
-SELECT AVG(salary) AS avg FROM test_emp;
+SELECT CAST(FLOOR(AVG(salary)) AS INT) AS avg FROM test_emp;
 aggAvgWithCastAndCount
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a, COUNT(1) c FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvgWithCastAndCountWithFilter

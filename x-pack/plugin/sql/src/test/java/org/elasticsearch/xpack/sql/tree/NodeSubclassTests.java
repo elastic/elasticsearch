@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -83,7 +82,6 @@ import static org.mockito.Mockito.mock;
  * node of that type is called for.
  * </ul>
  */
-@Seed("9466D333CABEC8C4")
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
     private final Class<T> subclass;
 

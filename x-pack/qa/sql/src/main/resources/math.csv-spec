@@ -4,12 +4,12 @@ SELECT TRUNCATE(ASCII(LEFT(first_name, 1)), 1), COUNT(*) count FROM test_emp GRO
 
 TRUNCATE(ASCII(LEFT(first_name,1)),1):i|     count:l
 ---------------------------------------+---------------
-null                                 |10             
-66                                   |7              
-72                                   |6              
-75                                   |7              
-77                                   |9              
-83                                   |11  
+null                                   |10             
+66                                     |7              
+72                                     |6              
+75                                     |7              
+77                                     |9              
+83                                     |11  
 ;
 
 truncateWithNoSecondParameterWithAsciiHavingAndOrderBy
@@ -17,12 +17,12 @@ SELECT TRUNCATE(ASCII(LEFT(first_name, 1))), COUNT(*) count FROM test_emp GROUP 
 
 TRUNCATE(ASCII(LEFT(first_name,1)),0):i|     count:l
 ---------------------------------------+---------------
-null                                 |10             
-66                                   |7              
-72                                   |6              
-75                                   |7              
-77                                   |9              
-83                                   |11  
+null                                   |10             
+66                                     |7              
+72                                     |6              
+75                                     |7              
+77                                     |9              
+83                                     |11  
 ;
 
 roundWithGroupByAndOrderBy
@@ -84,101 +84,95 @@ SELECT TRUNCATE(ASCII(LEFT(first_name,1)), -1) AS initial, first_name, ASCII(LEF
 truncateWithHavingAndGroupBy
 SELECT MIN(salary) mi, MAX(salary) ma, COUNT(*) c, TRUNCATE(AVG(salary)) tr FROM test_emp GROUP BY languages HAVING TRUNCATE(AVG(salary)) > 40000 ORDER BY languages;
 
-      mi:i     |      ma:I     |     c:l         |      tr:i
----------------+---------------+-----------------+-----------------
-28336          |74999          |10               |52519          
-25976          |73717          |15               |50576          
-29175          |73578          |19               |48178          
-26436          |74970          |17               |52418          
-27215          |74572          |18               |47733          
-25324          |66817          |21               |41680  
+      mi:i     |      ma:i     |       c:l     |      tr:d       
+---------------+---------------+---------------+---------------
+28336          |74999          |10             |52519.0        
+25976          |73717          |15             |50576.0        
+29175          |73578          |19             |48178.0        
+26436          |74970          |17             |52418.0        
+27215          |74572          |18             |47733.0        
+25324          |66817          |21             |41680.0  
 ;
 
-// https://github.com/elastic/elasticsearch/issues/33773
-minMaxTruncateAndRoundOfAverageWithHavingRoundAndTruncate-Ignore
+minMaxTruncateAndRoundOfAverageWithHavingRoundAndTruncate
 SELECT MIN(salary) mi, MAX(salary) ma, YEAR(hire_date) year, ROUND(AVG(languages), 1), TRUNCATE(AVG(languages), 1), COUNT(*) FROM test_emp GROUP BY YEAR(hire_date) HAVING ROUND(AVG(languages), 1) > 2.5 AND TRUNCATE(AVG(languages), 1) <= 3.0 ORDER BY YEAR(hire_date);
 
-    mi       |      ma     |     year      |ROUND(AVG(languages),1)|TRUNCATE(AVG(languages),1)|   COUNT(1)
--------------+-------------+---------------+-----------------------+--------------------------+--------------
-26436        |74999        |1985           |3.1                    |3.0                       |11
-25976        |74970        |1989           |3.1                    |3.0                       |13
-31120        |71165        |1990           |3.1                    |3.0                       |12
-32568        |65030        |1991           |2.8                    |2.8                       |6
-30404        |58715        |1993           |3.0                    |3.0                       |3
-35742        |67492        |1994           |2.8                    |2.7                       |4
-28035        |65367        |1995           |2.6                    |2.6                       |5
-45656        |45656        |1996           |3.0                    |3.0                       |1
-64675        |64675        |1997           |3.0                    |3.0                       |1
+      mi:i     |      ma:i     |     year:i    |ROUND(AVG(languages),1):d|TRUNCATE(AVG(languages),1):d|   COUNT(1):l    
+---------------+---------------+---------------+-------------------------+----------------------------+---------------
+25324          |70011          |1987           |3.0                      |3.0                         |15             
+25945          |73578          |1988           |2.9                      |2.8                         |9              
+25976          |74970          |1989           |3.0                      |3.0                         |13             
+31120          |71165          |1990           |3.1                      |3.0                         |12             
+30404          |58715          |1993           |3.0                      |3.0                         |3              
+35742          |67492          |1994           |2.8                      |2.7                         |4              
+45656          |45656          |1996           |3.0                      |3.0                         |1           
 ;
 
-// https://github.com/elastic/elasticsearch/issues/33773
-minMaxRoundWithHavingRound-Ignore
+minMaxRoundWithHavingRound
 SELECT MIN(salary) mi, MAX(salary) ma, YEAR(hire_date) year, ROUND(AVG(languages), 1), COUNT(*) FROM test_emp GROUP BY YEAR(hire_date) HAVING ROUND(AVG(languages), 1) > 2.5 ORDER BY YEAR(hire_date);
 
-      mi     |      ma     |     year      |ROUND(AVG(languages),1)|   COUNT(1)
--------------+-------------+---------------+-----------------------+--------------
-26436        |74999        |1985           |3.1                    |11
-31897        |61805        |1986           |3.5                    |11
-25324        |70011        |1987           |3.1                    |15
-25945        |73578        |1988           |3.1                    |9
-25976        |74970        |1989           |3.1                    |13
-31120        |71165        |1990           |3.1                    |12
-32568        |65030        |1991           |2.8                    |6
-27215        |60781        |1992           |4.1                    |8
-30404        |58715        |1993           |3.0                    |3
-35742        |67492        |1994           |2.8                    |4
-28035        |65367        |1995           |2.6                    |5
-45656        |45656        |1996           |3.0                    |1
-64675        |64675        |1997           |3.0                    |1
+      mi:i     |      ma:i     |     year:i    |ROUND(AVG(languages),1):d|   COUNT(1):l    
+---------------+---------------+---------------+-------------------------+---------------
+26436          |74999          |1985           |3.1                      |11             
+31897          |61805          |1986           |3.5                      |11             
+25324          |70011          |1987           |3.0                      |15             
+25945          |73578          |1988           |2.9                      |9              
+25976          |74970          |1989           |3.0                      |13             
+31120          |71165          |1990           |3.1                      |12             
+32568          |65030          |1991           |3.3                      |6              
+27215          |60781          |1992           |4.1                      |8              
+30404          |58715          |1993           |3.0                      |3              
+35742          |67492          |1994           |2.8                      |4              
+45656          |45656          |1996           |3.0                      |1              
 ;
 
 groupByAndOrderByTruncateWithPositiveParameter
 SELECT TRUNCATE(AVG(salary), 2), AVG(salary), COUNT(*) FROM test_emp GROUP BY TRUNCATE(salary, 2) ORDER BY TRUNCATE(salary, 2) DESC LIMIT 10;
 
-TRUNCATE(AVG(salary),2):i|AVG(salary):i  |   COUNT(1):l
+TRUNCATE(AVG(salary),2):d| AVG(salary):d |   COUNT(1):l    
 -------------------------+---------------+---------------
-74999                    |74999          |1
-74970                    |74970          |1
-74572                    |74572          |1
-73851                    |73851          |1
-73717                    |73717          |1
-73578                    |73578          |1
-71165                    |71165          |1
-70011                    |70011          |1
-69904                    |69904          |1
-68547                    |68547          |1
+74999.0                  |74999.0        |1              
+74970.0                  |74970.0        |1              
+74572.0                  |74572.0        |1              
+73851.0                  |73851.0        |1              
+73717.0                  |73717.0        |1              
+73578.0                  |73578.0        |1              
+71165.0                  |71165.0        |1              
+70011.0                  |70011.0        |1              
+69904.0                  |69904.0        |1              
+68547.0                  |68547.0        |1     
 ;
 
 groupByAndOrderByRoundWithPositiveParameter
 SELECT ROUND(AVG(salary), 2), AVG(salary), COUNT(*) FROM test_emp GROUP BY ROUND(salary, 2) ORDER BY ROUND(salary, 2) DESC LIMIT 10;
 
-ROUND(AVG(salary),2):i|  AVG(salary):i  |   COUNT(1):l
-----------------------+-----------------+---------------
-74999                 |74999            |1
-74970                 |74970            |1
-74572                 |74572            |1
-73851                 |73851            |1
-73717                 |73717            |1
-73578                 |73578            |1
-71165                 |71165            |1
-70011                 |70011            |1
-69904                 |69904            |1
-68547                 |68547            |1
+ROUND(AVG(salary),2):d| AVG(salary):d |   COUNT(1):l    
+----------------------+---------------+---------------
+74999.0               |74999.0        |1              
+74970.0               |74970.0        |1              
+74572.0               |74572.0        |1              
+73851.0               |73851.0        |1              
+73717.0               |73717.0        |1              
+73578.0               |73578.0        |1              
+71165.0               |71165.0        |1              
+70011.0               |70011.0        |1              
+69904.0               |69904.0        |1              
+68547.0               |68547.0        |1        
 ;
 
 groupByAndOrderByRoundWithNoSecondParameter
 SELECT ROUND(AVG(salary)), ROUND(salary) rounded, AVG(salary), COUNT(*) FROM test_emp GROUP BY rounded ORDER BY rounded DESC LIMIT 10;
 
-ROUND(AVG(salary),0):i|    rounded:i    |  AVG(salary):i  |   COUNT(1):l
-----------------------+-----------------+-----------------+---------------
-74999                 |74999            |74999            |1
-74970                 |74970            |74970            |1
-74572                 |74572            |74572            |1
-73851                 |73851            |73851            |1
-73717                 |73717            |73717            |1
-73578                 |73578            |73578            |1
-71165                 |71165            |71165            |1
-70011                 |70011            |70011            |1
-69904                 |69904            |69904            |1
-68547                 |68547            |68547            |1
+ROUND(AVG(salary),0):d|   rounded:i   | AVG(salary):d |   COUNT(1):l    
+----------------------+---------------+---------------+---------------
+74999.0               |74999          |74999.0        |1              
+74970.0               |74970          |74970.0        |1              
+74572.0               |74572          |74572.0        |1              
+73851.0               |73851          |73851.0        |1              
+73717.0               |73717          |73717.0        |1              
+73578.0               |73578          |73578.0        |1              
+71165.0               |71165          |71165.0        |1              
+70011.0               |70011          |70011.0        |1              
+69904.0               |69904          |69904.0        |1              
+68547.0               |68547          |68547.0        |1   
 ;

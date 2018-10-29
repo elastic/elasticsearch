@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty4;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -58,12 +59,11 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
-            public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
-                InterruptedException {
+            public void asyncHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException, InterruptedException {
                 if (doHandshake) {
-                    return super.executeHandshake(node, channel, timeout);
+                    super.asyncHandshake(node, channel, timeout, listener);
                 } else {
-                    return version.minimumCompatibilityVersion();
+                    listener.onResponse(version.minimumCompatibilityVersion());
                 }
             }
 

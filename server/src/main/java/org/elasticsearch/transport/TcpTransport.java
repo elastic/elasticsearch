@@ -201,7 +201,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
 
-    private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, AsyncHandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final CounterMetric numHandshakes = new CounterMetric();
     private static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
 
@@ -277,14 +277,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
     }
 
-    private static class HandshakeResponseHandler implements TransportResponseHandler<VersionHandshakeResponse> {
-        final AtomicReference<Version> versionRef = new AtomicReference<>();
-        final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
-        final TcpChannel channel;
+    private static class AsyncHandshakeResponseHandler implements TransportResponseHandler<VersionHandshakeResponse> {
 
-        HandshakeResponseHandler(TcpChannel channel) {
+        final TcpChannel channel;
+        private final ActionListener<Version> listener;
+        private final AtomicBoolean isDone = new AtomicBoolean(false);
+
+        AsyncHandshakeResponseHandler(TcpChannel channel, ActionListener<Version> listener) {
             this.channel = channel;
+            this.listener = listener;
         }
 
         @Override
@@ -294,16 +295,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public void handleResponse(VersionHandshakeResponse response) {
-            final boolean success = versionRef.compareAndSet(null, response.version);
-            latch.countDown();
-            assert success;
+            if (isDone.compareAndSet(false, true)) {
+                listener.onResponse(response.version);
+            }
         }
 
         @Override
         public void handleException(TransportException exp) {
-            final boolean success = exceptionRef.compareAndSet(null, exp);
-            latch.countDown();
-            assert success;
+            if (isDone.compareAndSet(false, true)) {
+                listener.onFailure(exp);
+            }
         }
 
         @Override
@@ -466,7 +467,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         handshakeChannel.addCloseListener(ActionListener.wrap(() -> cancelHandshakeForChannel(handshakeChannel)));
                         try {
                             // TODO: This is currently synchronous
-                            Version version = executeHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout());
+                            asyncHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout(), null);
                         } catch (Exception ex) {
                             CloseableChannel.closeChannels(channels, false);
                             listener.onFailure(ex);
@@ -506,14 +507,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // If we make it past the block above, we have successfully established connections for all of the channels
             final TcpChannel handshakeChannel = channels.get(0); // one channel is guaranteed by the connection profile
             handshakeChannel.addCloseListener(ActionListener.wrap(() -> cancelHandshakeForChannel(handshakeChannel)));
-            Version version;
-            try {
-                version = executeHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout());
-            } catch (Exception ex) {
-                CloseableChannel.closeChannels(channels, false);
-                listener.onFailure(ex);
-                return;
-            }
+            Version version = null;
+//            try {
+//                version = executeHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout());
+//            } catch (Exception ex) {
+//                CloseableChannel.closeChannels(channels, false);
+//                listener.onFailure(ex);
+//                return;
+//            }
 
             // If we make it past the block above, we have successfully completed the handshake and the connection is now open.
             // At this point we should construct the connection, notify the transport service, and attach close listeners to the
@@ -1532,13 +1533,25 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout)
-        throws IOException, InterruptedException {
+    public void asyncHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException {
         numHandshakes.inc();
         final long requestId = responseHandlers.newRequestId();
-        final HandshakeResponseHandler handler = new HandshakeResponseHandler(channel);
-        AtomicReference<Version> versionRef = handler.versionRef;
-        AtomicReference<Exception> exceptionRef = handler.exceptionRef;
+        final AsyncHandshakeResponseHandler handler = new AsyncHandshakeResponseHandler(channel, new ActionListener<Version>() {
+            @Override
+            public void onResponse(Version version) {
+                if (getCurrentVersion().isCompatible(version) == false) {
+                    listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + version
+                        + "] minimal compatible version is: [" + getCurrentVersion().minimumCompatibilityVersion() + "]"));
+                } else {
+                    listener.onResponse(version);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(new IllegalStateException("handshake failed", e));
+            }
+        });
         pendingHandshakes.put(requestId, handler);
         boolean success = false;
         try {
@@ -1555,26 +1568,62 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             final Version minCompatVersion = getCurrentVersion().minimumCompatibilityVersion();
             sendRequestToChannel(node, channel, requestId, HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE,
                 TransportRequestOptions.EMPTY, minCompatVersion, TransportStatus.setHandshake((byte) 0));
-            if (handler.latch.await(timeout.millis(), TimeUnit.MILLISECONDS) == false) {
+            if (false) {
                 throw new ConnectTransportException(node, "handshake_timeout[" + timeout + "]");
             }
             success = true;
-            if (exceptionRef.get() != null) {
-                throw new IllegalStateException("handshake failed", exceptionRef.get());
-            } else {
-                Version version = versionRef.get();
-                if (getCurrentVersion().isCompatible(version) == false) {
-                    throw new IllegalStateException("Received message from unsupported version: [" + version
-                        + "] minimal compatible version is: [" + getCurrentVersion().minimumCompatibilityVersion() + "]");
-                }
-                return version;
-            }
         } finally {
             final TransportResponseHandler<?> removedHandler = pendingHandshakes.remove(requestId);
             // in the case of a timeout or an exception on the send part the handshake has not been removed yet.
             // but the timeout is tricky since it's basically a race condition so we only assert on the success case.
             assert success && removedHandler == null || success == false : "handler for requestId [" + requestId + "] is not been removed";
         }
+    }
+
+    public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout)
+        throws IOException, InterruptedException {
+        return null;
+//        numHandshakes.inc();
+//        final long requestId = responseHandlers.newRequestId();
+//        final HandshakeResponseHandler handler = new HandshakeResponseHandler(channel);
+//        AtomicReference<Version> versionRef = handler.versionRef;
+//        AtomicReference<Exception> exceptionRef = handler.exceptionRef;
+//        pendingHandshakes.put(requestId, handler);
+//        boolean success = false;
+//        try {
+//            if (channel.isOpen() == false) {
+//                // we have to protect us here since sendRequestToChannel won't barf if the channel is closed.
+//                // it's weird but to change it will cause a lot of impact on the exception handling code all over the codebase.
+//                // yet, if we don't check the state here we might have registered a pending handshake handler but the close
+//                // listener calling #onChannelClosed might have already run and we are waiting on the latch below unitl we time out.
+//                throw new IllegalStateException("handshake failed, channel already closed");
+//            }
+//            // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
+//            // we also have no payload on the request but the response will contain the actual version of the node we talk
+//            // to as the payload.
+//            final Version minCompatVersion = getCurrentVersion().minimumCompatibilityVersion();
+//            sendRequestToChannel(node, channel, requestId, HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE,
+//                TransportRequestOptions.EMPTY, minCompatVersion, TransportStatus.setHandshake((byte) 0));
+//            if (handler.latch.await(timeout.millis(), TimeUnit.MILLISECONDS) == false) {
+//                throw new ConnectTransportException(node, "handshake_timeout[" + timeout + "]");
+//            }
+//            success = true;
+//            if (exceptionRef.get() != null) {
+//                throw new IllegalStateException("handshake failed", exceptionRef.get());
+//            } else {
+//                Version version = versionRef.get();
+//                if (getCurrentVersion().isCompatible(version) == false) {
+//                    throw new IllegalStateException("Received message from unsupported version: [" + version
+//                        + "] minimal compatible version is: [" + getCurrentVersion().minimumCompatibilityVersion() + "]");
+//                }
+//                return version;
+//            }
+//        } finally {
+//            final TransportResponseHandler<?> removedHandler = pendingHandshakes.remove(requestId);
+//            // in the case of a timeout or an exception on the send part the handshake has not been removed yet.
+//            // but the timeout is tricky since it's basically a race condition so we only assert on the success case.
+//            assert success && removedHandler == null || success == false : "handler for requestId [" + requestId + "] is not been removed";
+//        }
     }
 
     final int getNumPendingHandshakes() { // for testing
@@ -1593,7 +1642,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             .filter((entry) -> entry.getValue().channel == channel).map(Map.Entry::getKey).findFirst();
         if (first.isPresent()) {
             final Long requestId = first.get();
-            final HandshakeResponseHandler handler = pendingHandshakes.remove(requestId);
+            final TransportResponseHandler<?> handler = pendingHandshakes.remove(requestId);
             if (handler != null) {
                 // there might be a race removing this or this method might be called twice concurrently depending on how
                 // the channel is closed ie. due to connection reset or broken pipes

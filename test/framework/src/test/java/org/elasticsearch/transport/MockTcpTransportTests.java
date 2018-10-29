@@ -19,6 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -39,13 +40,13 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version) {
+
             @Override
-            public Version executeHandshake(DiscoveryNode node, TcpChannel mockChannel, TimeValue timeout) throws IOException,
-                InterruptedException {
+            public void asyncHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException, InterruptedException {
                 if (doHandshake) {
-                    return super.executeHandshake(node, mockChannel, timeout);
+                    super.asyncHandshake(node, channel, timeout, listener);
                 } else {
-                    return version.minimumCompatibilityVersion();
+                    listener.onResponse(version.minimumCompatibilityVersion());
                 }
             }
         };

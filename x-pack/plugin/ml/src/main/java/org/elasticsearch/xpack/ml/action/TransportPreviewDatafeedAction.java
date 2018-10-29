@@ -71,16 +71,18 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         // NB: this is using the client from the transport layer, NOT the internal client.
         // This is important because it means the datafeed search will fail if the user
         // requesting the preview doesn't have permission to search the relevant indices.
-        DataExtractorFactory.create(client,
-            previewDatafeed.build(),
-            job,
-            ActionListener.wrap(
-                dataExtractorFactory -> {
-                    DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
-                    threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
-                },
-                listener::onFailure
-            ));
+        DataExtractorFactory.create(client, previewDatafeed.build(), job, new ActionListener<DataExtractorFactory>() {
+            @Override
+            public void onResponse(DataExtractorFactory dataExtractorFactory) {
+                DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
+                threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
 
     }
 

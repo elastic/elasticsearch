@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 /**
  * An implementation that extracts data from elasticsearch using search with aggregations on a client.
@@ -23,21 +23,12 @@ class AggregationDataExtractor extends AbstractAggregationDataExtractor<SearchRe
     }
 
     @Override
-    protected SearchRequestBuilder buildSearchRequest() {
-        // For derivative aggregations the first bucket will always be null
-        // so query one extra histogram bucket back and hope there is data
-        // in that bucket
-        long histogramSearchStartTime = Math.max(0, context.start - getHistogramInterval());
+    protected SearchRequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
 
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
-                .setIndices(context.indices)
-                .setTypes(context.types)
-                .setSize(0)
-                .setQuery(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
-
-        context.aggs.getAggregatorFactories().forEach(searchRequestBuilder::addAggregation);
-        context.aggs.getPipelineAggregatorFactories().forEach(searchRequestBuilder::addAggregation);
-        return searchRequestBuilder;
+        return new SearchRequestBuilder(client, SearchAction.INSTANCE)
+            .setSource(searchSourceBuilder)
+            .setIndices(context.indices)
+            .setTypes(context.types);
     }
 
 }

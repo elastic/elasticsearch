@@ -163,12 +163,13 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
         private final Set<String> supportedMetrics;
         private final Set<String> supportedTerms;
         private final Map<String, Object> datehistogramAgg;
-        private static List<String> aggsToIgnore = Arrays.asList(HistogramAggregationBuilder.NAME, DateHistogramAggregationBuilder.NAME);
+        private static final List<String> aggsToIgnore =
+            Arrays.asList(HistogramAggregationBuilder.NAME, DateHistogramAggregationBuilder.NAME);
 
         private static ParsedRollupCaps fromJobFieldCaps(Map<String, RollupFieldCaps> rollupFieldCaps, String timeField) {
             Map<String, Object> datehistogram = null;
             RollupFieldCaps timeFieldCaps = rollupFieldCaps.get(timeField);
-            if ((timeFieldCaps == null) == false) {
+            if (timeFieldCaps != null) {
                 for(Map<String, Object> agg : timeFieldCaps.getAggs()) {
                     if (agg.get("agg").equals(DateHistogramAggregationBuilder.NAME)) {
                         datehistogram = agg;

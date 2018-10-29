@@ -14,6 +14,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
@@ -33,7 +34,7 @@ import java.util.stream.Collectors;
  *
  * @param <T> The request builder type for getting data from ElasticSearch
  */
-public abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<SearchRequest, SearchResponse>>
+abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<SearchRequest, SearchResponse>>
     implements DataExtractor {
 
     private static final Logger LOGGER = Loggers.getLogger(AbstractAggregationDataExtractor.class);
@@ -54,7 +55,7 @@ public abstract class AbstractAggregationDataExtractor<T extends ActionRequestBu
     private AggregationToJsonProcessor aggregationToJsonProcessor;
     private ByteArrayOutputStream outputStream;
 
-    public AbstractAggregationDataExtractor(Client client, AggregationDataExtractorContext dataExtractorContext) {
+    AbstractAggregationDataExtractor(Client client, AggregationDataExtractorContext dataExtractorContext) {
         this.client = Objects.requireNonNull(client);
         context = Objects.requireNonNull(dataExtractorContext);
         hasNext = true;
@@ -99,7 +100,7 @@ public abstract class AbstractAggregationDataExtractor<T extends ActionRequestBu
 
     private Aggregations search() throws IOException {
         LOGGER.debug("[{}] Executing aggregated search", context.jobId);
-        SearchResponse searchResponse = executeSearchRequest(buildSearchRequest());
+        SearchResponse searchResponse = executeSearchRequest(buildSearchRequest(buildBaseSearchSource()));
         LOGGER.debug("[{}] Search response was obtained", context.jobId);
         ExtractorUtils.checkSearchWasSuccessful(context.jobId, searchResponse);
         return validateAggs(searchResponse.getAggregations());
@@ -115,7 +116,22 @@ public abstract class AbstractAggregationDataExtractor<T extends ActionRequestBu
         return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
     }
 
-    protected abstract T buildSearchRequest();
+    private SearchSourceBuilder buildBaseSearchSource() {
+        // For derivative aggregations the first bucket will always be null
+        // so query one extra histogram bucket back and hope there is data
+        // in that bucket
+        long histogramSearchStartTime = Math.max(0, context.start - ExtractorUtils.getHistogramIntervalMillis(context.aggs));
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
+            .size(0)
+            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
+
+        context.aggs.getAggregatorFactories().forEach(searchSourceBuilder::aggregation);
+        context.aggs.getPipelineAggregatorFactories().forEach(searchSourceBuilder::aggregation);
+        return searchSourceBuilder;
+    }
+
+    protected abstract T buildSearchRequest(SearchSourceBuilder searchRequestBuilder);
 
     private Aggregations validateAggs(@Nullable Aggregations aggs) {
         if (aggs == null) {

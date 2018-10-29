@@ -27,14 +27,9 @@ public interface DataExtractorFactory {
      */
     static void create(Client client, DatafeedConfig datafeed, Job job, ActionListener<DataExtractorFactory> listener) {
         ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
-            factory -> {
-                if (datafeed.getChunkingConfig().isEnabled()) {
-                    listener.onResponse(new ChunkedDataExtractorFactory(client, datafeed, job, factory));
-                } else {
-                    listener.onResponse(factory);
-                }
-            },
-            listener::onFailure
+            factory -> listener.onResponse(datafeed.getChunkingConfig().isEnabled()
+                ? new ChunkedDataExtractorFactory(client, datafeed, job, factory) : factory)
+            , listener::onFailure
         );
 
         ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(

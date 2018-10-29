@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 
 /**
@@ -24,19 +23,7 @@ class RollupDataExtractor extends AbstractAggregationDataExtractor<RollupSearchA
     }
 
     @Override
-    protected RollupSearchAction.RequestBuilder buildSearchRequest() {
-        // For derivative aggregations the first bucket will always be null
-        // so query one extra histogram bucket back and hope there is data
-        // in that bucket
-        long histogramSearchStartTime = Math.max(0, context.start - ExtractorUtils.getHistogramIntervalMillis(context.aggs));
-
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
-            .size(0)
-            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
-
-        context.aggs.getAggregatorFactories().forEach(searchSourceBuilder::aggregation);
-        context.aggs.getPipelineAggregatorFactories().forEach(searchSourceBuilder::aggregation);
-
+    protected RollupSearchAction.RequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
         SearchRequest searchRequest = new SearchRequest().indices(context.indices).source(searchSourceBuilder);
 
         return new RollupSearchAction.RequestBuilder(client, searchRequest);

@@ -194,6 +194,61 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertFalse(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
         }
     }
+    
+    public void testSourceExists() throws IOException {     
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "id");
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+        IndexRequest index = new IndexRequest("index", "type", "id");
+        index.source("{\"field1\":\"value1\",\"field2\":\"value2\"}", XContentType.JSON);
+        index.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        highLevelClient().index(index, RequestOptions.DEFAULT);
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "id");
+            assertTrue(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "does_not_exist");
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+        {
+            GetRequest getRequest = new GetRequest("index", "type", "does_not_exist").version(1);
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+    }
+    
+    public void testSourceDoesNotExist() throws IOException {     
+        final String noSourceIndex = "no_source";
+        {
+            // Prepare
+            Settings settings = Settings.builder()
+                .put("number_of_shards", 1)
+                .put("number_of_replicas", 0)
+                .build();
+            String mapping = "\"_doc\": { \"_source\": {\n" + 
+                    "        \"enabled\": false\n" + 
+                    "      }  }";
+            createIndex(noSourceIndex, settings, mapping);
+            assertEquals(
+                RestStatus.OK,
+                highLevelClient().bulk(
+                    new BulkRequest()
+                        .add(new IndexRequest(noSourceIndex, "_doc", "1")
+                            .source(Collections.singletonMap("foo", 1), XContentType.JSON))
+                        .add(new IndexRequest(noSourceIndex, "_doc", "2")
+                            .source(Collections.singletonMap("foo", 2), XContentType.JSON))
+                        .setRefreshPolicy(RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT
+                ).status()
+            );
+        }        
+        {
+            GetRequest getRequest = new GetRequest(noSourceIndex, "_doc", "1");
+            assertTrue(execute(getRequest, highLevelClient()::exists, highLevelClient()::existsAsync));
+            assertFalse(execute(getRequest, highLevelClient()::existsSource, highLevelClient()::existsSourceAsync));
+        }
+    }    
 
     public void testGet() throws IOException {
         {
@@ -201,7 +256,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                     () -> execute(getRequest, highLevelClient()::get, highLevelClient()::getAsync));
             assertEquals(RestStatus.NOT_FOUND, exception.status());
-            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]", exception.getMessage());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]", exception.getMessage());
             assertEquals("index", exception.getMetadata("es.index").get(0));
         }
         IndexRequest index = new IndexRequest("index", "type", "id");
@@ -288,7 +343,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id1", response.getResponses()[0].getFailure().getId());
             assertEquals("type", response.getResponses()[0].getFailure().getType());
             assertEquals("index", response.getResponses()[0].getFailure().getIndex());
-            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]",
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[0].getFailure().getFailure().getMessage());
 
             assertTrue(response.getResponses()[1].isFailed());
@@ -296,7 +351,7 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("id2", response.getResponses()[1].getId());
             assertEquals("type", response.getResponses()[1].getType());
             assertEquals("index", response.getResponses()[1].getIndex());
-            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index]",
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index]]",
                     response.getResponses()[1].getFailure().getFailure().getMessage());
         }
         BulkRequest bulk = new BulkRequest();

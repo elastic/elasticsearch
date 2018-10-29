@@ -94,7 +94,8 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testNewPolygon_coordinates() {
         Polygon polygon = new PolygonBuilder(new CoordinatesBuilder()
-                .coordinates(new Coordinate(-45, 30), new Coordinate(45, 30), new Coordinate(45, -30), new Coordinate(-45, -30), new Coordinate(-45, 30))
+                .coordinates(new Coordinate(-45, 30), new Coordinate(45, 30),
+                    new Coordinate(45, -30), new Coordinate(-45, -30), new Coordinate(-45, 30))
                 ).toPolygon();
 
         LineString exterior = polygon.getExteriorRing();

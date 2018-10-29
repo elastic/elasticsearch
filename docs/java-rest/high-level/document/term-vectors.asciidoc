@@ -78,57 +78,24 @@ include-tagged::{doc-tests-file}[{api}-response]
 
 ===== Inspecting Term Vectors
 If `TermVectorsResponse` contains non-null list of term vectors,
-more information about them can be obtained using following:
+more information about each term vector can be obtained using the following:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-term-vectors]
 --------------------------------------------------
-<1> The list of `TermVector` for the document
-<2> The name of the current field
-<3> Fields statistics for the current field - document count
-<4> Fields statistics for the current field - sum of total term frequencies
-<5> Fields statistics for the current field - sum of document frequencies
-<6> Terms for the current field
-<7> The name of the term
-<8> Term frequency of the term
-<9> Document frequency of the term
-<10> Total term frequency of the term
-<11> Score of the term
-<12> Tokens of the term
-<13> Position of the token
-<14> Start offset of the token
-<15> End offset of the token
-<16> Payload of the token
-
-
-[id="{upid}-{api}-response"]
-==== TermVectorsResponse
-
-The `TermVectorsResponse` contains the following information:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-response]
---------------------------------------------------
-<1> The index name of the document.
-<2> The type name of the document.
-<3> The id of the document.
-<4> Indicates whether or not the document found.
-<5> Indicates whether or not there are term vectors for this document.
-<6> The list of `TermVector` for the document
-<7> The name of the current field
-<8> Fields statistics for the current field - document count
-<9> Fields statistics for the current field - sum of total term frequencies
-<10> Fields statistics for the current field - sum of document frequencies
-<11> Terms for the current field
-<12> The name of the term
-<13> Term frequency of the term
-<14> Document frequency of the term
-<15> Total term frequency of the term
-<16> Score of the term
-<17> Tokens of the term
-<18> Position of the token
-<19> Start offset of the token
-<20> End offset of the token
-<21> Payload of the token
+<1> The name of the current field
+<2> Fields statistics for the current field - document count
+<3> Fields statistics for the current field - sum of total term frequencies
+<4> Fields statistics for the current field - sum of document frequencies
+<5> Terms for the current field
+<6> The name of the term
+<7> Term frequency of the term
+<8> Document frequency of the term
+<9> Total term frequency of the term
+<10> Score of the term
+<11> Tokens of the term
+<12> Position of the token
+<13> Start offset of the token
+<14> End offset of the token
+<15> Payload of the token

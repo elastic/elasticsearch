@@ -26,11 +26,11 @@ import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
-import org.elasticsearch.xpack.core.ccr.action.StatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
 import java.util.Objects;
 
-public class TransportStatsAction extends TransportMasterNodeAction<StatsAction.Request, StatsAction.Response> {
+public class TransportStatsAction extends TransportMasterNodeAction<CcrStatsAction.Request, CcrStatsAction.Response> {
 
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -50,12 +50,12 @@ public class TransportStatsAction extends TransportMasterNodeAction<StatsAction.
     ) {
         super(
             settings,
-            StatsAction.NAME,
+            CcrStatsAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            StatsAction.Request::new,
+            CcrStatsAction.Request::new,
             indexNameExpressionResolver
         );
         this.client = client;
@@ -69,12 +69,12 @@ public class TransportStatsAction extends TransportMasterNodeAction<StatsAction.
     }
 
     @Override
-    protected StatsAction.Response newResponse() {
-        return new StatsAction.Response();
+    protected CcrStatsAction.Response newResponse() {
+        return new CcrStatsAction.Response();
     }
 
     @Override
-    protected void doExecute(Task task, StatsAction.Request request, ActionListener<StatsAction.Response> listener) {
+    protected void doExecute(Task task, CcrStatsAction.Request request, ActionListener<CcrStatsAction.Response> listener) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -84,20 +84,20 @@ public class TransportStatsAction extends TransportMasterNodeAction<StatsAction.
 
     @Override
     protected void masterOperation(
-            StatsAction.Request request,
+            CcrStatsAction.Request request,
             ClusterState state,
-            ActionListener<StatsAction.Response> listener
+            ActionListener<CcrStatsAction.Response> listener
     ) throws Exception {
         CheckedConsumer<FollowStatsAction.StatsResponses, Exception> handler = statsResponse -> {
             AutoFollowStats stats = autoFollowCoordinator.getStats();
-            listener.onResponse(new StatsAction.Response(stats, statsResponse));
+            listener.onResponse(new CcrStatsAction.Response(stats, statsResponse));
         };
         FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
         client.execute(FollowStatsAction.INSTANCE, statsRequest, ActionListener.wrap(handler, listener::onFailure));
     }
 
     @Override
-    protected ClusterBlockException checkBlock(StatsAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(CcrStatsAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

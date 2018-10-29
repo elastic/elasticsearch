@@ -22,9 +22,12 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,9 +43,13 @@ public class AuthenticateResponseTests extends ESTestCase {
                 this::toXContent,
                 AuthenticateResponse::fromXContent)
                 .supportsUnknownFields(false)
-                .randomFieldsExcludeFilter(field ->
-                        field.endsWith("status.current_position"))
                 .test();
+    }
+
+    public void testEqualsAndHashCode() {
+        final AuthenticateResponse reponse = createTestInstance();
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(reponse, this::copy,
+            this::mutate);
     }
 
     protected AuthenticateResponse createTestInstance() {
@@ -82,5 +89,39 @@ public class AuthenticateResponseTests extends ESTestCase {
         builder.field(AuthenticateResponse.ENABLED.getPreferredName(), enabled);
         builder.endObject();
     }
+
+    private AuthenticateResponse copy(AuthenticateResponse response) {
+        final User originalUser = response.getUser();
+        final User copyUser = new User(originalUser.username(), originalUser.roles(), originalUser.metadata(), originalUser.fullName(), originalUser.email());
+        return new AuthenticateResponse(copyUser, response.enabled());
+    }
     
+    private AuthenticateResponse mutate(AuthenticateResponse response) {
+        final User originalUser = response.getUser();
+        switch (randomIntBetween(1, 6)) {
+            case 1:
+            return new AuthenticateResponse(new User(originalUser.username() + "wrong", originalUser.roles(), originalUser.metadata(),
+                    originalUser.fullName(), originalUser.email()), response.enabled());
+            case 2:
+                final Collection<String> wrongRoles = new ArrayList<>(originalUser.roles());
+                wrongRoles.add(randomAlphaOfLengthBetween(1, 4));
+                return new AuthenticateResponse(new User(originalUser.username(), wrongRoles, originalUser.metadata(),
+                        originalUser.fullName(), originalUser.email()), response.enabled());
+            case 3:
+                final Map<String, Object> wrongMetadata = new HashMap<>(originalUser.metadata());
+                wrongMetadata.put("wrong_string", randomAlphaOfLengthBetween(0, 4));
+                return new AuthenticateResponse(new User(originalUser.username(), originalUser.roles(), wrongMetadata,
+                        originalUser.fullName(), originalUser.email()), response.enabled());
+            case 4:
+                return new AuthenticateResponse(new User(originalUser.username(), originalUser.roles(), originalUser.metadata(),
+                        originalUser.fullName() + "wrong", originalUser.email()), response.enabled());
+            case 5:
+                return new AuthenticateResponse(new User(originalUser.username(), originalUser.roles(), originalUser.metadata(),
+                        originalUser.fullName(), originalUser.email() + "wrong"), response.enabled());
+            case 6:
+                return new AuthenticateResponse(new User(originalUser.username(), originalUser.roles(), originalUser.metadata(),
+                        originalUser.fullName(), originalUser.email()), !response.enabled());
+        }
+        throw new IllegalStateException("Bad random number");
+    }
 }

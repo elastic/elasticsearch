@@ -425,7 +425,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::authenticate-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
-
         }
     }
 
@@ -567,8 +566,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::change-password-execute
             ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", newPassword, RefreshPolicy.NONE);
             EmptyResponse response = client.security().changePassword(request, RequestOptions.DEFAULT);
-
             //end::change-password-execute
+
             assertNotNull(response);
         }
         {

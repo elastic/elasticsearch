@@ -391,6 +391,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             //tag::authenticate-response
             User user = response.getUser(); // <1>
+            boolean enabled = response.enabled(); // <2>
             //end::authenticate-response
 
             assertThat(user.username(), is("test_user"));
@@ -398,7 +399,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(user.fullName(), nullValue());
             assertThat(user.email(), nullValue());
             assertThat(user.metadata().isEmpty(), is(true));
-            assertThat(response.enabled(), is(true));
+            assertThat(enabled, is(true));
         }
 
         {

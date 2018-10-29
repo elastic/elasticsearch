@@ -25,12 +25,12 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
-import java.lang.reflect.Executable;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -405,7 +405,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSuite testSuite = createTestSuite(doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertEquals("api/name: attempted to add a [do] with a [warnings] section without a corresponding " +
+        assertEquals("api/name:\nattempted to add a [do] with a [warnings] section without a corresponding " +
             "[\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] section can skip the test " +
             "at line [" + lineNumber + "]", e.getMessage());
     }
@@ -418,7 +418,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(apiCall);
         ClientYamlTestSuite testSuite = createTestSuite(doSection);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertEquals("api/name: attempted to add a [do] with a [node_selector] section without a corresponding"
+        assertEquals("api/name:\nattempted to add a [do] with a [node_selector] section without a corresponding"
             + " [\"skip\": \"features\": \"node_selector\"] so runners that do not support the [node_selector] section can skip the test at"
             + " line [" + lineNumber + "]", e.getMessage());
     }
@@ -431,9 +431,50 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             randomDouble());
         ClientYamlTestSuite testSuite = createTestSuite(containsAssertion);
         Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
-        assertEquals("api/name: attempted to add a [contains] assertion without a corresponding " +
+        assertEquals("api/name:\nattempted to add a [contains] assertion without a corresponding " +
             "[\"skip\": \"features\": \"contains\"] so runners that do not support the [contains] assertion " +
             "can skip the test at line [" + lineNumber + "]", e.getMessage());
+    }
+
+    public void testMultipleValidationErrors() {
+        int firstLineNumber = between(1, 10000);
+        List<ClientYamlTestSection> sections = new ArrayList<>();
+        {
+            ContainsAssertion containsAssertion = new ContainsAssertion(
+                new XContentLocation(firstLineNumber, 0),
+                randomAlphaOfLength(randomIntBetween(3, 30)),
+                randomDouble());
+            sections.add(new ClientYamlTestSection(
+                new XContentLocation(0, 0), "section1", SkipSection.EMPTY, Collections.singletonList(containsAssertion)));
+        }
+        int secondLineNumber = between(1, 10000);
+        int thirdLineNumber = between(1, 10000);
+        List<ExecutableSection> doSections = new ArrayList<>();
+        {
+            DoSection doSection = new DoSection(new XContentLocation(secondLineNumber, 0));
+            doSection.setExpectedWarningHeaders(singletonList("foo"));
+            doSection.setApiCallSection(new ApiCallSection("test"));
+            doSections.add(doSection);
+        }
+        {
+            DoSection doSection = new DoSection(new XContentLocation(thirdLineNumber, 0));
+            ApiCallSection apiCall = new ApiCallSection("test");
+            apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
+            doSection.setApiCallSection(apiCall);
+            doSections.add(doSection);
+        }
+        sections.add(new ClientYamlTestSection(new XContentLocation(0, 0), "section2", SkipSection.EMPTY, doSections));
+
+        ClientYamlTestSuite testSuite = new ClientYamlTestSuite("api", "name", SetupSection.EMPTY, TeardownSection.EMPTY, sections);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertEquals("api/name:\n" +
+            "attempted to add a [contains] assertion without a corresponding [\"skip\": \"features\": \"contains\"] so runners " +
+                "that do not support the [contains] assertion can skip the test at line [" + firstLineNumber + "],\n" +
+            "attempted to add a [do] with a [warnings] section without a corresponding [\"skip\": \"features\": \"warnings\"] so " +
+                "runners that do not support the [warnings] section can skip the test at line [" + secondLineNumber + "],\n" +
+            "attempted to add a [do] with a [node_selector] section without a corresponding [\"skip\": \"features\": \"node_selector\"] " +
+                "so runners that do not support the [node_selector] section can skip the test at line [" + thirdLineNumber + "]",
+            e.getMessage());
     }
 
     private static ClientYamlTestSuite createTestSuite(ExecutableSection executableSection) {

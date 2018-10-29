@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class TeardownSection {
     /**
@@ -67,7 +68,7 @@ public class TeardownSection {
     private final List<ExecutableSection> doSections;
 
     TeardownSection(SkipSection skipSection, List<ExecutableSection> doSections) {
-        this.skipSection = skipSection;
+        this.skipSection = Objects.requireNonNull(skipSection, "skip section cannot be null");
         this.doSections = Collections.unmodifiableList(doSections);
     }
 

@@ -35,8 +35,11 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Holds a REST test suite loaded from a specific yaml file.
@@ -113,8 +116,8 @@ public class ClientYamlTestSuite {
                         List<ClientYamlTestSection> testSections) {
         this.api = api;
         this.name = name;
-        this.setupSection = setupSection;
-        this.teardownSection = teardownSection;
+        this.setupSection = Objects.requireNonNull(setupSection, "setup section cannot be null");
+        this.teardownSection = Objects.requireNonNull(teardownSection, "teardown section cannot be null");
         this.testSections = Collections.unmodifiableList(testSections);
     }
 
@@ -139,39 +142,45 @@ public class ClientYamlTestSuite {
     }
 
     public void validate() {
-        validateExecutableSections(this, setupSection.getExecutableSections(), null, setupSection, null);
-        validateExecutableSections(this, teardownSection.getDoSections(), null, null, teardownSection);
+        Stream<String> errors = validateExecutableSections(setupSection.getExecutableSections(), null, setupSection, null);
+        errors = Stream.concat(errors, validateExecutableSections(teardownSection.getDoSections(), null, null, teardownSection));
         for (ClientYamlTestSection testSection : testSections) {
-            validateExecutableSections(this, testSection.getExecutableSections(), testSection, setupSection, teardownSection);
+            errors = Stream.concat(errors,
+                validateExecutableSections(testSection.getExecutableSections(), testSection, setupSection, teardownSection));
+        }
+        String errorMessage = errors.collect(Collectors.joining(",\n"));
+        if (errorMessage.isEmpty() == false) {
+            throw new IllegalArgumentException(getPath() + ":\n" + errorMessage);
         }
     }
 
-    private static void validateExecutableSections(ClientYamlTestSuite yamlTestSuite, List<ExecutableSection> sections,
+    private static Stream<String> validateExecutableSections(List<ExecutableSection> sections,
                                                    ClientYamlTestSection testSection,
                                                    SetupSection setupSection, TeardownSection teardownSection) {
-        for (ExecutableSection section : sections) {
-            if (section instanceof DoSection) {
-                DoSection doSection = (DoSection) section;
-                if (false == doSection.getExpectedWarningHeaders().isEmpty()
-                    && false == hasSkipFeature("warnings", testSection, setupSection, teardownSection)) {
-                    throw new IllegalArgumentException(yamlTestSuite.getPath() + ": attempted to add a [do] with a [warnings] section " +
-                        "without a corresponding [\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] " +
-                        "section can skip the test at line [" + doSection.getLocation().lineNumber + "]");
-                }
-                if (NodeSelector.ANY != doSection.getApiCallSection().getNodeSelector()
-                    && false == hasSkipFeature("node_selector", testSection, setupSection, teardownSection)) {
-                    throw new IllegalArgumentException(yamlTestSuite.getPath() + ": attempted to add a [do] with a [node_selector] " +
-                        "section without a corresponding [\"skip\": \"features\": \"node_selector\"] so runners that do not support the " +
-                        "[node_selector] section can skip the test at line [" + doSection.getLocation().lineNumber + "]");
-                }
-            }
-            if (section instanceof ContainsAssertion
-                && false == hasSkipFeature("contains", testSection, setupSection, teardownSection)) {
-                throw new IllegalArgumentException(yamlTestSuite.getPath() + ": attempted to add a [contains] assertion " +
-                    "without a corresponding [\"skip\": \"features\": \"contains\"] so runners that do not support the " +
-                    "[contains] assertion can skip the test at line [" + section.getLocation().lineNumber + "]");
-            }
-        }
+
+        Stream<String> errors = sections.stream().filter(section -> section instanceof DoSection)
+            .map(section -> (DoSection) section)
+            .filter(section -> false == section.getExpectedWarningHeaders().isEmpty()
+                && false == hasSkipFeature("warnings", testSection, setupSection, teardownSection))
+            .map(section -> "attempted to add a [do] with a [warnings] section " +
+                "without a corresponding [\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] " +
+                "section can skip the test at line [" + section.getLocation().lineNumber + "]");
+
+        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
+            .map(section -> (DoSection) section)
+            .filter(section -> NodeSelector.ANY != section.getApiCallSection().getNodeSelector()
+                && false == hasSkipFeature("node_selector", testSection, setupSection, teardownSection))
+            .map(section -> "attempted to add a [do] with a [node_selector] " +
+                "section without a corresponding [\"skip\": \"features\": \"node_selector\"] so runners that do not support the " +
+                "[node_selector] section can skip the test at line [" + section.getLocation().lineNumber + "]"));
+
+        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof ContainsAssertion
+            && false == hasSkipFeature("contains", testSection, setupSection, teardownSection))
+            .map(section -> "attempted to add a [contains] assertion " +
+                "without a corresponding [\"skip\": \"features\": \"contains\"] so runners that do not support the " +
+                "[contains] assertion can skip the test at line [" + section.getLocation().lineNumber + "]"));
+
+        return errors;
     }
 
     private static boolean hasSkipFeature(String feature, ClientYamlTestSection testSection,

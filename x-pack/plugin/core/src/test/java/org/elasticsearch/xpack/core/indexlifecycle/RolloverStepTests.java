@@ -309,4 +309,29 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             indexMetaData.getIndex().getName())));
     }
 
+    public void testPerformActionAliasDoesNotPointToIndex() {
+        String alias = randomAlphaOfLength(5);
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        RolloverStep step = createRandomInstance();
+
+        SetOnce<Exception> exceptionThrown = new SetOnce<>();
+        step.evaluateCondition(indexMetaData, new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean complete, ToXContentObject obj) {
+                throw new AssertionError("Unexpected method call");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exceptionThrown.set(e);
+            }
+        });
+        assertThat(exceptionThrown.get().getClass(), equalTo(IllegalArgumentException.class));
+        assertThat(exceptionThrown.get().getMessage(), equalTo(String.format(Locale.ROOT,
+            "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias,
+            indexMetaData.getIndex().getName())));
+
+    }
 }

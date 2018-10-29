@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -41,6 +42,13 @@ public class RolloverStep extends AsyncWaitStep {
         if (Strings.isNullOrEmpty(rolloverAlias)) {
             listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
                 "setting [%s] for index [%s] is empty or not defined", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
+                indexMetaData.getIndex().getName())));
+            return;
+        }
+
+        if (indexMetaData.getAliases().containsKey(rolloverAlias) == false) {
+            listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
+                "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
                 indexMetaData.getIndex().getName())));
             return;
         }

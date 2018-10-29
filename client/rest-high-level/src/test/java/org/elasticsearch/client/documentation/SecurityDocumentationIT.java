@@ -217,7 +217,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-role-mappings-list-execute
             final GetRoleMappingsRequest request = new GetRoleMappingsRequest("mapping-example-1", "mapping-example-2");
             final GetRoleMappingsResponse response = client.security().getRoleMappings(request, RequestOptions.DEFAULT);
-            // end::get-role-mappings-all-execute
+            // end::get-role-mappings-list-execute
             List<ExpressionRoleMapping> mappings = response.getMappings();
             assertNotNull(mappings);
             assertThat(mappings.size(), is(2));

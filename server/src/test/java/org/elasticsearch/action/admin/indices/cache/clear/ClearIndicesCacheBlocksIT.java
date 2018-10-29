@@ -45,7 +45,8 @@ public class ClearIndicesCacheBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin().indices().prepareClearCache("test").setFieldDataCache(true).setQueryCache(true).setFieldDataCache(true).execute().actionGet();
+                ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin().indices().prepareClearCache("test")
+                    .setFieldDataCache(true).setQueryCache(true).setFieldDataCache(true).execute().actionGet();
                 assertNoFailures(clearIndicesCacheResponse);
                 assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(numShards.totalNumShards));
             } finally {
@@ -56,7 +57,8 @@ public class ClearIndicesCacheBlocksIT extends ESIntegTestCase {
         for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA, SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("test", blockSetting);
-                assertBlocked(client().admin().indices().prepareClearCache("test").setFieldDataCache(true).setQueryCache(true).setFieldDataCache(true));
+                assertBlocked(client().admin().indices().prepareClearCache("test").setFieldDataCache(true).setQueryCache(true)
+                    .setFieldDataCache(true));
             } finally {
                 disableIndexBlock("test", blockSetting);
             }

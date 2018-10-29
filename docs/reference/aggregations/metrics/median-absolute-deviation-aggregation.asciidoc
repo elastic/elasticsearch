@@ -4,12 +4,14 @@
 This `single-value` aggregation approximates the https://en.wikipedia.org/wiki/Median_absolute_deviation[median absolute deviation]
 of its search results.
 
-Median absolute deviation is a measure of variability that is useful for
-describing data that may or may not be normally distributed. For data that is
-not normally distributed, it can be more descriptive than standard deviation. It
-is calculated as the median of each data point's deviation from the sample
-median. That is, for a random variable X, the median absolute deviation is
-median(|median(X) - X~i~|).
+Median absolute deviation is a measure of variability. It is a robust
+statistic, meaning that it is useful for describing data that may have
+outliers, or may not be normally distributed. For such data it can be more
+descriptive than standard deviation.
+
+It is calculated as the median of each data point's deviation from the median
+of the entire sample. That is, for a random variable X, the median absolute
+deviation is median(|median(X) - X~i~|).
 
 ==== Example
 
@@ -100,7 +102,8 @@ GET reviews/_search
 // CONSOLE
 // TEST[setup:reviews]
 
-The default `compression` value for this aggregation is `1000`.
+The default `compression` value for this aggregation is `1000`. At this
+compression level this aggregation is usually within 5% of the exact result.
 
 ==== Script
 

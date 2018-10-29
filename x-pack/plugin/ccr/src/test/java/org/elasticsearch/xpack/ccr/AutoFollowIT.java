@@ -254,8 +254,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     private void deleteAutoFollowPatternSetting() {
-        DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request();
-        request.setName("my-pattern");
+        DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request("my-pattern");
         assertTrue(followerClient().execute(DeleteAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 

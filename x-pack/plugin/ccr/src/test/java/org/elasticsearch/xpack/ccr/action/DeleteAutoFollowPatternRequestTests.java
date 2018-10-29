@@ -18,8 +18,6 @@ public class DeleteAutoFollowPatternRequestTests extends AbstractWireSerializing
 
     @Override
     protected DeleteAutoFollowPatternAction.Request createTestInstance() {
-        DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request();
-        request.setName(randomAlphaOfLength(4));
-        return request;
+        return new DeleteAutoFollowPatternAction.Request(randomAlphaOfLength(4));
     }
 }

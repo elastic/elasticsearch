@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -40,7 +39,6 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -184,19 +182,38 @@ public class SynonymsAnalysisTests extends ESTestCase {
             new int[]{ 1, 0, 0 });
     }
 
+    public void testShingleFilters() {
+
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0_alpha1, Version.CURRENT))
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.synonyms.type", "synonym")
+            .putList("index.analysis.filter.synonyms.synonyms", "programmer, developer")
+            .put("index.analysis.filter.my_shingle.type", "shingle")
+            .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.my_analyzer.filter", "my_shingle", "synonyms")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+
+        expectThrows(IllegalArgumentException.class, () -> {
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+        });
+
+    }
+
     public void testTokenFiltersBypassSynonymAnalysis() throws IOException {
 
         Settings settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put("path.home", createTempDir().toString())
-            .putList("common_words", "a", "b")
             .putList("word_list", "a")
             .put("hyphenation_patterns_path", "foo")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
         String[] bypassingFactories = new String[]{
-            "common_grams", "dictionary_decompounder"
+            "dictionary_decompounder"
         };
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
@@ -219,12 +236,15 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_7_0_0_alpha1, Version.CURRENT))
             .put("path.home", createTempDir().toString())
+            .putList("common_words", "a", "b")
+            .put("outputUnigrams", "true")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
 
         String[] disallowedFactories = new String[]{
-            "multiplexer", "ngram", "edge_ngram", "word_delimiter", "word_delimiter_graph", "fingerprint"
+            "multiplexer", "cjk_bigram", "common_grams", "ngram", "edge_ngram",
+            "word_delimiter", "word_delimiter_graph", "fingerprint"
         };
 
         for (String factory : disallowedFactories) {
@@ -246,6 +266,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
                 VersionUtils.randomVersionBetween(random(), Version.V_7_0_0_alpha1, Version.CURRENT))
             .put("path.home", createTempDir().toString())
             .put("lenient", "true")
+            .putList("common_words", "a", "b")
+            .put("outputUnigrams", "true")
             .build();
         idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
@@ -260,6 +282,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1)))
             .put("path.home", createTempDir().toString())
+            .putList("common_words", "a", "b")
+            .put("outputUnigrams", "true")
             .build();
         idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
@@ -280,6 +304,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED,
                 VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1)))
             .put("path.home", createTempDir().toString())
+            .putList("common_words", "a", "b")
+            .put("outputUnigrams", "true")
             .put("lenient", "true")
             .build();
         idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

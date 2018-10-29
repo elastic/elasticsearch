@@ -51,7 +51,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     /**
      * Standard deprecation logger for used to deprecate allowance of empty templates.
      */
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(ScriptMetaData.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptMetaData.class));
 
     /**
      * A builder used to modify the currently stored scripts data held within
@@ -219,9 +219,9 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
 
                         if (source.getSource().isEmpty()) {
                             if (source.getLang().equals(Script.DEFAULT_TEMPLATE_LANG)) {
-                                DEPRECATION_LOGGER.deprecated("empty templates should no longer be used");
+                                deprecationLogger.deprecated("empty templates should no longer be used");
                             } else {
-                                DEPRECATION_LOGGER.deprecated("empty scripts should no longer be used");
+                                deprecationLogger.deprecated("empty scripts should no longer be used");
                             }
                         }
                     }

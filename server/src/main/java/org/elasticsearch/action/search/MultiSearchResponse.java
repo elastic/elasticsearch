@@ -135,6 +135,10 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     MultiSearchResponse() {
     }
 
+    MultiSearchResponse(StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     public MultiSearchResponse(Item[] items, long tookInMillis) {
         this.items = items;
         this.tookInMillis = tookInMillis;

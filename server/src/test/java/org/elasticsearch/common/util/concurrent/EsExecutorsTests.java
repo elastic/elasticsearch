@@ -172,7 +172,8 @@ public class EsExecutorsTests extends ESTestCase {
         final ThreadBarrier barrier = new ThreadBarrier(max + 1);
 
         ThreadPoolExecutor pool =
-                EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), randomTimeUnit(), EsExecutors.daemonThreadFactory("test"), threadContext);
+                EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), randomTimeUnit(),
+                    EsExecutors.daemonThreadFactory("test"), threadContext);
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 
@@ -209,7 +210,8 @@ public class EsExecutorsTests extends ESTestCase {
         final ThreadBarrier barrier = new ThreadBarrier(max + 1);
 
         final ThreadPoolExecutor pool =
-                EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), TimeUnit.MILLISECONDS, EsExecutors.daemonThreadFactory("test"), threadContext);
+                EsExecutors.newScaling(getClass().getName() + "/" + getTestName(), min, max, between(1, 100), TimeUnit.MILLISECONDS,
+                    EsExecutors.daemonThreadFactory("test"), threadContext);
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
         assertThat("Max property", pool.getMaximumPoolSize(), equalTo(max));
 

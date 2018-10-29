@@ -41,7 +41,7 @@ public class DateUtils {
         return DateTimeZone.forID(zoneId.getId());
     }
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(DateFormatters.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DateFormatters.class));
     // pkg private for tests
     static final Map<String, String> DEPRECATED_SHORT_TIMEZONES;
     static {
@@ -61,7 +61,7 @@ public class DateUtils {
 
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(timeZone.getID());
         if (deprecatedId != null) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("timezone",
+            deprecationLogger.deprecatedAndMaybeLog("timezone",
                 "Use of short timezone id " + timeZone.getID() + " is deprecated. Use " + deprecatedId + " instead");
             return ZoneId.of(deprecatedId);
         }

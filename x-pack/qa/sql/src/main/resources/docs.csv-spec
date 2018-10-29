@@ -645,7 +645,7 @@ groupByImplicitMultipleAggs
 // tag::groupByImplicitMultipleAggs
 SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, COUNT(*) AS count FROM emp;
 
-      min      |      max      |      avg      |     count     
+      min:i    |      max:i    |      avg:d    |     count:l     
 ---------------+---------------+---------------+---------------
 25324          |74999          |48248          |100  
 
@@ -765,7 +765,7 @@ aggAvg
 // tag::aggAvg
 SELECT AVG(salary) AS avg FROM emp;
 
-      avg      
+      avg:d      
 ---------------
 48248          
 // end::aggAvg

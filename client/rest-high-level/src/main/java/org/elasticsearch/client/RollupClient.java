@@ -22,16 +22,16 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
 import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
-import org.elasticsearch.client.rollup.GetRollupJobRequest;
-import org.elasticsearch.client.rollup.GetRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupCapsRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsResponse;
+import org.elasticsearch.client.rollup.GetRollupJobRequest;
+import org.elasticsearch.client.rollup.GetRollupJobResponse;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
-import org.elasticsearch.client.rollup.StopRollupJobRequest;
-import org.elasticsearch.client.rollup.StopRollupJobResponse;
 import org.elasticsearch.client.rollup.StartRollupJobRequest;
 import org.elasticsearch.client.rollup.StartRollupJobResponse;
+import org.elasticsearch.client.rollup.StopRollupJobRequest;
+import org.elasticsearch.client.rollup.StopRollupJobResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -102,19 +102,20 @@ public class RollupClient {
     }
 
     /**
-     * Asynchronously start a rollup job See <a href=
-     * "https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-start-job.html">
+     * Asynchronously start a rollup job
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/rollup-start-job.html">
      * the docs</a> for more.
-     *
      * @param request the request
-     * @param options the request options (e.g. headers), use
-     * {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
     public void startRollupJobAsync(StartRollupJobRequest request, RequestOptions options,
             ActionListener<StartRollupJobResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, RollupRequestConverters::startJob, options,
-                StartRollupJobResponse::fromXContent, listener, Collections.emptySet());
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+                RollupRequestConverters::startJob,
+                options,
+                StartRollupJobResponse::fromXContent,
+                listener, Collections.emptySet());
     }
 
     /**

@@ -21,7 +21,7 @@ public class RestPutLifecycleAction extends BaseRestHandler {
 
     public RestPutLifecycleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/_ilm/{name}", this);
+        controller.registerHandler(RestRequest.Method.PUT, "/_ilm/policy/{name}", this);
     }
 
     @Override

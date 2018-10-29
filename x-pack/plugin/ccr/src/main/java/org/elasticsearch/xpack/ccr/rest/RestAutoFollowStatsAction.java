@@ -12,7 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.StatsAction;
 
 import java.io.IOException;
 
@@ -20,7 +20,7 @@ public class RestAutoFollowStatsAction extends BaseRestHandler {
 
     public RestAutoFollowStatsAction(final Settings settings, final RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_ccr/auto_follow/stats", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_ccr/stats", this);
     }
 
     @Override
@@ -30,8 +30,8 @@ public class RestAutoFollowStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) throws IOException {
-        final AutoFollowStatsAction.Request request = new AutoFollowStatsAction.Request();
-        return channel -> client.execute(AutoFollowStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        final StatsAction.Request request = new StatsAction.Request();
+        return channel -> client.execute(StatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
 }

@@ -20,10 +20,10 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.util.json.Jackson;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +52,7 @@ import java.util.function.Supplier;
 
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
 
-    private static Logger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);
+    private static Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
     public static final String EC2 = "ec2";
 
     static {

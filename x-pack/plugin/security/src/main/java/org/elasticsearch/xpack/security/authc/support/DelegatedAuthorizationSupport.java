@@ -6,10 +6,10 @@
 
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
@@ -60,7 +60,7 @@ public class DelegatedAuthorizationSupport {
         final List<Realm> resolvedLookupRealms = resolveRealms(allRealms, lookupRealms);
         checkForRealmChains(resolvedLookupRealms, settings);
         this.lookup = new RealmUserLookup(resolvedLookupRealms, threadContext);
-        this.logger = Loggers.getLogger(getClass());
+        this.logger = LogManager.getLogger(getClass());
         this.licenseState = licenseState;
     }
 

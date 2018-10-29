@@ -16,26 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.client.Validatable;
+package org.elasticsearch.client.migration;
 
-import java.util.Objects;
+import org.elasticsearch.test.ESTestCase;
 
-public class DeactivateWatchRequest implements Validatable {
-    private final String watchId;
-
-    public DeactivateWatchRequest(String watchId) {
-        Objects.requireNonNull(watchId, "watch id is missing");
-        if (PutWatchRequest.isValidId(watchId) == false) {
-            throw new IllegalArgumentException("watch id contains whitespace");
-        }
-
-        this.watchId = watchId;
-    }
-
-    public String getWatchId() {
-        return watchId;
-    }
+public class IndexUpgradeInfoResponseTests extends ESTestCase {
+    // TODO: add to cross XPack-HLRC serialization test
 }
-

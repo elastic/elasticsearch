@@ -3,7 +3,7 @@
   - do:
       ilm.get_lifecycle:
         policy: "my_lifecycle"
-  - match: { my_lifecycle.policy.phases.warm.minimum_age: "1000d" }
+  - match: { my_lifecycle.policy.phases.warm.min_age: "1000d" }
 
   - do:
       ilm.explain_lifecycle:

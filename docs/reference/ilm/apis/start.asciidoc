@@ -45,7 +45,7 @@ PUT _ilm/my_policy
   "policy": {
     "phases": {
       "warm": {
-        "minimum_age": "10d",
+        "min_age": "10d",
         "actions": {
           "forcemerge": {
             "max_num_segments": 1
@@ -53,7 +53,7 @@ PUT _ilm/my_policy
         }
       },
       "delete": {
-        "minimum_age": "30d",
+        "min_age": "30d",
         "actions": {
           "delete": {}
         }

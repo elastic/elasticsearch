@@ -28,6 +28,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.JsonFieldMapper.RootJsonFieldType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -344,9 +345,9 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         indexService.mapperService().merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         MappedFieldType fieldType = indexService.mapperService().fullName("field");
-        assertThat(fieldType, instanceOf(JsonFieldMapper.JsonFieldType.class));
+        assertThat(fieldType, instanceOf(RootJsonFieldType.class));
 
-        JsonFieldMapper.JsonFieldType ft = (JsonFieldMapper.JsonFieldType) fieldType;
+        RootJsonFieldType ft = (RootJsonFieldType) fieldType;
         assertThat(ft.searchAnalyzer(), equalTo(JsonFieldMapper.WHITESPACE_ANALYZER));
         assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"Hello", "World"});
     }

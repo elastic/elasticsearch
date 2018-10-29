@@ -36,19 +36,20 @@ import java.util.List;
 public class JsonFieldParser {
     private static final String SEPARATOR = "\0";
 
-    private final MappedFieldType fieldType;
-    private final int ignoreAbove;
-
     private final String rootFieldName;
     private final String keyedFieldName;
 
-    JsonFieldParser(MappedFieldType fieldType,
+    private final MappedFieldType fieldType;
+    private final int ignoreAbove;
+
+    JsonFieldParser(String rootFieldName,
+                    String keyedFieldName,
+                    MappedFieldType fieldType,
                     int ignoreAbove) {
+        this.rootFieldName = rootFieldName;
+        this.keyedFieldName = keyedFieldName;
         this.fieldType = fieldType;
         this.ignoreAbove = ignoreAbove;
-
-        this.rootFieldName = fieldType.name();
-        this.keyedFieldName = fieldType.name() + JsonFieldMapper.KEYED_FIELD_SUFFIX;
     }
 
     public List<IndexableField> parse(XContentParser parser) throws IOException {
@@ -140,7 +141,7 @@ public class JsonFieldParser {
         fields.add(new Field(keyedFieldName, new BytesRef(keyedValue), fieldType));
     }
 
-    private static String createKeyedValue(String key, String value) {
+    public static String createKeyedValue(String key, String value) {
         return key + SEPARATOR + value;
     }
 }

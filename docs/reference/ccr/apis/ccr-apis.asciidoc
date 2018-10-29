@@ -22,7 +22,6 @@ You can use the following APIs to perform {ccr} operations.
 * <<ccr-put-auto-follow-pattern,Create auto-follow pattern>>
 * <<ccr-delete-auto-follow-pattern,Delete auto-follow pattern>>
 * <<ccr-get-auto-follow-pattern,Get auto-follow patterns>>
-* <<ccr-get-auto-follow-stats,Get stats about auto-follow patterns>>
 
 // follow
 include::follow/put-follow.asciidoc[]
@@ -35,4 +34,3 @@ include::follow/get-follow-stats.asciidoc[]
 include::auto-follow/put-auto-follow-pattern.asciidoc[]
 include::auto-follow/delete-auto-follow-pattern.asciidoc[]
 include::auto-follow/get-auto-follow-pattern.asciidoc[]
-include::auto-follow/get-auto-follow-stats.asciidoc[]

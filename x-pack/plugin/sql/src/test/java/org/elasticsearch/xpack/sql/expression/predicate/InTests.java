@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
 public class InTests extends ESTestCase {
@@ -17,7 +18,6 @@ public class InTests extends ESTestCase {
     private static final Literal ONE = L(1);
     private static final Literal TWO = L(2);
     private static final Literal THREE = L(3);
-    private static final Literal NULL = L(null);
 
     public void testInWithContainedValue() {
         In in = new In(EMPTY, TWO, Arrays.asList(ONE, TWO, THREE));

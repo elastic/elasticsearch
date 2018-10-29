@@ -26,8 +26,9 @@ public class RestStopRollupJobAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String id = restRequest.param(RollupField.ID.getPreferredName());
-        TimeValue waitForStopped = restRequest.paramAsTime(StopRollupJobAction.WAIT_FOR_STOPPED.getPreferredName(), null);
-        StopRollupJobAction.Request request = new StopRollupJobAction.Request(id, waitForStopped);
+        TimeValue timeout = restRequest.paramAsTime(StopRollupJobAction.TIMEOUT.getPreferredName(), StopRollupJobAction.DEFAULT_TIMEOUT);
+        boolean waitForCompletion = restRequest.paramAsBoolean(StopRollupJobAction.WAIT_FOR_COMPLETION.getPreferredName(), false);
+        StopRollupJobAction.Request request = new StopRollupJobAction.Request(id, waitForCompletion, timeout);
 
         return channel -> client.execute(StopRollupJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

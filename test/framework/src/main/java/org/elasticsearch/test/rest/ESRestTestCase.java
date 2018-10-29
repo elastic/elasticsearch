@@ -464,7 +464,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
             Request request = new Request("POST", "/_xpack/rollup/job/" + jobId + "/_stop");
             request.addParameter("ignore", "404");
-            request.addParameter("wait_for_stopped", "10s");
+            request.addParameter("wait_for_completion", "true");
+            request.addParameter("timeout", "10s");
             logger.debug("stopping rollup job [{}]", jobId);
             adminClient().performRequest(request);
         }

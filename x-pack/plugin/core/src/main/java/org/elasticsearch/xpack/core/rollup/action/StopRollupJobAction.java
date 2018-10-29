@@ -27,12 +27,15 @@ import org.elasticsearch.xpack.core.rollup.RollupField;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
 
     public static final StopRollupJobAction INSTANCE = new StopRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/stop";
-    public static final ParseField WAIT_FOR_STOPPED = new ParseField("wait_for_stopped");
+    public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
+    public static final ParseField TIMEOUT = new ParseField("timeout");
+    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopRollupJobAction() {
         super(NAME);
@@ -45,15 +48,17 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContent {
         private String id;
-        private TimeValue waitForStopped = null;
+        private boolean waitForCompletion = false;
+        private TimeValue timeout = null;
 
         public Request (String id) {
-            this(id, null);
+            this(id, false, null);
         }
 
-        public Request(String id, @Nullable TimeValue waitForStopped) {
+        public Request(String id, boolean waitForCompletion, @Nullable TimeValue timeout) {
             this.id = ExceptionsHelper.requireNonNull(id, RollupField.ID.getPreferredName());
-            this.waitForStopped = waitForStopped;
+            this.timeout = timeout == null ? DEFAULT_TIMEOUT : timeout;
+            this.waitForCompletion = waitForCompletion;
         }
 
         public Request() {}
@@ -62,9 +67,12 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
             return id;
         }
 
-        @Nullable
-        public TimeValue waitForStopped() {
-            return waitForStopped;
+        public TimeValue timeout() {
+            return timeout;
+        }
+
+        public boolean waitForCompletion() {
+            return waitForCompletion;
         }
 
         @Override
@@ -73,7 +81,8 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
             id = in.readString();
             // TODO change this after backport
             if (in.getVersion().onOrAfter(Version.CURRENT)) {
-                waitForStopped = in.readTimeValue();
+                waitForCompletion = in.readBoolean();
+                timeout = in.readTimeValue();
             }
         }
 
@@ -83,7 +92,8 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
             out.writeString(id);
             // TODO change this after backport
             if (out.getVersion().onOrAfter(Version.CURRENT)) {
-                out.writeTimeValue(waitForStopped);
+                out.writeBoolean(waitForCompletion);
+                out.writeTimeValue(timeout);
             }
         }
 
@@ -95,15 +105,16 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RollupField.ID.getPreferredName(), id);
-            if (waitForStopped != null) {
-                builder.field(WAIT_FOR_STOPPED.getPreferredName(), waitForStopped);
+            builder.field(WAIT_FOR_COMPLETION.getPreferredName(), waitForCompletion);
+            if (timeout != null) {
+                builder.field(TIMEOUT.getPreferredName(), timeout);
             }
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, waitForStopped);
+            return Objects.hash(id, waitForCompletion, timeout);
         }
 
         @Override
@@ -116,7 +127,8 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
             }
             Request other = (Request) obj;
             return Objects.equals(id, other.id)
-                && Objects.equals(waitForStopped, other.waitForStopped);
+                && Objects.equals(waitForCompletion, other.waitForCompletion)
+                && Objects.equals(timeout, other.timeout);
         }
     }
 

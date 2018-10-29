@@ -13,10 +13,15 @@
         }
       },
       "params": {
-        "wait_for_stopped": {
+        "wait_for_completion": {
+          "type": "boolean",
+          "required": false,
+          "description": "True if the API should block until the job has fully stopped, false if should be executed async. Defaults to false."
+        },
+        "timeout": {
           "type": "time",
           "required": false,
-          "description": "If set, the API will block for (at maximum) the specified duration while waiting for the job to stop. If unset, returns immediately."
+          "description": "Block for (at maximum) the specified duration while waiting for the job to stop.  Defaults to 30s."
         }
       }
     }

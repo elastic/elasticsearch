@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction.Response;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
@@ -31,14 +32,13 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 public class TransportStopRollupAction extends TransportTasksAction<RollupJobTask, StopRollupJobAction.Request,
-        StopRollupJobAction.Response, StopRollupJobAction.Response> {
-
+        Response, Response> {
 
     @Inject
     public TransportStopRollupAction(Settings settings, TransportService transportService,
                            ActionFilters actionFilters, ClusterService clusterService) {
         super(settings, StopRollupJobAction.NAME, clusterService, transportService, actionFilters,
-            StopRollupJobAction.Request::new, StopRollupJobAction.Response::new, ThreadPool.Names.SAME);
+            StopRollupJobAction.Request::new, Response::new, ThreadPool.Names.SAME);
     }
 
     @Override
@@ -47,39 +47,50 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
     }
 
     @Override
-    protected void doExecute(Task task, StopRollupJobAction.Request request, ActionListener<StopRollupJobAction.Response> listener) {
+    protected void doExecute(Task task, StopRollupJobAction.Request request, ActionListener<Response> listener) {
         super.doExecute(task, request, listener);
     }
 
     @Override
-    protected void taskOperation(StopRollupJobAction.Request request,
-                                 RollupJobTask jobTask,
-                                 ActionListener<StopRollupJobAction.Response> listener) {
+    protected void taskOperation(StopRollupJobAction.Request request, RollupJobTask jobTask, ActionListener<Response> listener) {
         if (jobTask.getConfig().getId().equals(request.getId())) {
-            jobTask.stop(listener);
-            waitForStopped(request, jobTask, listener);
+            jobTask.stop(maybeWrapWithBlocking(request, jobTask, listener));
         } else {
             listener.onFailure(new RuntimeException("ID of rollup task [" + jobTask.getConfig().getId()
                     + "] does not match request's ID [" + request.getId() + "]"));
         }
     }
 
-    private static void waitForStopped(StopRollupJobAction.Request request,
-                                       RollupJobTask jobTask,
-                                       ActionListener<StopRollupJobAction.Response> listener) {
-        if (request.waitForStopped() != null) {
-            try {
-                boolean stopped = awaitBusy(() -> ((RollupJobStatus) jobTask.getStatus()).getIndexerState().equals(IndexerState.STOPPED),
-                    request.waitForStopped());
+    private static ActionListener<Response> maybeWrapWithBlocking(StopRollupJobAction.Request request,
+                                                                  RollupJobTask jobTask,
+                                                                  ActionListener<Response> listener) {
+        if (request.waitForCompletion()) {
+            return ActionListener.wrap(response -> {
+                if (response.isStopped()) {
+                    // The Task acknowledged that it is stopped/stopping... wait until the status actually
+                    // changes over before returning
+                    try {
+                        boolean stopped = awaitBusy(() -> ((RollupJobStatus) jobTask.getStatus())
+                            .getIndexerState().equals(IndexerState.STOPPED), request.timeout());
 
-                if (stopped == false) {
-                    listener.onFailure(new ElasticsearchTimeoutException("Timed out after [" + request.waitForStopped().getStringRep()
-                        + "] while waiting for rollup job [" + request.getId() + "] to stop"));
+                        if (stopped) {
+                            // We have successfully confirmed a stop, send back the response
+                            listener.onResponse(response);
+                        } else {
+                            listener.onFailure(new ElasticsearchTimeoutException("Timed out after [" + request.timeout().getStringRep()
+                                + "] while waiting for rollup job [" + request.getId() + "] to stop"));
+                        }
+                    } catch (InterruptedException e) {
+                        listener.onFailure(e);
+                    }
+                } else {
+                    // Did not acknowledge stop, just return the response
+                    listener.onResponse(response);
                 }
-            } catch (InterruptedException e) {
-                listener.onFailure(e);
-            }
+            }, listener::onFailure);
         }
+        // No request to block, execute async
+        return listener;
     }
 
     /**
@@ -104,7 +115,7 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
     }
 
     @Override
-    protected StopRollupJobAction.Response newResponse(StopRollupJobAction.Request request, List<StopRollupJobAction.Response> tasks,
+    protected Response newResponse(StopRollupJobAction.Request request, List<Response> tasks,
                                                        List<TaskOperationFailure> taskOperationFailures,
                                                        List<FailedNodeException> failedNodeExceptions) {
 
@@ -124,13 +135,13 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
 
         assert tasks.size() == 1;
 
-        boolean allStopped = tasks.stream().allMatch(StopRollupJobAction.Response::isStopped);
-        return new StopRollupJobAction.Response(allStopped);
+        boolean allStopped = tasks.stream().allMatch(Response::isStopped);
+        return new Response(allStopped);
     }
 
     @Override
-    protected StopRollupJobAction.Response readTaskResponse(StreamInput in) throws IOException {
-        return new StopRollupJobAction.Response(in);
+    protected Response readTaskResponse(StreamInput in) throws IOException {
+        return new Response(in);
     }
 
 }

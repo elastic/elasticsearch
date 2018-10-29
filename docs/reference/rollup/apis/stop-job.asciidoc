@@ -24,12 +24,16 @@ Stopping an already stopped job has no action.
 
 ==== Query Parameters
 
-`wait_for_stopped` (optional)::
-  (TimeValue) If unset (the default), the API will return immediately.  If set, the API will block for (at maximum)
-  the specified duration while waiting for the job to stop. If more than `wait_for_stopped` time has passed, the API
+`wait_for_completion` (optional)::
+  (boolean) if set to true, causes the API to block until the indexer state completely stops.  If set to false, the
+  API returns immediately and the indexer will be stopped asynchronously in the background.  Defaults to `false`.
+
+`timeout` (optional)::
+  (TimeValue) if `wait_for_completion=true`, the API will block for (at maximum)
+  the specified duration while waiting for the job to stop. If more than `timeout` time has passed, the API
   will throw a timeout exception.  Note: even if a timeout exception is thrown, the stop request is still processing and
   will eventually move the job to `STOPPED`.  The timeout simply means the API call itself timed out while waiting
-  for the status change.
+  for the status change.  Defaults to `30s`
 
 ==== Request Body
 
@@ -97,15 +101,17 @@ A 404 `resource_not_found` exception will be thrown:
 ===== Waiting for the job to stop
 
 Since only a stopped job can be deleted, it can be useful to block the StopJob API until the indexer has fully
-stopped.  This is accomplished with the `wait_for_stopped` query parameter:
+stopped.  This is accomplished with the `wait_for_completion` query parameter, and optionally a `timeout`:
 
 
 [source,js]
 --------------------------------------------------
-POST _xpack/rollup/job/sensor/_stop?wait_for_stopped=10s
+POST _xpack/rollup/job/sensor/_stop?wait_for_completion=true&timeout=10s
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:sensor_started_rollup_job]
 
 The parameter will block the API call from returning until either the job has moved to `STOPPED`, or the specified
 time has elapsed.  If the specified time elapses without the job moving to `STOPPED`, a timeout exception will be thrown.
+
+If `wait_for_completion=true` is specified without a `timeout`, a default timeout of 30 seconds is used.

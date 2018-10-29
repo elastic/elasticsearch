@@ -586,7 +586,7 @@ processor should be executed or skipped. The value of the `if` is a
 to `true` or `false`.
 
 For example the following processor will <<drop-processor,drop>> the document
-(e.g. not index it) if the input document has a field named `network_name`
+(i.e. not index it) if the input document has a field named `network_name`
 and it is equal to `Guest`.
 
 [source,js]
@@ -646,7 +646,7 @@ if the source document does not have top level `a` object, or a second
 level `b` object.
 
 To help protect against NullPointerExceptions, null safe operations should be used.
-Fortunately Painless makes {painless}/painless-operators-reference.html#null-safe-operator[null safe]
+Fortunately, Painless makes {painless}/painless-operators-reference.html#null-safe-operator[null safe]
 operations easy with the `?.` operator.
 
 [source,js]
@@ -852,10 +852,9 @@ The full power of the <<modules-scripting-painless, Painless Scripting Language>
 running in the {painless}/painless-ingest-processor-context.html#null-safe-operator[ingest processor context]
 can be used to determine if the condition should evaluate to `true` or `false`.
 
-IMPORTANT: Values in an `if` condition are read-only and may not change any
-values of `ctx`.
+IMPORTANT: The value of ctx is read-only in `if` conditions. Trying to mutate it will throw and Exception.
 
-A more complex `if` condition that drops the document (e.g. not index it)
+A more complex `if` condition that drops the document (i.e. not index it)
 unless it has a multi-valued tag field with at least one value that contains the characters
 `prod` (case insensitive).
 
@@ -940,7 +939,7 @@ GET test/_doc/1
 // TESTRESPONSE
 ////
 
-The following document is indexed (e.g. not dropped) since
+The following document is indexed (i.e. not dropped) since
 `prod` (case insensitive) is found in the tags.
 
 [source,js]

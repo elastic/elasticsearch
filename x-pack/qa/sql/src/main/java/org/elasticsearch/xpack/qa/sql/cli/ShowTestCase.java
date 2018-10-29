@@ -40,9 +40,7 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
             line = readLine();
         }
 
-        assertThat(line, RegexMatcher.matches("\\s*CAST\\s*\\|\\s*DATA_TYPE_CONVERSION\\s*"));
-        assertThat(readLine(), RegexMatcher.matches("\\s*CONVERT\\s*\\|\\s*DATA_TYPE_CONVERSION\\s*"));
-        assertThat(readLine(), RegexMatcher.matches("\\s*SCORE\\s*\\|\\s*SCORE\\s*"));
+        assertThat(line, RegexMatcher.matches("\\s*SCORE\\s*\\|\\s*SCORE\\s*"));
         assertEquals("", readLine());
     }
 

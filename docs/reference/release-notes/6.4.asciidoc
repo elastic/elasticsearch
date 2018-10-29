@@ -41,11 +41,12 @@ coming[6.4.3]
 
 Also see <<breaking-changes-6.4>>.
 
+[float]
 [[enhancement-6.4.3]]
 === Enhancements
 
 Machine learning::
-* Changes linker options on macOS to allow Homebrew installs. ({ml-pull}225[225])
+* Changes linker options on macOS to allow Homebrew installs. ({ml-pull}225[#225])
 
 [[bug-6.4.3]]
 [float]
@@ -64,10 +65,10 @@ Java High Level REST Client::
 
 Machine learning::
 * Fixes the cause of hard_limit memory errors for jobs with bucket spans greater 
-than one day. ({ml-pull}243[243])
+than one day. ({ml-pull}243[#243])
 * Rules that trigger the `skip_model_update` action should also apply to the 
 anomaly model. This fixes an issue where anomaly scores of results that triggered 
-the rule would decrease if they occurred frequently. ({ml-pull}222[222])
+the rule would decrease if they occurred frequently. {ml-pull}222[#222] (issue:{ml-issue}217[#217])
 
 Network::
 *  Support PKCS#11 tokens as keystores and truststores  {pull}34063[#34063] (issue: {issue}11[#11])

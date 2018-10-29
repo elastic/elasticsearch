@@ -31,6 +31,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SuppressForbidden;
@@ -141,9 +142,9 @@ public class SamlMetadataCommand extends EnvironmentAwareCommand {
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         // OpenSAML prints a lot of _stuff_ at info level, that really isn't needed in a command line tool.
-        Loggers.setLevel(Loggers.getLogger("org.opensaml"), Level.WARN);
+        Loggers.setLevel(LogManager.getLogger("org.opensaml"), Level.WARN);
 
-        final Logger logger = Loggers.getLogger(getClass());
+        final Logger logger = LogManager.getLogger(getClass());
         SamlUtils.initialize(logger);
 
         final EntityDescriptor descriptor = buildEntityDescriptor(terminal, options, env);

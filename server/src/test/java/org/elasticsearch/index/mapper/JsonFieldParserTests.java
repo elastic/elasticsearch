@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.JsonFieldMapper.JsonFieldType;
+import org.elasticsearch.index.mapper.JsonFieldMapper.RootJsonFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.junit.Before;
@@ -42,9 +42,9 @@ public class JsonFieldParserTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        MappedFieldType fieldType = new JsonFieldType();
+        MappedFieldType fieldType = new RootJsonFieldType();
         fieldType.setName("field");
-        parser = new JsonFieldParser(fieldType, Integer.MAX_VALUE);
+        parser = new JsonFieldParser("field", "field._keyed", fieldType, Integer.MAX_VALUE);
     }
 
     public void testTextValues() throws Exception {
@@ -220,9 +220,9 @@ public class JsonFieldParserTests extends ESTestCase {
         String input = "{ \"key\": \"a longer field than usual\" }";
         XContentParser xContentParser = createXContentParser(input);
 
-        JsonFieldType fieldType = new JsonFieldType();
+        RootJsonFieldType fieldType = new RootJsonFieldType();
         fieldType.setName("field");
-        JsonFieldParser ignoreAboveParser = new JsonFieldParser(fieldType, 10);
+        JsonFieldParser ignoreAboveParser = new JsonFieldParser("field", "field._keyed", fieldType, 10);
 
         List<IndexableField> fields = ignoreAboveParser.parse(xContentParser);
         assertEquals(0, fields.size());
@@ -237,10 +237,10 @@ public class JsonFieldParserTests extends ESTestCase {
 
         xContentParser = createXContentParser(input);
 
-        JsonFieldType fieldType = new JsonFieldType();
+        RootJsonFieldType fieldType = new RootJsonFieldType();
         fieldType.setName("field");
         fieldType.setNullValue("placeholder");
-        JsonFieldParser nullValueParser = new JsonFieldParser(fieldType, Integer.MAX_VALUE);
+        JsonFieldParser nullValueParser = new JsonFieldParser("field", "field._keyed", fieldType, Integer.MAX_VALUE);
 
         fields = nullValueParser.parse(xContentParser);
         assertEquals(2, fields.size());

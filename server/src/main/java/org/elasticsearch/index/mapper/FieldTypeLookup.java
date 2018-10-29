@@ -35,16 +35,20 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
     final CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType;
     private final CopyOnWriteHashMap<String, String> aliasToConcreteName;
+    private final CopyOnWriteHashMap<String, JsonFieldMapper> fullNameToJsonMapper;
 
     FieldTypeLookup() {
         fullNameToFieldType = new CopyOnWriteHashMap<>();
         aliasToConcreteName = new CopyOnWriteHashMap<>();
+        fullNameToJsonMapper = new CopyOnWriteHashMap<>();
     }
 
     private FieldTypeLookup(CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType,
-                            CopyOnWriteHashMap<String, String> aliasToConcreteName) {
+                            CopyOnWriteHashMap<String, String> aliasToConcreteName,
+                            CopyOnWriteHashMap<String, JsonFieldMapper> fullNameToJsonMapper) {
         this.fullNameToFieldType = fullNameToFieldType;
         this.aliasToConcreteName = aliasToConcreteName;
+        this.fullNameToJsonMapper = fullNameToJsonMapper;
     }
 
     /**
@@ -63,6 +67,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         CopyOnWriteHashMap<String, MappedFieldType> fullName = this.fullNameToFieldType;
         CopyOnWriteHashMap<String, String> aliases = this.aliasToConcreteName;
+        CopyOnWriteHashMap<String, JsonFieldMapper> jsonMappers = this.fullNameToJsonMapper;
 
         for (FieldMapper fieldMapper : fieldMappers) {
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -70,6 +75,10 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
             if (Objects.equals(fieldType, fullNameFieldType) == false) {
                 fullName = fullName.copyAndPut(fieldType.name(), fieldType);
+            }
+
+            if (fieldMapper instanceof JsonFieldMapper) {
+                jsonMappers = fullNameToJsonMapper.copyAndPut(fieldType.name(), (JsonFieldMapper) fieldMapper);
             }
         }
 
@@ -83,14 +92,42 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
 
-        return new FieldTypeLookup(fullName, aliases);
+        return new FieldTypeLookup(fullName, aliases, jsonMappers);
     }
 
 
-    /** Returns the field for the given field */
+    /**
+     * Returns the mapped field type for the given field name.
+     */
     public MappedFieldType get(String field) {
         String concreteField = aliasToConcreteName.getOrDefault(field, field);
-        return fullNameToFieldType.get(concreteField);
+        MappedFieldType fieldType = fullNameToFieldType.get(concreteField);
+        if (fieldType != null) {
+            return fieldType;
+        }
+
+        // If the mapping contains JSON fields, check if this could correspond
+        // to a keyed JSON field of the form 'path_to_json_field.path_to_key'.
+        return !fullNameToJsonMapper.isEmpty() ? getKeyedJsonField(field) : null;
+    }
+
+    private MappedFieldType getKeyedJsonField(String field) {
+        int dotIndex = -1;
+        while (true) {
+            dotIndex = field.indexOf('.', dotIndex + 1);
+            if (dotIndex < 0) {
+                return null;
+            }
+
+            String parentField = field.substring(0, dotIndex);
+            String concreteField = aliasToConcreteName.getOrDefault(parentField, parentField);
+            JsonFieldMapper mapper = fullNameToJsonMapper.get(concreteField);
+
+            if (mapper != null) {
+                String key = field.substring(dotIndex + 1);
+                return mapper.keyedFieldType(key);
+            }
+        }
     }
 
     /**

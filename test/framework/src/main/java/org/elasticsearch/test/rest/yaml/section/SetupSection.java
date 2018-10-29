@@ -50,11 +50,14 @@ public class SetupSection {
 
         while (parser.currentToken() != XContentParser.Token.END_ARRAY) {
             ParserUtils.advanceToFieldName(parser);
-            if (!"do".equals(parser.currentName())) {
+            if ("do".equals(parser.currentName())) {
+                setupSection.addDoSection(DoSection.parse(parser));
+            } else if ("set".equals(parser.currentName())) {
+                setupSection.addSetSection(SetSection.parse(parser));
+            } else {
                 throw new IllegalArgumentException("section [" + parser.currentName() + "] not supported within setup section");
             }
 
-            setupSection.addDoSection(DoSection.parse(parser));
             parser.nextToken();
         }
 
@@ -72,7 +75,7 @@ public class SetupSection {
 
     private SkipSection skipSection;
 
-    private List<DoSection> doSections = new ArrayList<>();
+    private List<ExecutableSection> executableSections = new ArrayList<>();
 
     public SkipSection getSkipSection() {
         return skipSection;
@@ -82,12 +85,16 @@ public class SetupSection {
         this.skipSection = skipSection;
     }
 
-    public List<DoSection> getDoSections() {
-        return doSections;
+    public List<ExecutableSection> getExecutableSections() {
+        return executableSections;
     }
 
     public void addDoSection(DoSection doSection) {
-        this.doSections.add(doSection);
+        this.executableSections.add(doSection);
+    }
+
+    public void addSetSection(SetSection setSection) {
+        this.executableSections.add(setSection);
     }
 
     public boolean isEmpty() {

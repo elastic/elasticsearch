@@ -21,6 +21,8 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -41,7 +43,6 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -62,7 +63,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ThrottlingAllocationTests extends ESAllocationTestCase {
-    private final Logger logger = Loggers.getLogger(ThrottlingAllocationTests.class);
+    private final Logger logger = LogManager.getLogger(ThrottlingAllocationTests.class);
 
     public void testPrimaryRecoveryThrottling() {
 

@@ -44,7 +44,7 @@ teardown:
           "processors" : [
             {
               "pipeline" : {
-                "pipeline": "inner"
+                "name": "inner"
               }
             }
           ]
@@ -78,7 +78,7 @@ teardown:
           "processors" : [
             {
               "pipeline" : {
-                "pipeline": "inner"
+                "name": "inner"
               }
             }
           ]
@@ -94,7 +94,7 @@ teardown:
           "processors" : [
             {
               "pipeline" : {
-                "pipeline": "outer"
+                "name": "outer"
               }
             }
           ]

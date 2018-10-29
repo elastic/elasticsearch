@@ -311,7 +311,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 operations.removeAll(bulkOps);
                 BulkShardOperationsRequest bulkRequest = new BulkShardOperationsRequest(group.getPrimary().shardId(),
                     group.getPrimary().getHistoryUUID(), bulkOps, -1);
-                new CCRAction(bulkRequest, new PlainActionFuture<>(), group).execute();
+                new CcrAction(bulkRequest, new PlainActionFuture<>(), group).execute();
                 if (randomInt(100) < 10) {
                     group.getPrimary().flush(new FlushRequest());
                 }
@@ -368,9 +368,13 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             new ShardId("follow_index", "", 0),
             new ShardId("leader_index", "", 0),
             between(1, 64),
-            between(1, 8),
             new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-            between(1, 4), 10240,
+            between(1, 8),
+            between(1, 64),
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+            between(1, 4),
+            10240,
+            new ByteSizeValue(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()
@@ -409,7 +413,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(),
                         followerHistoryUUID, operations, maxSeqNoOfUpdates);
                     ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
-                    new CCRAction(request, listener, followerGroup).execute();
+                    new CcrAction(request, listener, followerGroup).execute();
                 };
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(task);
             }
@@ -429,18 +433,19 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                             if (from > seqNoStats.getGlobalCheckpoint()) {
                                 handler.accept(ShardChangesAction.getResponse(1L, seqNoStats,
-                                    maxSeqNoOfUpdatesOrDeletes, ShardChangesAction.EMPTY_OPERATIONS_ARRAY));
+                                    maxSeqNoOfUpdatesOrDeletes, ShardChangesAction.EMPTY_OPERATIONS_ARRAY, 1L));
                                 return;
                             }
                             Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
-                                maxOperationCount, recordedLeaderIndexHistoryUUID, params.getMaxBatchSize());
+                                maxOperationCount, recordedLeaderIndexHistoryUUID, params.getMaxReadRequestSize());
                             // hard code mapping version; this is ok, as mapping updates are not tested here
                             final ShardChangesAction.Response response = new ShardChangesAction.Response(
                                 1L,
                                 seqNoStats.getGlobalCheckpoint(),
                                 seqNoStats.getMaxSeqNo(),
                                 maxSeqNoOfUpdatesOrDeletes,
-                                ops
+                                ops,
+                                1L
                             );
                             handler.accept(response);
                             return;
@@ -493,9 +498,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
     }
 
-    class CCRAction extends ReplicationAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
+    class CcrAction extends ReplicationAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
 
-        CCRAction(BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener, ReplicationGroup group) {
+        CcrAction(BulkShardOperationsRequest request, ActionListener<BulkShardOperationsResponse> listener, ReplicationGroup group) {
             super(request, listener, group, "ccr");
         }
 

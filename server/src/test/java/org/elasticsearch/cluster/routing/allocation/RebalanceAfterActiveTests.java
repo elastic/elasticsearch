@@ -113,7 +113,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         logger.info("now, start 8 more nodes, and check that no rebalancing/relocation have happened");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .add(newNode("node3")).add(newNode("node4")).add(newNode("node5")).add(newNode("node6"))
-            .add(newNode("node7")).add(newNode("node8")).add(newNode("node9")).add(newNode("node10")))
+                .add(newNode("node7")).add(newNode("node8")).add(newNode("node9")).add(newNode("node10")))
                 .build();
         clusterState = strategy.reroute(clusterState, "reroute");
         routingNodes = clusterState.getRoutingNodes();

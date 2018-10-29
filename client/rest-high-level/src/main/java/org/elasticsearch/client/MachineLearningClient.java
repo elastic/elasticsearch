@@ -508,7 +508,7 @@ public final class MachineLearningClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public PutDatafeedResponse updateDatafeed(UpdateDatafeedRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return requestActions.performRequestAndParseEntity(request,
             MLRequestConverters::updateDatafeed,
             options,
             PutDatafeedResponse::fromXContent,
@@ -527,7 +527,7 @@ public final class MachineLearningClient {
      * @param listener Listener to be notified upon request completion
      */
     public void updateDatafeedAsync(UpdateDatafeedRequest request, RequestOptions options, ActionListener<PutDatafeedResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        requestActions.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::updateDatafeed,
             options,
             PutDatafeedResponse::fromXContent,

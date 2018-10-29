@@ -130,7 +130,7 @@ public final class SecurityClient {
      * parsing back the response
      */
     public GetRoleMappingsResponse getRoleMappings(final GetRoleMappingsRequest request, final RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getRoleMappings,
+        return requestActions.performRequestAndParseEntity(request, SecurityRequestConverters::getRoleMappings,
             options, GetRoleMappingsResponse::fromXContent, emptySet());
     }
 
@@ -146,7 +146,7 @@ public final class SecurityClient {
      */
     public void getRoleMappingsAsync(final GetRoleMappingsRequest request, final RequestOptions options,
             final ActionListener<GetRoleMappingsResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getRoleMappings,
+        requestActions.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getRoleMappings,
                 options, GetRoleMappingsResponse::fromXContent, listener, emptySet());
     }
 
@@ -221,7 +221,7 @@ public final class SecurityClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ClearRolesCacheResponse clearRolesCache(ClearRolesCacheRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::clearRolesCache, options,
+        return requestActions.performRequestAndParseEntity(request, SecurityRequestConverters::clearRolesCache, options,
             ClearRolesCacheResponse::fromXContent, emptySet());
     }
 
@@ -236,7 +236,7 @@ public final class SecurityClient {
      */
     public void clearRolesCacheAsync(ClearRolesCacheRequest request, RequestOptions options,
                                      ActionListener<ClearRolesCacheResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearRolesCache, options,
+        requestActions.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearRolesCache, options,
             ClearRolesCacheResponse::fromXContent, listener, emptySet());
     }
 
@@ -363,7 +363,7 @@ public final class SecurityClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public CreateTokenResponse createToken(CreateTokenRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::createToken, options,
+        return requestActions.performRequestAndParseEntity(request, SecurityRequestConverters::createToken, options,
             CreateTokenResponse::fromXContent, emptySet());
     }
 
@@ -377,7 +377,7 @@ public final class SecurityClient {
      * @param listener the listener to be notified upon request completion
      */
     public void createTokenAsync(CreateTokenRequest request, RequestOptions options, ActionListener<CreateTokenResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::createToken, options,
+        requestActions.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::createToken, options,
             CreateTokenResponse::fromXContent, listener, emptySet());
     }
 }

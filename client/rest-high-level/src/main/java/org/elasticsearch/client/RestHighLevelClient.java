@@ -647,7 +647,8 @@ public class RestHighLevelClient implements Closeable {
      * @throws IOException in case there is a problem sending the request
      */
     public boolean existsSource(GetRequest getRequest, RequestOptions options) throws IOException {
-        return performRequest(getRequest, RequestConverters::sourceExists, options, RestHighLevelClient::convertExistsResponse, emptySet());
+        return requestActions.performRequest(getRequest, RequestConverters::sourceExists, options,
+                RestRequestActions::convertExistsResponse, emptySet());
     }     
     
     /**
@@ -659,8 +660,8 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
-        performRequestAsync(getRequest, RequestConverters::sourceExists, options, RestHighLevelClient::convertExistsResponse, listener,
-                emptySet());
+        requestActions.performRequestAsync(getRequest, RequestConverters::sourceExists, options, RestRequestActions::convertExistsResponse,
+                listener, emptySet());
     }    
     
     /**

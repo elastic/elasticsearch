@@ -37,6 +37,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -290,6 +291,10 @@ public class DatafeedUpdate implements ToXContentObject {
         public Builder setIndices(List<String> indices) {
             this.indices = indices;
             return this;
+        }
+
+        public Builder setIndices(String... indices) {
+            return setIndices(Arrays.asList(indices));
         }
 
         public Builder setTypes(List<String> types) {

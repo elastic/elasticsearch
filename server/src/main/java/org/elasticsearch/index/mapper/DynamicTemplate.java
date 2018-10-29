@@ -36,7 +36,7 @@ import java.util.TreeMap;
 
 public class DynamicTemplate implements ToXContentObject {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(DynamicTemplate.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DynamicTemplate.class));
 
     public enum MatchType {
         SIMPLE {
@@ -208,7 +208,7 @@ public class DynamicTemplate implements ToXContentObject {
                 if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1)) {
                     throw e;
                 } else {
-                    DEPRECATION_LOGGER.deprecated("match_mapping_type [" + matchMappingType + "] is invalid and will be ignored: "
+                    deprecationLogger.deprecated("match_mapping_type [" + matchMappingType + "] is invalid and will be ignored: "
                             + e.getMessage());
                     // this template is on an unknown type so it will never match anything
                     // null indicates that the template should be ignored

@@ -25,6 +25,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
+import java.lang.reflect.Executable;
 import java.util.Collections;
 import java.util.Map;
 
@@ -422,20 +423,33 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             + " line [" + lineNumber + "]", e.getMessage());
     }
 
-    private static ClientYamlTestSuite createTestSuite(DoSection doSection) {
+    public void testAddingContainsWithoutSkipContains() {
+        int lineNumber = between(1, 10000);
+        ContainsAssertion containsAssertion = new ContainsAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            randomDouble());
+        ClientYamlTestSuite testSuite = createTestSuite(containsAssertion);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertEquals("api/name: attempted to add a [contains] assertion without a corresponding " +
+            "[\"skip\": \"features\": \"contains\"] so runners that do not support the [contains] assertion " +
+            "can skip the test at line [" + lineNumber + "]", e.getMessage());
+    }
+
+    private static ClientYamlTestSuite createTestSuite(ExecutableSection executableSection) {
         final SetupSection setupSection;
         final TeardownSection teardownSection;
         final ClientYamlTestSection clientYamlTestSection;
         switch(randomIntBetween(0, 2)) {
             case 0:
-                setupSection = new SetupSection(SkipSection.EMPTY, Collections.singletonList(doSection));
+                setupSection = new SetupSection(SkipSection.EMPTY, Collections.singletonList(executableSection));
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
                     SkipSection.EMPTY, Collections.emptyList());
                 break;
             case 1:
                 setupSection = SetupSection.EMPTY;
-                teardownSection = new TeardownSection(SkipSection.EMPTY, Collections.singletonList(doSection));
+                teardownSection = new TeardownSection(SkipSection.EMPTY, Collections.singletonList(executableSection));
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
                     SkipSection.EMPTY, Collections.emptyList());
                 break;
@@ -443,7 +457,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 setupSection = SetupSection.EMPTY;
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    SkipSection.EMPTY, Collections.singletonList(doSection));
+                    SkipSection.EMPTY, Collections.singletonList(executableSection));
                 break;
             default:
                 throw new UnsupportedOperationException();
@@ -472,17 +486,17 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         createTestSuiteAndValidate(skipSection, doSection);
     }
 
-    public void testAddingDoWithHeadersWithSkip() {
+    public void testAddingContainsWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("headers"), null);
-        DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
-        ApiCallSection apiCallSection = new ApiCallSection("test");
-        apiCallSection.addHeaders(singletonMap("foo", "bar"));
-        doSection.setApiCallSection(apiCallSection);
-        createTestSuiteAndValidate(skipSection, doSection);
+        SkipSection skipSection = new SkipSection(null, singletonList("contains"), null);
+        ContainsAssertion containsAssertion = new ContainsAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            randomDouble());
+        createTestSuiteAndValidate(skipSection, containsAssertion);
     }
 
-    private static void createTestSuiteAndValidate(SkipSection skipSection, DoSection doSection) {
+    private static void createTestSuiteAndValidate(SkipSection skipSection, ExecutableSection executableSection) {
         final SetupSection setupSection;
         final TeardownSection teardownSection;
         final ClientYamlTestSection clientYamlTestSection;
@@ -491,31 +505,31 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 setupSection = new SetupSection(skipSection, Collections.emptyList());
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    SkipSection.EMPTY, Collections.singletonList(doSection));
+                    SkipSection.EMPTY, Collections.singletonList(executableSection));
                 break;
             case 1:
                 setupSection = SetupSection.EMPTY;
                 teardownSection = new TeardownSection(skipSection, Collections.emptyList());
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    SkipSection.EMPTY, Collections.singletonList(doSection));
+                    SkipSection.EMPTY, Collections.singletonList(executableSection));
                 break;
             case 2:
                 setupSection = SetupSection.EMPTY;
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    skipSection, Collections.singletonList(doSection));
+                    skipSection, Collections.singletonList(executableSection));
                 break;
             case 3:
-                setupSection = new SetupSection(skipSection, Collections.singletonList(doSection));
+                setupSection = new SetupSection(skipSection, Collections.singletonList(executableSection));
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    SkipSection.EMPTY, randomBoolean() ? Collections.emptyList() : Collections.singletonList(doSection));
+                    SkipSection.EMPTY, randomBoolean() ? Collections.emptyList() : Collections.singletonList(executableSection));
                 break;
             case 4:
                 setupSection = SetupSection.EMPTY;
-                teardownSection = new TeardownSection(skipSection, Collections.singletonList(doSection));
+                teardownSection = new TeardownSection(skipSection, Collections.singletonList(executableSection));
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    SkipSection.EMPTY, randomBoolean() ? Collections.emptyList() : Collections.singletonList(doSection));
+                    SkipSection.EMPTY, randomBoolean() ? Collections.emptyList() : Collections.singletonList(executableSection));
 
                 break;
             default:

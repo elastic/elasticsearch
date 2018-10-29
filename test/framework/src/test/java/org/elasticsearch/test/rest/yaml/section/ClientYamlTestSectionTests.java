@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
@@ -268,5 +269,4 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection.getName(), equalTo("node_info test"));
         assertThat(testSection.getExecutableSections().size(), equalTo(3));
     }
-
 }

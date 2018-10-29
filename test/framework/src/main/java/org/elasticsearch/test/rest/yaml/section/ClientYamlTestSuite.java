@@ -150,7 +150,6 @@ public class ClientYamlTestSuite {
     private static void validateExecutableSections(ClientYamlTestSuite yamlTestSuite, List<ExecutableSection> sections,
                                                    ClientYamlTestSection testSection,
                                                    SetupSection setupSection, TeardownSection teardownSection) {
-
         for (ExecutableSection section : sections) {
             if (section instanceof DoSection) {
                 DoSection doSection = (DoSection) section;
@@ -166,6 +165,12 @@ public class ClientYamlTestSuite {
                         "section without a corresponding [\"skip\": \"features\": \"node_selector\"] so runners that do not support the " +
                         "[node_selector] section can skip the test at line [" + doSection.getLocation().lineNumber + "]");
                 }
+            }
+            if (section instanceof ContainsAssertion
+                && false == hasSkipFeature("contains", testSection, setupSection, teardownSection)) {
+                throw new IllegalArgumentException(yamlTestSuite.getPath() + ": attempted to add a [contains] assertion " +
+                    "without a corresponding [\"skip\": \"features\": \"contains\"] so runners that do not support the " +
+                    "[contains] assertion can skip the test at line [" + section.getLocation().lineNumber + "]");
             }
         }
     }

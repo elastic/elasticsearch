@@ -58,3 +58,65 @@
         lenient: true
 
   - match: {hits.total: 0}
+
+---
+"search on JSON field":
+  - skip:
+      version: " - 6.99.99"
+      reason: "JSON fields are currently only implemented in 7.0."
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            _doc:
+              properties:
+                headers:
+                  type: json
+
+  - do:
+      index:
+        index:  test
+        type:   _doc
+        id:     1
+        body:
+          headers:
+            content-type: application/javascript
+            origin: elastic.co
+        refresh: true
+
+  - do:
+      index:
+        index:  test
+        type:   _doc
+        id:     2
+        body:
+          headers:
+            content-type: text/plain
+            origin: elastic.co
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: "headers:text\\/plain"
+
+  - match: { hits.total: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: "application\\/javascript AND headers.origin:elastic.co"
+
+  - match: { hits.total: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }

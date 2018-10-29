@@ -37,7 +37,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.Function;
 
 /**
  * Holds a REST test suite loaded from a specific yaml file.

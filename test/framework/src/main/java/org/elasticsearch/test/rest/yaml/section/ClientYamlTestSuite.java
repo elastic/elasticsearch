@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -32,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -79,11 +81,10 @@ public class ClientYamlTestSuite {
                     "expected token to be START_OBJECT but was " + parser.currentToken());
         }
 
-        ClientYamlTestSuite restTestSuite = new ClientYamlTestSuite(api, suiteName);
+        SetupSection setupSection = SetupSection.parseIfNext(parser);
+        TeardownSection teardownSection = TeardownSection.parseIfNext(parser);
 
-        restTestSuite.setSetupSection(SetupSection.parseIfNext(parser));
-        restTestSuite.setTeardownSection(TeardownSection.parseIfNext(parser));
-
+        Set<ClientYamlTestSection> testSections = new TreeSet<>();
         while(true) {
             //the "---" section separator is not understood by the yaml parser. null is returned, same as when the parser is closed
             //we need to somehow distinguish between a null in the middle of a test ("---")
@@ -93,27 +94,29 @@ public class ClientYamlTestSuite {
                     break;
                 }
             }
-
             ClientYamlTestSection testSection = ClientYamlTestSection.parse(parser);
-            if (!restTestSuite.addTestSection(testSection)) {
+            if (testSections.add(testSection) == false) {
                 throw new ParsingException(testSection.getLocation(), "duplicate test section [" + testSection.getName() + "]");
             }
         }
 
-        return restTestSuite;
+        return new ClientYamlTestSuite(api, suiteName, setupSection, teardownSection,
+            Collections.unmodifiableList(new ArrayList<>(testSections)));
     }
 
     private final String api;
     private final String name;
+    private final SetupSection setupSection;
+    private final TeardownSection teardownSection;
+    private final List<ClientYamlTestSection> testSections;
 
-    private SetupSection setupSection;
-    private TeardownSection teardownSection;
-
-    private Set<ClientYamlTestSection> testSections = new TreeSet<>();
-
-    public ClientYamlTestSuite(String api, String name) {
+    ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection,
+                        List<ClientYamlTestSection> testSections) {
         this.api = api;
         this.name = name;
+        this.setupSection = setupSection;
+        this.teardownSection = teardownSection;
+        this.testSections = testSections;
     }
 
     public String getApi() {
@@ -132,27 +135,52 @@ public class ClientYamlTestSuite {
         return setupSection;
     }
 
-    public void setSetupSection(SetupSection setupSection) {
-        this.setupSection = setupSection;
-    }
-
     public TeardownSection getTeardownSection() {
         return teardownSection;
     }
 
-    public void setTeardownSection(TeardownSection teardownSection) {
-        this.teardownSection = teardownSection;
+    public void validate() {
+        validateExecutableSections(this, setupSection.getExecutableSections(), null, setupSection, null);
+        validateExecutableSections(this, teardownSection.getDoSections(), null, null, teardownSection);
+        for (ClientYamlTestSection testSection : testSections) {
+            validateExecutableSections(this, testSection.getExecutableSections(), testSection, setupSection, teardownSection);
+        }
     }
 
-    /**
-     * Adds a {@link org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection} to the REST suite
-     * @return true if the test section was not already present, false otherwise
-     */
-    public boolean addTestSection(ClientYamlTestSection testSection) {
-        return this.testSections.add(testSection);
+    private static void validateExecutableSections(ClientYamlTestSuite yamlTestSuite, List<ExecutableSection> sections,
+                                                   ClientYamlTestSection testSection,
+                                                   SetupSection setupSection, TeardownSection teardownSection) {
+        for (ExecutableSection section : sections) {
+            if (section instanceof DoSection) {
+                DoSection doSection = (DoSection) section;
+                if (false == doSection.getExpectedWarningHeaders().isEmpty()
+                    && false == hasSkipFeature("warnings", testSection, setupSection, teardownSection)) {
+                    throw new IllegalArgumentException(yamlTestSuite.getPath() + ": attempted to add a [do] with a [warnings] section " +
+                        "without a corresponding [\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] " +
+                        "section can skip the test at line [" + doSection.getLocation().lineNumber + "]");
+                }
+                if (NodeSelector.ANY != doSection.getApiCallSection().getNodeSelector()
+                    && false == hasSkipFeature("node_selector", testSection, setupSection, teardownSection)) {
+                    throw new IllegalArgumentException(yamlTestSuite.getPath() + ": attempted to add a [do] with a [node_selector] " +
+                        "section without a corresponding [\"skip\": \"features\": \"node_selector\"] so runners that do not support the " +
+                        "[node_selector] section can skip the test at line [" + doSection.getLocation().lineNumber + "]");
+                }
+            }
+        }
+    }
+
+    private static boolean hasSkipFeature(String feature, ClientYamlTestSection testSection,
+                                          SetupSection setupSection, TeardownSection teardownSection) {
+        return (testSection != null && hasSkipFeature(feature, testSection.getSkipSection())) ||
+            (setupSection != null && hasSkipFeature(feature, setupSection.getSkipSection())) ||
+            (teardownSection != null && hasSkipFeature(feature, teardownSection.getSkipSection()));
+    }
+
+    private static boolean hasSkipFeature(String feature, SkipSection skipSection) {
+        return skipSection != null && skipSection.getFeatures().contains(feature);
     }
 
     public List<ClientYamlTestSection> getTestSections() {
-        return new ArrayList<>(testSections);
+        return testSections;
     }
 }

@@ -256,7 +256,7 @@ public abstract class TransportTasksAction<
                 if (request.getTimeout() != null) {
                     builder.withTimeout(request.getTimeout());
                 }
-                builder.withCompress(transportCompress());
+                builder.withDisableCompress(transportCompress() == false);
                 for (int i = 0; i < nodesIds.length; i++) {
                     final String nodeId = nodesIds[i];
                     final int idx = i;

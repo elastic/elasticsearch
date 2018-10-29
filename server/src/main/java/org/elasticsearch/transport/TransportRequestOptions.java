@@ -24,12 +24,12 @@ import org.elasticsearch.common.unit.TimeValue;
 public class TransportRequestOptions {
 
     private final TimeValue timeout;
-    private final boolean compress;
+    private final boolean disableCompress;
     private final Type type;
 
-    private TransportRequestOptions(TimeValue timeout, boolean compress, Type type) {
+    private TransportRequestOptions(TimeValue timeout, boolean disableCompress, Type type) {
         this.timeout = timeout;
-        this.compress = compress;
+        this.disableCompress = disableCompress;
         this.type = type;
     }
 
@@ -37,8 +37,8 @@ public class TransportRequestOptions {
         return this.timeout;
     }
 
-    public boolean compress() {
-        return this.compress;
+    public boolean disableCompress() {
+        return this.disableCompress;
     }
 
     public Type type() {
@@ -62,13 +62,13 @@ public class TransportRequestOptions {
     public static Builder builder(TransportRequestOptions options) {
         return new Builder()
                 .withTimeout(options.timeout)
-                .withCompress(options.compress)
+                .withDisableCompress(options.disableCompress)
                 .withType(options.type());
     }
 
     public static class Builder {
         private TimeValue timeout;
-        private boolean compress;
+        private boolean disableCompress;
         private Type type = Type.REG;
 
         private Builder() {
@@ -83,8 +83,8 @@ public class TransportRequestOptions {
             return this;
         }
 
-        public Builder withCompress(boolean compress) {
-            this.compress = compress;
+        public Builder withDisableCompress(boolean disableCompress) {
+            this.disableCompress = disableCompress;
             return this;
         }
 
@@ -94,7 +94,7 @@ public class TransportRequestOptions {
         }
 
         public TransportRequestOptions build() {
-            return new TransportRequestOptions(timeout, compress, type);
+            return new TransportRequestOptions(timeout, disableCompress, type);
         }
     }
 }

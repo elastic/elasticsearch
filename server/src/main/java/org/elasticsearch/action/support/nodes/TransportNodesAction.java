@@ -174,7 +174,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             if (request.timeout() != null) {
                 builder.withTimeout(request.timeout());
             }
-            builder.withCompress(transportCompress());
+            builder.withDisableCompress(transportCompress() == false);
             for (int i = 0; i < nodes.length; i++) {
                 final int idx = i;
                 final DiscoveryNode node = nodes[i];

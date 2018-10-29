@@ -100,7 +100,7 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         int rounds = scaledRandomIntBetween(100, 5000);
         for (int i = 0; i < rounds; i++) {
             serviceB.submitRequest(nodeA, "internal:sayHello",
-                TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
+                TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withDisableCompress(randomBoolean()).build(),
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
                     public TransportResponse.Empty read(StreamInput in) {

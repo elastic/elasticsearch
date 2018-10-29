@@ -101,7 +101,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         if (request.getTimeout() != null) {
             builder.withTimeout(request.getTimeout());
         }
-        builder.withCompress(false);
+        builder.withDisableCompress(true);
         DiscoveryNode node = clusterService.state().nodes().get(request.getTaskId().getNodeId());
         if (node == null) {
             // Node is no longer part of the cluster! Try and look the task up from the results index.

@@ -262,7 +262,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         res = serviceB.submitRequest(nodeA, "internal:sayHello", new StringMessageRequest("moshe"),
-            TransportRequestOptions.builder().withCompress(true).build(), new TransportResponseHandler<StringMessageResponse>() {
+            TransportRequestOptions.builder().build(), new TransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse read(StreamInput in) throws IOException {
                     return new StringMessageResponse(in);
@@ -513,7 +513,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             });
 
         TransportFuture<TransportResponse.Empty> res = serviceB.submitRequest(nodeA, "internal:sayHello",
-            TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(true).build(),
+            TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().build(),
             new TransportResponseHandler<TransportResponse.Empty>() {
                 @Override
                 public TransportResponse.Empty read(StreamInput in) {
@@ -561,7 +561,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             });
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "internal:sayHello",
-            new StringMessageRequest("moshe"), TransportRequestOptions.builder().withCompress(true).build(),
+            new StringMessageRequest("moshe"), TransportRequestOptions.builder().build(),
             new TransportResponseHandler<StringMessageResponse>() {
                 @Override
                 public StringMessageResponse read(StreamInput in) throws IOException {
@@ -1786,7 +1786,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     DiscoveryNode node = randomFrom(nodeA, nodeB, nodeC);
                     logger.debug("send secondary request from {} to {} - {}", toNodeMap.get(service), node, request.info);
                     service.sendRequest(node, "internal:action1", new TestRequest("secondary " + request.info),
-                        TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
+                        TransportRequestOptions.builder().withDisableCompress(randomBoolean()).build(),
                         new TransportResponseHandler<TestResponse>() {
                             @Override
                             public TestResponse read(StreamInput in) throws IOException {
@@ -1877,7 +1877,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             DiscoveryNode node = randomFrom(nodeC, nodeB, nodeA);
             logger.debug("send from {} to {}", toNodeMap.get(service), node);
             service.sendRequest(node, "internal:action1", new TestRequest("REQ[" + i + "]"),
-                TransportRequestOptions.builder().withCompress(randomBoolean()).build(), new TestResponseHandler(i));
+                TransportRequestOptions.builder().withDisableCompress(randomBoolean()).build(), new TestResponseHandler(i));
         }
         logger.debug("waiting for response");
         fail.set(randomBoolean());

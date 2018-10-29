@@ -260,7 +260,8 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         String indexExpression = request.indices() != null && request.indices().length > 0 ? request.indices()[0] : null;
         Index[] indices = concreteIndices(state, request.indicesOptions(), indexExpression);
         if (indices.length != 1) {
-            throw new IllegalArgumentException("unable to return a single index as the index and options provided got resolved to multiple indices");
+            throw new IllegalArgumentException("unable to return a single index as the index and options" +
+                " provided got resolved to multiple indices");
         }
         return indices[0];
     }
@@ -797,7 +798,8 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         }
 
         private boolean isEmptyOrTrivialWildcard(List<String> expressions) {
-            return expressions.isEmpty() || (expressions.size() == 1 && (MetaData.ALL.equals(expressions.get(0)) || Regex.isMatchAllPattern(expressions.get(0))));
+            return expressions.isEmpty() || (expressions.size() == 1 && (MetaData.ALL.equals(expressions.get(0)) ||
+                Regex.isMatchAllPattern(expressions.get(0))));
         }
 
         private static List<String> resolveEmptyOrTrivialWildcard(IndicesOptions options, MetaData metaData) {
@@ -871,7 +873,8 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                 inDateFormat = true;
                                 inPlaceHolderSb.append(c);
                             } else {
-                                throw new ElasticsearchParseException("invalid dynamic name expression [{}]. invalid character in placeholder at position [{}]", new String(text, from, length), i);
+                                throw new ElasticsearchParseException("invalid dynamic name expression [{}]." +
+                                    " invalid character in placeholder at position [{}]", new String(text, from, length), i);
                             }
                             break;
 
@@ -894,19 +897,22 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                                     timeZone = ZoneOffset.UTC;
                                 } else {
                                     if (inPlaceHolderString.lastIndexOf(RIGHT_BOUND) != inPlaceHolderString.length() - 1) {
-                                        throw new ElasticsearchParseException("invalid dynamic name expression [{}]. missing closing `}` for date math format", inPlaceHolderString);
+                                        throw new ElasticsearchParseException("invalid dynamic name expression [{}]. missing closing `}`" +
+                                            " for date math format", inPlaceHolderString);
                                     }
                                     if (dateTimeFormatLeftBoundIndex == inPlaceHolderString.length() - 2) {
-                                        throw new ElasticsearchParseException("invalid dynamic name expression [{}]. missing date format", inPlaceHolderString);
+                                        throw new ElasticsearchParseException("invalid dynamic name expression [{}]. missing date format",
+                                            inPlaceHolderString);
                                     }
                                     mathExpression = inPlaceHolderString.substring(0, dateTimeFormatLeftBoundIndex);
-                                    String dateFormatterPatternAndTimeZoneId = inPlaceHolderString.substring(dateTimeFormatLeftBoundIndex + 1, inPlaceHolderString.length() - 1);
-                                    int formatPatternTimeZoneSeparatorIndex = dateFormatterPatternAndTimeZoneId.indexOf(TIME_ZONE_BOUND);
+                                    String patternAndTZid =
+                                        inPlaceHolderString.substring(dateTimeFormatLeftBoundIndex + 1, inPlaceHolderString.length() - 1);
+                                    int formatPatternTimeZoneSeparatorIndex = patternAndTZid.indexOf(TIME_ZONE_BOUND);
                                     if (formatPatternTimeZoneSeparatorIndex != -1) {
-                                        dateFormatterPattern = dateFormatterPatternAndTimeZoneId.substring(0, formatPatternTimeZoneSeparatorIndex);
-                                        timeZone = ZoneId.of(dateFormatterPatternAndTimeZoneId.substring(formatPatternTimeZoneSeparatorIndex + 1));
+                                        dateFormatterPattern = patternAndTZid.substring(0, formatPatternTimeZoneSeparatorIndex);
+                                        timeZone = ZoneId.of(patternAndTZid.substring(formatPatternTimeZoneSeparatorIndex + 1));
                                     } else {
-                                        dateFormatterPattern = dateFormatterPatternAndTimeZoneId;
+                                        dateFormatterPattern = patternAndTZid;
                                         timeZone = ZoneOffset.UTC;
                                     }
                                     dateFormatter = DateFormatters.forPattern(dateFormatterPattern);
@@ -937,8 +943,10 @@ public class IndexNameExpressionResolver extends AbstractComponent {
 
                         case RIGHT_BOUND:
                             if (!escapedChar) {
-                                throw new ElasticsearchParseException("invalid dynamic name expression [{}]. invalid character at position [{}]. " +
-                                        "`{` and `}` are reserved characters and should be escaped when used as part of the index name using `\\` (e.g. `\\{text\\}`)", new String(text, from, length), i);
+                                throw new ElasticsearchParseException("invalid dynamic name expression [{}]." +
+                                    " invalid character at position [{}]. `{` and `}` are reserved characters and" +
+                                    " should be escaped when used as part of the index name using `\\` (e.g. `\\{text\\}`)",
+                                    new String(text, from, length), i);
                             }
                         default:
                             beforePlaceHolderSb.append(c);
@@ -947,7 +955,8 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             }
 
             if (inPlaceHolder) {
-                throw new ElasticsearchParseException("invalid dynamic name expression [{}]. date math placeholder is open ended", new String(text, from, length));
+                throw new ElasticsearchParseException("invalid dynamic name expression [{}]. date math placeholder is open ended",
+                    new String(text, from, length));
             }
             if (beforePlaceHolderSb.length() == 0) {
                 throw new ElasticsearchParseException("nothing captured");

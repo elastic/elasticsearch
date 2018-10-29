@@ -19,18 +19,22 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.SetUserEnabledRequest;
+import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 
@@ -76,6 +80,15 @@ final class SecurityRequestConverters {
         final RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(putRoleMappingRequest.getRefreshPolicy());
         return request;
+    }
+
+    static Request getRoleMappings(final GetRoleMappingsRequest getRoleMappingRequest) throws IOException {
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder();
+        builder.addPathPartAsIs("_xpack/security/role_mapping");
+        if (getRoleMappingRequest.getRoleMappingNames().size() > 0) {
+            builder.addPathPart(Strings.collectionToCommaDelimitedString(getRoleMappingRequest.getRoleMappingNames()));
+        }
+        return new Request(HttpGet.METHOD_NAME, builder.build());
     }
 
     static Request enableUser(EnableUserRequest enableUserRequest) {
@@ -126,6 +139,12 @@ final class SecurityRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request createToken(CreateTokenRequest createTokenRequest) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, "/_xpack/security/oauth2/token");
+        request.setEntity(createEntity(createTokenRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 }

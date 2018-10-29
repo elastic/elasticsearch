@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
@@ -37,7 +37,7 @@ public abstract class SamlTestCase extends ESTestCase {
 
     @BeforeClass
     public static void setupSaml() throws Exception {
-        Logger logger = Loggers.getLogger(SamlTestCase.class);
+        Logger logger = LogManager.getLogger(SamlTestCase.class);
         if (isTurkishLocale()) {
             // See: https://github.com/elastic/x-pack-elasticsearch/issues/2815
             logger.warn("Attempting to run SAML test on turkish-like locale, but that breaks OpenSAML. Switching to English.");

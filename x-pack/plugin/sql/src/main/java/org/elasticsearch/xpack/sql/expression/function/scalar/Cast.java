@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import java.util.Objects;
 
 public class Cast extends UnaryScalarFunction {
+
     private final DataType dataType;
 
     public Cast(Location location, Expression field, DataType dataType) {
@@ -65,7 +66,7 @@ public class Cast extends UnaryScalarFunction {
     protected TypeResolution resolveType() {
         return DataTypeConversion.canConvert(from(), to()) ?
                 TypeResolution.TYPE_RESOLVED :
-                    new TypeResolution("Cannot cast %s to %s", from(), to());
+                    new TypeResolution("Cannot cast [" + from() + "] to [" + to()+ "]");
     }
 
     @Override

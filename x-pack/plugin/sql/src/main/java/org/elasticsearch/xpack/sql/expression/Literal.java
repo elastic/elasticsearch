@@ -26,6 +26,7 @@ public class Literal extends NamedExpression {
 
     public static final Literal TRUE = Literal.of(Location.EMPTY, Boolean.TRUE);
     public static final Literal FALSE = Literal.of(Location.EMPTY, Boolean.FALSE);
+    public static final Literal NULL = Literal.of(Location.EMPTY, null);
 
     private final Object value;
     private final DataType dataType;

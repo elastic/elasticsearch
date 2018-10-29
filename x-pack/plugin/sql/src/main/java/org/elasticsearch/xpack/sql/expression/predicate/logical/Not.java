@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.logical;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
@@ -36,8 +37,7 @@ public class Not extends UnaryScalarFunction {
         if (DataType.BOOLEAN == field().dataType()) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return new TypeResolution("Cannot negate expression ([" + Expressions.name(field()) + "] of type ["
-                + field().dataType().esType + "])");
+        return Expressions.typeMustBeBoolean(field(), functionName(), ParamOrdinal.DEFAULT);
     }
 
     @Override

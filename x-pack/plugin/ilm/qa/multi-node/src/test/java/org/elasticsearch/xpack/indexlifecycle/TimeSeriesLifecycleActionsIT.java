@@ -77,30 +77,79 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
 
         // create policy
-        Map<String, LifecycleAction> warmActions = new HashMap<>();
-        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "node-1,node-2"), null, null));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
-        Map<String, Phase> phases = new HashMap<>();
-        phases.put("hot", new Phase("hot", TimeValue.ZERO, singletonMap(RolloverAction.NAME,
-            new RolloverAction(null, null, 1L))));
-        phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
-        phases.put("cold", new Phase("cold", TimeValue.ZERO, singletonMap(AllocateAction.NAME,
-            new AllocateAction(0, singletonMap("_name", "node-3"), null, null))));
-        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
-        // PUT policy
-        XContentBuilder builder = jsonBuilder();
-        lifecyclePolicy.toXContent(builder, null);
-        final StringEntity entity = new StringEntity(
-            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "_ilm/" + policy);
-        request.setEntity(entity);
-        assertOK(client().performRequest(request));
+        createFullPolicy(TimeValue.ZERO);
         // update policy on index
         updatePolicy(originalIndex, policy);
         // index document {"foo": "bar"} to trigger rollover
         index(client(), originalIndex, "_id", "foo", "bar");
+        assertBusy(() -> assertTrue(indexExists(secondIndex)));
+        assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
+        assertBusy(() -> assertFalse(indexExists(originalIndex)));
+    }
+
+    public void testMoveToAllocateStep() throws Exception {
+        String originalIndex = index + "-000001";
+        createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.include._name", "node-0")
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+
+        // create policy
+        createFullPolicy(TimeValue.timeValueHours(10));
+        // update policy on index
+        updatePolicy(originalIndex, policy);
+
+        // move to a step
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + originalIndex);
+        assertBusy(() -> assertTrue(getStepKeyForIndex(originalIndex).equals(new StepKey("new", "complete", "complete"))));
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+            "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"cold\",\n" +
+            "    \"action\": \"allocate\",\n" +
+            "    \"name\": \"allocate\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(moveToStepRequest);
+        assertBusy(() -> assertFalse(indexExists(originalIndex)));
+    }
+
+
+    public void testMoveToRolloverStep() throws Exception {
+        String originalIndex = index + "-000001";
+        String shrunkenOriginalIndex = ShrinkAction.SHRUNKEN_INDEX_PREFIX + originalIndex;
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 4)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.routing.allocation.include._name", "node-0")
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+
+        createFullPolicy(TimeValue.timeValueHours(10));
+        // update policy on index
+        updatePolicy(originalIndex, policy);
+
+        // move to a step
+        Request moveToStepRequest = new Request("POST", "_ilm/move/" + originalIndex);
+        // index document to trigger rollover
+        index(client(), originalIndex, "_id", "foo", "bar");
+        logger.info(getStepKeyForIndex(originalIndex));
+        moveToStepRequest.setJsonEntity("{\n" +
+            "  \"current_step\": {\n" +
+            "    \"phase\": \"new\",\n" +
+            "    \"action\": \"complete\",\n" +
+            "    \"name\": \"complete\"\n" +
+            "  },\n" +
+            "  \"next_step\": {\n" +
+            "    \"phase\": \"hot\",\n" +
+            "    \"action\": \"rollover\",\n" +
+            "    \"name\": \"attempt_rollover\"\n" +
+            "  }\n" +
+            "}");
+        client().performRequest(moveToStepRequest);
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
         assertBusy(() -> assertFalse(indexExists(originalIndex)));
@@ -294,6 +343,29 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertEquals("illegal_argument_exception", stepInfo.get("type"));
         });
 
+    }
+
+    private void createFullPolicy(TimeValue hotTime) throws IOException {
+        Map<String, LifecycleAction> warmActions = new HashMap<>();
+        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(1, singletonMap("_name", "node-1,node-2"), null, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        Map<String, Phase> phases = new HashMap<>();
+        phases.put("hot", new Phase("hot", hotTime, singletonMap(RolloverAction.NAME,
+            new RolloverAction(null, null, 1L))));
+        phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
+        phases.put("cold", new Phase("cold", TimeValue.ZERO, singletonMap(AllocateAction.NAME,
+            new AllocateAction(0, singletonMap("_name", "node-3"), null, null))));
+        phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
+        // PUT policy
+        XContentBuilder builder = jsonBuilder();
+        lifecyclePolicy.toXContent(builder, null);
+        final StringEntity entity = new StringEntity(
+            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        Request request = new Request("PUT", "_ilm/" + policy);
+        request.setEntity(entity);
+        assertOK(client().performRequest(request));
     }
 
     private void createNewSingletonPolicy(String phaseName, LifecycleAction action) throws IOException {

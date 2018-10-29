@@ -19,12 +19,12 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import java.io.IOException;
 import java.util.Objects;
 
-public class StatsAction extends Action<StatsAction.Response> {
+public class CcrStatsAction extends Action<CcrStatsAction.Response> {
 
     public static final String NAME = "cluster:monitor/ccr/stats";
-    public static final StatsAction INSTANCE = new StatsAction();
+    public static final CcrStatsAction INSTANCE = new CcrStatsAction();
 
-    private StatsAction() {
+    private CcrStatsAction() {
         super(NAME);
     }
 

@@ -1,0 +1,12 @@
+{
+  "ccr.stats": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_ccr/stats",
+      "paths": [ "/_ccr/stats" ],
+      "parts": {},
+      "body": null
+    }
+  }
+}

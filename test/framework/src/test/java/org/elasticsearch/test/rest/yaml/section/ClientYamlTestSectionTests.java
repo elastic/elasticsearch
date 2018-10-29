@@ -328,4 +328,27 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection.getExecutableSections().size(), equalTo(3));
     }
 
+    public void testAddingContainsWithoutSkip() {
+        int lineNumber = between(1, 10000);
+        ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test");
+        if (randomBoolean()) {
+            section.setSkipSection(new SkipSection(null, singletonList("yaml"), null));
+        } else {
+            section.setSkipSection(SkipSection.EMPTY);
+        }
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> section.addExecutableSection(
+                new ContainsAssertion(
+                    new XContentLocation(lineNumber, 0),
+                    randomAlphaOfLength(randomIntBetween(3, 30)),
+                    randomDouble()
+                )
+            )
+        );
+        assertEquals("Attempted to add a [contains] assertion without a corresponding " +
+            "[skip: \"features\": \"contains\"] so runners that do not support the [contains] assertion " +
+            "can skip the test at line [" + lineNumber + "]", e.getMessage());
+    }
+
 }

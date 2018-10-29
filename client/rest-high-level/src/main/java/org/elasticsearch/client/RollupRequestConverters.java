@@ -19,10 +19,12 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupCapsRequest;
+import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
+import org.elasticsearch.client.rollup.StartRollupJobRequest;
 
 import java.io.IOException;
 
@@ -36,33 +38,38 @@ final class RollupRequestConverters {
 
     static Request putJob(final PutRollupJobRequest putRollupJobRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("rollup")
-            .addPathPartAsIs("job")
-            .addPathPart(putRollupJobRequest.getConfig().getId())
-            .build();
+                .addPathPartAsIs("_xpack", "rollup", "job")
+                .addPathPart(putRollupJobRequest.getConfig().getId())
+                .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         request.setEntity(createEntity(putRollupJobRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 
+    static Request startJob(final StartRollupJobRequest startRollupJobRequest) throws IOException {
+        String endpoint = new RequestConverters.EndpointBuilder()
+                .addPathPartAsIs("_xpack", "rollup", "job")
+                .addPathPart(startRollupJobRequest.getJobId())
+                .addPathPartAsIs("_start")
+                .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        return request;
+    }
+
     static Request getJob(final GetRollupJobRequest getRollupJobRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("rollup")
-            .addPathPartAsIs("job")
-            .addPathPart(getRollupJobRequest.getJobId())
-            .build();
+                .addPathPartAsIs("_xpack", "rollup", "job")
+                .addPathPart(getRollupJobRequest.getJobId())
+                .build();
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
+
     static Request getRollupCaps(final GetRollupCapsRequest getRollupCapsRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("rollup")
-            .addPathPartAsIs("data")
-            .addPathPart(getRollupCapsRequest.getIndexPattern())
-            .build();
+                .addPathPartAsIs("_xpack", "rollup", "data")
+                .addPathPart(getRollupCapsRequest.getIndexPattern())
+                .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         request.setEntity(createEntity(getRollupCapsRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;

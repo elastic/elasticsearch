@@ -22,6 +22,12 @@ appropriate request directly.
 * All classes present in `org.elasticsearch.search.aggregations.metrics.*` packages
 were moved to a single `org.elasticsearch.search.aggregations.metrics` package.
 
+* All classes present in `org.elasticsearch.search.aggregations.pipeline.*` packages
+were moved to a single `org.elasticsearch.search.aggregations.pipeline` package.  In
+addition, `org.elasticsearch.search.aggregations.pipeline.PipelineAggregationBuilders`
+was moved to `org.elasticsearch.search.aggregations.PipelineAggregationBuilders`
+
+
 [float]
 ==== `Retry.withBackoff` methods with `Settings` removed
 

@@ -19,24 +19,35 @@
 
 package org.elasticsearch.client.rollup;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Function;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public abstract class AcknowledgedResponse implements ToXContentObject {
-    private final boolean acknowledged;
-    private final String field;
 
-    public AcknowledgedResponse(final boolean acknowledged, final String field) {
+    protected static final String PARSE_FIELD_NAME = "acknowledged";
+    private final boolean acknowledged;
+
+    public AcknowledgedResponse(final boolean acknowledged) {
         this.acknowledged = acknowledged;
-        this.field = field;
     }
 
     public boolean isAcknowledged() {
         return acknowledged;
+    }
+
+    protected static <T> ConstructingObjectParser<T, Void> generateParser(String name, Function<Boolean, T> ctor, String parseField) {
+        ConstructingObjectParser<T, Void> p = new ConstructingObjectParser<>(name, true, args -> ctor.apply((boolean) args[0]));
+        p.declareBoolean(constructorArg(), new ParseField(parseField));
+        return p;
     }
 
     @Override
@@ -60,10 +71,16 @@ public abstract class AcknowledgedResponse implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(field, isAcknowledged());
+            builder.field(getFieldName(), isAcknowledged());
         }
         builder.endObject();
         return builder;
     }
 
+    /**
+     * @return the field name this response uses to output the acknowledged flag
+     */
+    protected String getFieldName() {
+        return PARSE_FIELD_NAME;
+    }
 }

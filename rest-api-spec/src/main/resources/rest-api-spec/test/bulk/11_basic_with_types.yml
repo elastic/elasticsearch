@@ -58,6 +58,8 @@
 
 ---
 "empty action":
+  - skip:
+      features: headers
 
   - do:
       catch: /Malformed action\/metadata line \[3\], expected FIELD_NAME but found \[END_OBJECT\]/

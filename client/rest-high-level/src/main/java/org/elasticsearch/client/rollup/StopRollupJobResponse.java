@@ -19,30 +19,28 @@
 
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-
 public class StopRollupJobResponse extends AcknowledgedResponse {
 
     private static final String PARSE_FIELD_NAME = "stopped";
 
+    private static final ConstructingObjectParser<StopRollupJobResponse, Void> PARSER = AcknowledgedResponse
+            .generateParser("stop_rollup_job_response", StopRollupJobResponse::new, PARSE_FIELD_NAME);
+
     public StopRollupJobResponse(boolean acknowledged) {
-        super(acknowledged, PARSE_FIELD_NAME);
+        super(acknowledged);
     }
 
     public static StopRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    private static final ConstructingObjectParser<StopRollupJobResponse, Void> PARSER
-        = new ConstructingObjectParser<>("stop_rollup_job_response", true,
-        args -> new StopRollupJobResponse((boolean) args[0]));
-    static {
-        PARSER.declareBoolean(constructorArg(), new ParseField(PARSE_FIELD_NAME));
+    @Override
+    protected String getFieldName() {
+        return PARSE_FIELD_NAME;
     }
 }

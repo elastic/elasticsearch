@@ -35,6 +35,8 @@ groupByOnNumberWithWhereAndLimit
 SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY emp_no ORDER BY emp_no DESC LIMIT 1;
 groupByOnNumberOnAlias
 SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY e ORDER BY emp_no DESC;
+groupByOnNumberWithAliasInSelect
+SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY emp_no ORDER BY e DESC;
 
 // group by scalar
 groupByAddScalar
@@ -336,7 +338,7 @@ SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY gender OR
 aggAvgWithCastToDouble
 SELECT gender g, CAST(AVG(emp_no) AS DOUBLE) a FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvg
-SELECT AVG(salary) AS avg FROM test_emp;
+SELECT CAST(FLOOR(AVG(salary)) AS INT) AS avg FROM test_emp;
 aggAvgWithCastAndCount
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a, COUNT(1) c FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvgWithCastAndCountWithFilter
@@ -426,7 +428,16 @@ SELECT MIN(emp_no) AS a, 1 + MIN(emp_no) AS b, ABS(MIN(emp_no)) AS c FROM test_e
 aggRepeatFunctionBetweenSelectAndHaving
 SELECT gender, COUNT(DISTINCT languages) AS c FROM test_emp GROUP BY gender HAVING count(DISTINCT languages) > 0 ORDER BY gender;
 
+// filter with IN
+aggMultiWithHavingUsingIn
+SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max IN(74999, 74600) ORDER BY gender;
+aggMultiGroupByMultiWithHavingUsingIn
+SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74500, 74600) ORDER BY gender, languages;
 
+
+// HAVING filter resulting in NoMatch
+aggWithNoMatchHaving
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING 1 > 2 ORDER BY gender;
 
 //
 // NULL tests
@@ -445,3 +456,16 @@ selectHireDateGroupByHireDate
 SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
 selectSalaryGroupBySalary
 SELECT salary, COUNT(*) c FROM test_emp GROUP BY salary ORDER BY salary DESC;
+selectLangGroupByLangHavingCountIsNotNull
+SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING COUNT(*) IS NOT NULL ORDER BY languages DESC;
+selectLangGroupByLangHavingNotEquality
+SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING NOT COUNT(*) = 1 ORDER BY languages DESC;
+selectLangGroupByLangHavingDifferent
+SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING COUNT(*) <> 1 ORDER BY languages DESC;
+
+
+// filter with IN
+aggMultiWithHavingUsingInAndNullHandling
+SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max IN(74999, null, 74600) ORDER BY gender;
+aggMultiGroupByMultiWithHavingUsingInAndNullHandling
+SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74500, null, 74600) ORDER BY gender, languages;

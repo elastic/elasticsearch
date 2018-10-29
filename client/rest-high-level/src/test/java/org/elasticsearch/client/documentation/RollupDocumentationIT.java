@@ -45,10 +45,12 @@ import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupIndexerJobStat
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupJobStatus;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
-import org.elasticsearch.client.rollup.StopRollupJobRequest;
-import org.elasticsearch.client.rollup.StopRollupJobResponse;
 import org.elasticsearch.client.rollup.RollableIndexCaps;
 import org.elasticsearch.client.rollup.RollupJobCaps;
+import org.elasticsearch.client.rollup.StartRollupJobRequest;
+import org.elasticsearch.client.rollup.StartRollupJobResponse;
+import org.elasticsearch.client.rollup.StopRollupJobRequest;
+import org.elasticsearch.client.rollup.StopRollupJobResponse;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
 import org.elasticsearch.client.rollup.job.config.GroupConfig;
 import org.elasticsearch.client.rollup.job.config.HistogramGroupConfig;
@@ -240,6 +242,48 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
+    @SuppressWarnings("unused")
+    public void testStartRollupJob() throws Exception {
+        testCreateRollupJob();
+        RestHighLevelClient client = highLevelClient();
+        String id = "job_1";
+        // tag::rollup-start-job-request
+        StartRollupJobRequest request = new StartRollupJobRequest(id); // <1>
+        // end::rollup-start-job-request
+        try {
+            // tag::rollup-start-job-execute
+            RollupClient rc = client.rollup();
+            StartRollupJobResponse response = rc.startRollupJob(request, RequestOptions.DEFAULT);
+            // end::rollup-start-job-execute
+            // tag::rollup-start-job-response
+            response.isAcknowledged(); // <1>
+            // end::rollup-start-job-response
+        } catch (Exception e) {
+            // Swallow any exception, this test does not test actually cancelling.
+        }
+        // tag::rollup-start-job-execute-listener
+        ActionListener<StartRollupJobResponse> listener = new ActionListener<StartRollupJobResponse>() {
+            @Override
+            public void onResponse(StartRollupJobResponse response) {
+                 // <1>
+            }
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::rollup-start-job-execute-listener
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+        // tag::rollup-start-job-execute-async
+        RollupClient rc = client.rollup();
+        rc.startRollupJobAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        // end::rollup-start-job-execute-async
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
+        // stop job so it can correctly be deleted by the test teardown
+        rc.stopRollupJob(new StopRollupJobRequest(id), RequestOptions.DEFAULT);
+    }
 
     @SuppressWarnings("unused")
     public void testStopRollupJob() throws Exception {
@@ -278,10 +322,10 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
             }
         };
         // end::rollup-stop-job-execute-listener
-        
+
         final CountDownLatch latch = new CountDownLatch(1);
         listener = new LatchedActionListener<>(listener, latch);
-     
+
         // tag::rollup-stop-job-execute-async
         RollupClient rc = client.rollup();
         rc.stopRollupJobAsync(request, RequestOptions.DEFAULT, listener); // <1>

@@ -39,16 +39,17 @@ import org.elasticsearch.client.rollup.GetRollupJobResponse.IndexerState;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
-import org.elasticsearch.client.rollup.StopRollupJobRequest;
-import org.elasticsearch.client.rollup.StopRollupJobResponse;
 import org.elasticsearch.client.rollup.RollableIndexCaps;
 import org.elasticsearch.client.rollup.RollupJobCaps;
+import org.elasticsearch.client.rollup.StartRollupJobRequest;
+import org.elasticsearch.client.rollup.StartRollupJobResponse;
+import org.elasticsearch.client.rollup.StopRollupJobRequest;
+import org.elasticsearch.client.rollup.StopRollupJobResponse;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
 import org.elasticsearch.client.rollup.job.config.GroupConfig;
 import org.elasticsearch.client.rollup.job.config.MetricConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -167,12 +168,10 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertThat(responseException.status().getStatus(), is(404));
     }
 
-    public void testPutAndGetRollupJob() throws Exception {
+    public void testPutStartAndGetRollupJob() throws Exception {
         // TODO expand this to also test with histogram and terms?
         final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
-        final List<MetricConfig> metrics = Arrays.asList(
-            new MetricConfig("value", SUPPORTED_METRICS),
-            new MetricConfig("date", Arrays.asList(MaxAggregationBuilder.NAME)));
+        final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
         PutRollupJobRequest putRollupJobRequest =
@@ -182,9 +181,9 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
         assertTrue(response.isAcknowledged());
 
-        // TODO Replace this with the Rollup Start Job API
-        Response startResponse = client().performRequest(new Request("POST", "/_xpack/rollup/job/" + id + "/_start"));
-        assertEquals(RestStatus.OK.getStatus(), startResponse.getHttpResponse().getStatusLine().getStatusCode());
+        StartRollupJobRequest startRequest = new StartRollupJobRequest(id);
+        StartRollupJobResponse startResponse = execute(startRequest, rollupClient::startRollupJob, rollupClient::startRollupJobAsync);
+        assertTrue(startResponse.isAcknowledged());
 
         assertBusy(() -> {
             SearchResponse searchResponse = highLevelClient().search(new SearchRequest(rollupIndex), RequestOptions.DEFAULT);
@@ -200,28 +199,21 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
             assertEquals(groups.getDateHistogram().getTimeZone(), source.get("date.date_histogram.time_zone"));
 
             for (MetricConfig metric : metrics) {
-                if (metric.getField().equals("value")) {
-                    for (String name : metric.getMetrics()) {
-                        Number value = (Number) source.get(metric.getField() + "." + name + ".value");
-                        if ("min".equals(name)) {
-                            assertEquals(min, value.intValue());
-                        } else if ("max".equals(name)) {
-                            assertEquals(max, value.intValue());
-                        } else if ("sum".equals(name)) {
-                            assertEquals(sum, value.doubleValue(), 0.0d);
-                        } else if ("avg".equals(name)) {
-                            assertEquals(sum, value.doubleValue(), 0.0d);
-                            Number avgCount = (Number) source.get(metric.getField() + "." + name + "._count");
-                            assertEquals(numDocs, avgCount.intValue());
-                        } else if ("value_count".equals(name)) {
-                            assertEquals(numDocs, value.intValue());
-                        }
+                for (String name : metric.getMetrics()) {
+                    Number value = (Number) source.get(metric.getField() + "." + name + ".value");
+                    if ("min".equals(name)) {
+                        assertEquals(min, value.intValue());
+                    } else if ("max".equals(name)) {
+                        assertEquals(max, value.intValue());
+                    } else if ("sum".equals(name)) {
+                        assertEquals(sum, value.doubleValue(), 0.0d);
+                    } else if ("avg".equals(name)) {
+                        assertEquals(sum, value.doubleValue(), 0.0d);
+                        Number avgCount = (Number) source.get(metric.getField() + "." + name + "._count");
+                        assertEquals(numDocs, avgCount.intValue());
+                    } else if ("value_count".equals(name)) {
+                        assertEquals(numDocs, value.intValue());
                     }
-                } else {
-                    Number value = (Number) source.get(metric.getField() + ".max.value");
-                    assertEquals(
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2018-01-01T00:59:50").getMillis(),
-                        value.longValue());
                 }
             }
         });
@@ -238,10 +230,10 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertThat(job.getStatus().getState(), either(equalTo(IndexerState.STARTED)).or(equalTo(IndexerState.INDEXING)));
         assertThat(job.getStatus().getCurrentPosition(), hasKey("date.date_histogram"));
         assertEquals(true, job.getStatus().getUpgradedDocumentId());
-        
+
         // stop the job
-        StopRollupJobRequest startRequest = new StopRollupJobRequest(id);
-        StopRollupJobResponse stopResponse = execute(startRequest, rollupClient::stopRollupJob, rollupClient::stopRollupJobAsync);
+        StopRollupJobRequest stopRequest = new StopRollupJobRequest(id);
+        StopRollupJobResponse stopResponse = execute(stopRequest, rollupClient::stopRollupJob, rollupClient::stopRollupJobAsync);
         assertTrue(stopResponse.isAcknowledged());
     }
 

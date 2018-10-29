@@ -163,7 +163,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             }
             final AnalysisRegistry analysisRegistry = indicesService.getAnalysis();
             final int maxTokenCount = indexService == null ?
-                IndexSettings.MAX_TOKEN_COUNT_SETTING.get(settings) : indexService.getIndexSettings().getMaxTokenCount();
+                IndexSettings.MAX_TOKEN_COUNT_SETTING.get(Settings.EMPTY) : indexService.getIndexSettings().getMaxTokenCount();
             return analyze(request, field, analyzer, indexService != null ? indexService.getIndexAnalyzers() : null,
                 analysisRegistry, environment, maxTokenCount);
         } catch (IOException e) {

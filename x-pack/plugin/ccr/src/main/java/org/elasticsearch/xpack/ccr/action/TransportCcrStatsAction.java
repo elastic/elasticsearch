@@ -30,14 +30,14 @@ import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
 import java.util.Objects;
 
-public class TransportStatsAction extends TransportMasterNodeAction<CcrStatsAction.Request, CcrStatsAction.Response> {
+public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsAction.Request, CcrStatsAction.Response> {
 
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
     private final AutoFollowCoordinator autoFollowCoordinator;
 
     @Inject
-    public TransportStatsAction(
+    public TransportCcrStatsAction(
             Settings settings,
             TransportService transportService,
             ClusterService clusterService,

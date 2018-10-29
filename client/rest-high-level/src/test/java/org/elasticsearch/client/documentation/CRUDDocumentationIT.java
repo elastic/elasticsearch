@@ -757,7 +757,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::bulk-request-routing
 
             // tag::bulk-request-index-type
-            BulkRequest requestWithDefaultedIndexAndType = new BulkRequest("posts","_doc"); // <1>
+            BulkRequest defaulted = new BulkRequest("posts","_doc"); // <1>
             // end::bulk-request-index-type
 
             // tag::bulk-execute-listener

@@ -109,29 +109,35 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         checkUpdateAction(false, timeout,
                 client().prepareUpdate("test", "type1", "1")
                         .setScript(new Script(
-                            ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
+                            ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script",
+                            Collections.emptyMap())).setTimeout(timeout));
 
         checkUpdateAction(true, timeout,
                 client().prepareUpdate("no_index", "type1", "1")
                         .setScript(new Script(
-                            ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
+                            ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script",
+                            Collections.emptyMap())).setTimeout(timeout));
 
 
-        checkWriteAction(
-            client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
+        checkWriteAction(client().prepareIndex("test", "type1", "1")
+                .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
-        checkWriteAction(
-            client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
+        checkWriteAction(client().prepareIndex("no_index", "type1", "1")
+                .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        bulkRequestBuilder.add(client().prepareIndex("test", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type1", "1")
+            .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+        bulkRequestBuilder.add(client().prepareIndex("test", "type1", "2")
+            .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.setTimeout(timeout);
         checkWriteAction(bulkRequestBuilder);
 
         bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+        bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "1")
+            .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
+        bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "2")
+            .setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.setTimeout(timeout);
         checkWriteAction(bulkRequestBuilder);
 
@@ -219,7 +225,8 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
 
         try {
-            client().prepareIndex("test1", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get();
+            client().prepareIndex("test1", "type1", "1")
+                .setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));

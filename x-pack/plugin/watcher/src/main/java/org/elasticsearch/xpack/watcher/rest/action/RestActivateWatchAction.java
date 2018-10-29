@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -29,6 +32,9 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * The rest action to de/activate a watch
  */
 public class RestActivateWatchAction extends WatcherRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestActivateWatchAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     public RestActivateWatchAction(Settings settings, RestController controller) {
         super(settings);
 

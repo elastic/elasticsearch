@@ -51,8 +51,10 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-public abstract class TransportInstanceSingleOperationAction<Request extends InstanceShardOperationRequest<Request>, Response extends ActionResponse>
-        extends HandledTransportAction<Request, Response> {
+public abstract class TransportInstanceSingleOperationAction<
+            Request extends InstanceShardOperationRequest<Request>,
+            Response extends ActionResponse
+       > extends HandledTransportAction<Request, Response> {
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -64,7 +66,8 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
 
     protected TransportInstanceSingleOperationAction(Settings settings, String actionName, ThreadPool threadPool,
                                                      ClusterService clusterService, TransportService transportService,
-                                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
+                                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                                     Supplier<Request> request) {
         super(settings, actionName, transportService, actionFilters, request);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -216,9 +219,12 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                 Exception listenFailure = failure;
                 if (listenFailure == null) {
                     if (shardIt == null) {
-                        listenFailure = new UnavailableShardsException(request.concreteIndex(), -1, "Timeout waiting for [{}], request: {}", request.timeout(), actionName);
+                        listenFailure = new UnavailableShardsException(request.concreteIndex(), -1, "Timeout waiting for [{}], request: {}",
+                            request.timeout(), actionName);
                     } else {
-                        listenFailure = new UnavailableShardsException(shardIt.shardId(), "[{}] shardIt, [{}] active : Timeout waiting for [{}], request: {}", shardIt.size(), shardIt.sizeActive(), request.timeout(), actionName);
+                        listenFailure = new UnavailableShardsException(shardIt.shardId(),
+                            "[{}] shardIt, [{}] active : Timeout waiting for [{}], request: {}", shardIt.size(), shardIt.sizeActive(),
+                            request.timeout(), actionName);
                     }
                 }
                 listener.onFailure(listenFailure);

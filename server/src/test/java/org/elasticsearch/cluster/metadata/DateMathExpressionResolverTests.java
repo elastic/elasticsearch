@@ -63,9 +63,12 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         List<String> indexExpressions = Arrays.asList("<.marvel-{now}>", "<.watch_history-{now}>", "<logstash-{now}>");
         List<String> result = expressionResolver.resolve(context, indexExpressions);
         assertThat(result.size(), equalTo(3));
-        assertThat(result.get(0), equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
-        assertThat(result.get(1), equalTo(".watch_history-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
-        assertThat(result.get(2), equalTo("logstash-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+        assertThat(result.get(0),
+            equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+        assertThat(result.get(1),
+            equalTo(".watch_history-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+        assertThat(result.get(2),
+            equalTo("logstash-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
     }
 
     public void testEmpty() throws Exception {

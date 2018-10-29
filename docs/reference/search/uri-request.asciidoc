@@ -83,7 +83,7 @@ providing text to a numeric field) to be ignored. Defaults to false.
 hits was computed.
 
 |`_source`|Set to `false` to disable retrieval of the `_source` field. You can also retrieve
-part of the document by using `_source_include` & `_source_exclude` (see the <<search-request-source-filtering, request body>>
+part of the document by using `_source_includes` & `_source_excludes` (see the <<search-request-source-filtering, request body>>
 documentation for more details)
 
 |`stored_fields` |The selective stored fields of the document to return for each hit,

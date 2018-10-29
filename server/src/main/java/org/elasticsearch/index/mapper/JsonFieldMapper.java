@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -76,10 +77,10 @@ public final class JsonFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "json";
     public static final NamedAnalyzer WHITESPACE_ANALYZER = new NamedAnalyzer(
         "whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
-    public static final String KEYED_FIELD_SUFFIX = "._keyed";
+    private static final String KEYED_FIELD_SUFFIX = "._keyed";
 
     private static class Defaults {
-        public static final MappedFieldType FIELD_TYPE = new JsonFieldType();
+        public static final MappedFieldType FIELD_TYPE = new RootJsonFieldType();
 
         static {
             FIELD_TYPE.setTokenized(false);
@@ -101,8 +102,8 @@ public final class JsonFieldMapper extends FieldMapper {
         }
 
         @Override
-        public JsonFieldType fieldType() {
-            return (JsonFieldType) super.fieldType();
+        public RootJsonFieldType fieldType() {
+            return (RootJsonFieldType) super.fieldType();
         }
 
         @Override
@@ -183,16 +184,34 @@ public final class JsonFieldMapper extends FieldMapper {
         }
     }
 
-    public static final class JsonFieldType extends StringFieldType {
+    /**
+     * A field type that represents the values under a particular JSON key, used
+     * when searching under a specific key as in 'my_json_field.key: some_value'.
+     */
+    public static final class KeyedJsonFieldType extends StringFieldType {
+        private final String key;
         private boolean splitQueriesOnWhitespace;
 
-        public JsonFieldType() {
+        KeyedJsonFieldType(String key) {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+            this.key = key;
         }
 
-        private JsonFieldType(JsonFieldType ref) {
+        public KeyedJsonFieldType clone() {
+            return new KeyedJsonFieldType(this);
+        }
+
+        private KeyedJsonFieldType(KeyedJsonFieldType ref) {
             super(ref);
+            this.key = ref.key;
+            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
+        }
+
+        private KeyedJsonFieldType(String name, String key, RootJsonFieldType ref) {
+            super(ref);
+            setName(name);
+            this.key = key;
             this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
         }
 
@@ -201,7 +220,7 @@ public final class JsonFieldMapper extends FieldMapper {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             if (!super.equals(o)) return false;
-            JsonFieldType that = (JsonFieldType) o;
+            KeyedJsonFieldType that = (KeyedJsonFieldType) o;
             return splitQueriesOnWhitespace == that.splitQueriesOnWhitespace;
         }
 
@@ -210,8 +229,98 @@ public final class JsonFieldMapper extends FieldMapper {
             return Objects.hash(super.hashCode(), splitQueriesOnWhitespace);
         }
 
-        public JsonFieldType clone() {
-            return new JsonFieldType(this);
+        @Override
+        public String typeName() {
+            return CONTENT_TYPE;
+        }
+
+        public String key() {
+            return key;
+        }
+
+        public boolean splitQueriesOnWhitespace() {
+            return splitQueriesOnWhitespace;
+        }
+
+        public void setSplitQueriesOnWhitespace(boolean splitQueriesOnWhitespace) {
+            checkIfFrozen();
+            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
+        }
+
+        @Override
+        public Query existsQuery(QueryShardContext context) {
+            Term term = new Term(name(), JsonFieldParser.createKeyedValue(key, ""));
+            return new PrefixQuery(term);
+        }
+
+        @Override
+        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
+                                boolean transpositions) {
+            throw new UnsupportedOperationException("[fuzzy] queries are not currently supported on [" +
+                CONTENT_TYPE + "] fields.");
+        }
+
+        @Override
+        public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
+                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            throw new UnsupportedOperationException("[regexp] queries are not currently supported on [" +
+                CONTENT_TYPE + "] fields.");
+        }
+
+        @Override
+        public Query wildcardQuery(String value,
+                                   MultiTermQuery.RewriteMethod method,
+                                   QueryShardContext context) {
+            throw new UnsupportedOperationException("[wildcard] queries are not currently supported on [" +
+                CONTENT_TYPE + "] fields.");
+        }
+
+        public BytesRef indexedValueForSearch(Object value) {
+            if (value == null) {
+                return null;
+            }
+
+            String stringValue = value instanceof BytesRef
+                ? ((BytesRef) value).utf8ToString()
+                : value.toString();
+            String keyedValue = JsonFieldParser.createKeyedValue(key, stringValue);
+            return new BytesRef(keyedValue);
+        }
+    }
+
+    /**
+     * A field type that represents all 'root' values. This field type is used in
+     * searches on the JSON field itself, e.g. 'my_json_field: some_value'.
+     */
+    public static final class RootJsonFieldType extends StringFieldType {
+        private boolean splitQueriesOnWhitespace;
+
+        public RootJsonFieldType() {
+            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
+            setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+        }
+
+        private RootJsonFieldType(RootJsonFieldType ref) {
+            super(ref);
+            this.splitQueriesOnWhitespace = ref.splitQueriesOnWhitespace;
+        }
+
+        public RootJsonFieldType clone() {
+            return new RootJsonFieldType(this);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (!super.equals(o)) return false;
+            RootJsonFieldType that = (RootJsonFieldType) o;
+            return splitQueriesOnWhitespace == that.splitQueriesOnWhitespace;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), splitQueriesOnWhitespace);
         }
 
         @Override
@@ -254,15 +363,6 @@ public final class JsonFieldMapper extends FieldMapper {
             throw new UnsupportedOperationException("[wildcard] queries are not currently supported on [" +
                 CONTENT_TYPE + "] fields.");
         }
-
-        @Override
-        public Object valueForDisplay(Object value) {
-            if (value == null) {
-                return null;
-            }
-            BytesRef binaryValue = (BytesRef) value;
-            return binaryValue.utf8ToString();
-        }
     }
 
     private final JsonFieldParser fieldParser;
@@ -277,7 +377,7 @@ public final class JsonFieldMapper extends FieldMapper {
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 
         this.ignoreAbove = ignoreAbove;
-        this.fieldParser = new JsonFieldParser(fieldType, ignoreAbove);
+        this.fieldParser = new JsonFieldParser(fieldType.name(), keyedFieldName(), fieldType, ignoreAbove);
     }
 
     @Override
@@ -297,8 +397,16 @@ public final class JsonFieldMapper extends FieldMapper {
     }
 
     @Override
-    public JsonFieldType fieldType() {
-        return (JsonFieldType) super.fieldType();
+    public RootJsonFieldType fieldType() {
+        return (RootJsonFieldType) super.fieldType();
+    }
+
+    public KeyedJsonFieldType keyedFieldType(String key) {
+        return new KeyedJsonFieldType(keyedFieldName(), key, fieldType());
+    }
+
+    public String keyedFieldName() {
+        return fieldType.name() + KEYED_FIELD_SUFFIX;
     }
 
     @Override

@@ -25,7 +25,8 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 
-public abstract class DelegatingActionListener<Instigator extends ActionResponse, Delegated extends  ActionResponse> implements ActionListener<Instigator> {
+public abstract class DelegatingActionListener<Instigator extends ActionResponse, Delegated extends  ActionResponse>
+        implements ActionListener<Instigator> {
 
     ActionListener<Delegated> delegatedActionListener;
 

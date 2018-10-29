@@ -64,12 +64,14 @@ import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
+import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.CalendarTests;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedState;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
+import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.DataDescription;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -355,6 +357,33 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig createdDatafeed = response.getResponse();
         assertThat(createdDatafeed.getId(), equalTo(datafeedId));
         assertThat(createdDatafeed.getIndices(), equalTo(datafeedConfig.getIndices()));
+    }
+
+    public void testUpdateDatafeed() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        execute(new PutJobRequest(job), machineLearningClient::putJob, machineLearningClient::putJobAsync);
+
+        String datafeedId = "datafeed-" + jobId;
+        DatafeedConfig datafeedConfig = DatafeedConfig.builder(datafeedId, jobId).setIndices("some_data_index").build();
+
+        PutDatafeedResponse response = machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeedConfig), RequestOptions.DEFAULT);
+
+        DatafeedConfig createdDatafeed = response.getResponse();
+        assertThat(createdDatafeed.getId(), equalTo(datafeedId));
+        assertThat(createdDatafeed.getIndices(), equalTo(datafeedConfig.getIndices()));
+
+        DatafeedUpdate datafeedUpdate = DatafeedUpdate.builder(datafeedId).setIndices("some_other_data_index").setScrollSize(10).build();
+
+        response = execute(new UpdateDatafeedRequest(datafeedUpdate),
+            machineLearningClient::updateDatafeed,
+            machineLearningClient::updateDatafeedAsync);
+
+        DatafeedConfig updatedDatafeed = response.getResponse();
+        assertThat(datafeedUpdate.getId(), equalTo(updatedDatafeed.getId()));
+        assertThat(datafeedUpdate.getIndices(), equalTo(updatedDatafeed.getIndices()));
+        assertThat(datafeedUpdate.getScrollSize(), equalTo(updatedDatafeed.getScrollSize()));
     }
 
     public void testGetDatafeed() throws Exception {

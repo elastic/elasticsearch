@@ -112,10 +112,10 @@ public class RollupClient {
     public void startRollupJobAsync(StartRollupJobRequest request, RequestOptions options,
             ActionListener<StartRollupJobResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
-                RollupRequestConverters::startJob,
-                options,
-                StartRollupJobResponse::fromXContent,
-                listener, Collections.emptySet());
+            RollupRequestConverters::startJob,
+            options,
+            StartRollupJobResponse::fromXContent,
+            listener, Collections.emptySet());
     }
 
     /**

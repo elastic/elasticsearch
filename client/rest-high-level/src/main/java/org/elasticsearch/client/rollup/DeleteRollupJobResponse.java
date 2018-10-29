@@ -26,8 +26,6 @@ import java.io.IOException;
 
 public class DeleteRollupJobResponse extends AcknowledgedResponse {
 
-    private static final String PARSE_FIELD_NAME = "acknowledged";
-
     public DeleteRollupJobResponse(boolean acknowledged) {
         super(acknowledged);
     }

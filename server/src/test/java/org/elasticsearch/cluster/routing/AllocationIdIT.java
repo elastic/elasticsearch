@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -80,14 +81,14 @@ public class AllocationIdIT extends ESIntegTestCase {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class, InternalSettingsPlugin.class);
     }
 
-    public void testAllocationIdIsSetAfterRecoveryOnAllocateStalePrimary() throws Exception {
-        /*
-         * test case to spot the problem if allocation id is adjusted before recovery is done (historyUUID is adjusted):
+    public void testFailedRecoveryOnAllocateStalePrimaryRequiresAnotherAllocateStalePrimary() throws Exception {
+        /* test case to spot the problem if allocation id is adjusted before recovery is done (historyUUID is adjusted):
+         * ( if recovery is failed on AllocateStalePrimary it requires another AllocateStalePrimary )
          *
          * - Master node + 2 data nodes
          * - (1) index some docs
          * - stop primary (node1)
-         * - (2) index more docs to a formal replica (node2)
+         * - (2) index more docs to a node2, that marks node1 as stale
          * - stop node2
          *
          * node1 would not be a new primary due to master node state - it is required to run AllocateStalePrimary
@@ -95,24 +96,22 @@ public class AllocationIdIT extends ESIntegTestCase {
          * - start node1 (shard would not start as it is stale)
          * - allocate stale primary - allocation id is adjusted (*) - but it fails due to the presence of corruption marker
          * - stop node1
-         * - stop node0 (master node) to forget about recoverySource (it is stored in a routing table)
-         * - drop a corruption marker
-         * - start node0 (master) and node1
-         *  -> node0 becomes a new primary with the same historyUUID if (*) has a real allocation id
-         *  -> node0 has a RED index if (*) points to a fake shard -> node requires another AllocateStalePrimary
-         * - index same amount of docs to node1 as it was added at (2)
-         *
-         * - node1 and node2 have the same number of docs ( but with different docs )
+         * - stop master to forget about recoverySource (it is stored in a routing table)
+         * - remove a corruption marker
+         * - try to open index on node1
+         *  -> node1 has a RED index if (*) points to a fake shard -> node requires another AllocateStalePrimary
+         * - check that restart does not help
+         * - another manual intervention of AllocateStalePrimary brings index to yellow state
          * - bring node2 back
-         * -> no recovery take place if a shard allocation id at (*) is persisted => nodes are fully in-sync but have diff docs
-         * -> due to fake allocation id at (*) AllocateStalePrimary is forced for the 2nd time and a full recovery takes place
+         * -> nodes are fully in-sync and has different to initial history uuid
          */
+
         // initial set up
         final String indexName = "index42";
-        String node0 = internalCluster().startMasterOnlyNode();
+        String master = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
         createIndex(indexName);
-        final int numDocs = indexDocs(indexName);
+        final int numDocs = indexDocs(indexName, "foo", "bar");
         final IndexSettings indexSettings = getIndexSettings(indexName, node1);
         final String primaryNodeId = getNodeIdByName(node1);
         final Set<String> allocationIds = getAllocationIds(indexName);
@@ -127,22 +126,13 @@ public class AllocationIdIT extends ESIntegTestCase {
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
 
-        // index more docs to node2 (formal replica)
-        int numExtraDocs = randomIntBetween(10, 100);
-        {
-            IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
-            for (int i = 0; i < builders.length; i++) {
-                builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar2");
-            }
-
-            indexRandom(true, false, false, Arrays.asList(builders));
-            flush(indexName);
-            assertHitCount(client(node2).prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocs + numExtraDocs);
-        }
+        // index more docs to node2 that marks node1 as stale
+        int numExtraDocs = indexDocs(indexName, "foo", "bar2");
+        assertHitCount(client(node2).prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocs + numExtraDocs);
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node2));
 
-        // create fake corrupted marker
+        // create fake corrupted marker on node1
         putFakeCorruptionMarker(indexSettings, shardId, indexPath);
 
         // thanks to master node1 is out of sync
@@ -156,24 +146,35 @@ public class AllocationIdIT extends ESIntegTestCase {
             .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true))
             .get();
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node0));
+        // allocation fails due to corruption marker
+        assertBusy(() -> {
+            final ClusterState state = client().admin().cluster().prepareState().get().getState();
+            final ShardRouting shardRouting = state.routingTable().index(indexName).shard(shardId.id()).primaryShard();
+            assertThat(shardRouting.state(), equalTo(ShardRoutingState.UNASSIGNED));
+            assertThat(shardRouting.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+        });
+
+        // stop master to forget about recoverySource, it is stored in a routing table (in memory, not in a disk state)
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(master));
 
         try(Store store = new Store(shardId, indexSettings, new SimpleFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.removeCorruptionMarker();
         }
 
-        node0 = internalCluster().startMasterOnlyNode();
-        node1 = internalCluster().startNode();
+        master = internalCluster().startMasterOnlyNode();
 
-        // that we can have w/o fake id:
-        // ensureYellow(indexName);
-        // assertThat(historyUUIDs(node12, indexName), equalTo(historyUUIDs));
+        // open index - no any reasons to wait 30 sec as no any health shard for that
+        client(node1).admin().indices().prepareOpen(indexName).setTimeout(TimeValue.timeValueSeconds(5)).get();
 
-        // index has to red: no any shard is allocated (allocation id is a fake id that does not match to anything)
-        final ClusterHealthStatus indexHealthStatus = client().admin().cluster()
-            .health(Requests.clusterHealthRequest(indexName)).actionGet().getStatus();
-        assertThat(indexHealthStatus, is(ClusterHealthStatus.RED));
+        // index is red: no any shard is allocated (allocation id is a fake id that does not match to anything)
+        checkHealthStatus(indexName, ClusterHealthStatus.RED);
+        checkNoValidShardCopy(indexName, shardId);
+
+        internalCluster().restartNode(node1, InternalTestCluster.EMPTY_CALLBACK);
+
+        // index is still red due to mismatch of allocation id
+        checkHealthStatus(indexName, ClusterHealthStatus.RED);
+        checkNoValidShardCopy(indexName, shardId);
 
         // no any valid shard is there; have to invoke AllocateStalePrimary again
         client().admin().cluster().prepareReroute()
@@ -182,17 +183,6 @@ public class AllocationIdIT extends ESIntegTestCase {
 
         ensureYellow(indexName);
 
-        {
-            IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
-            for (int i = 0; i < builders.length; i++) {
-                builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar3");
-            }
-
-            indexRandom(true, false, false, Arrays.asList(builders));
-            flush(indexName);
-        }
-        assertHitCount(client(node1).prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocs + numExtraDocs);
-
         // bring node2 back
         node2 = internalCluster().startNode();
         ensureGreen(indexName);
@@ -200,9 +190,13 @@ public class AllocationIdIT extends ESIntegTestCase {
         assertThat(historyUUIDs(node1, indexName), everyItem(not(isIn(historyUUIDs))));
         assertThat(historyUUIDs(node1, indexName), equalTo(historyUUIDs(node2, indexName)));
 
-        assertHitCount(client(node1).prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocs + numExtraDocs);
-        assertHitCount(client(node2).prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocs + numExtraDocs);
         assertSameDocIdsOnShards();
+    }
+
+    public void checkHealthStatus(String indexName, ClusterHealthStatus healthStatus) {
+        final ClusterHealthStatus indexHealthStatus = client().admin().cluster()
+            .health(Requests.clusterHealthRequest(indexName)).actionGet().getStatus();
+        assertThat(indexHealthStatus, is(healthStatus));
     }
 
     private void createIndex(String indexName) {
@@ -216,20 +210,18 @@ public class AllocationIdIT extends ESIntegTestCase {
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum")));
     }
 
-    private int indexDocs(String indexName) throws InterruptedException, ExecutionException {
+    private int indexDocs(String indexName, Object ... source) throws InterruptedException, ExecutionException {
         // index some docs in several segments
         int numDocs = 0;
         for (int k = 0, attempts = randomIntBetween(5, 10); k < attempts; k++) {
             final int numExtraDocs = between(10, 100);
             IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
             for (int i = 0; i < builders.length; i++) {
-                builders[i] = client().prepareIndex(indexName, "type").setSource("foo", "bar");
+                builders[i] = client().prepareIndex(indexName, "type").setSource(source);
             }
 
+            indexRandom(true, false, true, Arrays.asList(builders));
             numDocs += numExtraDocs;
-
-            indexRandom(true, false, false, Arrays.asList(builders));
-            flush(indexName);
         }
 
         return numDocs;

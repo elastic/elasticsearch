@@ -45,25 +45,34 @@ public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTe
         ResumeFollowAction.Request request = new ResumeFollowAction.Request();
         request.setFollowerIndex(randomAlphaOfLength(4));
         if (randomBoolean()) {
-            request.setMaxBatchOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
+            request.setMaxReadRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxConcurrentReadBatches(randomIntBetween(1, Integer.MAX_VALUE));
+            request.setMaxOutstandingReadRequests(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxConcurrentWriteBatches(randomIntBetween(1, Integer.MAX_VALUE));
+            request.setMaxOutstandingWriteRequests(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            request.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(randomIntBetween(1, Integer.MAX_VALUE));
+            request.setMaxWriteBufferCount(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
             request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setPollTimeout(TimeValue.timeValueMillis(500));
+            request.setReadPollTimeout(TimeValue.timeValueMillis(500));
         }
         return request;
     }

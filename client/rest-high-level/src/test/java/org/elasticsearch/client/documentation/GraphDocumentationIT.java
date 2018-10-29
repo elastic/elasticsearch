@@ -26,12 +26,12 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.protocol.xpack.graph.Connection;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
-import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
-import org.elasticsearch.protocol.xpack.graph.Hop;
-import org.elasticsearch.protocol.xpack.graph.Vertex;
-import org.elasticsearch.protocol.xpack.graph.VertexRequest;
+import org.elasticsearch.client.graph.Connection;
+import org.elasticsearch.client.graph.GraphExploreRequest;
+import org.elasticsearch.client.graph.GraphExploreResponse;
+import org.elasticsearch.client.graph.Hop;
+import org.elasticsearch.client.graph.Vertex;
+import org.elasticsearch.client.graph.VertexRequest;
 import org.junit.Before;
 
 import java.io.IOException;

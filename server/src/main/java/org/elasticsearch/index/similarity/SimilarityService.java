@@ -51,7 +51,7 @@ import java.util.function.Supplier;
 
 public final class SimilarityService extends AbstractIndexComponent {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(SimilarityService.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(SimilarityService.class));
     public static final String DEFAULT_SIMILARITY = "BM25";
     private static final String CLASSIC_SIMILARITY = "classic";
     private static final Map<String, Function<Version, Supplier<Similarity>>> DEFAULTS;
@@ -67,7 +67,7 @@ public final class SimilarityService extends AbstractIndexComponent {
             } else {
                 final ClassicSimilarity similarity = SimilarityProviders.createClassicSimilarity(Settings.EMPTY, version);
                 return () -> {
-                    DEPRECATION_LOGGER.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
+                    deprecationLogger.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
                             + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                             + "instead.");
                     return similarity;
@@ -90,7 +90,7 @@ public final class SimilarityService extends AbstractIndexComponent {
                         throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
                                 + "similarity or build a custom [scripted] similarity instead.");
                     } else {
-                        DEPRECATION_LOGGER.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
+                        deprecationLogger.deprecated("The [classic] similarity is now deprecated in favour of BM25, which is generally "
                                 + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                                 + "instead.");
                         return SimilarityProviders.createClassicSimilarity(settings, version);
@@ -154,7 +154,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
-            DEPRECATION_LOGGER.deprecated("The [base] similarity is ignored since query normalization and coords have been removed");
+            deprecationLogger.deprecated("The [base] similarity is ignored since query normalization and coords have been removed");
         }
     }
 
@@ -270,7 +270,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         if (indexCreatedVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
             throw new IllegalArgumentException(message);
         } else if (indexCreatedVersion.onOrAfter(Version.V_6_5_0)) {
-            DEPRECATION_LOGGER.deprecated(message);
+            deprecationLogger.deprecated(message);
         }
     }
 

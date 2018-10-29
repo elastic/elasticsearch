@@ -173,7 +173,7 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
         assertEquals("keyword:(bar foo lala)", tq.asBuilder().toQuery(createShardContext()).toString());
     }
 
-    public void testTranslateInExpression_WhereClauseAndNullHAndling() throws IOException {
+    public void testTranslateInExpression_WhereClauseAndNullHandling() throws IOException {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', null, 'lala', null, 'foo', concat('la', 'la'))");
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);

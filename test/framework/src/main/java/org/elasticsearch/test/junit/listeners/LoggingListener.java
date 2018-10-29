@@ -80,7 +80,7 @@ public class LoggingListener extends RunListener {
         if (loggerName.equalsIgnoreCase("_root")) {
             return LogManager.getRootLogger();
         }
-        return Loggers.getLogger(loggerName);
+        return LogManager.getLogger(loggerName);
     }
 
     /**

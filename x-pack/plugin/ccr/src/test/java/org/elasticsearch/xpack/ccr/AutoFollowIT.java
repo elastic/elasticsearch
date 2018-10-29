@@ -19,7 +19,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
@@ -126,7 +126,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(randomIntBetween(0, Integer.MAX_VALUE));
+            request.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
             request.setMaxConcurrentReadBatches(randomIntBetween(0, Integer.MAX_VALUE));
@@ -135,16 +135,25 @@ public class AutoFollowIT extends CcrIntegTestCase {
             request.setMaxConcurrentWriteBatches(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxBatchOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+            request.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            request.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
             request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setPollTimeout(TimeValue.timeValueMillis(500));
+            request.setReadPollTimeout(TimeValue.timeValueMillis(500));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
         }
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
 
@@ -157,26 +166,35 @@ public class AutoFollowIT extends CcrIntegTestCase {
             ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTasksMetaData.tasks().iterator().next().getParams();
             assertThat(shardFollowTask.getLeaderShardId().getIndexName(), equalTo("logs-201901"));
             assertThat(shardFollowTask.getFollowShardId().getIndexName(), equalTo("copy-logs-201901"));
+            if (request.getMaxWriteBufferCount() != null) {
+                assertThat(shardFollowTask.getMaxWriteBufferCount(), equalTo(request.getMaxWriteBufferCount()));
+            }
             if (request.getMaxWriteBufferSize() != null) {
                 assertThat(shardFollowTask.getMaxWriteBufferSize(), equalTo(request.getMaxWriteBufferSize()));
             }
             if (request.getMaxConcurrentReadBatches() != null) {
-                assertThat(shardFollowTask.getMaxConcurrentReadBatches(), equalTo(request.getMaxConcurrentReadBatches()));
+                assertThat(shardFollowTask.getMaxOutstandingReadRequests(), equalTo(request.getMaxConcurrentReadBatches()));
             }
             if (request.getMaxConcurrentWriteBatches() != null) {
-                assertThat(shardFollowTask.getMaxConcurrentWriteBatches(), equalTo(request.getMaxConcurrentWriteBatches()));
+                assertThat(shardFollowTask.getMaxOutstandingWriteRequests(), equalTo(request.getMaxConcurrentWriteBatches()));
             }
-            if (request.getMaxBatchOperationCount() != null) {
-                assertThat(shardFollowTask.getMaxBatchOperationCount(), equalTo(request.getMaxBatchOperationCount()));
+            if (request.getMaxReadRequestOperationCount() != null) {
+                assertThat(shardFollowTask.getMaxReadRequestOperationCount(), equalTo(request.getMaxReadRequestOperationCount()));
             }
-            if (request.getMaxBatchSize() != null) {
-                assertThat(shardFollowTask.getMaxBatchSize(), equalTo(request.getMaxBatchSize()));
+            if (request.getMaxReadRequestSize() != null) {
+                assertThat(shardFollowTask.getMaxReadRequestSize(), equalTo(request.getMaxReadRequestSize()));
             }
             if (request.getMaxRetryDelay() != null) {
                 assertThat(shardFollowTask.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));
             }
-            if (request.getPollTimeout() != null) {
-                assertThat(shardFollowTask.getPollTimeout(), equalTo(request.getPollTimeout()));
+            if (request.getReadPollTimeout() != null) {
+                assertThat(shardFollowTask.getReadPollTimeout(), equalTo(request.getReadPollTimeout()));
+            }
+            if (request.getMaxWriteRequestOperationCount() != null) {
+                assertThat(shardFollowTask.getMaxWriteRequestOperationCount(), equalTo(request.getMaxWriteRequestOperationCount()));
+            }
+            if (request.getMaxWriteRequestSize() != null) {
+                assertThat(shardFollowTask.getMaxWriteRequestSize(), equalTo(request.getMaxWriteRequestSize()));
             }
         });
     }
@@ -242,8 +260,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     private AutoFollowStats getAutoFollowStats() {
-        AutoFollowStatsAction.Request request = new AutoFollowStatsAction.Request();
-        return followerClient().execute(AutoFollowStatsAction.INSTANCE, request).actionGet().getStats();
+        CcrStatsAction.Request request = new CcrStatsAction.Request();
+        return followerClient().execute(CcrStatsAction.INSTANCE, request).actionGet().getAutoFollowStats();
     }
 
     private void createLeaderIndex(String index, Settings settings) {

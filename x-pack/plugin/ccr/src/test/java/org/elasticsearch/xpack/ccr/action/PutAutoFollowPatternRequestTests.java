@@ -48,13 +48,22 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
         if (randomBoolean()) {
-            request.setPollTimeout(TimeValue.timeValueMillis(500));
+            request.setReadPollTimeout(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
             request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setMaxBatchOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+            request.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            request.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
             request.setMaxConcurrentReadBatches(randomIntBetween(0, Integer.MAX_VALUE));
@@ -63,10 +72,13 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
             request.setMaxConcurrentWriteBatches(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            request.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(randomIntBetween(0, Integer.MAX_VALUE));
+            request.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
         }
         return request;
     }

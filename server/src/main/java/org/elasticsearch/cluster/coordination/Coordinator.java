@@ -67,12 +67,14 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -115,6 +117,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Optional<Join> lastJoin;
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
+
+    private final Set<Consumer<Iterable<DiscoveryNode>>> discoveredNodesListeners = newConcurrentSet();
 
     public Coordinator(Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        AllocationService allocationService, MasterService masterService,
@@ -564,11 +568,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    public boolean isInitialConfigurationSet() {
+        return getStateForMasterService().getLastAcceptedConfiguration().isEmpty() == false;
+    }
+
     public void setInitialConfiguration(final VotingConfiguration votingConfiguration) {
         synchronized (mutex) {
             final ClusterState currentState = getStateForMasterService();
 
-            if (currentState.getLastAcceptedConfiguration().isEmpty() == false) {
+            if (isInitialConfigurationSet()) {
                 throw new CoordinationStateRejectedException("Cannot set initial configuration: configuration has already been set");
             }
             assert currentState.term() == 0 : currentState;
@@ -837,10 +845,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         @Override
         protected void onFoundPeersUpdated() {
+            final Iterable<DiscoveryNode> foundPeers;
             synchronized (mutex) {
+                foundPeers = getFoundPeers();
                 if (mode == Mode.CANDIDATE) {
                     final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
-                    getFoundPeers().forEach(expectedVotes::addVote);
+                    foundPeers.forEach(expectedVotes::addVote);
                     expectedVotes.addVote(Coordinator.this.getLocalNode());
                     final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
                     final boolean foundQuorum = CoordinationState.isElectionQuorum(expectedVotes, lastAcceptedState);
@@ -853,6 +863,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         closePrevotingAndElectionScheduler();
                     }
                 }
+            }
+
+            for (Consumer<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
+                discoveredNodesListener.accept(foundPeers);
             }
         }
     }
@@ -879,6 +893,18 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 return "scheduling of new prevoting round";
             }
         });
+    }
+
+    public Releasable withDiscoveryListener(Consumer<Iterable<DiscoveryNode>> listener) {
+        discoveredNodesListeners.add(listener);
+        return () -> {
+            boolean removed = discoveredNodesListeners.remove(listener);
+            assert removed : listener;
+        };
+    }
+
+    public Iterable<DiscoveryNode> getFoundPeers() {
+        return peerFinder.getFoundPeers();
     }
 
     class CoordinatorPublication extends Publication {

@@ -39,7 +39,6 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.layout.PatternLayout;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
@@ -49,12 +48,14 @@ import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration;
+import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesAction;
+import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesRequest;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -62,7 +63,6 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -78,6 +78,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -113,6 +114,8 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterAction;
+import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapClusterRequest;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -124,6 +127,7 @@ import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -304,52 +308,59 @@ public abstract class ESTestCase extends LuceneTestCase {
         Thread bootstrapThread = null;
 
         if (condition) {
-            final Set<String> zen2MasterNodeIds = new HashSet<>();
-            final Set<Node> zen2MasterNodes = new HashSet<>();
+            int zen2MasterNodeCount = 0;
             for (Node node : nodes) {
                 if (DiscoveryNode.isMasterNode(node.settings())) {
                     Discovery discovery = node.injector().getInstance(Discovery.class);
                     if (discovery instanceof Coordinator) {
-                        zen2MasterNodeIds.add(node.getNodeEnvironment().nodeId());
-                        zen2MasterNodes.add(node);
+                        zen2MasterNodeCount++;
                     }
                 }
             }
 
-            if (zen2MasterNodes.isEmpty() == false) {
-                Set<String> configNodeIds = new HashSet<>(randomSubsetOf(zen2MasterNodeIds));
-                if (configNodeIds.isEmpty()) {
-                    configNodeIds = zen2MasterNodeIds;
-                }
-                final ClusterState.VotingConfiguration initalConfiguration = new ClusterState.VotingConfiguration(configNodeIds);
-
-                logger.info("Bootstrapping cluster using initial configuration {}", initalConfiguration);
+            if (zen2MasterNodeCount > 0) {
+                final int minimumConfigurationSize = randomIntBetween(1, zen2MasterNodeCount);
                 final Random bootstrapRandom = new Random(randomLong());
 
                 bootstrapThread = new Thread(() -> {
+                    BootstrapConfiguration bootstrapConfiguration = null;
                     while (stopBootstrapThread.get() == false) {
-                        final Discovery discovery = randomFrom(bootstrapRandom, zen2MasterNodes).injector().getInstance(Discovery.class);
-                        assert discovery instanceof Coordinator;
-                        final Coordinator coordinator = (Coordinator) discovery;
-                        try {
-                            if (coordinator.lifecycleState() == Lifecycle.State.STARTED) {
-                                coordinator.setInitialConfiguration(initalConfiguration);
-                                if (usually(bootstrapRandom)) {
-                                    return;
+                        final Node node = randomFrom(bootstrapRandom, nodes);
+                        final TransportService transportService = node.injector().getInstance(TransportService.class);
+                        if (transportService.getLocalNode() != null) {
+                            final Client client = node.client();
+                            if (bootstrapConfiguration == null) {
+                                try {
+                                    final GetDiscoveredNodesRequest discoveredNodesRequest
+                                        = new GetDiscoveredNodesRequest().waitForNodes(minimumConfigurationSize);
+                                    if (minimumConfigurationSize > 1 && randomBoolean()) {
+                                        discoveredNodesRequest.timeout(TimeValue.timeValueSeconds(5));
+                                    }
+
+                                    bootstrapConfiguration = client.execute(GetDiscoveredNodesAction.INSTANCE, discoveredNodesRequest)
+                                        .get().getBootstrapConfiguration();
+                                } catch (Exception e) {
+                                    logger.trace("exception getting bootstrap configuration", e);
+                                }
+                            } else {
+                                try {
+                                    client.execute(BootstrapClusterAction.INSTANCE,
+                                        new BootstrapClusterRequest().bootstrapConfiguration(bootstrapConfiguration)).get();
+                                    if (usually(bootstrapRandom)) {
+                                        return;
+                                    }
+                                } catch (Exception e) {
+                                    logger.trace("exception bootstrapping cluster", e);
                                 }
                             }
-                        } catch (CoordinationStateRejectedException e) {
-                            logger.trace(
-                                () -> new ParameterizedMessage("node [{}] rejected initial configuration", coordinator.getLocalNode()), e);
                         }
                         try {
                             Thread.sleep(100);
                         } catch (InterruptedException e) {
-                            logger.trace("interrupted while sleeping", e);
-                            return;
+                            throw new AssertionError("interrupted while sleeping", e);
                         }
                     }
-                }, "Bootstrap-Thread for " + ClusterName.CLUSTER_NAME_SETTING.get(zen2MasterNodes.iterator().next().settings()));
+                }, "Bootstrap-Thread for " + ClusterName.CLUSTER_NAME_SETTING.get(nodes.get(0).settings()));
                 bootstrapThread.start();
             }
         }

@@ -1,6 +1,6 @@
 {
   "ccr.follow_stats": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-follow-stats.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/{index}/_ccr/stats",

@@ -69,8 +69,9 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
 
     @Override
     public void shardStarted(ShardRouting initializingShard, ShardRouting startedShard) {
-        assert Objects.equals(initializingShard.allocationId(), startedShard.allocationId())
-            : "initializingShard and startedShard have to have the same allocation id";
+        assert Objects.equals(initializingShard.allocationId().getId(), startedShard.allocationId().getId())
+            : "initializingShard.allocationId [" + initializingShard.allocationId().getId()
+            + "] and startedShard.allocationId [" + startedShard.allocationId().getId() + "] have to have the same";
         changes(startedShard.shardId()).addedAllocationIds.add(startedShard.allocationId().getId());
         if (startedShard.primary()
             // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state

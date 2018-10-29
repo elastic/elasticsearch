@@ -42,7 +42,6 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -379,7 +378,8 @@ public final class JsonFieldMapper extends FieldMapper {
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 
         this.ignoreAbove = ignoreAbove;
-        this.fieldParser = new JsonFieldParser(fieldType.name(), keyedFieldName(), fieldType, ignoreAbove);
+        this.fieldParser = new JsonFieldParser(fieldType.name(), keyedFieldName(),
+            ignoreAbove, fieldType.nullValueAsString());
     }
 
     @Override

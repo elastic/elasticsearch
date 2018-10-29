@@ -131,7 +131,11 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")
                 .startObject("properties")
-                    .startObject("field")
+                    .startObject("store_and_index")
+                        .field("type", "json")
+                        .field("store", true)
+                    .endObject()
+                    .startObject("store_only")
                         .field("type", "json")
                         .field("index", false)
                         .field("store", true)
@@ -144,24 +148,34 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(mapping, mapper.mappingSource().toString());
 
         BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .startObject("field")
+                .startObject("store_only")
+                    .field("key", "value")
+                .endObject()
+                .startObject("store_and_index")
                     .field("key", "value")
                 .endObject()
             .endObject());
-
         ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", doc, XContentType.JSON));
-
-        IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().stored());
 
         // We make sure to pretty-print here, since the field is always stored in pretty-printed format.
         BytesReference storedValue = BytesReference.bytes(JsonXContent.contentBuilder()
             .prettyPrint()
             .startObject()
-                .field("key", "value")
+            .field("key", "value")
             .endObject());
-        assertEquals(storedValue.toBytesRef(), fields[0].binaryValue());
+
+        IndexableField[] storeOnly = parsedDoc.rootDoc().getFields("store_only");
+        assertEquals(1, storeOnly.length);
+
+        assertTrue(storeOnly[0].fieldType().stored());
+        assertEquals(storedValue.toBytesRef(), storeOnly[0].binaryValue());
+
+        IndexableField[] storeAndIndex = parsedDoc.rootDoc().getFields("store_and_index");
+        assertEquals(2, storeAndIndex.length);
+
+        assertTrue(storeAndIndex[0].fieldType().stored());
+        assertEquals(storedValue.toBytesRef(), storeAndIndex[0].binaryValue());
+        assertFalse(storeAndIndex[1].fieldType().stored());
     }
 
     public void testIndexOptions() throws IOException {

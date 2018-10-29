@@ -46,6 +46,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -83,6 +84,10 @@ import static org.mockito.Mockito.mock;
  * </ul>
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
+
+    private static final List<Class<? extends Node<?>>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(
+        In.class, InPipe.class, Percentile.class, Percentiles.class, PercentileRanks.class);
+
     private final Class<T> subclass;
 
     public NodeSubclassTests(Class<T> subclass) {
@@ -536,8 +541,8 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
         int minCollectionLength = 0;
         int maxCollectionLength = 10;
-        if (toBuildClass == In.class || toBuildClass == InPipe.class || toBuildClass == Percentile.class ||
-            toBuildClass == Percentiles.class || toBuildClass == PercentileRanks.class) {
+
+        if (CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(c -> c == toBuildClass)) {
             minCollectionLength = 2;
         }
         return between(minCollectionLength, maxCollectionLength);

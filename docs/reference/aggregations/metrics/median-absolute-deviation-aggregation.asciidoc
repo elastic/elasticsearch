@@ -103,7 +103,8 @@ GET reviews/_search
 // TEST[setup:reviews]
 
 The default `compression` value for this aggregation is `1000`. At this
-compression level this aggregation is usually within 5% of the exact result.
+compression level this aggregation is usually within 5% of the exact result,
+but observed performance will depend on the sample data.
 
 ==== Script
 

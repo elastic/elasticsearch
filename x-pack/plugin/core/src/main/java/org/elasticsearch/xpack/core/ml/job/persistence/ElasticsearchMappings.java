@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
-import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -156,21 +155,7 @@ public class ElasticsearchMappings {
                     .field(TYPE, KEYWORD)
                 .endObject()
                 .startObject(AnalysisConfig.CATEGORIZATION_ANALYZER.getPreferredName())
-                    .startObject(PROPERTIES)
-                        .startObject(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName())
-                            .field(TYPE, KEYWORD)
-                        .endObject()
-                        // TOKENIZER, TOKEN_FILTERS and CHAR_FILTERS are complex types, don't parse or index
-                        .startObject(CategorizationAnalyzerConfig.TOKENIZER.getPreferredName())
-                            .field(ENABLED, false)
-                        .endObject()
-                        .startObject(CategorizationAnalyzerConfig.TOKEN_FILTERS.getPreferredName())
-                            .field(ENABLED, false)
-                        .endObject()
-                        .startObject(CategorizationAnalyzerConfig.CHAR_FILTERS.getPreferredName())
-                            .field(ENABLED, false)
-                        .endObject()
-                    .endObject()
+                    .field(ENABLED, false)
                 .endObject()
                 .startObject(AnalysisConfig.LATENCY.getPreferredName())
                     .field(TYPE, KEYWORD)
@@ -297,9 +282,6 @@ public class ElasticsearchMappings {
         .startObject(Job.FINISHED_TIME.getPreferredName())
             .field(TYPE, DATE)
         .endObject()
-        .startObject(Job.LAST_DATA_TIME.getPreferredName())
-            .field(TYPE, DATE)
-        .endObject()
         .startObject(Job.ESTABLISHED_MODEL_MEMORY.getPreferredName())
             .field(TYPE, LONG) // TODO should be ByteSizeValue
         .endObject()
@@ -328,6 +310,9 @@ public class ElasticsearchMappings {
             .field(TYPE, LONG)  // TODO should be TimeValue
         .endObject()
         .startObject(Job.MODEL_SNAPSHOT_ID.getPreferredName())
+            .field(TYPE, KEYWORD)
+        .endObject()
+        .startObject(Job.MODEL_SNAPSHOT_MIN_VERSION.getPreferredName())
             .field(TYPE, KEYWORD)
         .endObject()
         .startObject(Job.RESULTS_INDEX_NAME.getPreferredName())

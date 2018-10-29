@@ -38,8 +38,8 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
 
     @Override
     protected void doExecute(Task task, GetCategoriesAction.Request request, ActionListener<GetCategoriesAction.Response> listener) {
-        jobManager.getJob(request.getJobId(), ActionListener.wrap(
-                job -> {
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
+                jobExists -> {
                     Integer from = request.getPageParams() != null ? request.getPageParams().getFrom() : null;
                     Integer size = request.getPageParams() != null ? request.getPageParams().getSize() : null;
                     jobResultsProvider.categoryDefinitions(request.getJobId(), request.getCategoryId(), true, from, size,

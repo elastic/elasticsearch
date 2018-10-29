@@ -135,6 +135,7 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
         /** TODO Remove in 7.0.0 */
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
         public static final ParseField TIMEOUT = new ParseField("timeout");
+        public static final ParseField JOB = new ParseField("job");
 
         public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(MlTasks.JOB_TASK_NAME, true, JobParams::new);
         static {
@@ -142,6 +143,7 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
             PARSER.declareBoolean((p, v) -> {}, IGNORE_DOWNTIME);
             PARSER.declareString((params, val) ->
                     params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareObject(JobParams::setJob, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOB);
         }
 
         public static JobParams fromXContent(XContentParser parser) {
@@ -221,6 +223,9 @@ public class OpenJobAction extends Action<AcknowledgedResponse> {
             builder.startObject();
             builder.field(Job.ID.getPreferredName(), jobId);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
+            if (job != null) {
+                builder.field("job", job);
+            }
             builder.endObject();
             // The job field is streamed but not persisted
             return builder;

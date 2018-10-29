@@ -39,8 +39,8 @@ public class TransportGetInfluencersAction extends HandledTransportAction<GetInf
 
     @Override
     protected void doExecute(Task task, GetInfluencersAction.Request request, ActionListener<GetInfluencersAction.Response> listener) {
-        jobManager.getJob(request.getJobId(), ActionListener.wrap(
-                job -> {
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
+                jobExists -> {
                     InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder()
                             .includeInterim(request.isExcludeInterim() == false)
                             .start(request.getStart())

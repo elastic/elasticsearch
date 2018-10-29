@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
@@ -198,11 +199,15 @@ public class JobManager extends AbstractComponent {
     }
 
     private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoJobs, ClusterState clusterState) {
-        Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         Map<String, Job> jobIdToJob = new HashMap<>();
-        for (String expandedJobId : expandedJobIds) {
-            jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
+        try {
+            Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
+            MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+            for (String expandedJobId : expandedJobIds) {
+                jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
+            }
+        } catch (Exception e) {
+            // ignore
         }
         return jobIdToJob;
     }
@@ -274,9 +279,39 @@ public class JobManager extends AbstractComponent {
             }
         };
 
-        ActionListener<Boolean> checkForLeftOverDocs = ActionListener.wrap(
-                response -> {
-                    jobResultsProvider.createJobResultIndex(job, state, putJobListener);
+        ActionListener<List<String>> checkForLeftOverDocs = ActionListener.wrap(
+                matchedIds -> {
+                    if (matchedIds.isEmpty()) {
+                        jobResultsProvider.createJobResultIndex(job, state, putJobListener);
+                    } else {
+                        // A job has the same Id as one of the group names
+                        // error with the first in the list
+                        actionListener.onFailure(new ResourceAlreadyExistsException(
+                                Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, matchedIds.get(0))));
+                    }
+                },
+                actionListener::onFailure
+        );
+
+        ActionListener<Boolean> checkNoJobsWithGroupId = ActionListener.wrap(
+                groupExists -> {
+                    if (groupExists) {
+                        actionListener.onFailure(new ResourceAlreadyExistsException(
+                                Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, job.getId())));
+                        return;
+                    }
+                    if (job.getGroups().isEmpty()) {
+                        checkForLeftOverDocs.onResponse(Collections.emptyList());
+                    } else {
+                        jobConfigProvider.jobIdMatches(job.getGroups(), checkForLeftOverDocs);
+                    }
+                },
+                actionListener::onFailure
+        );
+
+        ActionListener<Boolean> checkNoGroupWithTheJobId = ActionListener.wrap(
+                ok -> {
+                    jobConfigProvider.groupExists(job.getId(), checkNoJobsWithGroupId);
                 },
                 actionListener::onFailure
         );
@@ -286,7 +321,7 @@ public class JobManager extends AbstractComponent {
                     if (jobExists) {
                         actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
                     } else {
-                        jobResultsProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
+                        jobResultsProvider.checkForLeftOverDocuments(job, checkNoGroupWithTheJobId);
                     }
                 },
                 actionListener::onFailure

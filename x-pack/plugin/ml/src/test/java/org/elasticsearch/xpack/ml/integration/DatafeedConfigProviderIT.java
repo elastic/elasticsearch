@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -203,7 +204,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
     }
 
     public void testAllowNoDatafeeds() throws InterruptedException {
-        AtomicReference<Set<String>> datafeedIdsHolder = new AtomicReference<>();
+        AtomicReference<SortedSet<String>> datafeedIdsHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedIds("_all", false, actionListener),
@@ -246,7 +247,8 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
         // Test job IDs only
-        Set<String> expandedIds = blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedIds("foo*", true, actionListener));
+        SortedSet<String> expandedIds =
+                blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedIds("foo*", true, actionListener));
         assertEquals(new TreeSet<>(Arrays.asList("foo-1", "foo-2")), expandedIds);
 
         expandedIds = blockingCall(actionListener -> datafeedConfigProvider.expandDatafeedIds("*-1", true, actionListener));
@@ -309,7 +311,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
 
         blockingCall(actionListener -> datafeedConfigProvider.findDatafeedsForJobIds(Arrays.asList("j3", "j1"), actionListener),
                 datafeedIdsHolder, exceptionHolder);
-        assertThat(datafeedIdsHolder.get(), containsInAnyOrder("bar-1", "foo-1"));
+        assertThat(datafeedIdsHolder.get(), contains("bar-1", "foo-1"));
     }
 
     public void testHeadersAreOverwritten() throws Exception {

@@ -331,7 +331,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 builder -> {
                     Job job = builder.build();
                     indexName.set(job.getResultsIndexName());
-                    if (indexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX +
+                    if (indexName.get().equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX +
                             AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT)) {
                         //don't bother searching the index any further, we are on the default shared
                         customIndexSearchHandler.onResponse(null);

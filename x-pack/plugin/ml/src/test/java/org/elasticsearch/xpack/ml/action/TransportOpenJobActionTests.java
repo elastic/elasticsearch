@@ -353,14 +353,18 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
         MetaData.Builder metaData = MetaData.builder();
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_with_incompatible_model_snapshot")
+                .setModelSnapshotId("incompatible_snapshot")
+                .setModelSnapshotMinVersion(Version.V_6_3_0)
+                .build(new Date());
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
         cs.metaData(metaData);
-
-        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id7", new ByteSizeValue(2, ByteSizeUnit.MB)).build(new Date());
-
-        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("incompatible_type_job", job, cs.build(), 2, 10, 30, logger);
-        assertThat(result.getExplanation(), containsString("because this node does not support machine learning jobs"));
+        Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_incompatible_model_snapshot", job, cs.build(),
+                2, 10, 30, logger);
+        assertThat(result.getExplanation(), containsString(
+                "because the job's model snapshot requires a node of version [6.3.0] or higher"));
         assertNull(result.getExecutorNode());
     }
 

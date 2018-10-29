@@ -67,7 +67,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -296,7 +295,6 @@ public class JobManagerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
-    @AwaitsFix(bugUrl = "Closed jobs are not audited when the filter changes")
     public void testNotifyFilterChanged() throws IOException {
         Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
         detectorReferencingFilter.setByFieldName("foo");
@@ -316,10 +314,10 @@ public class JobManagerTests extends ESTestCase {
         docsAsBytes.add(toBytesReference(jobReferencingFilter2.build()));
 
         Job.Builder jobReferencingFilter3 = buildJobBuilder("job-referencing-filter-3");
-        jobReferencingFilter2.setAnalysisConfig(filterAnalysisConfig);
+        jobReferencingFilter3.setAnalysisConfig(filterAnalysisConfig);
+        docsAsBytes.add(toBytesReference(jobReferencingFilter3.build()));
 
         Job.Builder jobWithoutFilter = buildJobBuilder("job-without-filter");
-        docsAsBytes.add(toBytesReference(jobWithoutFilter.build()));
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask(jobReferencingFilter1.getId(), "node_id", JobState.OPENED, tasksBuilder);
@@ -369,7 +367,6 @@ public class JobManagerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
-    @AwaitsFix(bugUrl = "Closed jobs are not audited when the filter changes")
     public void testNotifyFilterChangedGivenOnlyAddedItems() throws IOException {
         Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
         detectorReferencingFilter.setByFieldName("foo");
@@ -406,7 +403,6 @@ public class JobManagerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
-    @AwaitsFix(bugUrl = "Closed jobs are not audited when the filter changes")
     public void testNotifyFilterChangedGivenOnlyRemovedItems() throws IOException {
         Detector.Builder detectorReferencingFilter = new Detector.Builder("count", null);
         detectorReferencingFilter.setByFieldName("foo");

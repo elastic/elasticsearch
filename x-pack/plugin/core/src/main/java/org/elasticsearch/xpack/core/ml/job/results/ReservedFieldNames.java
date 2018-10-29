@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
-import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -189,7 +188,6 @@ public final class ReservedFieldNames {
             Job.DATA_DESCRIPTION.getPreferredName(),
             Job.DESCRIPTION.getPreferredName(),
             Job.FINISHED_TIME.getPreferredName(),
-            Job.LAST_DATA_TIME.getPreferredName(),
             Job.ESTABLISHED_MODEL_MEMORY.getPreferredName(),
             Job.MODEL_PLOT_CONFIG.getPreferredName(),
             Job.RENORMALIZATION_WINDOW_DAYS.getPreferredName(),
@@ -197,6 +195,7 @@ public final class ReservedFieldNames {
             Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(),
             Job.RESULTS_RETENTION_DAYS.getPreferredName(),
             Job.MODEL_SNAPSHOT_ID.getPreferredName(),
+            Job.MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(),
             Job.RESULTS_INDEX_NAME.getPreferredName(),
 
             AnalysisConfig.BUCKET_SPAN.getPreferredName(),
@@ -213,10 +212,6 @@ public final class ReservedFieldNames {
 
             AnalysisLimits.MODEL_MEMORY_LIMIT.getPreferredName(),
             AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT.getPreferredName(),
-
-            CategorizationAnalyzerConfig.CHAR_FILTERS.getPreferredName(),
-            CategorizationAnalyzerConfig.TOKENIZER.getPreferredName(),
-            CategorizationAnalyzerConfig.TOKEN_FILTERS.getPreferredName(),
 
             Detector.DETECTOR_DESCRIPTION_FIELD.getPreferredName(),
             Detector.FUNCTION_FIELD.getPreferredName(),

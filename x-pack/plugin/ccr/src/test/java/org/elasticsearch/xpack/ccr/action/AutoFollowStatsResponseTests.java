@@ -7,25 +7,28 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.StatsAction;
 
 import static org.elasticsearch.xpack.ccr.action.AutoFollowStatsTests.randomReadExceptions;
+import static org.elasticsearch.xpack.ccr.action.StatsResponsesTests.createStatsResponse;
 
-public class AutoFollowStatsResponseTests extends AbstractStreamableTestCase<AutoFollowStatsAction.Response> {
+public class AutoFollowStatsResponseTests extends AbstractStreamableTestCase<StatsAction.Response> {
 
     @Override
-    protected AutoFollowStatsAction.Response createBlankInstance() {
-        return new AutoFollowStatsAction.Response();
+    protected StatsAction.Response createBlankInstance() {
+        return new StatsAction.Response();
     }
 
     @Override
-    protected AutoFollowStatsAction.Response createTestInstance() {
+    protected StatsAction.Response createTestInstance() {
         AutoFollowStats autoFollowStats = new AutoFollowStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomReadExceptions()
         );
-        return new AutoFollowStatsAction.Response(autoFollowStats);
+        FollowStatsAction.StatsResponses statsResponse = createStatsResponse();
+        return new StatsAction.Response(autoFollowStats, statsResponse);
     }
 }

@@ -224,9 +224,11 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 .addMapping("type", mapping)
                 .setTimeout("60s").get());
         ensureGreen(); // wait for green state, so its both green, and there are no more pending events
-        MappingMetaData masterMappingMetaData = client().admin().indices().prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type");
+        MappingMetaData masterMappingMetaData = client().admin().indices()
+            .prepareGetMappings("test").setTypes("type").get().getMappings().get("test").get("type");
         for (Client client : clients()) {
-            MappingMetaData mappingMetadata = client.admin().indices().prepareGetMappings("test").setTypes("type").setLocal(true).get().getMappings().get("test").get("type");
+            MappingMetaData mappingMetadata = client.admin().indices()
+                .prepareGetMappings("test").setTypes("type").setLocal(true).get().getMappings().get("test").get("type");
             assertThat(mappingMetadata.source().string(), equalTo(masterMappingMetaData.source().string()));
             assertThat(mappingMetadata, equalTo(masterMappingMetaData));
         }
@@ -368,7 +370,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 if (state.nodes().isLocalNodeElectedMaster()) {
                     if (state.custom("test") == null) {
                         if (installed.compareAndSet(false, true)) {
-                            clusterService.submitStateUpdateTask("install-metadata-custom", new ClusterStateUpdateTask(Priority.URGENT) {
+                            clusterService.submitStateUpdateTask("install-metadata-custom",
+                                new ClusterStateUpdateTask(Priority.URGENT) {
 
                                 @Override
                                 public ClusterState execute(ClusterState currentState) {

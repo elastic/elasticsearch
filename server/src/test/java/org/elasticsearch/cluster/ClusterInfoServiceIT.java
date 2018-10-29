@@ -132,7 +132,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the master node
-        final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
+        final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster
+            .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
         infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
         infoService.onMaster();
         ClusterInfo info = infoService.refresh();
@@ -178,7 +179,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
-        InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
+        InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster
+            .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
         // get one healthy sample
         ClusterInfo info = infoService.refresh();
         assertNotNull("failed to collect info", info);
@@ -186,10 +188,12 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertThat("some shard sizes are populated", info.shardSizes.size(), greaterThan(0));
 
 
-        MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, internalTestCluster.getMasterName());
+        MockTransportService mockTransportService = (MockTransportService) internalCluster()
+            .getInstance(TransportService.class, internalTestCluster.getMasterName());
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
-        final Set<String> blockedActions = newHashSet(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[n]");
+        final Set<String> blockedActions = newHashSet(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]",
+            IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[n]");
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
             mockTransportService.addSendBehavior(internalTestCluster.getInstance(TransportService.class, node.getName()),

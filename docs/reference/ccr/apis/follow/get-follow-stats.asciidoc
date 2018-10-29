@@ -40,12 +40,6 @@ POST /follower_index/_ccr/pause_follow
 
 [source,js]
 --------------------------------------------------
-GET /_ccr/stats
---------------------------------------------------
-// CONSOLE
-
-[source,js]
---------------------------------------------------
 GET /<index>/_ccr/stats
 --------------------------------------------------
 // CONSOLE
@@ -186,7 +180,7 @@ This example retrieves follower stats:
 
 [source,js]
 --------------------------------------------------
-GET /_ccr/stats
+GET /follower_index/_ccr/stats
 --------------------------------------------------
 // CONSOLE
 

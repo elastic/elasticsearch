@@ -55,7 +55,9 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -74,6 +76,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -223,6 +227,7 @@ public class JobConfigProvider extends AbstractComponent {
     public void deleteJob(String jobId, boolean errorIfMissing, ActionListener<DeleteResponse> actionListener) {
         DeleteRequest request = new DeleteRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<DeleteResponse>() {
             @Override
@@ -372,6 +377,7 @@ public class JobConfigProvider extends AbstractComponent {
                     ElasticsearchMappings.DOC_TYPE, Job.documentId(updatedJob.getId()))
                     .setSource(updatedSource)
                     .setVersion(version)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .request();
 
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
@@ -437,6 +443,41 @@ public class JobConfigProvider extends AbstractComponent {
     }
 
     /**
+     * For the list of job Ids find all that match existing jobs Ids.
+     * The repsonse is all the job Ids in {@code ids} that match an existing
+     * job Id.
+     * @param ids Job Ids to find 
+     * @param listener The matched Ids listener
+     */
+    public void jobIdMatches(List<String> ids, ActionListener<List<String>> listener) {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new TermQueryBuilder(Job.JOB_TYPE.getPreferredName(), Job.ANOMALY_DETECTOR_JOB_TYPE));
+        boolQueryBuilder.filter(new TermsQueryBuilder(Job.ID.getPreferredName(), ids));
+
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(boolQueryBuilder);
+        sourceBuilder.fetchSource(false);
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+
+        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSize(ids.size())
+                .setSource(sourceBuilder).request();
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            SearchHit[] hits = response.getHits().getHits();
+                            List<String> matchedIds = new ArrayList<>();
+                            for (SearchHit hit : hits) {
+                                matchedIds.add(hit.field(Job.ID.getPreferredName()).getValue());
+                            }
+                            listener.onResponse(matchedIds);
+                        },
+                        listener::onFailure)
+                , client::search);
+    }
+
+    /**
      * Sets the job's {@code deleting} field to true
      * @param jobId     The job to mark as deleting
      * @param listener  Responds with true if successful else an error
@@ -494,13 +535,13 @@ public class JobConfigProvider extends AbstractComponent {
      * @param excludeDeleting If true exclude jobs marked as deleting
      * @param listener The expanded job Ids listener
      */
-    public void expandJobsIds(String expression, boolean allowNoJobs, boolean excludeDeleting, ActionListener<Set<String>> listener) {
+    public void expandJobsIds(String expression, boolean allowNoJobs, boolean excludeDeleting, ActionListener<SortedSet<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildQuery(tokens, excludeDeleting));
         sourceBuilder.sort(Job.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName());
-        sourceBuilder.docValueField(Job.GROUPS.getPreferredName());
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        sourceBuilder.docValueField(Job.GROUPS.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -511,8 +552,8 @@ public class JobConfigProvider extends AbstractComponent {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         response -> {
-                            Set<String> jobIds = new HashSet<>();
-                            Set<String> groupsIds = new HashSet<>();
+                            SortedSet<String> jobIds = new TreeSet<>();
+                            SortedSet<String> groupsIds = new TreeSet<>();
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
                                 jobIds.add(hit.field(Job.ID.getPreferredName()).getValue());
@@ -605,12 +646,12 @@ public class JobConfigProvider extends AbstractComponent {
      * @param groupIds Group Ids to expand
      * @param listener Expanded job Ids listener
      */
-    public void expandGroupIds(List<String> groupIds,  ActionListener<Set<String>> listener) {
+    public void expandGroupIds(List<String> groupIds, ActionListener<SortedSet<String>> listener) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
                 .query(new TermsQueryBuilder(Job.GROUPS.getPreferredName(), groupIds));
-        sourceBuilder.sort(Job.ID.getPreferredName());
+        sourceBuilder.sort(Job.ID.getPreferredName(), SortOrder.DESC);
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(Job.ID.getPreferredName());
+        sourceBuilder.docValueField(Job.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -619,7 +660,7 @@ public class JobConfigProvider extends AbstractComponent {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         response -> {
-                            Set<String> jobIds = new HashSet<>();
+                            SortedSet<String> jobIds = new TreeSet<>();
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
                                 jobIds.add(hit.field(Job.ID.getPreferredName()).getValue());

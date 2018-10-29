@@ -10,6 +10,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -99,6 +100,7 @@ public class AutoDetectResultProcessor {
     private final boolean restoredSnapshot;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
+    volatile CountDownLatch onCloseActionsLatch;
     final Semaphore updateModelSnapshotIdSemaphore = new Semaphore(1);
     private final FlushListener flushListener;
     private volatile boolean processKilled;
@@ -121,9 +123,9 @@ public class AutoDetectResultProcessor {
                 restoredSnapshot, new FlushListener());
     }
 
-    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
-                              JobResultsProvider jobResultsProvider, ModelSizeStats latestModelSizeStats, boolean restoredSnapshot,
-                              FlushListener flushListener) {
+    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+                              JobResultsPersister persister, JobResultsProvider jobResultsProvider, ModelSizeStats latestModelSizeStats,
+                              boolean restoredSnapshot, FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
@@ -169,9 +171,11 @@ public class AutoDetectResultProcessor {
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
+            if (processKilled == false) {
+                onAutodetectClose();
+            }
 
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
-            onAutodetectClose();
         } catch (Exception e) {
             failed = true;
 
@@ -427,9 +431,22 @@ public class AutoDetectResultProcessor {
     }
 
     private void onAutodetectClose() {
-        updateJob(jobId, Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date()), ActionListener.wrap(
-                r -> runEstablishedModelMemoryUpdate(true),
-                e -> LOGGER.error("[" + jobId + "] Failed to finalize job on autodetect close", e))
+        onCloseActionsLatch = new CountDownLatch(1);
+
+        ActionListener<UpdateResponse> updateListener = ActionListener.wrap(
+                updateResponse -> {
+                    runEstablishedModelMemoryUpdate(true);
+                    onCloseActionsLatch.countDown();
+                },
+                e -> {
+                    LOGGER.error("[" + jobId + "] Failed to finalize job on autodetect close", e);
+                    onCloseActionsLatch.countDown();
+                }
+        );
+
+        updateJob(jobId, Collections.singletonMap(Job.FINISHED_TIME.getPreferredName(), new Date()),
+                new ThreadedActionListener<>(LOGGER, client.threadPool(),
+                        MachineLearning.UTILITY_THREAD_POOL_NAME, updateListener, false)
         );
     }
 
@@ -467,6 +484,7 @@ public class AutoDetectResultProcessor {
                 ElasticsearchMappings.DOC_TYPE, Job.documentId(jobId));
         updateRequest.retryOnConflict(3);
         updateRequest.doc(update);
+        updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest, listener);
     }
 
@@ -478,6 +496,14 @@ public class AutoDetectResultProcessor {
                     TimeUnit.MINUTES) == false) {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
             }
+
+            // Once completionLatch has passed then onCloseActionsLatch must either
+            // be set or null, it will not be set later.
+            if (onCloseActionsLatch != null && onCloseActionsLatch.await(
+                    MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES) == false) {
+                throw new TimeoutException("Timed out waiting for results processor run post close actions " + jobId);
+            }
+
             // Input stream has been completely processed at this point.
             // Wait for any updateModelSnapshotIdOnJob calls to complete.
             updateModelSnapshotIdSemaphore.acquire();

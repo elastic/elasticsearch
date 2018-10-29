@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
-import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -213,10 +212,6 @@ public final class ReservedFieldNames {
 
             AnalysisLimits.MODEL_MEMORY_LIMIT.getPreferredName(),
             AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT.getPreferredName(),
-
-            CategorizationAnalyzerConfig.CHAR_FILTERS.getPreferredName(),
-            CategorizationAnalyzerConfig.TOKENIZER.getPreferredName(),
-            CategorizationAnalyzerConfig.TOKEN_FILTERS.getPreferredName(),
 
             Detector.DETECTOR_DESCRIPTION_FIELD.getPreferredName(),
             Detector.FUNCTION_FIELD.getPreferredName(),

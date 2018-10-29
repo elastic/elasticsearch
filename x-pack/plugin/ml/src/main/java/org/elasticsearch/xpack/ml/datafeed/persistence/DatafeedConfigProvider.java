@@ -21,6 +21,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
@@ -62,6 +64,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -114,6 +118,7 @@ public class DatafeedConfigProvider extends AbstractComponent {
                     ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(datafeedId))
                     .setSource(source)
                     .setOpType(DocWriteRequest.OpType.CREATE)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .request();
 
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
@@ -181,19 +186,20 @@ public class DatafeedConfigProvider extends AbstractComponent {
     public void findDatafeedsForJobIds(Collection<String> jobIds, ActionListener<Set<String>> listener) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds));
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName());
+        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSize(jobIds.size())
                 .setSource(sourceBuilder).request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         response -> {
                             Set<String> datafeedIds = new HashSet<>();
-                            SearchHit[] hits = response.getHits().getHits();
                             // There cannot be more than one datafeed per job
-                            assert hits.length <= jobIds.size();
+                            assert response.getHits().totalHits <= jobIds.size();
+                            SearchHit[] hits = response.getHits().getHits();
 
                             for (SearchHit hit : hits) {
                                 datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
@@ -214,6 +220,7 @@ public class DatafeedConfigProvider extends AbstractComponent {
     public void deleteDatafeedConfig(String datafeedId,  ActionListener<DeleteResponse> actionListener) {
         DeleteRequest request = new DeleteRequest(AnomalyDetectorsIndex.configIndexName(),
                 ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(datafeedId));
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<DeleteResponse>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
@@ -307,6 +314,7 @@ public class DatafeedConfigProvider extends AbstractComponent {
                     ElasticsearchMappings.DOC_TYPE, DatafeedConfig.documentId(updatedConfig.getId()))
                     .setSource(updatedSource)
                     .setVersion(version)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                     .request();
 
             executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
@@ -341,12 +349,12 @@ public class DatafeedConfigProvider extends AbstractComponent {
      *                     wildcard then setting this true will not suppress the exception
      * @param listener The expanded datafeed IDs listener
      */
-    public void expandDatafeedIds(String expression, boolean allowNoDatafeeds, ActionListener<Set<String>> listener) {
+    public void expandDatafeedIds(String expression, boolean allowNoDatafeeds, ActionListener<SortedSet<String>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
         sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName());
+        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
 
         SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
@@ -357,7 +365,7 @@ public class DatafeedConfigProvider extends AbstractComponent {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
                         response -> {
-                            Set<String> datafeedIds = new HashSet<>();
+                            SortedSet<String> datafeedIds = new TreeSet<>();
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
                                 datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());

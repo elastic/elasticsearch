@@ -187,6 +187,9 @@ setup:
 
 ---
 "Test POST data with invalid parameters":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/34747"
+      version: "6.5.0 - "
 
   - do:
       catch: missing
@@ -234,6 +237,10 @@ setup:
 
 ---
 "Test Flush data with invalid parameters":
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/34747"
+      version: "6.5.0 - "
+
   - do:
       catch: missing
       xpack.ml.flush_job:

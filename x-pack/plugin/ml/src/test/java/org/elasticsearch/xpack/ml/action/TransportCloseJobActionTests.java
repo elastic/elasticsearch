@@ -42,6 +42,8 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -218,8 +220,10 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
         TransportCloseJobAction transportAction = createAction();
         when(clusterService.state()).thenReturn(clusterState);
-        mockJobConfigProviderExpandIds(Collections.singleton("foo"));
-        mockDatafeedConfigFindDatafeeds(Collections.emptySet());
+        SortedSet<String> expandedIds = new TreeSet<>();
+        expandedIds.add("foo");
+        mockJobConfigProviderExpandIds(expandedIds);
+        mockDatafeedConfigFindDatafeeds(Collections.emptySortedSet());
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
         CloseJobAction.Request request = new Request("foo");
@@ -235,7 +239,8 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                fail();
+                assertNull(e.getMessage(), e);
+
             }
         });
 

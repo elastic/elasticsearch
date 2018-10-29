@@ -44,8 +44,8 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
                 request.getJobId(), request.getSnapshotId(), request.getPageParams().getFrom(), request.getPageParams().getSize(),
                 request.getStart(), request.getEnd(), request.getSort(), request.getDescOrder());
 
-        jobManager.getJob(request.getJobId(), ActionListener.wrap(
-                job -> {
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
+                ok -> {
                     jobResultsProvider.modelSnapshots(request.getJobId(), request.getPageParams().getFrom(),
                             request.getPageParams().getSize(), request.getStart(), request.getEnd(), request.getSort(),
                             request.getDescOrder(), request.getSnapshotId(),

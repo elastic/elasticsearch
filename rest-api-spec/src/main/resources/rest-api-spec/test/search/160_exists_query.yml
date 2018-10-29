@@ -1272,3 +1272,59 @@ setup:
                 field: text
 
   - match: {hits.total: 3}
+
+---
+"Test exists query on JSON field":
+  - skip:
+      version: " - 6.99.99"
+      reason: "JSON fields are currently only implemented in 7.0."
+
+  - do:
+      indices.create:
+        index:  json_test
+        body:
+          mappings:
+            _doc:
+              dynamic: false
+              properties:
+                json:
+                  type: json
+  - do:
+      index:
+        index:  json_test
+        type:   _doc
+        id:     1
+        body:
+          json:
+            key: some_value
+        refresh: true
+
+  - do:
+      search:
+        index: json_test
+        body:
+          query:
+            exists:
+              field: json
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        index: json_test
+        body:
+          query:
+            exists:
+              field: json.key
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        index: json_test
+        body:
+          query:
+            exists:
+              field: json.nonexistent_key
+
+  - match: { hits.total: 0 }

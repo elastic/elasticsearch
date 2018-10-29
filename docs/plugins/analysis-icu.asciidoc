@@ -26,6 +26,24 @@ characters.
 :plugin_name: analysis-icu
 include::install_remove.asciidoc[]
 
+[[analysis-icu-analyzer]]
+==== ICU Analyzer
+
+Performs basic normalization, tokenization and character folding, using the
+`icu_normalizer` char filter, `icu_tokenizer` and `icu_normalizer` token filter
+
+The following parameters are accepted:
+
+[horizontal]
+
+`method`::
+
+    Normalization method.  Accepts `nfkc`, `nfc` or `nfkc_cf` (default)
+
+`mode`::
+
+    Normalization mode.  Accepts `compose` (default) or `decompose`.
+
 [[analysis-icu-normalization-charfilter]]
 ==== ICU Normalization Character Filter
 

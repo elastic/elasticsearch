@@ -6,6 +6,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -21,7 +22,8 @@ public class IcuAnalyzerTest extends BaseTokenStreamTestCase {
 
         String input = "안녕은하철도999극장판2.1981년8월8일.일본개봉작1999년재더빙video판";
 
-        Analyzer analyzer = new IcuAnalyzerProvider(idxSettings, null, "icu", settings).get();
+        AnalysisICUPlugin plugin = new AnalysisICUPlugin();
+        Analyzer analyzer = plugin.getAnalyzers().get("icu_analyzer").get(idxSettings, null, "icu", settings).get();
         assertAnalyzesTo(analyzer, input,
             new String[]{"안녕은하철도", "999", "극장판", "2.1981", "년", "8", "월", "8", "일", "일본개봉작", "1999", "년재더빙", "video", "판"});
 
@@ -54,7 +56,4 @@ public class IcuAnalyzerTest extends BaseTokenStreamTestCase {
             new String[]{"1", "2", "3", "1", "2", "3", "1/4", "1/3", "3/8", "1", "2", "3", "1", "2", "3"});
     }
 
-    public void testZeroWidthNonJoiners() throws IOException {
-
-    }
 }

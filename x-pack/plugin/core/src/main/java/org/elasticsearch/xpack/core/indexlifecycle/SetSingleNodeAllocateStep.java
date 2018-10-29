@@ -41,7 +41,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     public void performAction(IndexMetaData indexMetaData, ClusterState clusterState, Listener listener) {
         RoutingAllocation allocation = new RoutingAllocation(ALLOCATION_DECIDERS, clusterState.getRoutingNodes(), clusterState, null,
                 System.nanoTime());
-        List<String> validNodeNames = new ArrayList<>();
+        List<String> validNodeIds = new ArrayList<>();
         Optional<ShardRouting> anyShard = clusterState.getRoutingTable().allShards(indexMetaData.getIndex().getName()).stream().findAny();
         if (anyShard.isPresent()) {
             // Iterate through the nodes finding ones that are acceptable for the current allocation rules of the shard
@@ -50,15 +50,15 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                         .type() == Decision.Type.YES;
                 if (canRemainOnCurrentNode) {
                     DiscoveryNode discoveryNode = node.node();
-                    validNodeNames.add(discoveryNode.getName());
+                    validNodeIds.add(discoveryNode.getId());
                 }
             }
             // Shuffle the list of nodes so the one we pick is random
-            Randomness.shuffle(validNodeNames);
-            Optional<String> nodeName = validNodeNames.stream().findAny();
-            if (nodeName.isPresent()) {
+            Randomness.shuffle(validNodeIds);
+            Optional<String> nodeId = validNodeIds.stream().findAny();
+            if (nodeId.isPresent()) {
                 Settings settings = Settings.builder()
-                        .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", nodeName.get()).build();
+                        .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get()).build();
                 UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetaData.getIndex().getName())
                         .settings(settings);
                 getClient().admin().indices().updateSettings(updateSettingsRequest,

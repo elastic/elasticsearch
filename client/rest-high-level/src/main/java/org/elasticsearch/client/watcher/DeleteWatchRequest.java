@@ -19,7 +19,6 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.lucene.uid.Versions;
 
 import java.util.Objects;
 

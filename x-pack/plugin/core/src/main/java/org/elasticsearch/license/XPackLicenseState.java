@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.license;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
@@ -309,7 +309,7 @@ public class XPackLicenseState {
                 // Before 6.3, Trial licenses would default having security enabled.
                 // If this license was generated before that version, then treat it as if security is explicitly enabled
                 if (mostRecentTrialVersion == null || mostRecentTrialVersion.before(Version.V_6_3_0)) {
-                    Loggers.getLogger(getClass()).info("Automatically enabling security for older trial license ({})",
+                    LogManager.getLogger(getClass()).info("Automatically enabling security for older trial license ({})",
                         mostRecentTrialVersion == null ? "[pre 6.1.0]" : mostRecentTrialVersion.toString());
                     isSecurityEnabledByTrialVersion = true;
                 }

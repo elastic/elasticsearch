@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -45,6 +46,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -151,8 +153,10 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
             transportOptions,
             new TransportResponseHandler<ResyncReplicationResponse>() {
                 @Override
-                public ResyncReplicationResponse newInstance() {
-                    return newResponseInstance();
+                public ResyncReplicationResponse read(StreamInput in) throws IOException {
+                    ResyncReplicationResponse response = newResponseInstance();
+                    response.readFrom(in);
+                    return response;
                 }
 
                 @Override

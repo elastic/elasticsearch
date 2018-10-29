@@ -240,6 +240,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-update-job>>
 * <<{upid}-get-job-stats>>
 * <<{upid}-put-datafeed>>
+* <<{upid}-update-datafeed>>
 * <<{upid}-get-datafeed>>
 * <<{upid}-delete-datafeed>>
 * <<{upid}-preview-datafeed>>
@@ -266,6 +267,7 @@ include::ml/close-job.asciidoc[]
 include::ml/update-job.asciidoc[]
 include::ml/flush-job.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
+include::ml/update-datafeed.asciidoc[]
 include::ml/get-datafeed.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
 include::ml/preview-datafeed.asciidoc[]
@@ -322,8 +324,10 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-disable-user>>
 * <<java-rest-high-security-change-password>>
 * <<java-rest-high-security-delete-role>>
+* <<{upid}-clear-roles-cache>>
 * <<java-rest-high-security-get-certificates>>
 * <<java-rest-high-security-put-role-mapping>>
+* <<java-rest-high-security-get-role-mapping>>
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
 
@@ -332,8 +336,10 @@ include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/delete-role.asciidoc[]
+include::security/clear-roles-cache.asciidoc[]
 include::security/get-certificates.asciidoc[]
 include::security/put-role-mapping.asciidoc[]
+include::security/get-role-mapping.asciidoc[]
 include::security/delete-role-mapping.asciidoc[]
 include::security/create-token.asciidoc[]
 

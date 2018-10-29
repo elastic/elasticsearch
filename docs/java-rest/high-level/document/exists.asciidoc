@@ -29,3 +29,10 @@ include-tagged::{doc-tests-file}[{api}-request]
 <5> Disable fetching stored fields.
 
 include::../execution.asciidoc[]
+
+
+==== Source exists request
+A variant of the exists request is `existsSource` method which has the additional check
+that the document in question has stored the `source`. If the mapping for the index has opted
+to remove support for storing JSON source in documents then this method will return false
+for documents in this index.

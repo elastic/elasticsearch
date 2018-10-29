@@ -66,7 +66,7 @@
       bulk:
         index: test_index
         type: test_type
-        _source_include: foo
+        _source_includes: foo
         body: |
           { "update": { "_id": "test_id_3" } }
           { "doc": { "foo": "garply" } }

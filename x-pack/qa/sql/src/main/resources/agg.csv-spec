@@ -129,7 +129,7 @@ SELECT MAX(languages) max, MIN(languages) min, SUM(languages) sum, AVG(languages
        KURTOSIS(languages) kurtosis, SKEWNESS(languages) skewness  
        FROM test_emp GROUP BY languages ORDER BY languages ASC LIMIT 5;
 
-      max:bt   |      min:bt   |      sum:bt   |      avg:bt   |    percent:d  | percent_rank:d|   kurtosis:d  |   skewness:d    
+      max:bt   |      min:bt   |      sum:bt   |      avg:d   |    percent:d  | percent_rank:d|   kurtosis:d  |   skewness:d    
 ---------------+---------------+---------------+---------------+---------------+---------------+---------------+---------------
 null           |null           |null           |null           |null           |null           |null           |null           
 1              |1              |15             |1              |1.0            |100.0          |NaN            |NaN            

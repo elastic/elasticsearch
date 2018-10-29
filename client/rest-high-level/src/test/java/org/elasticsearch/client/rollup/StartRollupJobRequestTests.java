@@ -18,21 +18,25 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.io.IOException;
+public class StartRollupJobRequestTests extends ESTestCase {
 
-public class PutRollupJobResponse extends AcknowledgedResponse {
-
-    public PutRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+    public void testConstructor() {
+        String jobId = randomAlphaOfLength(5);
+        assertEquals(jobId, new StartRollupJobRequest(jobId).getJobId());
     }
 
-    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("delete_rollup_job_response", PutRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
-
-    public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public void testEqualsAndHash() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new StartRollupJobRequest(randomAlphaOfLength(5)),
+                orig -> new StartRollupJobRequest(orig.getJobId()),
+                orig -> new StartRollupJobRequest(orig.getJobId() + "_suffix"));
     }
+
+    public void testRequireJobId() {
+        final NullPointerException e = expectThrows(NullPointerException.class, ()-> new StartRollupJobRequest(null));
+        assertEquals("id parameter must not be null", e.getMessage());
+    }
+
 }

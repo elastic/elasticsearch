@@ -18,21 +18,32 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.client.Validatable;
 
-import java.io.IOException;
+import java.util.Objects;
 
-public class PutRollupJobResponse extends AcknowledgedResponse {
+public class StartRollupJobRequest implements Validatable {
 
-    public PutRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+    private final String jobId;
+
+    public StartRollupJobRequest(final String jobId) {
+        this.jobId = Objects.requireNonNull(jobId, "id parameter must not be null");
     }
 
-    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("delete_rollup_job_response", PutRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
+    public String getJobId() {
+        return jobId;
+    }
 
-    public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        final StartRollupJobRequest that = (StartRollupJobRequest) o;
+        return Objects.equals(jobId, that.jobId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(jobId);
     }
 }

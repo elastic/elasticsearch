@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -14,7 +15,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
  */
 class ScrollDataExtractor implements DataExtractor {
 
-    private static final Logger LOGGER = Loggers.getLogger(ScrollDataExtractor.class);
+    private static final Logger LOGGER = LogManager.getLogger(ScrollDataExtractor.class);
     private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
 
     private final Client client;

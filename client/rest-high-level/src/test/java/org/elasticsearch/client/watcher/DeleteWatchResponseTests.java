@@ -18,25 +18,28 @@
  */
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.watcher.PutWatchRequest;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
-import java.util.Objects;
+import java.io.IOException;
 
-public class DeactivateWatchRequest implements Validatable {
-    private final String watchId;
+public class DeleteWatchResponseTests extends AbstractXContentTestCase<DeleteWatchResponse> {
 
-    public DeactivateWatchRequest(String watchId) {
-        Objects.requireNonNull(watchId, "watch id is missing");
-        if (PutWatchRequest.isValidId(watchId) == false) {
-            throw new IllegalArgumentException("watch id contains whitespace");
-        }
-
-        this.watchId = watchId;
+    @Override
+    protected DeleteWatchResponse createTestInstance() {
+        String id = randomAlphaOfLength(10);
+        long version = randomLongBetween(1, 10);
+        boolean found = randomBoolean();
+        return new DeleteWatchResponse(id, version, found);
     }
 
-    public String getWatchId() {
-        return watchId;
+    @Override
+    protected DeleteWatchResponse doParseInstance(XContentParser parser) throws IOException {
+        return DeleteWatchResponse.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 }
-

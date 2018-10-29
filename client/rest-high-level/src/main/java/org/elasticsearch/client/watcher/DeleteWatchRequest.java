@@ -19,24 +19,33 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.client.watcher.PutWatchRequest;
 
 import java.util.Objects;
 
-public class DeactivateWatchRequest implements Validatable {
-    private final String watchId;
+/**
+ * A delete watch request to delete an watch by name (id)
+ */
+public class DeleteWatchRequest implements Validatable {
 
-    public DeactivateWatchRequest(String watchId) {
-        Objects.requireNonNull(watchId, "watch id is missing");
-        if (PutWatchRequest.isValidId(watchId) == false) {
+    private final String id;
+
+    public DeleteWatchRequest(String id) {
+        Objects.requireNonNull(id, "watch id is missing");
+        if (PutWatchRequest.isValidId(id) == false) {
             throw new IllegalArgumentException("watch id contains whitespace");
         }
-
-        this.watchId = watchId;
+        this.id = id;
     }
 
-    public String getWatchId() {
-        return watchId;
+    /**
+     * @return The name of the watch to be deleted
+     */
+    public String getId() {
+        return id;
+    }
+
+    @Override
+    public String toString() {
+        return "delete [" + id + "]";
     }
 }
-

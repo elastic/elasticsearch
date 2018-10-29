@@ -20,62 +20,69 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.mapper.JsonFieldMapper.JsonFieldType;
+import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonFieldType;
 import org.junit.Before;
 
-public class JsonFieldTypeTests extends FieldTypeTestCase {
+public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
 
     @Before
     public void setupProperties() {
         addModifier(new Modifier("split_queries_on_whitespace", true) {
             @Override
             public void modify(MappedFieldType type) {
-                JsonFieldType ft = (JsonFieldType) type;
+                KeyedJsonFieldType ft = (KeyedJsonFieldType) type;
                 ft.setSplitQueriesOnWhitespace(!ft.splitQueriesOnWhitespace());
             }
         });
     }
 
     @Override
-    protected JsonFieldType createDefaultFieldType() {
-        return new JsonFieldType();
+    protected KeyedJsonFieldType createDefaultFieldType() {
+        return new KeyedJsonFieldType("key");
     }
 
-    public void testValueForDisplay() {
-        JsonFieldType ft = createDefaultFieldType();
+    public void testIndexedValueForSearch() {
+        KeyedJsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
-        BytesRef indexedValue = ft.indexedValueForSearch("value");
-        assertEquals("value", ft.valueForDisplay(indexedValue));
+        BytesRef keywordValue = ft.indexedValueForSearch("value");
+        assertEquals(new BytesRef("key\0value"), keywordValue);
+
+        BytesRef doubleValue = ft.indexedValueForSearch(2.718);
+        assertEquals(new BytesRef("key\0" + "2.718"), doubleValue);
+
+        BytesRef booleanValue = ft.indexedValueForSearch(true);
+        assertEquals(new BytesRef("key\0true"), booleanValue);
     }
 
     public void testTermQuery() {
-        JsonFieldType ft = createDefaultFieldType();
+        KeyedJsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
-        Query expected = new TermQuery(new Term("field", "value"));
+        Query expected = new TermQuery(new Term("field", "key\0value"));
         assertEquals(expected, ft.termQuery("value", null));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> ft.termQuery("field", null));
+            () -> ft.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        JsonFieldType ft = createDefaultFieldType();
+        KeyedJsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
-        Query expected = new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field")));
+        Query expected = new PrefixQuery(new Term("field", "key\0"));
         assertEquals(expected, ft.existsQuery(null));
     }
 
     public void testFuzzyQuery() {
-        JsonFieldType ft = createDefaultFieldType();
+        KeyedJsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
@@ -84,16 +91,16 @@ public class JsonFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        JsonFieldType ft = createDefaultFieldType();
+        KeyedJsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
-        UnsupportedOperationException e  = expectThrows(UnsupportedOperationException.class,
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.regexpQuery("valu*", 0, 10, null, null));
         assertEquals("[regexp] queries are not currently supported on [json] fields.", e.getMessage());
     }
 
     public void testWildcardQuery() {
-        JsonFieldType ft = createDefaultFieldType();
+        KeyedJsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
@@ -14,6 +15,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -35,11 +38,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -50,6 +59,7 @@ import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.LocalStateCcr;
+import org.elasticsearch.xpack.ccr.index.engine.FollowingEngine;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
@@ -69,6 +79,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -89,6 +100,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
     @Before
     public final void startClusters() throws Exception {
         if (clusterGroup != null && reuseClusters()) {
+            clusterGroup.leaderCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
+            clusterGroup.followerCluster.ensureAtMostNumDataNodes(numberOfNodesPerCluster());
             return;
         }
 
@@ -371,6 +384,90 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         request.setMaxRetryDelay(TimeValue.timeValueMillis(10));
         request.setReadPollTimeout(TimeValue.timeValueMillis(10));
         return request;
+    }
+
+    protected void assertSameDocCount(String leaderIndex, String followerIndex) throws Exception {
+        refresh(leaderClient(), leaderIndex);
+        SearchRequest request1 = new SearchRequest(leaderIndex);
+        request1.source(new SearchSourceBuilder().size(0));
+        SearchResponse response1 = leaderClient().search(request1).actionGet();
+        assertBusy(() -> {
+            refresh(followerClient(), followerIndex);
+            SearchRequest request2 = new SearchRequest(followerIndex);
+            request2.source(new SearchSourceBuilder().size(0));
+            SearchResponse response2 = followerClient().search(request2).actionGet();
+            assertThat(response2.getHits().getTotalHits(), equalTo(response1.getHits().getTotalHits()));
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    protected void atLeastDocsIndexed(Client client, String index, long numDocsReplicated) throws InterruptedException {
+        logger.info("waiting for at least [{}] documents to be indexed into index [{}]", numDocsReplicated, index);
+        awaitBusy(() -> {
+            refresh(client, index);
+            SearchRequest request = new SearchRequest(index);
+            request.source(new SearchSourceBuilder().size(0));
+            SearchResponse response = client.search(request).actionGet();
+            return response.getHits().getTotalHits() >= numDocsReplicated;
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    protected void assertMaxSeqNoOfUpdatesIsTransferred(Index leaderIndex, Index followerIndex, int numberOfShards) throws Exception {
+        assertBusy(() -> {
+            long[] msuOnLeader = new long[numberOfShards];
+            for (int i = 0; i < msuOnLeader.length; i++) {
+                msuOnLeader[i] = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            }
+            Set<String> leaderNodes = getLeaderCluster().nodesInclude(leaderIndex.getName());
+            for (String leaderNode : leaderNodes) {
+                IndicesService indicesService = getLeaderCluster().getInstance(IndicesService.class, leaderNode);
+                for (int i = 0; i < numberOfShards; i++) {
+                    IndexShard shard = indicesService.getShardOrNull(new ShardId(leaderIndex, i));
+                    if (shard != null) {
+                        try {
+                            msuOnLeader[i] = SequenceNumbers.max(msuOnLeader[i], shard.getMaxSeqNoOfUpdatesOrDeletes());
+                        } catch (AlreadyClosedException ignored) {
+                            return;
+                        }
+                    }
+                }
+            }
+
+            Set<String> followerNodes = getFollowerCluster().nodesInclude(followerIndex.getName());
+            for (String followerNode : followerNodes) {
+                IndicesService indicesService = getFollowerCluster().getInstance(IndicesService.class, followerNode);
+                for (int i = 0; i < numberOfShards; i++) {
+                    IndexShard shard = indicesService.getShardOrNull(new ShardId(leaderIndex, i));
+                    if (shard != null) {
+                        try {
+                            assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(msuOnLeader[i]));
+                        } catch (AlreadyClosedException ignored) {
+
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    protected void assertTotalNumberOfOptimizedIndexing(Index followerIndex, int numberOfShards, long expectedTotal) throws Exception {
+        assertBusy(() -> {
+            long[] numOfOptimizedOps = new long[numberOfShards];
+            for (int shardId = 0; shardId < numberOfShards; shardId++) {
+                for (String node : getFollowerCluster().nodesInclude(followerIndex.getName())) {
+                    IndicesService indicesService = getFollowerCluster().getInstance(IndicesService.class, node);
+                    IndexShard shard = indicesService.getShardOrNull(new ShardId(followerIndex, shardId));
+                    if (shard != null && shard.routingEntry().primary()) {
+                        try {
+                            FollowingEngine engine = ((FollowingEngine) IndexShardTestCase.getEngine(shard));
+                            numOfOptimizedOps[shardId] = engine.getNumberOfOptimizedIndexing();
+                        } catch (AlreadyClosedException e) {
+                            throw new AssertionError(e); // causes assertBusy to retry
+                        }
+                    }
+                }
+            }
+            assertThat(Arrays.stream(numOfOptimizedOps).sum(), equalTo(expectedTotal));
+        });
     }
 
     static void removeCCRRelatedMetadataFromClusterState(ClusterService clusterService) throws Exception {

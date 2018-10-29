@@ -16,19 +16,17 @@ subprojects {
     project.esplugin.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
     project.esplugin.noticeFile = xpackRootProject.file('NOTICE.txt')
   }
-
-  if (project.name != 'protocol') {
-    tasks.withType(LicenseHeadersTask.class) {
-        approvedLicenses = ['Elastic License', 'Generated']
-        additionalLicense 'ELAST', 'Elastic License', 'Licensed under the Elastic License'
-    }
-
-    ext.licenseName = 'Elastic License'
-    ext.licenseUrl = ext.elasticLicenseUrl
-
-    project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
-    project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')
+  
+  tasks.withType(LicenseHeadersTask.class) {
+      approvedLicenses = ['Elastic License', 'Generated']
+      additionalLicense 'ELAST', 'Elastic License', 'Licensed under the Elastic License'
   }
+
+  ext.licenseName = 'Elastic License'
+  ext.licenseUrl = ext.elasticLicenseUrl
+
+  project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
+  project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')
 }
 
 subprojects {

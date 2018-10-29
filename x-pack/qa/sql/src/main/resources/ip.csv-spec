@@ -72,6 +72,26 @@ SELECT id, client_ip, dest_ip FROM logs WHERE client_ip = '10.0.1.166' ORDER BY 
 34             |10.0.1.166     |2001:cafe::ff07:bdcc:bc59:ff9e
 ;
 
+filterExactMatchIpv4WithIn_CastAsIP
+SELECT id, client_ip, dest_ip FROM logs WHERE dest_ip IN (CAST('172.16.1.1' AS IP), CAST('2001:cafe::13e1:16fc:8726:1bf8' AS IP)) ORDER BY id DESC LIMIT 3;
+
+      id       |   client_ip   |           dest_ip
+---------------+---------------+------------------------------
+100            |10.0.0.129     |172.16.1.1
+78             |10.0.1.199     |2001:cafe::13e1:16fc:8726:1bf8
+69             |10.0.1.166     |2001:cafe::13e1:16fc:8726:1bf8
+;
+
+filterExactMatchIpv4WithIn_CastAsString
+SELECT id, client_ip, dest_ip FROM logs WHERE CAST(dest_ip AS STRING) IN ('172.16.1.1', '2001:cafe::13e1:16fc:8726:1bf8') ORDER BY id DESC LIMIT 3;
+
+      id       |   client_ip   |           dest_ip
+---------------+---------------+------------------------------
+100            |10.0.0.129     |172.16.1.1
+78             |10.0.1.199     |2001:cafe::13e1:16fc:8726:1bf8
+69             |10.0.1.166     |2001:cafe::13e1:16fc:8726:1bf8
+;
+
 filterExactMatchIpv6
 SELECT id, client_ip, dest_ip FROM logs WHERE dest_ip = 'fe80::86ba:3bff:fe05:c3f3' ORDER BY id LIMIT 10;
 

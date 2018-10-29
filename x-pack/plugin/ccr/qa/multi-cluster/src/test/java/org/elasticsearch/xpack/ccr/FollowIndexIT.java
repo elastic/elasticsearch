@@ -102,8 +102,9 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         }
 
         assertBusy(() -> {
-            Request statsRequest = new Request("GET", "/_ccr/auto_follow/stats");
-            Map<String, ?> response = toMap(client().performRequest(statsRequest));
+            Request statsRequest = new Request("GET", "/_ccr/stats");
+            Map<?, ?> response = toMap(client().performRequest(statsRequest));
+            response = (Map<?, ?>) response.get("auto_follow_stats");
             assertThat(response.get("number_of_successful_follow_indices"), equalTo(1));
 
             ensureYellow("logs-20190101");

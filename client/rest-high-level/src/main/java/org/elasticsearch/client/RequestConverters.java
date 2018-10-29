@@ -72,8 +72,6 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -617,37 +615,6 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withTimeout(deleteStoredScriptRequest.timeout());
         params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request xPackWatcherPutWatch(PutWatchRequest putWatchRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
-            .addPathPart(putWatchRequest.getId())
-            .build();
-
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        Params params = new Params(request).withVersion(putWatchRequest.getVersion());
-        if (putWatchRequest.isActive() == false) {
-            params.putParam("active", "false");
-        }
-        ContentType contentType = createContentType(putWatchRequest.xContentType());
-        BytesReference source = putWatchRequest.getSource();
-        request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
-        return request;
-    }
-
-    static Request xPackWatcherDeleteWatch(DeleteWatchRequest deleteWatchRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
-            .addPathPart(deleteWatchRequest.getId())
-            .build();
-
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
 

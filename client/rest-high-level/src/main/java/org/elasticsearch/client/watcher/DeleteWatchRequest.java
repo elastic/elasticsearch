@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
@@ -24,37 +23,29 @@ import org.elasticsearch.client.Validatable;
 import java.util.Objects;
 
 /**
- * A request to explicitly activate a watch.
+ * A delete watch request to delete an watch by name (id)
  */
-public final class ActivateWatchRequest implements Validatable {
+public class DeleteWatchRequest implements Validatable {
 
-    private final String watchId;
+    private final String id;
 
-    public ActivateWatchRequest(String watchId) {
-        this.watchId  = Objects.requireNonNull(watchId, "Watch identifier is required");
-        if (PutWatchRequest.isValidId(this.watchId) == false) {
-            throw new IllegalArgumentException("Watch identifier contains whitespace");
+    public DeleteWatchRequest(String id) {
+        Objects.requireNonNull(id, "watch id is missing");
+        if (PutWatchRequest.isValidId(id) == false) {
+            throw new IllegalArgumentException("watch id contains whitespace");
         }
+        this.id = id;
     }
 
     /**
-     * @return The ID of the watch to be activated.
+     * @return The name of the watch to be deleted
      */
-    public String getWatchId() {
-        return watchId;
+    public String getId() {
+        return id;
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ActivateWatchRequest that = (ActivateWatchRequest) o;
-        return Objects.equals(watchId, that.watchId);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = Objects.hash(watchId);
-        return result;
+    public String toString() {
+        return "delete [" + id + "]";
     }
 }

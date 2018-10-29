@@ -16,45 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
 
 import java.util.Objects;
 
-/**
- * A request to explicitly activate a watch.
- */
-public final class ActivateWatchRequest implements Validatable {
-
+public class DeactivateWatchRequest implements Validatable {
     private final String watchId;
 
-    public ActivateWatchRequest(String watchId) {
-        this.watchId  = Objects.requireNonNull(watchId, "Watch identifier is required");
-        if (PutWatchRequest.isValidId(this.watchId) == false) {
-            throw new IllegalArgumentException("Watch identifier contains whitespace");
+    public DeactivateWatchRequest(String watchId) {
+        Objects.requireNonNull(watchId, "watch id is missing");
+        if (PutWatchRequest.isValidId(watchId) == false) {
+            throw new IllegalArgumentException("watch id contains whitespace");
         }
+
+        this.watchId = watchId;
     }
 
-    /**
-     * @return The ID of the watch to be activated.
-     */
     public String getWatchId() {
         return watchId;
     }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ActivateWatchRequest that = (ActivateWatchRequest) o;
-        return Objects.equals(watchId, that.watchId);
-    }
-
-    @Override
-    public int hashCode() {
-        int result = Objects.hash(watchId);
-        return result;
-    }
 }
+

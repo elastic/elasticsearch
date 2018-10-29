@@ -169,8 +169,6 @@ import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-import org.elasticsearch.xpack.ml.job.process.NativeController;
-import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessFactory;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -181,6 +179,8 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NativeNormalizerProcess
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.process.NativeController;
+import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestFindFileStructureAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
@@ -368,7 +368,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             return emptyList();
         }
 
-        Auditor auditor = new Auditor(client, clusterService.nodeName());
+        Auditor auditor = new Auditor(client, clusterService.getNodeName());
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(settings, client, clusterService, threadPool);
         JobManager jobManager = new JobManager(env, settings, jobResultsProvider, clusterService, auditor, client, notifier);
@@ -391,7 +391,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                     nativeController,
                     client,
                     clusterService);
-                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, settings, nativeController);
+                normalizerProcessFactory = new NativeNormalizerProcessFactory(environment, nativeController);
             } catch (IOException e) {
                 // This also should not happen in production, as the MachineLearningFeatureSet should have
                 // hit the same error first and brought down the node with a friendlier error message
@@ -401,8 +401,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
             autodetectProcessFactory = (job, autodetectParams, executorService, onProcessCrash) ->
                     new BlackHoleAutodetectProcess(job.getId());
             // factor of 1.0 makes renormalization a no-op
-            normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) ->
-                    new MultiplyingNormalizerProcess(settings, 1.0);
+            normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));

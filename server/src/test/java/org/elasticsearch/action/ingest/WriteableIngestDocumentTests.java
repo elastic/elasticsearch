@@ -88,7 +88,8 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             otherIngestMetadata = Collections.unmodifiableMap(ingestMetadata);
         }
 
-        WriteableIngestDocument otherIngestDocument = new WriteableIngestDocument(new IngestDocument(otherSourceAndMetadata, otherIngestMetadata));
+        WriteableIngestDocument otherIngestDocument =
+                new WriteableIngestDocument(new IngestDocument(otherSourceAndMetadata, otherIngestMetadata));
         if (changed) {
             assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
             assertThat(otherIngestDocument, not(equalTo(ingestDocument)));
@@ -96,7 +97,8 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
             assertThat(ingestDocument, equalTo(otherIngestDocument));
             assertThat(otherIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(otherIngestDocument.hashCode()));
-            WriteableIngestDocument thirdIngestDocument = new WriteableIngestDocument(new IngestDocument(Collections.unmodifiableMap(sourceAndMetadata), Collections.unmodifiableMap(ingestMetadata)));
+            WriteableIngestDocument thirdIngestDocument = new WriteableIngestDocument(
+                    new IngestDocument(Collections.unmodifiableMap(sourceAndMetadata), Collections.unmodifiableMap(ingestMetadata)));
             assertThat(thirdIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument, equalTo(thirdIngestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(thirdIngestDocument.hashCode()));
@@ -114,7 +116,8 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10));
         }
-        WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
+        WriteableIngestDocument writeableIngestDocument =
+                new WriteableIngestDocument(new IngestDocument(sourceAndMetadata, ingestMetadata));
 
         BytesStreamOutput out = new BytesStreamOutput();
         writeableIngestDocument.writeTo(out);

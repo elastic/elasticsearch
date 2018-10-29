@@ -26,7 +26,8 @@ import org.elasticsearch.common.Strings;
 /**
  * A builder for {@link TypesExistsRequest}.
  */
-public class TypesExistsRequestBuilder extends MasterNodeReadOperationRequestBuilder<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
+public class TypesExistsRequestBuilder
+        extends MasterNodeReadOperationRequestBuilder<TypesExistsRequest, TypesExistsResponse, TypesExistsRequestBuilder> {
 
     /**
      * @param indices What indices to check for types

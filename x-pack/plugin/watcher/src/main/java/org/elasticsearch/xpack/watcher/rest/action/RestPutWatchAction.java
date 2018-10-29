@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -31,6 +34,8 @@ import static org.elasticsearch.rest.RestStatus.CREATED;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestPutWatchAction extends WatcherRestHandler implements RestRequestFilter {
+    private static final Logger logger = LogManager.getLogger(RestPutWatchAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public RestPutWatchAction(Settings settings, RestController controller) {
         super(settings);

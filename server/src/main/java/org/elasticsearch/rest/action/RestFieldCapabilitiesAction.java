@@ -19,10 +19,13 @@
 
 package org.elasticsearch.rest.action;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -35,6 +38,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestFieldCapabilitiesAction extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestFieldCapabilitiesAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     public RestFieldCapabilitiesAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_field_caps", this);

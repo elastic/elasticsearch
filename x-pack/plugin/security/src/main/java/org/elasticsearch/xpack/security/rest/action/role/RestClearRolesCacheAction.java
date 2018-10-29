@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestController;
@@ -20,6 +23,8 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestClearRolesCacheAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public RestClearRolesCacheAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);

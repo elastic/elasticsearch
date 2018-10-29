@@ -210,8 +210,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public ClusterTasksResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState,
-                                                                               List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+        public ClusterTasksResult<PutMappingClusterStateUpdateRequest>
+        execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             ClusterTasksResult.Builder<PutMappingClusterStateUpdateRequest> builder = ClusterTasksResult.builder();
             try {

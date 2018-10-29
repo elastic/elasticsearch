@@ -32,7 +32,7 @@ import java.util.Collections;
 import java.util.function.Function;
 
 /**
- * An {@link AtomicFieldData} implementation that uses Lucene {@link org.apache.lucene.index.SortedSetDocValues}.
+ * An {@link AtomicFieldData} implementation that uses Lucene {@link SortedSetDocValues}.
  */
 public final class SortedSetDVBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 

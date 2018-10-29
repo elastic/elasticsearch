@@ -313,8 +313,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 }
                 transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new TransportResponseHandler<NodeResponse>() {
                     @Override
-                    public NodeResponse newInstance() {
-                        return new NodeResponse();
+                    public NodeResponse read(StreamInput in) throws IOException {
+                        NodeResponse nodeResponse = new NodeResponse();
+                        nodeResponse.readFrom(in);
+                        return nodeResponse;
                     }
 
                     @Override

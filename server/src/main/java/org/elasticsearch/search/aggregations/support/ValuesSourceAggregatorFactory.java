@@ -41,14 +41,6 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
         this.config = config;
     }
 
-    public ZoneId timeZone() {
-        return config.timezone();
-    }
-
-    public ValuesSourceConfig<VS> getConfig() {
-        return config;
-    }
-
     @Override
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {

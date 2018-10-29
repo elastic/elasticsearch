@@ -419,16 +419,12 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
-
             // tag::authenticate-execute-async
             client.security().authenticateAsync(RequestOptions.DEFAULT, listener); // <1>
             // end::authenticate-execute-async
 
-            // tag::clear-roles-cache-execute-async
-            client.security().clearRolesCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::clear-roles-cache-execute-async
-
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
         }
     }
 

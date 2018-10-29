@@ -216,7 +216,7 @@ public final class SecurityClient {
      * Authenticate the current user and return all the information about the authenticated user.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-authenticate.html">
      * the docs</a> for more.
-     * 
+     *
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized 
      * @return the responsee from the authenticate user call
      */
@@ -229,7 +229,7 @@ public final class SecurityClient {
      * Authenticate the current user asynchronously and return all the information about the authenticated user.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-authenticate.html">
      * the docs</a> for more.
-     * 
+     *
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized 
      * @param listener the listener to be notified upon request completion 
      */
@@ -238,6 +238,7 @@ public final class SecurityClient {
                 AuthenticateResponse::fromXContent, listener, emptySet());
     }
 
+    /**
      * Clears the native roles cache for a set of roles.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-role-cache.html">
      * the docs</a> for more.

@@ -169,11 +169,10 @@ client.prepareSearch().get();
 [[java-docs-bulk-global-parameters]]
 ==== Global Parameters
 
-Similarly to REST API where you can provide URL parameters, you can specify global parameters on BulkRequest as well
- as BulkProcessor. These global parameters serve as defaults and can be overriden by local parameters specified on
- each sub request. Some parameters have to be set before any sub request is added - index, type - and you have to specify them
- during BulkRequest or BulkProcessor creation. Some are optional - pipeline, routing - and can be specified at any point before the bulk is
- sent.
+Global parameters can be specified on the BulkRequest as well as BulkProcessor, similar to the REST API. These global
+ parameters serve as defaults and can be overridden by local parameters specified on each sub request. Some parameters
+ have to be set before any sub request is added - index, type - and you have to specify them during  BulkRequest or
+ BulkProcessor creation. Some are optional - pipeline, routing - and can be specified at any point before the bulk is sent.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

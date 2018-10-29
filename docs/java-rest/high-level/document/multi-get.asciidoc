@@ -1,18 +1,24 @@
-[[java-rest-high-document-multi-get]]
+--
+:api: multi-get
+:request: MultiGetRequest
+:response: MultiGetResponse
+--
+
+[id="{upid}-{api}"]
 === Multi-Get API
 
 The `multiGet` API executes multiple <<java-rest-high-document-get,`get`>>
 requests in a single http request in parallel.
 
-[[java-rest-high-document-mulit-get-request]]
+[id="{upid}-{api}-request"]
 ==== Multi-Get Request
 
-A `MultiGetRequest` is built empty and you add `MultiGetRequest.Item`s to
-configure what to fetch:
+A +{request}+ is built empty and you add `MultiGetRequest.Item`s to configure
+what to fetch:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Index
 <2> Type
@@ -27,25 +33,25 @@ You can set most of these on the `Item`:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-request-no-source]
+include-tagged::{doc-tests-file}[{api}-request-no-source]
 --------------------------------------------------
 <1> Disable source retrieval, enabled by default
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-request-source-include]
+include-tagged::{doc-tests-file}[{api}-request-source-include]
 --------------------------------------------------
 <1> Configure source inclusion for specific fields
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-request-source-exclude]
+include-tagged::{doc-tests-file}[{api}-request-source-exclude]
 --------------------------------------------------
 <1> Configure source exclusion for specific fields
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-request-stored]
+include-tagged::{doc-tests-file}[{api}-request-stored]
 --------------------------------------------------
 <1> Configure retrieval for specific stored fields (requires fields to be
 stored separately in the mappings)
@@ -54,7 +60,7 @@ separately in the mappings)
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-request-item-extras]
+include-tagged::{doc-tests-file}[{api}-request-item-extras]
 --------------------------------------------------
 <1> Routing value
 <2> Version
@@ -68,56 +74,18 @@ not on any items:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-request-top-level-extras]
+include-tagged::{doc-tests-file}[{api}-request-top-level-extras]
 --------------------------------------------------
 <1> Preference value
 <2> Set realtime flag to `false` (`true` by default)
 <3> Perform a refresh before retrieving the document (`false` by default)
 
-[[java-rest-high-document-multi-get-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-After building the `MultiGetRequest` you can execute it synchronously with
-`multiGet`:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-execute]
---------------------------------------------------
-
-[[java-rest-high-document-multi-get-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a multi get request requires both the
-`MultiGetRequest` instance and an `ActionListener` instance to be passed to
-the asynchronous method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-execute-async]
---------------------------------------------------
-<1> The `MultiGetRequest` to execute and the `ActionListener` to use when
-the execution completes.
-
-The asynchronous method does not block and returns immediately. Once the
-request completed the `ActionListener` is called back using the `onResponse`
-method if the execution successfully completed or using the `onFailure` method
-if it failed.
-
-A typical listener for `MultiGetResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument.
-<2> Called in case of failure. The raised exception is provided as an argument.
-
-[[java-rest-high-document-multi-get-response]]
+[id="{upid}-{api}-response"]
 ==== Multi Get Response
 
-The returned `MultiGetResponse` contains a list of `MultiGetItemResponse`s in
+The returned +{response}+ contains a list of `MultiGetItemResponse`s in
 `getResponses` in the same order that they were requested.
 `MultiGetItemResponse` contains *either* a
 <<java-rest-high-document-get-response, `GetResponse`>> if the get succeeded
@@ -126,7 +94,7 @@ normal `GetResponse`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> `getFailure` returns null because there isn't a failure.
 <2> `getResponse` returns the `GetResponse`.
@@ -143,7 +111,7 @@ When one of the subrequests as performed against an index that does not exist
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-indexnotfound]
+include-tagged::{doc-tests-file}[{api}-indexnotfound]
 --------------------------------------------------
 <1> `getResponse` is null.
 <2> `getFailure` isn't and contains an `Exception`.
@@ -157,7 +125,7 @@ document has a different version number, a version conflict is raised:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/CRUDDocumentationIT.java[multi-get-conflict]
+include-tagged::{doc-tests-file}[{api}-conflict]
 --------------------------------------------------
 <1> `getResponse` is null.
 <2> `getFailure` isn't and contains an `Exception`.

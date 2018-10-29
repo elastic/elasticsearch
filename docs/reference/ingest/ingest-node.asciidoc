@@ -2541,3 +2541,10 @@ URL-decodes a string
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+[[plugin-processors]]
+== Plugin Processors
+
+Ingest processors may be installed as an Elasticsearch {plugins}/intro.html[plugin].
+
+Ingest plugins documentation can be found {plugins}/ingest.html[here].

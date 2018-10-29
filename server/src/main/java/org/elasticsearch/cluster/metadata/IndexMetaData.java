@@ -1392,6 +1392,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static final MetaDataStateFormat<IndexMetaData> FORMAT = new MetaDataStateFormat<IndexMetaData>(INDEX_STATE_FILE_PREFIX) {
 
         @Override
+        protected boolean autoCleanup() {
+            return false;
+        }
+
+        @Override
         public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {
             Builder.toXContent(state, builder, FORMAT_PARAMS);
         }

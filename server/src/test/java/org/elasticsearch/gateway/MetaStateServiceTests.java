@@ -21,12 +21,19 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.MetaState;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.util.HashMap;
+
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MetaStateServiceTests extends ESTestCase {
@@ -81,7 +88,48 @@ public class MetaStateServiceTests extends ESTestCase {
         }
     }
 
-    public void testLoadGlobal() throws Exception {
+    public void testLoadFullStateBWC() throws Exception {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+
+            IndexMetaData indexMetaData = IndexMetaData.builder("test1").settings(indexSettings).build();
+            MetaData metaData = MetaData.builder()
+                    .persistentSettings(Settings.builder().put("test1", "value1").build())
+                    .put(indexMetaData, true)
+                    .build();
+
+            long globalGeneration = metaStateService.writeGlobalState("test_write", metaData);
+            long indexGeneration = metaStateService.writeIndex("test_write", indexMetaData);
+
+            Tuple<MetaState, MetaData> stateAndData = metaStateService.loadFullState();
+            MetaState metaState = stateAndData.v1();
+            assertThat(metaState.getGlobalStateGeneration(), equalTo(globalGeneration));
+            assertThat(metaState.getIndices(), hasKey(indexMetaData.getIndex()));
+            assertThat(metaState.getIndices().get(indexMetaData.getIndex()), equalTo(indexGeneration));
+
+            MetaData loadedMetaData = stateAndData.v2();
+            assertThat(loadedMetaData.persistentSettings(), equalTo(metaData.persistentSettings()));
+            assertThat(loadedMetaData.hasIndex("test1"), equalTo(true));
+            assertThat(loadedMetaData.index("test1"), equalTo(indexMetaData));
+        }
+    }
+
+    public void testLoadEmptyState() throws IOException {
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            Tuple<MetaState, MetaData> stateAndData = metaStateService.loadFullState();
+
+            MetaState metaState = stateAndData.v1();
+            assertThat(metaState.getGlobalStateGeneration(), equalTo(-1L));
+            assertThat(metaState.getIndices().entrySet(), empty());
+
+            MetaData metaData = stateAndData.v2();
+            MetaData emptyMetaData = MetaData.builder().build();
+            assertTrue(MetaData.isGlobalStateEquals(metaData, emptyMetaData));
+        }
+    }
+
+    public void testLoadFullStateAndUpdate() throws IOException {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
 
@@ -91,13 +139,45 @@ public class MetaStateServiceTests extends ESTestCase {
                     .put(index, true)
                     .build();
 
-            metaStateService.writeGlobalState("test_write", metaData);
-            metaStateService.writeIndex("test_write", index);
+            long globalGeneration = metaStateService.writeGlobalState("first global state write", metaData);
+            long indexGeneration = metaStateService.writeIndex("first index state write", index);
 
-            MetaData loadedState = metaStateService.loadFullState();
-            assertThat(loadedState.persistentSettings(), equalTo(metaData.persistentSettings()));
-            assertThat(loadedState.hasIndex("test1"), equalTo(true));
-            assertThat(loadedState.index("test1"), equalTo(index));
+            MetaState metaState = new MetaState(globalGeneration, new HashMap<Index, Long>() {{
+                put(index.getIndex(), indexGeneration);
+            }});
+
+            metaStateService.writeMetaState("first meta state write", metaState);
+
+            MetaData newMetaData = MetaData.builder()
+                    .persistentSettings(Settings.builder().put("test1", "value2").build())
+                    .put(index, true)
+                    .build();
+            globalGeneration = metaStateService.writeGlobalState("second global state write", newMetaData);
+
+            Tuple<MetaState, MetaData> stateAndData = metaStateService.loadFullState();
+            assertThat(stateAndData.v1(), equalTo(metaState));
+
+            MetaData loadedMetaData = stateAndData.v2();
+            assertThat(loadedMetaData.persistentSettings(), equalTo(metaData.persistentSettings()));
+            assertThat(loadedMetaData.hasIndex("test1"), equalTo(true));
+            assertThat(loadedMetaData.index("test1"), equalTo(index));
+
+            metaState = new MetaState(globalGeneration, new HashMap<Index, Long>() {{
+                put(index.getIndex(), indexGeneration);
+            }});
+
+            long metaStateGeneration = metaStateService.writeMetaState("test", metaState);
+            metaStateService.cleanupGlobalState(globalGeneration);
+            metaStateService.cleanupIndex(index.getIndex(), indexGeneration);
+            metaStateService.cleanupMetaState(metaStateGeneration);
+
+            stateAndData = metaStateService.loadFullState();
+            assertThat(stateAndData.v1(), equalTo(metaState));
+
+            loadedMetaData = stateAndData.v2();
+            assertThat(loadedMetaData.persistentSettings(), equalTo(newMetaData.persistentSettings()));
+            assertThat(loadedMetaData.hasIndex("test1"), equalTo(true));
+            assertThat(loadedMetaData.index("test1"), equalTo(index));
         }
     }
 }

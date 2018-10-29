@@ -396,7 +396,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetaData metaData = state.getMetaData().index("test");
-        for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
+        for (MetaStateService metaStateService : internalCluster().getInstances(MetaStateService.class)) {
             IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(Settings.builder().put(metaData.getSettings())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion().id)
                  // this is invalid but should be archived
@@ -404,7 +404,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                  // this one is not validated ahead of time and breaks allocation
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
             ).build();
-            IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
+
+            metaStateService.writeIndexAndUpdateMetaState("broken metadata", brokenMeta);
         }
         internalCluster().fullRestart();
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
@@ -458,10 +459,10 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetaData metaData = state.getMetaData().index("test");
-        for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
+        for (MetaStateService metaStateService : internalCluster().getInstances(MetaStateService.class)) {
             IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
                 .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false)).build();
-            IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
+            metaStateService.writeIndexAndUpdateMetaState("broken metadata", brokenMeta);
         }
         internalCluster().fullRestart();
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
@@ -495,11 +496,11 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         MetaData metaData = state.getMetaData();
-        for (NodeEnvironment nodeEnv : internalCluster().getInstances(NodeEnvironment.class)) {
+        for (MetaStateService metaStateService : internalCluster().getInstances(MetaStateService.class)) {
             MetaData brokenMeta = MetaData.builder(metaData).persistentSettings(Settings.builder()
                 .put(metaData.persistentSettings()).put("this.is.unknown", true)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "broken").build()).build();
-            MetaData.FORMAT.write(brokenMeta, nodeEnv.nodeDataPaths());
+            metaStateService.writeGlobalStateAndUpdateMetaState("broken metadata", brokenMeta);
         }
         internalCluster().fullRestart();
         ensureYellow("test"); // wait for state recovery

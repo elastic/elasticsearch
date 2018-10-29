@@ -46,7 +46,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.DirectoryStream;
@@ -71,11 +70,11 @@ public class MetaDataStateFormatTests extends ESTestCase {
     /**
      * Ensure we can read a pre-generated cluster state.
      */
-    public void testReadClusterState() throws URISyntaxException, IOException {
+    public void testReadClusterState() throws IOException {
         final MetaDataStateFormat<MetaData> format = new MetaDataStateFormat<MetaData>("global-") {
 
             @Override
-            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
+            public void toXContent(XContentBuilder builder, MetaData state) {
                 fail("this test doesn't write");
             }
 
@@ -473,7 +472,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
             this.failureMode = FailureMode.NO_FAILURES;
         }
 
-
         @Override
         public void toXContent(XContentBuilder builder, DummyState state) throws IOException {
             state.toXContent(builder, null);
@@ -483,7 +481,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
         public DummyState fromXContent(XContentParser parser) throws IOException {
             return new DummyState().parse(parser);
         }
-
 
         public void noFailures() {
             this.failureMode = FailureMode.NO_FAILURES;

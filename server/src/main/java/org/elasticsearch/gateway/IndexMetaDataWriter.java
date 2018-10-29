@@ -16,30 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.gateway;
 
-import java.io.IOException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.index.Index;
 
-/**
- * This exception is thrown when there is a problem of writing state to disk.
- */
-public class WriteStateException extends IOException {
-    private boolean dirty;
-
-    WriteStateException(boolean dirty, String message, Exception cause) {
-        super(message, cause);
-        this.dirty = dirty;
-    }
-
-    /**
-     * If this method returns false, state is guaranteed to be not written to disk.
-     * If this method returns true, we don't know if state is written to disk.
-     */
-    public boolean isDirty() {
-        return dirty;
-    }
-
-    public void resetDirty() {
-        this.dirty = false;
-    }
+public interface IndexMetaDataWriter {
+    long writeIndex(String reason, IndexMetaData indexMetaData) throws WriteStateException;
+    void cleanupIndex(Index index, long currentGeneration);
 }

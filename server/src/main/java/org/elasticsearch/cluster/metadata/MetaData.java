@@ -132,14 +132,17 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING =
         Setting.boolSetting("cluster.blocks.read_only", false, Property.Dynamic, Property.NodeScope);
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false,
-        false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)",
+        false, false, false, RestStatus.FORBIDDEN,
+        EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     public static final Setting<Boolean> SETTING_READ_ONLY_ALLOW_DELETE_SETTING =
         Setting.boolSetting("cluster.blocks.read_only_allow_delete", false, Property.Dynamic, Property.NodeScope);
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(13, "cluster read-only / allow delete (api)",
-        false, false, true, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK =
+        new ClusterBlock(13, "cluster read-only / allow delete (api)",
+        false, false, true, RestStatus.FORBIDDEN,
+            EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 
@@ -575,11 +578,13 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         AliasMetaData aliasMd = alias.getFirstAliasMetaData();
         if (aliasMd.indexRouting() != null) {
             if (aliasMd.indexRouting().indexOf(',') != -1) {
-                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" +
+                    aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
             }
             if (routing != null) {
                 if (!routing.equals(aliasMd.indexRouting())) {
-                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
+                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" +
+                        aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
                 }
             }
             // Alias routing overrides the parent routing (if any).
@@ -594,7 +599,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         for (IndexMetaData indexMetaData : result.getIndices()) {
             indexNames[i++] = indexMetaData.getIndex().getName();
         }
-        throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" + Arrays.toString(indexNames) + "], can't execute a single index op");
+        throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" +
+            Arrays.toString(indexNames) + "], can't execute a single index op");
     }
 
     public boolean hasIndex(String index) {

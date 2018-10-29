@@ -112,7 +112,7 @@ public class UpdateJobProcessNotifier extends AbstractComponent {
 
         if (update.isJobUpdate() && clusterService.localNode().isMasterNode() == false) {
             assert clusterService.localNode().isMasterNode();
-            LOGGER.error("Job update was submitted to non-master node [" + clusterService.nodeName() + "]; update for job ["
+            LOGGER.error("Job update was submitted to non-master node [" + clusterService.getNodeName() + "]; update for job ["
                     + update.getJobId() + "] will be ignored");
             executeProcessUpdates(updatesIterator);
             return;

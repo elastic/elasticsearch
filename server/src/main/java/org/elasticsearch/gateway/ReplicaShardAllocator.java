@@ -121,10 +121,13 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                         logger.debug("cancelling allocation of replica on [{}], sync id match found on node [{}]",
                                 currentNode, nodeWithHighestMatch);
                         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
-                            "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node ["+ nodeWithHighestMatch + "]",
-                            null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
+                            "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node ["+
+                                nodeWithHighestMatch + "]",
+                            null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false,
+                            UnassignedInfo.AllocationStatus.NO_ATTEMPT);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
-                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo, metaData.getIndexSafe(shard.index()), allocation.changes()));
+                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo,
+                            metaData.getIndexSafe(shard.index()), allocation.changes()));
                     }
                 }
             }
@@ -298,7 +301,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Finds the store for the assigned shard in the fetched data, returns null if none is found.
      */
-    private TransportNodesListShardStoreMetaData.StoreFilesMetaData findStore(ShardRouting shard, RoutingAllocation allocation, AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> data) {
+    private TransportNodesListShardStoreMetaData.StoreFilesMetaData findStore(ShardRouting shard, RoutingAllocation allocation,
+                                                                              AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> data) {
         assert shard.currentNodeId() != null;
         DiscoveryNode primaryNode = allocation.nodes().get(shard.currentNodeId());
         if (primaryNode == null) {

@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -138,6 +139,12 @@ final class SecurityRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request createToken(CreateTokenRequest createTokenRequest) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, "/_xpack/security/oauth2/token");
+        request.setEntity(createEntity(createTokenRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 }

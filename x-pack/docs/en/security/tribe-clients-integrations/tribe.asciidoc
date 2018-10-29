@@ -13,8 +13,6 @@ IMPORTANT: Support for tribe nodes in Kibana was added in v5.2.
 
 To use a tribe node with secured clusters:
 
-. Install {xpack} on the tribe node and every node in each connected cluster.
-
 . Enable encryption globally. To encrypt communications, you must enable
 <<ssl-tls,enable SSL/TLS>> on every node.
 +
@@ -46,12 +44,18 @@ tribe:
     xpack.ssl.certificate_authorities: [ "/home/es/config/x-pack/ca.crt" ]
     xpack.security.transport.ssl.enabled: true
     xpack.security.http.ssl.enabled: true
+
+xpack.ssl.key: /home/es/config/x-pack/es-tribe-01.key <3>
+xpack.ssl.certificate: /home/es/config/x-pack/es-tribe-01.crt
+xpack.ssl.certificate_authorities: [ "/home/es/config/x-pack/ca.crt" ]
+xpack.security.transport.ssl.enabled: true
+xpack.security.http.ssl.enabled: true
 -----------------------------------------------------------
 <1> Results are returned from the preferred cluster if the named index exists
     in multiple clusters. A preference is *required* when using {security} on
     a tribe node.
 <2> An arbitrary name that represents the connection to the cluster.
-
+<3> Global encryption settings example as in step 2.
 . Configure the same index privileges for your users on all nodes, including the
 tribe node. The nodes in each cluster must grant access to indices in other
 connected clusters as well as their own.

@@ -65,6 +65,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
             assertThat(client().prepareSearch("follower").get().getHits().totalHits,
                 equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
         });
+        ensureEmptyWriteBuffers();
     }
 
     public void testDoNotCreateFollowerIfLeaderDoesNotHaveSoftDeletes() throws Exception {

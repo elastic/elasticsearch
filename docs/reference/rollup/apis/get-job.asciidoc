@@ -88,13 +88,6 @@ Which will yield the following response:
                 "metrics" : [
                   "avg"
                 ]
-              },
-              {
-                "field": "timestamp",
-                "metrics": [
-                  "max",
-                  "min"
-                 ]
               }
             ],
             "timeout" : "20s",
@@ -215,13 +208,6 @@ Which will yield the following response:
                 "metrics" : [
                   "avg"
                 ]
-              },
-              {
-                "field": "timestamp",
-                "metrics": [
-                  "min",
-                  "max"
-                ]
               }
             ],
             "timeout" : "20s",
@@ -271,13 +257,6 @@ Which will yield the following response:
                 "metrics" : [
                   "avg"
                 ]
-              },
-              {
-                "field": "timestamp",
-                "metrics": [
-                  "min",
-                  "max"
-                 ]
               }
             ],
             "timeout" : "20s",

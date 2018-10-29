@@ -435,6 +435,10 @@ aggMultiGroupByMultiWithHavingUsingIn
 SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74500, 74600) ORDER BY gender, languages;
 
 
+// HAVING filter resulting in NoMatch
+aggWithNoMatchHaving
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING 1 > 2 ORDER BY gender;
+
 //
 // NULL tests
 //

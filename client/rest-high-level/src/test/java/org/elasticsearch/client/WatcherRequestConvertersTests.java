@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.watcher.DeactivateWatchRequest;
 import org.elasticsearch.client.watcher.ActivateWatchRequest;
 import org.elasticsearch.client.watcher.AckWatchRequest;
 import org.elasticsearch.client.watcher.StartWatchServiceRequest;
@@ -55,11 +56,9 @@ public class WatcherRequestConvertersTests extends ESTestCase {
     }
 
     public void testPutWatch() throws Exception {
-        PutWatchRequest putWatchRequest = new PutWatchRequest();
         String watchId = randomAlphaOfLength(10);
-        putWatchRequest.setId(watchId);
         String body = randomAlphaOfLength(20);
-        putWatchRequest.setSource(new BytesArray(body), XContentType.JSON);
+        PutWatchRequest putWatchRequest = new PutWatchRequest(watchId, new BytesArray(body), XContentType.JSON);
 
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
@@ -83,10 +82,18 @@ public class WatcherRequestConvertersTests extends ESTestCase {
         assertThat(bos.toString("UTF-8"), is(body));
     }
 
-    public void testDeleteWatch() {
-        DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
+    public void testDeactivateWatch() {
         String watchId = randomAlphaOfLength(10);
-        deleteWatchRequest.setId(watchId);
+        DeactivateWatchRequest deactivateWatchRequest = new DeactivateWatchRequest(watchId);
+        Request request = WatcherRequestConverters.deactivateWatch(deactivateWatchRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/watcher/watch/" + watchId + "/_deactivate", request.getEndpoint());
+    }
+
+    public void testDeleteWatch() {
+        String watchId = randomAlphaOfLength(10);
+        DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest(watchId);
 
         Request request = WatcherRequestConverters.deleteWatch(deleteWatchRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());

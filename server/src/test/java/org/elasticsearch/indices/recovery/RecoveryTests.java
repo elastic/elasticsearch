@@ -180,7 +180,8 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
     public void testRecoveryWithOutOfOrderDeleteWithSoftDeletes() throws Exception {
         Settings settings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(),
+                randomBoolean() ? between(0, 10 * 1024 * 1024) + "b" : "-1")
             // If soft-deletes is enabled, delete#1 will be reclaimed because its segment (segment_1) is fully deleted
             // index#0 will be retained if merge is disabled; otherwise it will be reclaimed because gcp=3 and retained_ops=0
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false).build();
@@ -215,7 +216,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                     logger.info("--> flushing shard (translog/soft-deletes will be trimmed)");
                     IndexMetaData.Builder builder = IndexMetaData.builder(orgReplica.indexSettings().getIndexMetaData());
                     builder.settings(Settings.builder().put(orgReplica.indexSettings().getSettings())
-                        .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0));
+                        .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(), "-1"));
                     orgReplica.indexSettings().updateIndexMetaData(builder.build());
                     orgReplica.onSettingsChanged();
                 }

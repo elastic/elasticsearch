@@ -129,6 +129,7 @@ public class InternalEngine extends Engine {
     private final LiveVersionMap versionMap = new LiveVersionMap();
 
     private volatile SegmentInfos lastCommittedSegmentInfos;
+    private volatile long lastAverageDocSizeInBytes = 0; // re-calculated after flushes.
 
     private final IndexThrottle throttle;
 
@@ -275,8 +276,8 @@ public class InternalEngine extends Engine {
         } else {
             lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
         }
-        return new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint, lastMinRetainedSeqNo,
-            engineConfig.getIndexSettings().getSoftDeleteRetentionOperations());
+        return new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint, this::getAverageDocSizeInBytes,
+            engineConfig.getIndexSettings().getSoftDeleteRetentionSize(), lastMinRetainedSeqNo);
     }
 
     /**
@@ -573,6 +574,7 @@ public class InternalEngine extends Engine {
                 internalSearcherManager = new SearcherManager(directoryReader,
                         new RamAccountingSearcherFactory(engineConfig.getCircuitBreakerService()));
                 lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                lastAverageDocSizeInBytes = Lucene.getAverageDocumentSizeInBytes(lastCommittedSegmentInfos);
                 ExternalSearcherManager externalSearcherManager = new ExternalSearcherManager(internalSearcherManager,
                     externalSearcherFactory);
                 success = true;
@@ -1682,6 +1684,7 @@ public class InternalEngine extends Engine {
         try {
             // reread the last committed segment infos
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            lastAverageDocSizeInBytes = Lucene.getAverageDocumentSizeInBytes(lastCommittedSegmentInfos);
         } catch (Exception e) {
             if (isClosed.get() == false) {
                 try {
@@ -1697,6 +1700,7 @@ public class InternalEngine extends Engine {
             store.decRef();
         }
     }
+
 
     @Override
     public void rollTranslogGeneration() throws EngineException {
@@ -1946,6 +1950,10 @@ public class InternalEngine extends Engine {
     @Override
     protected SegmentInfos getLastCommittedSegmentInfos() {
         return lastCommittedSegmentInfos;
+    }
+
+    final long getAverageDocSizeInBytes() {
+        return lastAverageDocSizeInBytes;
     }
 
     @Override
@@ -2342,7 +2350,7 @@ public class InternalEngine extends Engine {
         final IndexSettings indexSettings = engineConfig.getIndexSettings();
         translogDeletionPolicy.setRetentionAgeInMillis(indexSettings.getTranslogRetentionAge().getMillis());
         translogDeletionPolicy.setRetentionSizeInBytes(indexSettings.getTranslogRetentionSize().getBytes());
-        softDeletesPolicy.setRetentionOperations(indexSettings.getSoftDeleteRetentionOperations());
+        softDeletesPolicy.setRetentionSize(indexSettings.getSoftDeleteRetentionSize());
     }
 
     public MergeStats getMergeStats() {

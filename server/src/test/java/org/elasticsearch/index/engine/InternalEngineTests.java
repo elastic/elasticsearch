@@ -90,6 +90,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -161,6 +162,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static java.util.Collections.emptyMap;
@@ -170,6 +172,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVE
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
+import static org.hamcrest.CoreMatchers.both;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.contains;
@@ -183,6 +186,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -576,6 +580,51 @@ public class InternalEngineTests extends EngineTestCase {
             engine.refresh("test");
 
             assertThat(engine.segmentsStats(true).getFileSizes().get(firstEntry.key), greaterThan(firstEntry.value));
+        }
+    }
+
+    public void testAverageDocumentSize() throws Exception {
+        final AtomicLong globalCheckpoint = new AtomicLong(-1);
+        try (Store store = createStore()) {
+            final long lastAvgSize;
+            final Path translogPath = createTempDir();
+            try (InternalEngine engine = createEngine(
+                defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get)) {
+                assertThat(engine.getAverageDocSizeInBytes(), equalTo(0L));
+                engine.index(indexForDoc(createParsedDoc("first", null)));
+                engine.flush(randomBoolean(), true);
+                final long avgSizeOneDoc = engine.getAverageDocSizeInBytes();
+                assertThat(avgSizeOneDoc, both(greaterThan(500L)).and(lessThanOrEqualTo(5000L)));
+
+                int numDocs = between(10, 100);
+                List<String> docIds = IntStream.range(0, numDocs).mapToObj(Integer::toString).collect(Collectors.toList());
+                for (String id : docIds) {
+                    engine.index(indexForDoc(createParsedDoc(id, null)));
+                }
+                assertThat(engine.getAverageDocSizeInBytes(), equalTo(avgSizeOneDoc)); // only recalculate after flushes
+                engine.flush(randomBoolean(), true);
+                long avgSizeNDocs = engine.getAverageDocSizeInBytes();
+                assertThat(avgSizeNDocs, both(greaterThan(avgSizeOneDoc / numDocs)).and(lessThan(avgSizeOneDoc)));
+                List<String> deletedIds = randomSubsetOf(between(2, 5), docIds);
+                for (String id : deletedIds) {
+                    ParsedDocument parsedDoc = createParsedDoc(id, null);
+                    engine.delete(new Engine.Delete(parsedDoc.type(), parsedDoc.id(), newUid(parsedDoc), primaryTerm.get()));
+                }
+                assertThat(engine.getAverageDocSizeInBytes(), equalTo(avgSizeNDocs));
+                engine.flush(randomBoolean(), true);
+                long avgSizeWithDeletes = engine.getAverageDocSizeInBytes();
+                assertThat(avgSizeWithDeletes, lessThan(avgSizeOneDoc));
+                if (engine.config().getIndexSettings().isSoftDeleteEnabled() == false) {
+                    assertThat(avgSizeWithDeletes, greaterThanOrEqualTo(avgSizeNDocs));
+                }
+                globalCheckpoint.set(engine.getLocalCheckpoint());
+                engine.syncTranslog();
+                lastAvgSize = avgSizeWithDeletes;
+            }
+            try (InternalEngine engine = createEngine(
+                defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get)) {
+                assertThat(engine.getAverageDocSizeInBytes(), equalTo(lastAvgSize));
+            }
         }
     }
 
@@ -1382,11 +1431,11 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testForceMergeWithSoftDeletesRetention() throws Exception {
-        final long retainedExtraOps = randomLongBetween(0, 10);
+        final ByteSizeValue retentionSize = new ByteSizeValue(between(0, 10 * 1024 * 1024));
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), retainedExtraOps);
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(), retentionSize.getBytes() + "b");
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -1420,8 +1469,10 @@ public class InternalEngineTests extends EngineTestCase {
             globalCheckpoint.set(randomLongBetween(0, localCheckpoint));
             engine.syncTranslog();
             final long safeCommitCheckpoint;
+            final long retainedExtraOps;
             try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
                 safeCommitCheckpoint = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+                retainedExtraOps = retentionSize.getBytes() / Lucene.getAverageDocumentSizeInBytes(engine.getLastCommittedSegmentInfos());
             }
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
@@ -1441,7 +1492,7 @@ public class InternalEngineTests extends EngineTestCase {
                     assertThat(msg, ops.get(seqno), notNullValue());
                 }
             }
-            settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
+            settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(), "-1");
             indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
             engine.onSettingsChanged();
             globalCheckpoint.set(localCheckpoint);
@@ -1454,11 +1505,11 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testForceMergeWithSoftDeletesRetentionAndRecoverySource() throws Exception {
-        final long retainedExtraOps = randomLongBetween(0, 10);
+        final ByteSizeValue retentionSize = new ByteSizeValue(between(0, 10 * 1024 * 1024));
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), retainedExtraOps);
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(), retentionSize.getBytes() + "b");
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -1507,14 +1558,15 @@ public class InternalEngineTests extends EngineTestCase {
             try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
                 long safeCommitLocalCheckpoint = Long.parseLong(
                     safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-                minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainedExtraOps, safeCommitLocalCheckpoint + 1);
+                long retainOps = retentionSize.getBytes() / Lucene.getAverageDocumentSizeInBytes(engine.getLastCommittedSegmentInfos());
+                minSeqNoToRetain = Math.min(globalCheckpoint.get() + 1 - retainOps, safeCommitLocalCheckpoint + 1);
             }
             engine.forceMerge(true, 1, false, false, false);
             assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
             Map<Long, Translog.Operation> ops = readAllOperationsInLucene(engine, mapperService)
                 .stream().collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
             for (long seqno = 0; seqno <= engine.getLocalCheckpoint(); seqno++) {
-                String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retainedExtraOps + "]";
+                String msg = "seq# [" + seqno + "], global checkpoint [" + globalCheckpoint + "], retained-ops [" + retentionSize + "]";
                 if (seqno < minSeqNoToRetain) {
                     Translog.Operation op = ops.get(seqno);
                     if (op != null) {
@@ -1529,7 +1581,7 @@ public class InternalEngineTests extends EngineTestCase {
                     }
                 }
             }
-            settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0);
+            settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(), "-1");
             indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
             engine.onSettingsChanged();
             // If the global checkpoint equals to the local checkpoint, the next force-merge will be a noop
@@ -4920,7 +4972,8 @@ public class InternalEngineTests extends EngineTestCase {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(),
+                frequently() ? between(0, 10 * 1024 * 1024) + "b" : "-1");
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         Set<Long> expectedSeqNos = new HashSet<>();
@@ -4958,7 +5011,7 @@ public class InternalEngineTests extends EngineTestCase {
         Settings.Builder settings = Settings.builder()
             .put(defaultSettings.getSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(), between(0, 10 * 1024 * 1024) + "b");
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
@@ -4982,7 +5035,7 @@ public class InternalEngineTests extends EngineTestCase {
                 globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpointTracker().getCheckpoint()));
             }
             if (rarely()) {
-                settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), randomLongBetween(0, 10));
+                settings.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(), between(0, 10 * 1024 * 1024) + "b");
                 indexSettings.updateIndexMetaData(IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build());
                 engine.onSettingsChanged();
             }

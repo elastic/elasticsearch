@@ -94,8 +94,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
-                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
-                    randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
+                .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(),
+                    frequently() ? between(0, 100 * 1024 * 1024) + "b" : "-1")
             ).get();
     }
 

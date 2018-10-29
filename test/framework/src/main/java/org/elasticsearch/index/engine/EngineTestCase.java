@@ -58,6 +58,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -170,8 +171,8 @@ public abstract class EngineTestCase extends ESTestCase {
             .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.getKey(),
                 between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean())
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(),
-                randomBoolean() ? IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.get(Settings.EMPTY) : between(0, 1000))
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(),
+                frequently() ? between(0, 100 * 1024 * 1024) + "b" : "-1")
             .build();
     }
 
@@ -879,10 +880,17 @@ public abstract class EngineTestCase extends ESTestCase {
         final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
         final long globalCheckpoint = EngineTestCase.getTranslog(engine).getLastSyncedGlobalCheckpoint();
-        final long retainedOps = engine.config().getIndexSettings().getSoftDeleteRetentionOperations();
         final long seqNoForRecovery;
         try (Engine.IndexCommitRef safeCommit = engine.acquireSafeIndexCommit()) {
             seqNoForRecovery = Long.parseLong(safeCommit.getIndexCommit().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) + 1;
+        }
+        final long retainedOps;
+        if (engine.config().getIndexSettings().getSoftDeleteRetentionSize().getBytes() > 0) {
+            final long retentionSizeInBytes = engine.config().getIndexSettings().getSoftDeleteRetentionSize().getBytes();
+            final long avgDocSize = Lucene.getAverageDocumentSizeInBytes(engine.getLastCommittedSegmentInfos());
+            retainedOps = retentionSizeInBytes / Math.max(avgDocSize, 1);
+        } else {
+            retainedOps = 0;
         }
         final long minSeqNoToRetain = Math.min(seqNoForRecovery, globalCheckpoint + 1 - retainedOps);
         for (Translog.Operation translogOp : translogOps.values()) {

@@ -337,7 +337,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, replicas)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10000)
+            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(), between(1, 100) + "mb")
             .put(settings)
             .build();
         if (CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(newSettings)) {

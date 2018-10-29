@@ -719,9 +719,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // always default delayed allocation to 0 to make sure we have tests are not delayed
         builder.put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0);
         builder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
-        if (randomBoolean()) {
-            builder.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000));
-        }
+        builder.put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(),
+            frequently() ? between(0, 10 * 1024 * 1024) + "b" : "-1");
         return builder.build();
     }
 

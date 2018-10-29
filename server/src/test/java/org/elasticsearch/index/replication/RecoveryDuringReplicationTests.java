@@ -268,7 +268,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 builder.settings(Settings.builder().put(newPrimary.indexSettings().getSettings())
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
-                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING.getKey(), "-1")
                 );
                 newPrimary.indexSettings().updateIndexMetaData(builder.build());
                 newPrimary.onSettingsChanged();

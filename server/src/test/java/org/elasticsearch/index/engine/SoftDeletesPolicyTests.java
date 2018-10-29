@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.ESTestCase;
 
@@ -34,10 +35,12 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
      * Makes sure we won't advance the retained seq# if the retention lock is held
      */
     public void testSoftDeletesRetentionLock() {
-        long retainedOps = between(0, 10000);
         AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        long averageDocSizeInBytes = randomLongBetween(1, 100 * 1024);
+        long retainedOps = between(0, 10000);
         long safeCommitCheckpoint = globalCheckpoint.get();
-        SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, between(1, 10000), retainedOps);
+        SoftDeletesPolicy policy = new SoftDeletesPolicy(globalCheckpoint::get, () -> averageDocSizeInBytes,
+            new ByteSizeValue(retainedOps * averageDocSizeInBytes), between(1, 10000));
         long minRetainedSeqNo = policy.getMinRetainedSeqNo();
         List<Releasable> locks = new ArrayList<>();
         int iters = scaledRandomIntBetween(10, 1000);
@@ -51,7 +54,7 @@ public class SoftDeletesPolicyTests extends ESTestCase  {
             policy.setLocalCheckpointOfSafeCommit(safeCommitCheckpoint);
             if (rarely()) {
                 retainedOps = between(0, 10000);
-                policy.setRetentionOperations(retainedOps);
+                policy.setRetentionSize(new ByteSizeValue(averageDocSizeInBytes * retainedOps));
             }
             // Release some locks
             List<Releasable> releasingLocks = randomSubsetOf(locks);

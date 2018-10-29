@@ -160,6 +160,24 @@ public class Lucene {
     }
 
     /**
+     * Returns the average size in bytes of documents in the index referenced by a given {@link SegmentInfos}.
+     */
+    public static long getAverageDocumentSizeInBytes(SegmentInfos info) throws IOException {
+        long totalDocs = 0;
+        long totalBytes = 0;
+        for (SegmentCommitInfo si : info) {
+            totalDocs += si.info.maxDoc();
+            totalBytes += si.sizeInBytes();
+        }
+        if (totalDocs == 0) {
+            assert totalBytes == 0 : totalBytes;
+            return 0;
+        } else {
+            return totalBytes / totalDocs;
+        }
+    }
+
+    /**
      * Reads the segments infos from the given commit, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(IndexCommit commit) throws IOException {

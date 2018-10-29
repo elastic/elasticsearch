@@ -22,6 +22,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -34,28 +35,27 @@ import java.util.function.LongSupplier;
  */
 final class SoftDeletesPolicy {
     private final LongSupplier globalCheckpointSupplier;
+    private final LongSupplier avgDocSizeInBytesSupplier;
     private long localCheckpointOfSafeCommit;
     // This lock count is used to prevent `minRetainedSeqNo` from advancing.
     private int retentionLockCount;
-    // The extra number of operations before the global checkpoint are retained
-    private long retentionOperations;
+    // The extra bytes before the global checkpoint are retained
+    private long retentionSizeInBytes;
     // The min seq_no value that is retained - ops after this seq# should exist in the Lucene index.
     private long minRetainedSeqNo;
 
-    SoftDeletesPolicy(LongSupplier globalCheckpointSupplier, long minRetainedSeqNo, long retentionOperations) {
+    SoftDeletesPolicy(LongSupplier globalCheckpointSupplier, LongSupplier avgDocSizeInBytesSupplier,
+                      ByteSizeValue retentionSize, long lastMinRetainedSeqNo) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.retentionOperations = retentionOperations;
-        this.minRetainedSeqNo = minRetainedSeqNo;
+        this.avgDocSizeInBytesSupplier = avgDocSizeInBytesSupplier;
+        this.retentionSizeInBytes = retentionSize.getBytes();
+        this.minRetainedSeqNo = lastMinRetainedSeqNo;
         this.localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
         this.retentionLockCount = 0;
     }
 
-    /**
-     * Updates the number of soft-deleted documents prior to the global checkpoint to be retained
-     * See {@link org.elasticsearch.index.IndexSettings#INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING}
-     */
-    synchronized void setRetentionOperations(long retentionOperations) {
-        this.retentionOperations = retentionOperations;
+    synchronized void setRetentionSize(ByteSizeValue retentionSize){
+        this.retentionSizeInBytes = retentionSize.getBytes();
     }
 
     /**
@@ -102,9 +102,17 @@ final class SoftDeletesPolicy {
             // then sends ops after the local checkpoint of that commit. This requires keeping all ops after localCheckpointOfSafeCommit;
             // - Changes APIs are driven the combination of the global checkpoint and retention ops. Here we prefer using the global
             // checkpoint instead of max_seqno because only operations up to the global checkpoint are exposed in the the changes APIs.
-            final long minSeqNoForQueryingChanges = globalCheckpointSupplier.getAsLong() - retentionOperations;
+            final long retentionOps;
+            if (retentionSizeInBytes > 0) {
+                // Use 1 byte per document if the average doc size is not available yet.
+                final long avgDocSizeInBytes = Math.max(avgDocSizeInBytesSupplier.getAsLong(), 1);
+                retentionOps = retentionSizeInBytes / avgDocSizeInBytes;
+            } else {
+                retentionOps = 0;
+            }
+            final long minSeqNoForQueryingChanges = globalCheckpointSupplier.getAsLong() - retentionOps;
             final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, localCheckpointOfSafeCommit) + 1;
-            // This can go backward as the retentionOperations value can be changed in settings.
+            // This can go backwards as the retentionSize value can be changed in settings.
             minRetainedSeqNo = Math.max(minRetainedSeqNo, minSeqNoToRetain);
         }
         return minRetainedSeqNo;

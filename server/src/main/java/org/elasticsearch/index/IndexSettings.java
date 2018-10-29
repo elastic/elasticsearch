@@ -246,10 +246,12 @@ public final class IndexSettings {
     /**
      * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
      * documents increases the chance of operation-based recoveries and allows querying a longer history of documents.
-     * If soft-deletes is enabled, an engine by default will retain all operations up to the global checkpoint.
+     * If soft-deletes is enabled, an engine by default will keep all soft-deleted documents in the most recent 4GB
+     * of Lucene index including live and soft-deleted documents. The extra required space depends on the deletion ratio.
      **/
-    public static final Setting<Long> INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING =
-        Setting.longSetting("index.soft_deletes.retention.operations", 0, 0, Property.IndexScope, Property.Dynamic);
+    public static final Setting<ByteSizeValue> INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING =
+        Setting.byteSizeSetting("index.soft_deletes.retention.size", new ByteSizeValue(4, ByteSizeUnit.GB),
+            Property.IndexScope, Property.Dynamic);
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -310,7 +312,7 @@ public final class IndexSettings {
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
-    private volatile long softDeleteRetentionOperations;
+    private volatile ByteSizeValue softDeleteRetentionSize;
     private volatile boolean warmerEnabled;
     private volatile int maxResultWindow;
     private volatile int maxInnerResultWindow;
@@ -425,7 +427,7 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = version.onOrAfter(Version.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
-        softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
+        softDeleteRetentionSize = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING);
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
@@ -485,7 +487,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_IDLE_AFTER, this::setSearchIdleAfter);
         scopedSettings.addSettingsUpdateConsumer(MAX_REGEX_LENGTH_SETTING, this::setMaxRegexLength);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING, this::setSoftDeleteRetentionSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
     }
 
@@ -889,15 +891,15 @@ public final class IndexSettings {
         return softDeleteEnabled;
     }
 
-    private void setSoftDeleteRetentionOperations(long ops) {
-        this.softDeleteRetentionOperations = ops;
+    private void setSoftDeleteRetentionSize(ByteSizeValue retentionSize) {
+        this.softDeleteRetentionSize = retentionSize;
     }
 
     /**
      * Returns the number of extra operations (i.e. soft-deleted documents) to be kept for recoveries and history purpose.
      */
-    public long getSoftDeleteRetentionOperations() {
-        return this.softDeleteRetentionOperations;
+    public ByteSizeValue getSoftDeleteRetentionSize() {
+        return this.softDeleteRetentionSize;
     }
 
     /**

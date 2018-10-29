@@ -62,6 +62,19 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getSynonymFilter(boolean lenient) {
+        if (queryMode) {
+            return new TokenFilterFactory() {
+                @Override
+                public String name() {
+                    return CommonGramsTokenFilterFactory.this.name();
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    return new CommonGramsQueryFilter(new CommonGramsFilter(tokenStream, words));
+                }
+            };
+        }
         return IDENTITY_FILTER;
     }
 }

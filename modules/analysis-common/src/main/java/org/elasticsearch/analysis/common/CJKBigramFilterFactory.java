@@ -19,9 +19,12 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -48,6 +51,9 @@ import java.util.Set;
  * In all cases, all non-CJK input is passed thru unmodified.
  */
 public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER
+        = new DeprecationLogger(LogManager.getLogger(CJKBigramFilterFactory.class));
 
     private final int flags;
     private final boolean outputUnigrams;
@@ -93,7 +99,14 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenFilterFactory getSynonymFilter(boolean lenient) {
         if (outputUnigrams) {
-            return IDENTITY_FILTER;     // don't combine for synonyms
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+                throw new IllegalArgumentException("Token filter [" + name() +
+                    "] cannot be used to parse synonyms unless [lenient] is set to true");
+            }
+            else {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter " + name()
+                    + "] will not be usable to parse synonym after v7.0 unless [lenient] is set to true");
+            }
         }
         return this;
     }

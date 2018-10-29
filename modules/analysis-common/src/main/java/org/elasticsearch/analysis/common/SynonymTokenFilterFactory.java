@@ -19,10 +19,13 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -40,6 +43,9 @@ import java.util.function.Function;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER
+        = new DeprecationLogger(LogManager.getLogger(SynonymTokenFilterFactory.class));
+
     private final String format;
     private final boolean expand;
     private final boolean lenient;
@@ -52,7 +58,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.settings = settings;
 
         if (settings.get("ignore_case") != null) {
-            deprecationLogger.deprecated(
+            DEPRECATION_LOGGER.deprecated(
                 "The ignore_case option on the synonym_graph filter is deprecated. " +
                     "Instead, insert a lowercase filter in the filter chain before the synonym_graph filter.");
         }
@@ -88,7 +94,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public TokenFilterFactory getSynonymFilter(boolean lenient) {
-                return IDENTITY_FILTER;     // Don't apply synonyms to a synonym file, this will just confuse things
+                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+                    throw new IllegalArgumentException("Token filter [" + name() +
+                        "] cannot be used to parse synonyms unless [lenient] is set to true");
+                }
+                else {
+                    DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter " + name()
+                        + "] will not be usable to parse synonym after v7.0 unless [lenient] is set to true");
+                }
+                return this;
             }
         };
     }

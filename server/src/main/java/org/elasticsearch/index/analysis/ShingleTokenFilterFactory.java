@@ -19,15 +19,20 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(LogManager.getLogger(ShingleTokenFilterFactory.class));
 
     private final Factory factory;
 
@@ -54,7 +59,8 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         Boolean outputUnigramsIfNoShingles = settings.getAsBoolean("output_unigrams_if_no_shingles", false);
         String tokenSeparator = settings.get("token_separator", ShingleFilter.DEFAULT_TOKEN_SEPARATOR);
         String fillerToken = settings.get("filler_token", ShingleFilter.DEFAULT_FILLER_TOKEN);
-        factory = new Factory("shingle", minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator, fillerToken);
+        factory = new Factory("shingle", indexSettings.getIndexVersionCreated(), minShingleSize, maxShingleSize,
+            outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator, fillerToken);
     }
 
 
@@ -65,7 +71,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getSynonymFilter(boolean lenient) {
-        return IDENTITY_FILTER;
+        return getInnerFactory().getSynonymFilter(lenient);
     }
 
     public Factory getInnerFactory() {
@@ -85,12 +91,10 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         private int minShingleSize;
 
         private final String name;
+        private final Version indexVersion;
 
-        public Factory(String name) {
-            this(name, ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE, true, false, ShingleFilter.DEFAULT_TOKEN_SEPARATOR, ShingleFilter.DEFAULT_FILLER_TOKEN);
-        }
-
-        Factory(String name, int minShingleSize, int maxShingleSize, boolean outputUnigrams, boolean outputUnigramsIfNoShingles, String tokenSeparator, String fillerToken) {
+        Factory(String name, Version indexVersion, int minShingleSize, int maxShingleSize, boolean outputUnigrams, boolean outputUnigramsIfNoShingles, String tokenSeparator, String fillerToken) {
+            this.indexVersion = indexVersion;
             this.maxShingleSize = maxShingleSize;
             this.outputUnigrams = outputUnigrams;
             this.outputUnigramsIfNoShingles = outputUnigramsIfNoShingles;
@@ -117,6 +121,22 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
                 filter.addAttribute(DisableGraphAttribute.class);
             }
             return filter;
+        }
+
+        @Override
+        public TokenFilterFactory getSynonymFilter(boolean lenient) {
+            if (lenient || (outputUnigrams == false && maxShingleSize == minShingleSize)) {
+                return this;
+            }
+            if (indexVersion.onOrAfter(Version.V_7_0_0_alpha1)) {
+                throw new IllegalArgumentException("Token filter [" + name() +
+                    "] cannot be used to parse synonyms unless [lenient] is set to true");
+            }
+            else {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("synonym_tokenfilters", "Token filter " + name()
+                    + "] will not be usable to parse synonym after v7.0 unless [lenient] is set to true");
+            }
+            return this;
         }
 
         public int getMaxShingleSize() {

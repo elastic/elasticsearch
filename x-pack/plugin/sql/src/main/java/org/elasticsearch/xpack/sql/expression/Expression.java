@@ -35,7 +35,11 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
         public static final TypeResolution TYPE_RESOLVED = new TypeResolution(false, StringUtils.EMPTY);
 
-        public TypeResolution(String message, Object... args) {
+        public TypeResolution(String message) {
+            this(true, message);
+        }
+
+        TypeResolution(String message, Object... args) {
             this(true, format(Locale.ROOT, message, args));
         }
 

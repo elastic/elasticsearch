@@ -9,21 +9,21 @@ import org.elasticsearch.xpack.core.ml.filestructurefinder.FileStructure;
 
 import java.util.Collections;
 
-public class JsonFileStructureFinderTests extends FileStructureTestCase {
+public class NdJsonFileStructureFinderTests extends FileStructureTestCase {
 
-    private FileStructureFinderFactory factory = new JsonFileStructureFinderFactory();
+    private FileStructureFinderFactory factory = new NdJsonFileStructureFinderFactory();
 
     public void testCreateConfigsGivenGoodJson() throws Exception {
-        assertTrue(factory.canCreateFromSample(explanation, JSON_SAMPLE));
+        assertTrue(factory.canCreateFromSample(explanation, NDJSON_SAMPLE));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(explanation, JSON_SAMPLE, charset, hasByteOrderMarker,
+        FileStructureFinder structureFinder = factory.createFromSample(explanation, NDJSON_SAMPLE, charset, hasByteOrderMarker,
             FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 
-        assertEquals(FileStructure.Format.JSON, structure.getFormat());
+        assertEquals(FileStructure.Format.NDJSON, structure.getFormat());
         assertEquals(charset, structure.getCharset());
         if (hasByteOrderMarker == null) {
             assertNull(structure.getHasByteOrderMarker());

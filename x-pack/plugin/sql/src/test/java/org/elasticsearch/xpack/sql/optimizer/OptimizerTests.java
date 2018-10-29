@@ -82,6 +82,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 import static org.hamcrest.Matchers.contains;
 
@@ -95,7 +96,6 @@ public class OptimizerTests extends ESTestCase {
     private static final Literal FOUR = L(4);
     private static final Literal FIVE = L(5);
     private static final Literal SIX = L(6);
-    private static final Literal NULL = L(null);
 
     public static class DummyBooleanExpression extends Expression {
 
@@ -269,6 +269,20 @@ public class OptimizerTests extends ESTestCase {
                 new ConstantFolding().rule(new And(EMPTY, new GreaterThan(EMPTY, TWO, THREE), Literal.TRUE)).canonical());
         assertEquals(Literal.TRUE,
                 new ConstantFolding().rule(new Or(EMPTY, new GreaterThanOrEqual(EMPTY, TWO, THREE), Literal.TRUE)).canonical());
+    }
+
+    public void testConstantFoldingBinaryLogic_WithNullHandling() {
+        assertEquals(NULL, new ConstantFolding().rule(new And(EMPTY, NULL, Literal.TRUE)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new And(EMPTY, Literal.TRUE, NULL)).canonical());
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new And(EMPTY, NULL, Literal.FALSE)).canonical());
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new And(EMPTY, Literal.FALSE, NULL)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new And(EMPTY, NULL, NULL)).canonical());
+
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new Or(EMPTY, NULL, Literal.TRUE)).canonical());
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new Or(EMPTY, Literal.TRUE, NULL)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new Or(EMPTY, NULL, Literal.FALSE)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new Or(EMPTY, Literal.FALSE, NULL)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new Or(EMPTY, NULL, NULL)).canonical());
     }
 
     public void testConstantFoldingRange() {

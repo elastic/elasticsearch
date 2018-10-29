@@ -13,9 +13,11 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.RestrictedTrustManager;
@@ -50,7 +52,6 @@ import static org.hamcrest.Matchers.is;
 @TestLogging("org.elasticsearch.xpack.ssl.RestrictedTrustManager:DEBUG")
 public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
-    private static final int RESOURCE_RELOAD_MILLIS = 3;
     private static final TimeValue MAX_WAIT_RELOAD = TimeValue.timeValueSeconds(1);
 
     private static Path configPath;
@@ -129,7 +130,6 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
         writeRestrictions("*.trusted");
         builder.put("xpack.ssl.trust_restrictions.path", restrictionsPath);
-        builder.put("resource.reload.interval.high", RESOURCE_RELOAD_MILLIS + "ms");
 
         return builder.build();
     }
@@ -145,6 +145,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         } catch (IOException e) {
             throw new ElasticsearchException("failed to write restrictions", e);
         }
+        runResourceWatcher();
     }
 
     @Override
@@ -201,6 +202,23 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
                 // expected
             }
         }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Force the file watch to be updated.
+     * Ideally we'd just left the service do its thing, but that means waiting for 5sec
+     * We can drop the 5s down, but then we run into resource contention issues.
+     * This method just tells the {@link ResourceWatcherService} to run its check at a time that suits the tests. In all other respects
+     * it works just like normal - the usual file checks apply for detecting it as "changed", and only the previously configured files
+     * are checked.
+     */
+    private void runResourceWatcher() {
+        final InternalTestCluster cluster = internalCluster();
+        if (cluster.size() > 0) {
+            final ResourceWatcherService service = cluster.getInstance(ResourceWatcherService.class);
+            logger.info("Triggering a reload of watched resources");
+            service.notifyNow(ResourceWatcherService.Frequency.HIGH);
+        }
     }
 
     private void tryConnect(CertificateInfo certificate) throws Exception {

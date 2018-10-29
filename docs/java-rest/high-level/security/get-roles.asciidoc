@@ -1,0 +1,33 @@
+
+--
+:api: get-roles
+:request: GetRolesRequest
+:respnse: GetRolesResponse
+--
+
+[id="{upid}-{api}"]
+=== Get Roles API
+
+[id="{upid}-{api}-request"]
+==== Get Roles Request
+
+Retrieving a role can be performed using the `security().getRoles()`
+method and by setting the role name on +{request}+:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Roles Response
+
+The returned +{response}+ allows to retrieve information about the retrieved roles as follows.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> TODO: Fill this in

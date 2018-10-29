@@ -44,6 +44,8 @@ import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.ExpressionRoleMapping;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
+import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
@@ -374,6 +376,49 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::disable-user-execute-async
             client.security().disableUserAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::disable-user-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetRoles() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        addRole("my_role");
+        {
+            //tag::get-roles-request
+            GetRolesRequest request = new GetRolesRequest("my_role");
+            //end::get-roles-request
+            //tag::get-roles-execute
+            GetRolesResponse response = client.security().getRoles(request, RequestOptions.DEFAULT);
+            //end::get-roles-execute
+
+            assertNotNull(response);
+            //TODO: Once response is implemented
+        }
+
+        {
+            //tag::get-roles-execute-listener
+            GetRolesRequest request = new GetRolesRequest("my_role");
+            ActionListener<GetRolesResponse> listener = new ActionListener<GetRolesResponse>() {
+                @Override
+                public void onResponse(GetRolesResponse getRolesResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::get-roles-execute-listener
+
+            //Replace the emtpty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::get-roles-execute-async
+            client.security().getRolesAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            //end::get-roles-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

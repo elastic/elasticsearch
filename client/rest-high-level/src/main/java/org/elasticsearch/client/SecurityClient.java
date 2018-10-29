@@ -34,6 +34,8 @@ import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
+import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetSslCertificatesRequest;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -309,6 +311,35 @@ public final class SecurityClient {
     public DeleteRoleMappingResponse deleteRoleMapping(DeleteRoleMappingRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::deleteRoleMapping, options,
                 DeleteRoleMappingResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Retrieves roles in the native realm.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role.html">
+     * the docs</a> for more.
+     *
+     * @param request  the request with the roles to get
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getRolesAsync(GetRolesRequest request, RequestOptions options, ActionListener<GetRolesResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getRoles, options,
+            GetRolesResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieves roles in the native realm.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the roles to get
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the delete role call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetRolesResponse getRoles(final GetRolesRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getRoles, options,
+            GetRolesResponse::fromXContent, emptySet());
     }
 
     /**

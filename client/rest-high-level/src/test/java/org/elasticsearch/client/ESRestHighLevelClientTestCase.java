@@ -78,8 +78,8 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     /**
      * Executes the provided request using either the sync method or its async
-     * variant, both provided as functions. This variant is used for when the
-     * request does not have a body (data is conveyed by path and headers).
+     * variant, both provided as functions. This variant is used when the call does
+     * not have a request object (only headers and the request path).
      */
     protected static <Resp> Resp execute(SyncMethodNoRequest<Resp> syncMethodNoRequest, AsyncMethodNoRequest<Resp> asyncMethodNoRequest,
             RequestOptions requestOptions) throws IOException {

@@ -22,8 +22,8 @@ package org.elasticsearch.client.security.user;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -34,15 +34,16 @@ import java.util.Objects;
 public final class User {
 
     private final String username;
-    private final List<String> roles;
+    private final Collection<String> roles;
     private final Map<String, Object> metadata;
     @Nullable private final String fullName;
     @Nullable private final String email;
 
-    public User(String username, List<String> roles, Map<String, Object> metadata, @Nullable String fullName, @Nullable String email) {
-        assert username != null;
-        assert roles != null;
-        assert metadata != null;
+    public User(String username, Collection<String> roles, Map<String, Object> metadata, @Nullable String fullName,
+            @Nullable String email) {
+        Objects.requireNonNull(username, "`username` cannot be null");
+        Objects.requireNonNull(roles, "`roles` cannot be null. Pass an empty collection instead.");
+        Objects.requireNonNull(roles, "`metadata` cannot be null. Pass an empty map instead.");
         this.username = username;
         this.roles = roles;
         this.metadata = Collections.unmodifiableMap(metadata);
@@ -63,7 +64,7 @@ public final class User {
      *          identified by their unique names and each represents as
      *          set of permissions. Can never be {@code null}.
      */
-    public List<String> roles() {
+    public Collection<String> roles() {
         return this.roles;
     }
 

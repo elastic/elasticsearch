@@ -22,16 +22,12 @@ package org.elasticsearch.client.security;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
-import java.io.IOException;
 
 /**
  * Empty request object required to make the authenticate call. The authenticate call
  * retrieves metadata about the authenticated user.
  */
-public final class AuthenticateRequest implements Validatable, ToXContentObject {
+public final class AuthenticateRequest implements Validatable {
 
     public static final AuthenticateRequest INSTANCE = new AuthenticateRequest();
     private final Request request;
@@ -42,11 +38,6 @@ public final class AuthenticateRequest implements Validatable, ToXContentObject 
 
     public Request getRequest() {
         return request;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().endObject();
     }
 
 }

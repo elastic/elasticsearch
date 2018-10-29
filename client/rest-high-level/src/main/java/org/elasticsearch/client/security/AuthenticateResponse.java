@@ -22,8 +22,6 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -40,7 +38,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * user object contains all user metadata which Elasticsearch uses to map roles,
  * etc.
  */
-public final class AuthenticateResponse implements ToXContentObject {
+public final class AuthenticateResponse {
 
     static final ParseField USERNAME = new ParseField("username");
     static final ParseField ROLES = new ParseField("roles");
@@ -108,20 +106,4 @@ public final class AuthenticateResponse implements ToXContentObject {
         return PARSER.parse(parser, null);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(USERNAME.getPreferredName(), user.username());
-        builder.field(ROLES.getPreferredName(), user.roles());
-        builder.field(METADATA.getPreferredName(), user.metadata());
-        if (user.fullName() != null) {
-            builder.field(FULL_NAME.getPreferredName(), user.fullName());
-        }
-        if (user.email() != null) {
-            builder.field(EMAIL.getPreferredName(), user.email());
-        }
-        builder.field(ENABLED.getPreferredName(), enabled);
-        builder.endObject();
-        return builder;
-    }
 }

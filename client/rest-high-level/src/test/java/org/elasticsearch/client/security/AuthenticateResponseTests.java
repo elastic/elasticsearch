@@ -20,8 +20,8 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.user.User;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,9 +29,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class AuthenticateResponseTests extends AbstractXContentTestCase<AuthenticateResponse> {
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-    @Override
+public class AuthenticateResponseTests extends ESTestCase {
+    
+    public void testFromXContent() throws IOException {
+        xContentTester(
+                this::createParser,
+                this::createTestInstance,
+                this::toXContent,
+                AuthenticateResponse::fromXContent)
+                .supportsUnknownFields(false)
+                .randomFieldsExcludeFilter(field ->
+                        field.endsWith("status.current_position"))
+                .test();
+    }
+
     protected AuthenticateResponse createTestInstance() {
         final String username = randomAlphaOfLengthBetween(1, 4);
         final List<String> roles = Arrays.asList(generateRandomStringArray(4, 4, false, true));
@@ -52,15 +65,22 @@ public class AuthenticateResponseTests extends AbstractXContentTestCase<Authenti
         final boolean enabled = randomBoolean();
         return new AuthenticateResponse(new User(username, roles, metadata, fullName, email), enabled);
     }
-
-    @Override
-    protected AuthenticateResponse doParseInstance(XContentParser parser) throws IOException {
-        return AuthenticateResponse.fromXContent(parser);
+    
+    private void toXContent(AuthenticateResponse response, XContentBuilder builder) throws IOException {
+        final User user = response.getUser();
+        final boolean enabled = response.enabled();
+        builder.startObject();
+        builder.field(AuthenticateResponse.USERNAME.getPreferredName(), user.username());
+        builder.field(AuthenticateResponse.ROLES.getPreferredName(), user.roles());
+        builder.field(AuthenticateResponse.METADATA.getPreferredName(), user.metadata());
+        if (user.fullName() != null) {
+            builder.field(AuthenticateResponse.FULL_NAME.getPreferredName(), user.fullName());
+        }
+        if (user.email() != null) {
+            builder.field(AuthenticateResponse.EMAIL.getPreferredName(), user.email());
+        }
+        builder.field(AuthenticateResponse.ENABLED.getPreferredName(), enabled);
+        builder.endObject();
     }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
-
+    
 }

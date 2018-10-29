@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.util.internal.logging.AbstractInternalLogger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressLoggerChecks;

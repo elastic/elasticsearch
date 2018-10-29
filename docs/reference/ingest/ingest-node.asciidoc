@@ -848,7 +848,7 @@ is not null safe alternative, so an explict null check is needed.
 [[ingest-conditional-complex]]
 === Complex Conditionals
 The `if` condition can be more then a simple equality check.
-The full power of the <<modules-scripting-painless, Painless Scripting Language>>
+The full power of the <<modules-scripting-painless, Painless Scripting Language>> ability to declare `tag` and `on_failure` fields. These fields are optional
 running in the {painless}/painless-ingest-processor-context.html#null-safe-operator[ingest processor context]
 can be used to determine if the condition should evaluate to `true` or `false`.
 
@@ -1269,7 +1269,7 @@ All processors are defined in the following way within a pipeline definition:
 // NOTCONSOLE
 
 Each processor defines its own configuration parameters, but all processors have
-the ability to declare `tag` and `on_failure` fields. These fields are optional.
+the ability to declare `tag`, `on_failure` and `if` fields. These fields are optional.
 
 A `tag` is simply a string identifier of the specific instantiation of a certain
 processor in a pipeline. The `tag` field does not affect the processor's behavior,
@@ -1277,7 +1277,9 @@ but is very useful for bookkeeping and tracing errors to specific processors.
 
 The `if` field must contain a script that returns a boolean value. If the script evaluates to `true`
 then the processor will be executed for the given document otherwise it will be skipped.
+The `if` field takes an object with the script fields defined in <<script-processor, script-options>>
 Accesses a read only version of the document via the same `ctx` variable used by scripts in the
+and accesses a read only version of the document via the same `ctx` variable used by scripts in the
 <<script-processor>>.
 
 [source,js]

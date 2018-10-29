@@ -24,6 +24,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Boolean lte(Object, Object)
   Boolean gt(Object, Object)
   Boolean gte(Object, Object)
+  Boolean in(Object, java.util.List)
 
 #
 # Logical

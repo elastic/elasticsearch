@@ -137,7 +137,7 @@ public final class WatcherClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public DeactivateWatchResponse deactivateWatch(DeactivateWatchRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, WatcherRequestConverters::deactivateWatch, options,
+        return requestActions.performRequestAndParseEntity(request, WatcherRequestConverters::deactivateWatch, options,
             DeactivateWatchResponse::fromXContent, emptySet());
     }
 
@@ -152,7 +152,7 @@ public final class WatcherClient {
      */
     public void deactivateWatchAsync(DeactivateWatchRequest request, RequestOptions options,
                                      ActionListener<DeactivateWatchResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::deactivateWatch, options,
+        requestActions.performRequestAsyncAndParseEntity(request, WatcherRequestConverters::deactivateWatch, options,
             DeactivateWatchResponse::fromXContent, listener, emptySet());
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.transport;
 
 import com.carrotsearch.randomizedtesting.SysGlobals;
+import java.util.concurrent.TimeUnit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
@@ -612,6 +613,9 @@ public final class MockTransportService extends TransportService {
                 if (connections.isEmpty()) {
                     openConnections.remove(node);
                 }
+                if (openConnections.isEmpty()) {
+                    openConnections.notifyAll();
+                }
             }
         }));
 
@@ -621,8 +625,15 @@ public final class MockTransportService extends TransportService {
     @Override
     protected void doClose() throws IOException {
         super.doClose();
-        synchronized (openConnections) {
-            assert openConnections.size() == 0 : "still open connections: " + openConnections;
+        try {
+            synchronized (openConnections) {
+                if (openConnections.isEmpty() == false) {
+                    openConnections.wait(TimeUnit.SECONDS.toMillis(30L));
+                }
+                assert openConnections.size() == 0 : "still open connections: " + openConnections;
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
         }
     }
 

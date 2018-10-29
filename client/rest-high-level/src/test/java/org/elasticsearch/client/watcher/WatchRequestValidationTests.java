@@ -57,42 +57,38 @@ public class WatchRequestValidationTests extends ESTestCase {
     }
 
     public void testDeleteWatchInvalidWatchId() {
-        final Optional<ValidationException> validationException = new DeleteWatchRequest("id with whitespaces").validate();
-        assertThat(validationException.isPresent(), is(true));
-        assertThat(validationException.get().validationErrors(), hasItem("watch id contains whitespace"));
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> new DeleteWatchRequest("id with whitespaces"));
+        assertThat(exception.getMessage(), is("watch id contains whitespace"));
     }
 
     public void testDeleteWatchNullId() {
-        final Optional<ValidationException> validationException = new DeleteWatchRequest(null).validate();
-        assertThat(validationException.isPresent(), is(true));
-        assertThat(validationException.get().validationErrors(), hasItem("watch id is missing"));
+        final NullPointerException exception = expectThrows(NullPointerException.class,
+            () -> new DeleteWatchRequest(null));
+        assertThat(exception.getMessage(), is("watch id is missing"));
     }
 
     public void testPutWatchInvalidWatchId() {
-        final Optional<ValidationException> validationException =
-            new PutWatchRequest("id with whitespaces", BytesArray.EMPTY, XContentType.JSON).validate();
-        assertThat(validationException.isPresent(), is(true));
-        assertThat(validationException.get().validationErrors(), hasItem("watch id contains whitespace"));
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> new PutWatchRequest("id with whitespaces", BytesArray.EMPTY, XContentType.JSON));
+        assertThat(exception.getMessage(), is("watch id contains whitespace"));
     }
 
     public void testPutWatchNullId() {
-        final Optional<ValidationException> validationException =
-            new PutWatchRequest(null, BytesArray.EMPTY, XContentType.JSON).validate();
-        assertThat(validationException.isPresent(), is(true));
-        assertThat(validationException.get().validationErrors(), hasItem("watch id is missing"));
+        final NullPointerException exception = expectThrows(NullPointerException.class,
+            () -> new PutWatchRequest(null, BytesArray.EMPTY, XContentType.JSON));
+        assertThat(exception.getMessage(), is("watch id is missing"));
     }
 
     public void testPutWatchSourceNull() {
-        final Optional<ValidationException> validationException =
-            new PutWatchRequest("foo", null, XContentType.JSON).validate();
-        assertThat(validationException.isPresent(), is(true));
-        assertThat(validationException.get().validationErrors(), hasItem("watch source is missing"));
+        final NullPointerException exception = expectThrows(NullPointerException.class,
+            () -> new PutWatchRequest("foo", null, XContentType.JSON));
+        assertThat(exception.getMessage(), is("watch source is missing"));
     }
 
     public void testPutWatchContentNull() {
-        final Optional<ValidationException> validationException =
-            new PutWatchRequest("foo", BytesArray.EMPTY, null).validate();
-        assertThat(validationException.isPresent(), is(true));
-        assertThat(validationException.get().validationErrors(), hasItem("request body is missing"));
+        final NullPointerException exception = expectThrows(NullPointerException.class,
+            () -> new PutWatchRequest("foo", BytesArray.EMPTY, null));
+        assertThat(exception.getMessage(), is("request body is missing"));
     }
 }

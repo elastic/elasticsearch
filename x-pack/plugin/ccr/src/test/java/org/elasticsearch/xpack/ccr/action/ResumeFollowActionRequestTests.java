@@ -60,6 +60,12 @@ public class ResumeFollowActionRequestTests extends AbstractStreamableXContentTe
             request.setMaxWriteBufferCount(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
+            request.setMaxWriteRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
             request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {

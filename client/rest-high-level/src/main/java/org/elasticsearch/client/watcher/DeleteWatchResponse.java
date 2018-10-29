@@ -20,12 +20,14 @@ package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteWatchResponse {
+public class DeleteWatchResponse implements ToXContentObject {
 
     private static final ObjectParser<DeleteWatchResponse, Void> PARSER
         = new ObjectParser<>("x_pack_delete_watch_response", DeleteWatchResponse::new);
@@ -85,6 +87,15 @@ public class DeleteWatchResponse {
     @Override
     public int hashCode() {
         return Objects.hash(id, version, found);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+            .field("_id", id)
+            .field("_version", version)
+            .field("found", found)
+            .endObject();
     }
 
     public static DeleteWatchResponse fromXContent(XContentParser parser) throws IOException {

@@ -17,15 +17,15 @@ import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 
-public class JsonFileStructureFinderFactory implements FileStructureFinderFactory {
+public class NdJsonFileStructureFinderFactory implements FileStructureFinderFactory {
 
     @Override
     public boolean canFindFormat(FileStructure.Format format) {
-        return format == null || format == FileStructure.Format.JSON;
+        return format == null || format == FileStructure.Format.NDJSON;
     }
 
     /**
-     * This format matches if the sample consists of one or more JSON documents.
+     * This format matches if the sample consists of one or more NDJSON documents.
      * If there is more than one, they must be newline-delimited.  The
      * documents must be non-empty, to prevent lines containing "{}" from matching.
      */
@@ -41,35 +41,35 @@ public class JsonFileStructureFinderFactory implements FileStructureFinderFactor
                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION, new ContextPrintingStringReader(sampleLine))) {
 
                     if (parser.map().isEmpty()) {
-                        explanation.add("Not JSON because an empty object was parsed: [" + sampleLine + "]");
+                        explanation.add("Not NDJSON because an empty object was parsed: [" + sampleLine + "]");
                         return false;
                     }
                     ++completeDocCount;
                     if (parser.nextToken() != null) {
-                        explanation.add("Not newline delimited JSON because a line contained more than a single object: [" +
+                        explanation.add("Not newline delimited NDJSON because a line contained more than a single object: [" +
                             sampleLine + "]");
                         return false;
                     }
                 }
             }
         } catch (IOException | IllegalStateException e) {
-            explanation.add("Not JSON because there was a parsing exception: [" + e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
+            explanation.add("Not NDJSON because there was a parsing exception: [" + e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
             return false;
         }
 
         if (completeDocCount == 0) {
-            explanation.add("Not JSON because sample didn't contain a complete document");
+            explanation.add("Not NDJSON because sample didn't contain a complete document");
             return false;
         }
 
-        explanation.add("Deciding sample is newline delimited JSON");
+        explanation.add("Deciding sample is newline delimited NDJSON");
         return true;
     }
 
     @Override
     public FileStructureFinder createFromSample(List<String> explanation, String sample, String charsetName, Boolean hasByteOrderMarker,
                                                 FileStructureOverrides overrides, TimeoutChecker timeoutChecker) throws IOException {
-        return JsonFileStructureFinder.makeJsonFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker, overrides,
+        return NdJsonFileStructureFinder.makeNdJsonFileStructureFinder(explanation, sample, charsetName, hasByteOrderMarker, overrides,
             timeoutChecker);
     }
 

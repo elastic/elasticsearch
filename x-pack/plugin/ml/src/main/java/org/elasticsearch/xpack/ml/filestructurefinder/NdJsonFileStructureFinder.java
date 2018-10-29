@@ -25,16 +25,16 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 
 /**
- * Really ND-JSON.
+ * Newline-delimited JSON.
  */
-public class JsonFileStructureFinder implements FileStructureFinder {
+public class NdJsonFileStructureFinder implements FileStructureFinder {
 
     private final List<String> sampleMessages;
     private final FileStructure structure;
 
-    static JsonFileStructureFinder makeJsonFileStructureFinder(List<String> explanation, String sample, String charsetName,
-                                                               Boolean hasByteOrderMarker, FileStructureOverrides overrides,
-                                                               TimeoutChecker timeoutChecker) throws IOException {
+    static NdJsonFileStructureFinder makeNdJsonFileStructureFinder(List<String> explanation, String sample, String charsetName,
+                                                                   Boolean hasByteOrderMarker, FileStructureOverrides overrides,
+                                                                   TimeoutChecker timeoutChecker) throws IOException {
 
         List<Map<String, ?>> sampleRecords = new ArrayList<>();
 
@@ -43,10 +43,10 @@ public class JsonFileStructureFinder implements FileStructureFinder {
             XContentParser parser = jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
                 sampleMessage);
             sampleRecords.add(parser.mapOrdered());
-            timeoutChecker.check("JSON parsing");
+            timeoutChecker.check("NDJSON parsing");
         }
 
-        FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.JSON)
+        FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.NDJSON)
             .setCharset(charsetName)
             .setHasByteOrderMarker(hasByteOrderMarker)
             .setSampleStart(sampleMessages.stream().limit(2).collect(Collectors.joining("\n", "", "\n")))
@@ -84,10 +84,10 @@ public class JsonFileStructureFinder implements FileStructureFinder {
             .setExplanation(explanation)
             .build();
 
-        return new JsonFileStructureFinder(sampleMessages, structure);
+        return new NdJsonFileStructureFinder(sampleMessages, structure);
     }
 
-    private JsonFileStructureFinder(List<String> sampleMessages, FileStructure structure) {
+    private NdJsonFileStructureFinder(List<String> sampleMessages, FileStructure structure) {
         this.sampleMessages = Collections.unmodifiableList(sampleMessages);
         this.structure = structure;
     }

@@ -58,7 +58,7 @@ public class TeardownSection {
         }
 
         parser.nextToken();
-        return new TeardownSection(skipSection, Collections.unmodifiableList(executableSections));
+        return new TeardownSection(skipSection, executableSections);
     }
 
     public static final TeardownSection EMPTY = new TeardownSection(SkipSection.EMPTY, Collections.emptyList());
@@ -68,7 +68,7 @@ public class TeardownSection {
 
     TeardownSection(SkipSection skipSection, List<ExecutableSection> doSections) {
         this.skipSection = skipSection;
-        this.doSections = doSections;
+        this.doSections = Collections.unmodifiableList(doSections);
     }
 
     public SkipSection getSkipSection() {

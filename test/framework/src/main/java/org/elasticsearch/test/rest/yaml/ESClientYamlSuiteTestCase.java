@@ -194,7 +194,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 suites.add(suite);
                 try {
                     suite.validate();
-                } catch(Exception e) {
+                } catch(IllegalArgumentException e) {
                     if (validationException == null) {
                         validationException = new IllegalArgumentException("Validation errors for the following test suites:\n- "
                             + e.getMessage());

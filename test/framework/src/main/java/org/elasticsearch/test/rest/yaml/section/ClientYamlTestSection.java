@@ -48,7 +48,7 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
                         + XContentParser.Token.END_OBJECT + "] but was [" + parser.currentToken() + "]");
             }
             parser.nextToken();
-            return new ClientYamlTestSection(sectionLocation, sectionName, skipSection, Collections.unmodifiableList(executableSections));
+            return new ClientYamlTestSection(sectionLocation, sectionName, skipSection, executableSections);
         } catch (Exception e) {
             throw new ParsingException(parser.getTokenLocation(), "Error parsing test named [" + sectionName + "]", e);
         }
@@ -63,7 +63,7 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
         this.location = location;
         this.name = name;
         this.skipSection = skipSection;
-        this.executableSections = executableSections;
+        this.executableSections = Collections.unmodifiableList(executableSections);
     }
 
     public XContentLocation getLocation() {

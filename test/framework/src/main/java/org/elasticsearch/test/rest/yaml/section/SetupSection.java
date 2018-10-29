@@ -61,7 +61,7 @@ public class SetupSection {
             parser.nextToken();
         }
         parser.nextToken();
-        return new SetupSection(skipSection, Collections.unmodifiableList(executableSections));
+        return new SetupSection(skipSection, executableSections);
     }
 
     public static final SetupSection EMPTY = new SetupSection(SkipSection.EMPTY, Collections.emptyList());
@@ -71,7 +71,7 @@ public class SetupSection {
 
     SetupSection(SkipSection skipSection, List<ExecutableSection> executableSections) {
         this.skipSection = skipSection;
-        this.executableSections = executableSections;
+        this.executableSections = Collections.unmodifiableList(executableSections);
     }
 
     public SkipSection getSkipSection() {

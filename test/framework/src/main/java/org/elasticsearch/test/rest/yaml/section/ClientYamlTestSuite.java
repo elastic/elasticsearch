@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
 
 /**
  * Holds a REST test suite loaded from a specific yaml file.
@@ -100,8 +101,7 @@ public class ClientYamlTestSuite {
             }
         }
 
-        return new ClientYamlTestSuite(api, suiteName, setupSection, teardownSection,
-            Collections.unmodifiableList(new ArrayList<>(testSections)));
+        return new ClientYamlTestSuite(api, suiteName, setupSection, teardownSection, new ArrayList<>(testSections));
     }
 
     private final String api;
@@ -116,7 +116,7 @@ public class ClientYamlTestSuite {
         this.name = name;
         this.setupSection = setupSection;
         this.teardownSection = teardownSection;
-        this.testSections = testSections;
+        this.testSections = Collections.unmodifiableList(testSections);
     }
 
     public String getApi() {
@@ -150,6 +150,7 @@ public class ClientYamlTestSuite {
     private static void validateExecutableSections(ClientYamlTestSuite yamlTestSuite, List<ExecutableSection> sections,
                                                    ClientYamlTestSection testSection,
                                                    SetupSection setupSection, TeardownSection teardownSection) {
+
         for (ExecutableSection section : sections) {
             if (section instanceof DoSection) {
                 DoSection doSection = (DoSection) section;

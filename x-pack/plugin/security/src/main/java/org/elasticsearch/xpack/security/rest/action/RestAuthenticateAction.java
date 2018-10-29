@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.security.rest.action;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,6 +30,8 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestAuthenticateAction extends SecurityBaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestAuthenticateAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private final SecurityContext securityContext;
 

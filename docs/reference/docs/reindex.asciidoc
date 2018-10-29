@@ -527,7 +527,8 @@ supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`,
 
 Sending the `refresh` url parameter will cause all indexes to which the request
 wrote to be refreshed. This is different than the Index API's `refresh`
-parameter which causes just the shard that received the new data to be refreshed.
+parameter which causes just the shard that received the new data to be
+refreshed. Also unlike the Index API it does not support `wait_for`.
 
 If the request contains `wait_for_completion=false` then Elasticsearch will
 perform some preflight checks, launch the request, and then return a `task`

@@ -102,7 +102,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
-        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
@@ -118,7 +119,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
             assertThat(read, equalTo(state));
         }
         final int version2 = between(version, Integer.MAX_VALUE);
-        DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
         format.write(state2, dirs);
 
         for (Path file : dirs) {
@@ -144,7 +146,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
         final long id = addDummyFiles("foo-", dirs);
 
         Format format = new Format("foo-");
-        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
@@ -168,7 +171,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
         final long id = addDummyFiles("foo-", dirs);
         Format format = new Format("foo-");
-        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
+        DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
+            randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
         format.write(state, dirs);
         for (Path file : dirs) {
@@ -211,7 +215,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 byte newValue = (byte) ~oldValue;
                 bb.put(0, newValue);
                 raf.write(bb, filePointer);
-                logger.debug("Corrupting file {} --  flipping at position {} from {} to {} ", fileToCorrupt.getFileName().toString(), filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue));
+                logger.debug("Corrupting file {} --  flipping at position {} from {} to {} ", fileToCorrupt.getFileName().toString(),
+                    filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue));
             }
         long checksumAfterCorruption;
         long actualChecksumAfterCorruption;
@@ -225,7 +230,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
         msg.append("Checksum before: [").append(checksumBeforeCorruption).append("]");
         msg.append(" after: [").append(checksumAfterCorruption).append("]");
         msg.append(" checksum value after corruption: ").append(actualChecksumAfterCorruption).append("]");
-        msg.append(" file: ").append(fileToCorrupt.getFileName().toString()).append(" length: ").append(dir.fileLength(fileToCorrupt.getFileName().toString()));
+        msg.append(" file: ").append(fileToCorrupt.getFileName().toString()).append(" length: ")
+            .append(dir.fileLength(fileToCorrupt.getFileName().toString()));
         logger.debug("{}", msg.toString());
         assumeTrue("Checksum collision - " + msg.toString(),
                 checksumAfterCorruption != checksumBeforeCorruption // collision
@@ -247,7 +253,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
             for (int j = 0; j < numStates; j++) {
                 format.write(meta.get(j), dirs[i]);
-                if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily need here....
+                if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily
+                                                                                            // need here....
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j + ".st");
                     corruptedFiles.add(file);
                     MetaDataStateFormatTests.corruptFile(file, logger);
@@ -324,7 +331,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     private IndexMetaData.Builder indexBuilder(String index) throws IOException {
         return IndexMetaData.builder(index)
-                .settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
+                .settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5)));
     }
 
 
@@ -475,7 +483,8 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 } else {
                    realId = Math.max(realId, id);
                 }
-                try (OutputStream stream = Files.newOutputStream(stateDir.resolve(actualPrefix + id + MetaDataStateFormat.STATE_FILE_EXTENSION))) {
+                try (OutputStream stream =
+                         Files.newOutputStream(stateDir.resolve(actualPrefix + id + MetaDataStateFormat.STATE_FILE_EXTENSION))) {
                     stream.write(0);
                 }
             }

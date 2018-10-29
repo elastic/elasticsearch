@@ -53,6 +53,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
 import org.elasticsearch.common.CheckedBiConsumer;
@@ -81,8 +82,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -102,7 +101,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -128,7 +126,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RequestConvertersTests extends ESTestCase {
@@ -1209,6 +1206,46 @@ public class RequestConvertersTests extends ESTestCase {
         assertToXContentBody(explainRequest, request.getEntity());
     }
 
+    public void testTermVectors() throws IOException {
+        String index = randomAlphaOfLengthBetween(3, 10);
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
+        TermVectorsRequest tvRequest = new TermVectorsRequest(index, type, id);
+        Map<String, String> expectedParams = new HashMap<>();
+        String[] fields;
+        if (randomBoolean()) {
+            String routing = randomAlphaOfLengthBetween(3, 10);
+            tvRequest.setRouting(routing);
+            expectedParams.put("routing", routing);
+        }
+        if (randomBoolean()) {
+            tvRequest.setRealtime(false);
+            expectedParams.put("realtime", "false");
+        }
+
+        boolean hasFields = randomBoolean();
+        if (hasFields) {
+            fields = generateRandomStringArray(10, 5, false, false);
+            tvRequest.setFields(fields);
+        }
+
+        Request request = RequestConverters.termVectors(tvRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        endpoint.add(index).add(type).add(id).add("_termvectors");
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        if (hasFields) {
+            assertThat(request.getParameters(), hasKey("fields"));
+            String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
+            assertArrayEquals(tvRequest.getFields(), requestFields);
+        }
+        for (Map.Entry<String, String> param : expectedParams.entrySet()) {
+            assertThat(request.getParameters(), hasEntry(param.getKey(), param.getValue()));
+        }
+        assertToXContentBody(tvRequest, request.getEntity());
+    }
+
     public void testFieldCaps() {
         // Create a random request.
         String[] indices = randomIndicesNames(0, 5);
@@ -1492,46 +1529,6 @@ public class RequestConvertersTests extends ESTestCase {
                 + "previous requests have content-type [" + xContentType + "]", exception.getMessage());
     }
 
-    public void testXPackPutWatch() throws Exception {
-        PutWatchRequest putWatchRequest = new PutWatchRequest();
-        String watchId = randomAlphaOfLength(10);
-        putWatchRequest.setId(watchId);
-        String body = randomAlphaOfLength(20);
-        putWatchRequest.setSource(new BytesArray(body), XContentType.JSON);
-
-        Map<String, String> expectedParams = new HashMap<>();
-        if (randomBoolean()) {
-            putWatchRequest.setActive(false);
-            expectedParams.put("active", "false");
-        }
-
-        if (randomBoolean()) {
-            long version = randomLongBetween(10, 100);
-            putWatchRequest.setVersion(version);
-            expectedParams.put("version", String.valueOf(version));
-        }
-
-        Request request = RequestConverters.xPackWatcherPutWatch(putWatchRequest);
-        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
-        assertEquals(expectedParams, request.getParameters());
-        assertThat(request.getEntity().getContentType().getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        request.getEntity().writeTo(bos);
-        assertThat(bos.toString("UTF-8"), is(body));
-    }
-
-    public void testXPackDeleteWatch() {
-        DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
-        String watchId = randomAlphaOfLength(10);
-        deleteWatchRequest.setId(watchId);
-
-        Request request = RequestConverters.xPackWatcherDeleteWatch(deleteWatchRequest);
-        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/watcher/watch/" + watchId, request.getEndpoint());
-        assertThat(request.getEntity(), nullValue());
-    }
-
     /**
      * Randomize the {@link FetchSourceContext} request parameters.
      */
@@ -1548,13 +1545,13 @@ public class RequestConvertersTests extends ESTestCase {
                 String[] includes = new String[numIncludes];
                 String includesParam = randomFields(includes);
                 if (numIncludes > 0) {
-                    expectedParams.put("_source_include", includesParam);
+                    expectedParams.put("_source_includes", includesParam);
                 }
                 int numExcludes = randomIntBetween(0, 5);
                 String[] excludes = new String[numExcludes];
                 String excludesParam = randomFields(excludes);
                 if (numExcludes > 0) {
-                    expectedParams.put("_source_exclude", excludesParam);
+                    expectedParams.put("_source_excludes", excludesParam);
                 }
                 consumer.accept(new FetchSourceContext(true, includes, excludes));
             }

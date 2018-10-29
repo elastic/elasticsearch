@@ -153,8 +153,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     new ShardChangesAction.Request(params.getLeaderShardId(), recordedLeaderShardHistoryUUID);
                 request.setFromSeqNo(from);
                 request.setMaxOperationCount(maxOperationCount);
-                request.setMaxBatchSize(params.getMaxBatchSize());
-                request.setPollTimeout(params.getPollTimeout());
+                request.setMaxBatchSize(params.getMaxReadRequestSize());
+                request.setPollTimeout(params.getReadPollTimeout());
                 leaderClient.execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
             }
         };
@@ -205,7 +205,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         client.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
             IndexStats indexStats = r.getIndex(shardId.getIndexName());
             if (indexStats == null) {
-                errorHandler.accept(new IndexNotFoundException(shardId.getIndex()));
+                IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
+                if (indexMetaData != null) {
+                    errorHandler.accept(new ShardNotFoundException(shardId));
+                } else {
+                    errorHandler.accept(new IndexNotFoundException(shardId.getIndex()));
+                }
                 return;
             }
 

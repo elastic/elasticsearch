@@ -43,9 +43,11 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     private final AllocationService allocationService;
 
     @Inject
-    public TransportClusterRerouteAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                         AllocationService allocationService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterRerouteRequest::new);
+    public TransportClusterRerouteAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                         ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
+                                         IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters,
+              indexNameExpressionResolver, ClusterRerouteRequest::new);
         this.allocationService = allocationService;
     }
 
@@ -66,7 +68,8 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     }
 
     @Override
-    protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state, final ActionListener<ClusterRerouteResponse> listener) {
+    protected void masterOperation(final ClusterRerouteRequest request, final ClusterState state,
+                                   final ActionListener<ClusterRerouteResponse> listener) {
         ActionListener<ClusterRerouteResponse> logWrapper = ActionListener.wrap(
             response -> {
                 if (request.dryRun() == false) {

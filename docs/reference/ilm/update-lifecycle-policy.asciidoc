@@ -21,7 +21,7 @@ To show this, let's create a policy `my_policy`.
 
 [source,js]
 ------------------------
-PUT _ilm/my_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {
@@ -53,7 +53,7 @@ Updating the Delete phase's minimum age can be done in an update request.
 
 [source,js]
 ------------------------
-PUT _ilm/my_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {
@@ -81,7 +81,7 @@ PUT _ilm/my_policy
 //////////
 [source,js]
 --------------------------------------------------
-GET _ilm
+GET _ilm/policy
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -136,7 +136,7 @@ Let's say we have an index `my_index` managed by the below `my_executing_policy`
 
 [source,js]
 ------------------------
-PUT _ilm/my_executing_policy
+PUT _ilm/policy/my_executing_policy
 {
   "policy": {
     "phases": {
@@ -226,7 +226,7 @@ Updating `my_executing_policy` to have no rollover action and, instead, go direc
 
 [source,js]
 ------------------------
-PUT _ilm/my_executing_policy
+PUT _ilm/policy/my_executing_policy
 {
   "policy": {
     "phases": {
@@ -371,7 +371,7 @@ it will move on to the next phase in `my_other_policy`. So if it was on the
 ////
 [source,js]
 ------------------------
-PUT _ilm/my_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {
@@ -392,7 +392,7 @@ PUT _ilm/my_policy
   }
 }
 
-PUT _ilm/my_other_policy
+PUT _ilm/policy/my_other_policy
 {
   "policy": {
     "phases": {

@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ConvertTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DateEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DereferenceContext;
@@ -397,8 +398,27 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     //
     @Override
     public Cast visitCastExpression(CastExpressionContext ctx) {
-        CastTemplateContext ctc = ctx.castTemplate();
-        return new Cast(source(ctc), expression(ctc.expression()), typedParsing(ctc.dataType(), DataType.class));
+        CastTemplateContext castTc = ctx.castTemplate();
+        if (castTc != null) {
+            return new Cast(source(castTc), expression(castTc.expression()), typedParsing(castTc.dataType(), DataType.class));
+        } else {
+            ConvertTemplateContext convertTc = ctx.convertTemplate();
+            String convertDataType = convertTc.dataType().getText().toUpperCase(Locale.ROOT);
+            DataType dataType;
+            if (convertDataType.startsWith(DataType.ODBC_DATATYPE_PREFIX)) {
+                dataType = DataType.fromODBCType(convertDataType);
+                if (dataType == null) {
+                    throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
+                }
+            } else {
+                try {
+                    dataType = DataType.valueOf(convertDataType);
+                } catch (IllegalArgumentException e) {
+                    throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
+                }
+            }
+            return new Cast(source(convertTc), expression(convertTc.expression()), dataType);
+        }
     }
 
     @Override

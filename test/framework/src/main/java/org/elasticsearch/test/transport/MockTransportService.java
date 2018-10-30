@@ -600,24 +600,21 @@ public final class MockTransportService extends TransportService {
         Transport.Connection connection = super.openConnection(node, profile);
 
         synchronized (openConnections) {
-            List<Transport.Connection> connections = openConnections.computeIfAbsent(node,
-                (n) -> new CopyOnWriteArrayList<>());
-            connections.add(connection);
+            openConnections.computeIfAbsent(node, n -> new CopyOnWriteArrayList<>()).add(connection);
+            connection.addCloseListener(ActionListener.wrap(() -> {
+                synchronized (openConnections) {
+                    List<Transport.Connection> connections = openConnections.get(node);
+                    boolean remove = connections.remove(connection);
+                    assert remove : "Should have removed connection";
+                    if (connections.isEmpty()) {
+                        openConnections.remove(node);
+                    }
+                    if (openConnections.isEmpty()) {
+                        openConnections.notifyAll();
+                    }
+                }
+            }));
         }
-
-        connection.addCloseListener(ActionListener.wrap(() -> {
-            synchronized (openConnections) {
-                List<Transport.Connection> connections = openConnections.get(node);
-                boolean remove = connections.remove(connection);
-                assert remove : "Should have removed connection";
-                if (connections.isEmpty()) {
-                    openConnections.remove(node);
-                }
-                if (openConnections.isEmpty()) {
-                    openConnections.notifyAll();
-                }
-            }
-        }));
 
         return connection;
     }

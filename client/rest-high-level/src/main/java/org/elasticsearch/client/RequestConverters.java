@@ -121,7 +121,8 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withTimeout(bulkRequest.timeout());
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
-
+        parameters.withPipeline(bulkRequest.pipeline());
+        parameters.withRouting(bulkRequest.routing());
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.

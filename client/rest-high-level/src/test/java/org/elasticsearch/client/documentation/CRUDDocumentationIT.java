@@ -755,6 +755,16 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.waitForActiveShards(2); // <1>
             request.waitForActiveShards(ActiveShardCount.ALL); // <2>
             // end::bulk-request-active-shards
+            // tag::bulk-request-pipeline
+            request.pipeline("pipelineId"); // <1>
+            // end::bulk-request-pipeline
+            // tag::bulk-request-routing
+            request.routing("routingId"); // <1>
+            // end::bulk-request-routing
+
+            // tag::bulk-request-index-type
+            BulkRequest defaulted = new BulkRequest("posts","_doc"); // <1>
+            // end::bulk-request-index-type
 
             // tag::bulk-execute-listener
             ActionListener<BulkResponse> listener = new ActionListener<BulkResponse>() {

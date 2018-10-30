@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -40,7 +40,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     public static final String NAME = "type";
 
     private static final ParseField VALUE_FIELD = new ParseField("value");
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TypeQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(TypeQueryBuilder.class));
 
     private final String type;
 
@@ -127,7 +127,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        DEPRECATION_LOGGER.deprecated("The [type] query is deprecated, filter on a field instead.");
+        deprecationLogger.deprecated("The [type] query is deprecated, filter on a field instead.");
         //LUCENE 4 UPGRADE document mapper should use bytesref as well?
         DocumentMapper documentMapper = context.getMapperService().documentMapper(type);
         if (documentMapper == null) {

@@ -26,6 +26,7 @@ import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
 import static java.sql.Types.TINYINT;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -177,7 +178,12 @@ public class JdbcAssert {
 
                     // handle nulls first
                     if (expectedObject == null || actualObject == null) {
-                        assertEquals(msg, expectedObject, actualObject);
+                        // hack for JDBC CSV nulls
+                        if (expectedObject != null && "null".equals(expectedObject.toString().toLowerCase(Locale.ROOT))) {
+                            assertNull(msg, actualObject);
+                        } else {
+                            assertEquals(msg, expectedObject, actualObject);
+                        }
                     }
                     // then timestamp
                     else if (type == Types.TIMESTAMP || type == Types.TIMESTAMP_WITH_TIMEZONE) {

@@ -10,6 +10,8 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -40,11 +42,12 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.is;
 
 public abstract class SqlSecurityTestCase extends ESRestTestCase {
     /**
@@ -65,7 +68,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
          * to 1 and completely scrolls the results.
          */
         void expectScrollMatchesAdmin(String adminSql, String user, String userSql) throws Exception;
-        void expectDescribe(Map<String, String> columns, String user) throws Exception;
+        void expectDescribe(Map<String, List<String>> columns, String user) throws Exception;
         void expectShowTables(List<String> tables, String user) throws Exception;
         void expectForbidden(String user, String sql) throws Exception;
         void expectUnknownIndex(String user, String sql) throws Exception;
@@ -196,7 +199,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     public void testQueryWorksAsAdmin() throws Exception {
         actions.queryWorksAsAdmin();
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
             .assertLogs();
     }
 
@@ -205,8 +208,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectMatchesAdmin("SELECT * FROM test ORDER BY a", "full_access", "SELECT * FROM test ORDER BY a");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
-            .expectSqlCompositeAction("full_access", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("full_access", "test")
             .assertLogs();
     }
 
@@ -215,12 +218,12 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectScrollMatchesAdmin("SELECT * FROM test ORDER BY a", "full_access", "SELECT * FROM test ORDER BY a");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
             /* Scrolling doesn't have to access the index again, at least not through sql.
              * If we asserted query and scroll logs then we would see the scroll. */
             .expect(true, SQL_ACTION_NAME, "test_admin", empty())
             .expect(true, SQL_ACTION_NAME, "test_admin", empty())
-            .expectSqlCompositeAction("full_access", "test")
+            .expectSqlCompositeActionFieldCaps("full_access", "test")
             .expect(true, SQL_ACTION_NAME, "full_access", empty())
             .expect(true, SQL_ACTION_NAME, "full_access", empty())
             .assertLogs();
@@ -243,7 +246,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             //This user has permission to run sql queries so they are given preliminary authorization
             .expect(true, SQL_ACTION_NAME, "wrong_access", empty())
             //the following get index is granted too but against the no indices placeholder, as ignore_unavailable=true
-            .expect(true, GetIndexAction.NAME, "wrong_access", hasItems("*", "-*"))
+            .expect(true, FieldCapabilitiesAction.NAME, "wrong_access", hasItems("*", "-*"))
             .assertLogs();
     }
 
@@ -252,8 +255,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectMatchesAdmin("SELECT a FROM test ORDER BY a", "only_a", "SELECT * FROM test ORDER BY a");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
-            .expectSqlCompositeAction("only_a", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("only_a", "test")
             .assertLogs();
     }
 
@@ -262,18 +265,18 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectScrollMatchesAdmin("SELECT a FROM test ORDER BY a", "only_a", "SELECT * FROM test ORDER BY a");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
             /* Scrolling doesn't have to access the index again, at least not through sql.
              * If we asserted query and scroll logs then we would see the scroll. */
             .expect(true, SQL_ACTION_NAME, "test_admin", empty())
             .expect(true, SQL_ACTION_NAME, "test_admin", empty())
-            .expectSqlCompositeAction("only_a", "test")
+            .expectSqlCompositeActionFieldCaps("only_a", "test")
             .expect(true, SQL_ACTION_NAME, "only_a", empty())
             .expect(true, SQL_ACTION_NAME, "only_a", empty())
             .assertLogs();
     }
 
-    public void testQueryStringSingeFieldGrantedWrongRequested() throws Exception {
+    public void testQueryStringSingleFieldGrantedWrongRequested() throws Exception {
         createUser("only_a", "read_test_a");
 
         actions.expectUnknownColumn("only_a", "SELECT c FROM test", "c");
@@ -284,7 +287,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
          * out but it failed in SQL because it couldn't compile the
          * query without the metadata for the missing field. */
         createAuditLogAsserter()
-            .expectSqlCompositeAction("only_a", "test")
+            .expectSqlCompositeActionFieldCaps("only_a", "test")
             .assertLogs();
     }
 
@@ -293,8 +296,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectMatchesAdmin("SELECT a, b FROM test ORDER BY a", "not_c", "SELECT * FROM test ORDER BY a");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
-            .expectSqlCompositeAction("not_c", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("not_c", "test")
             .assertLogs();
     }
 
@@ -303,12 +306,12 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectScrollMatchesAdmin("SELECT a, b FROM test ORDER BY a", "not_c", "SELECT * FROM test ORDER BY a");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
             /* Scrolling doesn't have to access the index again, at least not through sql.
              * If we asserted query and scroll logs then we would see the scroll. */
             .expect(true, SQL_ACTION_NAME, "test_admin", empty())
             .expect(true, SQL_ACTION_NAME, "test_admin", empty())
-            .expectSqlCompositeAction("not_c", "test")
+            .expectSqlCompositeActionFieldCaps("not_c", "test")
             .expect(true, SQL_ACTION_NAME, "not_c", empty())
             .expect(true, SQL_ACTION_NAME, "not_c", empty())
             .assertLogs();
@@ -325,7 +328,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
          * out but it failed in SQL because it couldn't compile the
          * query without the metadata for the missing field. */
         createAuditLogAsserter()
-            .expectSqlCompositeAction("not_c", "test")
+            .expectSqlCompositeActionFieldCaps("not_c", "test")
             .assertLogs();
     }
 
@@ -334,15 +337,15 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectMatchesAdmin("SELECT * FROM test WHERE c != 3 ORDER BY a", "no_3s", "SELECT * FROM test ORDER BY a");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
-            .expectSqlCompositeAction("no_3s", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("no_3s", "test")
             .assertLogs();
     }
 
     public void testShowTablesWorksAsAdmin() throws Exception {
         actions.expectShowTables(Arrays.asList("bort", "test"), null);
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "bort", "test")
+            .expectSqlCompositeActionGetIndex("test_admin", "bort", "test")
             .assertLogs();
     }
 
@@ -351,8 +354,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectMatchesAdmin("SHOW TABLES LIKE '%t'", "full_access", "SHOW TABLES");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "bort", "test")
-            .expectSqlCompositeAction("full_access", "bort", "test")
+            .expectSqlCompositeActionGetIndex("test_admin", "bort", "test")
+            .expectSqlCompositeActionGetIndex("full_access", "bort", "test")
             .assertLogs();
     }
 
@@ -370,8 +373,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectMatchesAdmin("SHOW TABLES LIKE 'bort'", "read_bort", "SHOW TABLES");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "bort")
-            .expectSqlCompositeAction("read_bort", "bort")
+             .expectSqlCompositeActionGetIndex("test_admin", "bort").expectSqlCompositeActionGetIndex("read_bort", "bort")
             .assertLogs();
     }
 
@@ -388,13 +390,13 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     }
 
     public void testDescribeWorksAsAdmin() throws Exception {
-        Map<String, String> expected = new TreeMap<>();
-        expected.put("a", "BIGINT");
-        expected.put("b", "BIGINT");
-        expected.put("c", "BIGINT");
+        Map<String, List<String>> expected = new TreeMap<>();
+        expected.put("a", asList("BIGINT", "LONG"));
+        expected.put("b", asList("BIGINT", "LONG"));
+        expected.put("c", asList("BIGINT", "LONG"));
         actions.expectDescribe(expected, null);
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
             .assertLogs();
     }
 
@@ -403,8 +405,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectMatchesAdmin("DESCRIBE test", "full_access", "DESCRIBE test");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
-            .expectSqlCompositeAction("full_access", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("full_access", "test")
             .assertLogs();
     }
 
@@ -425,28 +427,28 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             //This user has permission to run sql queries so they are given preliminary authorization
             .expect(true, SQL_ACTION_NAME, "wrong_access", empty())
             //the following get index is granted too but against the no indices placeholder, as ignore_unavailable=true
-            .expect(true, GetIndexAction.NAME, "wrong_access", hasItems("*", "-*"))
+            .expect(true, FieldCapabilitiesAction.NAME, "wrong_access", hasItems("*", "-*"))
             .assertLogs();
     }
 
     public void testDescribeSingleFieldGranted() throws Exception {
         createUser("only_a", "read_test_a");
 
-        actions.expectDescribe(singletonMap("a", "BIGINT"), "only_a");
+        actions.expectDescribe(singletonMap("a", asList("BIGINT", "LONG")), "only_a");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("only_a", "test")
+            .expectSqlCompositeActionFieldCaps("only_a", "test")
             .assertLogs();
     }
 
     public void testDescribeSingleFieldExcepted() throws Exception {
         createUser("not_c", "read_test_a_and_b");
 
-        Map<String, String> expected = new TreeMap<>();
-        expected.put("a", "BIGINT");
-        expected.put("b", "BIGINT");
+        Map<String, List<String>> expected = new TreeMap<>();
+        expected.put("a", asList("BIGINT", "LONG"));
+        expected.put("b", asList("BIGINT", "LONG"));
         actions.expectDescribe(expected, "not_c");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("not_c", "test")
+            .expectSqlCompositeActionFieldCaps("not_c", "test")
             .assertLogs();
     }
 
@@ -455,8 +457,8 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         actions.expectMatchesAdmin("DESCRIBE test", "no_3s", "DESCRIBE test");
         createAuditLogAsserter()
-            .expectSqlCompositeAction("test_admin", "test")
-            .expectSqlCompositeAction("no_3s", "test")
+            .expectSqlCompositeActionFieldCaps("test_admin", "test")
+            .expectSqlCompositeActionFieldCaps("no_3s", "test")
             .assertLogs();
     }
 
@@ -497,9 +499,15 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
     protected class AuditLogAsserter {
         protected final List<Function<Map<String, Object>, Boolean>> logCheckers = new ArrayList<>();
 
-        public AuditLogAsserter expectSqlCompositeAction(String user, String... indices) {
+        public AuditLogAsserter expectSqlCompositeActionGetIndex(String user, String... indices) {
             expect(true, SQL_ACTION_NAME, user, empty());
             expect(true, GetIndexAction.NAME, user, hasItems(indices));
+            return this;
+        }
+
+        public AuditLogAsserter expectSqlCompositeActionFieldCaps(String user, String... indices) {
+            expect(true, SQL_ACTION_NAME, user, empty());
+            expect(true, FieldCapabilitiesAction.NAME, user, hasItems(indices));
             return this;
         }
 
@@ -513,6 +521,9 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             case GetIndexAction.NAME:
                 request = GetIndexRequest.class.getSimpleName();
                 break;
+                case FieldCapabilitiesAction.NAME:
+                    request = FieldCapabilitiesRequest.class.getSimpleName();
+                    break;
             default:
                 throw new IllegalArgumentException("Unknown action [" + action + "]");
             }
@@ -523,7 +534,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
 
         public AuditLogAsserter expect(String eventAction, String action, String principal, String realm,
                     Matcher<? extends Iterable<? extends String>> indicesMatcher, String request) {
-            logCheckers.add(m -> 
+            logCheckers.add(m ->
                 eventAction.equals(m.get("event.action"))
                 && action.equals(m.get("action"))
                 && principal.equals(m.get("user.name"))
@@ -564,7 +575,9 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                 continue;
                             }
                             assertThat(log.containsKey("action"), is(true));
-                            if (false == (SQL_ACTION_NAME.equals(log.get("action")) || GetIndexAction.NAME.equals(log.get("action")))) {
+                            if (false == (SQL_ACTION_NAME.equals(log.get("action"))
+                                          || GetIndexAction.NAME.equals(log.get("action"))
+                                          || FieldCapabilitiesAction.NAME.equals(log.get("action")))) {
                                 // TODO we may want to extend this and the assertions to SearchAction.NAME as well
                                 continue;
                             }

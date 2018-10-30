@@ -54,9 +54,7 @@ public abstract class DebugCsvSpec extends SpecBaseIntegrationTestCase {
 
     @Override
     protected final void doTest() throws Throwable {
-        try (Connection csv = csvConnection(testCase.expectedResults);
-             Connection es = esJdbc()) {
-
+        try (Connection csv = csvConnection(testCase); Connection es = esJdbc()) {
             // pass the testName as table for debugging purposes (in case the underlying reader is missing)
             ResultSet expected = executeCsvQuery(csv, testName);
             ResultSet elasticResults = executeJdbcQuery(es, testCase.query);

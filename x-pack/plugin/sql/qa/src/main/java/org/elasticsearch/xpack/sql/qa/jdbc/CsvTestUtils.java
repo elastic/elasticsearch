@@ -25,7 +25,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -55,12 +57,12 @@ public final class CsvTestUtils {
      *
      * Use {@link #executeCsvQuery} to obtain ResultSet from this connection
      */
-    public static Connection csvConnection(String expectedResults) throws IOException, SQLException {
+    public static Connection csvConnection(CsvTestCase csvTest) throws IOException, SQLException {
         Properties csvProperties = new Properties();
         csvProperties.setProperty("charset", "UTF-8");
         csvProperties.setProperty("separator", "|");
         csvProperties.setProperty("trimValues", "true");
-        Tuple<String, String> resultsAndTypes = extractColumnTypesAndStripCli(expectedResults);
+        Tuple<String, String> resultsAndTypes = extractColumnTypesAndStripCli(csvTest.earlySchema, csvTest.expectedResults);
         csvProperties.setProperty("columnTypes", resultsAndTypes.v2());
         Reader reader = new StringReader(resultsAndTypes.v1());
         TableReader tableReader = new TableReader() {
@@ -78,7 +80,7 @@ public final class CsvTestUtils {
         };
     }
 
-    private static Tuple<String, String> extractColumnTypesAndStripCli(String expectedResults) throws IOException {
+    private static Tuple<String, String> extractColumnTypesAndStripCli(String schema, String expectedResults) throws IOException {
         try (StringReader reader = new StringReader(expectedResults);
              BufferedReader bufferedReader = new BufferedReader(reader);
              StringWriter writer = new StringWriter();
@@ -87,8 +89,14 @@ public final class CsvTestUtils {
             String header = bufferedReader.readLine();
             Tuple<String, String> headerAndTypes;
 
+            String sch = schema;
             if (header.contains(":")) {
-                headerAndTypes = extractColumnTypesFromHeader(header);
+                assertThat("Cannot declare schema both individually and inside the header", sch, isEmptyOrNullString());
+                sch = header;
+            }
+
+            if (Strings.hasText(sch)) {
+                headerAndTypes = extractColumnTypesFromHeader(sch);
             } else {
                 // No type information in headers, no need to parse columns - trigger auto-detection
                 headerAndTypes = new Tuple<>(header, "");
@@ -160,6 +168,9 @@ public final class CsvTestUtils {
     }
 
     private static class CsvSpecParser implements SpecBaseIntegrationTestCase.Parser {
+        private static final String SCHEMA_PREFIX = "schema::";
+
+        private final StringBuilder earlySchema = new StringBuilder();
         private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
         private CsvTestCase testCase;
@@ -168,17 +179,25 @@ public final class CsvTestUtils {
         public Object parse(String line) {
             // read the query
             if (testCase == null) {
-                if (line.endsWith(";")) {
+                if (line.startsWith(SCHEMA_PREFIX)) {
+                    assertThat("Early schema already declared " + earlySchema, earlySchema.length(), is(0));
+                    earlySchema.append(line.substring(SCHEMA_PREFIX.length()).trim());
+                }
+                else {
+                    if (line.endsWith(";")) {
                     // pick up the query
                     testCase = new CsvTestCase();
                     query.append(line.substring(0, line.length() - 1).trim());
                     testCase.query = query.toString();
+                    testCase.earlySchema = earlySchema.toString();
+                    earlySchema.setLength(0);
                     query.setLength(0);
-                }
-                // keep reading the query
-                else {
-                    query.append(line);
-                    query.append("\r\n");
+                    }
+                    // keep reading the query
+                    else {
+                        query.append(line);
+                        query.append("\r\n");
+                    }
                 }
             }
             // read the results
@@ -204,6 +223,7 @@ public final class CsvTestUtils {
 
     public static class CsvTestCase {
         public String query;
+        public String earlySchema;
         public String expectedResults;
     }
 }

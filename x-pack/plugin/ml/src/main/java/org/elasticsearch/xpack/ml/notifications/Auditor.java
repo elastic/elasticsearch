@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.notifications;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class Auditor {
 
-    private static final Logger LOGGER = Loggers.getLogger(Auditor.class);
+    private static final Logger LOGGER = LogManager.getLogger(Auditor.class);
 
     private final Client client;
     private final String nodeName;

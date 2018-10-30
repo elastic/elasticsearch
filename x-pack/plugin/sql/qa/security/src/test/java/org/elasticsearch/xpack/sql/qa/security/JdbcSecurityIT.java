@@ -118,7 +118,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
     private static class JdbcActions implements Actions {
         @Override
         public String minimalPermissionsForAllActions() {
-            return "cli_or_jdbc_minimal";
+            return "cli_or_drivers_minimal";
         }
 
         @Override
@@ -158,22 +158,26 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
         }
 
         @Override
-        public void expectDescribe(Map<String, String> columns, String user) throws Exception {
+        public void expectDescribe(Map<String, List<String>> columns, String user) throws Exception {
             try (Connection h2 = LocalH2.anonymousDb();
                     Connection es = es(userProperties(user))) {
                 // h2 doesn't have the same sort of DESCRIBE that we have so we emulate it
-                h2.createStatement().executeUpdate("CREATE TABLE mock (column VARCHAR, type VARCHAR)");
+                h2.createStatement().executeUpdate("CREATE TABLE mock (column VARCHAR, type VARCHAR, mapping VARCHAR)");
                 if (columns.size() > 0) {
                     StringBuilder insert = new StringBuilder();
-                    insert.append("INSERT INTO mock (column, type) VALUES ");
+                    insert.append("INSERT INTO mock (column, type, mapping) VALUES ");
                     boolean first = true;
-                    for (Map.Entry<String, String> column : columns.entrySet()) {
+                    for (Map.Entry<String, List<String>> column : columns.entrySet()) {
                         if (first) {
                             first = false;
                         } else {
                             insert.append(", ");
                         }
-                        insert.append("('").append(column.getKey()).append("', '").append(column.getValue()).append("')");
+                        insert.append("('").append(column.getKey()).append("'");
+                        for (String value : column.getValue()) {
+                            insert.append(", '").append(value).append("'");
+                        }
+                        insert.append(")");
                     }
                     h2.createStatement().executeUpdate(insert.toString());
                 }
@@ -250,7 +254,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
     // Metadata methods only available to JDBC
     public void testMetaDataGetTablesWithFullAccess() throws Exception {
-        createUser("full_access", "cli_or_jdbc_minimal");
+        createUser("full_access", "cli_or_drivers_minimal");
 
         expectActionMatchesAdmin(
             con -> con.getMetaData().getTables("%", "%", "%t", null),
@@ -283,7 +287,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
     }
 
     public void testMetaDataGetColumnsWorksAsFullAccess() throws Exception {
-        createUser("full_access", "cli_or_jdbc_minimal");
+        createUser("full_access", "cli_or_drivers_minimal");
 
         expectActionMatchesAdmin(
                 con -> con.getMetaData().getColumns(null, "%", "%t", "%"),

@@ -52,6 +52,7 @@ import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
+import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -88,8 +89,8 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request);
-        if (getJobRequest.isAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.isAllowNoJobs()));
+        if (getJobRequest.getAllowNoJobs() != null) {
+            params.putParam("allow_no_jobs", Boolean.toString(getJobRequest.getAllowNoJobs()));
         }
 
         return request;
@@ -106,8 +107,8 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request);
-        if (getJobStatsRequest.isAllowNoJobs() != null) {
-            params.putParam("allow_no_jobs", Boolean.toString(getJobStatsRequest.isAllowNoJobs()));
+        if (getJobStatsRequest.getAllowNoJobs() != null) {
+            params.putParam("allow_no_jobs", Boolean.toString(getJobStatsRequest.getAllowNoJobs()));
         }
         return request;
     }
@@ -209,6 +210,19 @@ final class MLRequestConverters {
         return request;
     }
 
+    static Request updateDatafeed(UpdateDatafeedRequest updateDatafeedRequest) throws IOException {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_xpack")
+            .addPathPartAsIs("ml")
+            .addPathPartAsIs("datafeeds")
+            .addPathPart(updateDatafeedRequest.getDatafeedUpdate().getId())
+            .addPathPartAsIs("_update")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(updateDatafeedRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request getDatafeed(GetDatafeedRequest getDatafeedRequest) {
         String endpoint = new EndpointBuilder()
                 .addPathPartAsIs("_xpack")
@@ -219,9 +233,9 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request);
-        if (getDatafeedRequest.isAllowNoDatafeeds() != null) {
+        if (getDatafeedRequest.getAllowNoDatafeeds() != null) {
             params.putParam(GetDatafeedRequest.ALLOW_NO_DATAFEEDS.getPreferredName(),
-                    Boolean.toString(getDatafeedRequest.isAllowNoDatafeeds()));
+                    Boolean.toString(getDatafeedRequest.getAllowNoDatafeeds()));
         }
 
         return request;
@@ -236,7 +250,9 @@ final class MLRequestConverters {
                 .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
-        params.putParam("force", Boolean.toString(deleteDatafeedRequest.isForce()));
+        if (deleteDatafeedRequest.getForce() != null) {
+            params.putParam("force", Boolean.toString(deleteDatafeedRequest.getForce()));
+        }
         return request;
     }
 
@@ -277,8 +293,8 @@ final class MLRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request);
-        if (getDatafeedStatsRequest.isAllowNoDatafeeds() != null) {
-            params.putParam("allow_no_datafeeds", Boolean.toString(getDatafeedStatsRequest.isAllowNoDatafeeds()));
+        if (getDatafeedStatsRequest.getAllowNoDatafeeds() != null) {
+            params.putParam("allow_no_datafeeds", Boolean.toString(getDatafeedStatsRequest.getAllowNoDatafeeds()));
         }
         return request;
     }
@@ -305,8 +321,8 @@ final class MLRequestConverters {
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
-        if (deleteForecastRequest.isAllowNoForecasts() != null) {
-            params.putParam("allow_no_forecasts", Boolean.toString(deleteForecastRequest.isAllowNoForecasts()));
+        if (deleteForecastRequest.getAllowNoForecasts() != null) {
+            params.putParam("allow_no_forecasts", Boolean.toString(deleteForecastRequest.getAllowNoForecasts()));
         }
         if (deleteForecastRequest.timeout() != null) {
             params.putParam("timeout", deleteForecastRequest.timeout().getStringRep());

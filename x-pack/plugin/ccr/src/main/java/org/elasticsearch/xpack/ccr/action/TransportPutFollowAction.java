@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 public final class TransportPutFollowAction
         extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
@@ -69,8 +68,8 @@ public final class TransportPutFollowAction
                 clusterService,
                 threadPool,
                 actionFilters,
-                indexNameExpressionResolver,
-                PutFollowAction.Request::new);
+                PutFollowAction.Request::new,
+                indexNameExpressionResolver);
         this.client = client;
         this.allocationService = allocationService;
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
@@ -96,49 +95,22 @@ public final class TransportPutFollowAction
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        String clusterAlias = request.getFollowRequest().getLeaderCluster();
-        if (clusterAlias == null) {
-            createFollowerIndexAndFollowLocalIndex(request, state, listener);
-        } else {
-            // In the case of following a local index there is no cluster alias:
-            client.getRemoteClusterClient(clusterAlias);
-            String leaderIndex = request.getFollowRequest().getLeaderIndex();
-            createFollowerIndexAndFollowRemoteIndex(request, clusterAlias, leaderIndex, listener);
-        }
-    }
+        String remoteCluster = request.getRemoteCluster();
+        // Validates whether the leader cluster has been configured properly:
+        client.getRemoteClusterClient(remoteCluster);
 
-    private void createFollowerIndexAndFollowLocalIndex(
-            final PutFollowAction.Request request,
-            final ClusterState state,
-            final ActionListener<PutFollowAction.Response> listener) {
-        // following an index in local cluster, so use local cluster state to fetch leader index metadata
-        final String leaderIndex = request.getFollowRequest().getLeaderIndex();
-        final IndexMetaData leaderIndexMetadata = state.getMetaData().index(leaderIndex);
-        if (leaderIndexMetadata == null) {
-            listener.onFailure(new IndexNotFoundException(leaderIndex));
-            return;
-        }
-
-        Consumer<String[]> historyUUIDhandler = historyUUIDs -> {
-            createFollowerIndex(leaderIndexMetadata, historyUUIDs, request, listener);
-        };
-        ccrLicenseChecker.hasPrivilegesToFollowIndices(client, new String[] {leaderIndex}, e -> {
-            if (e == null) {
-                ccrLicenseChecker.fetchLeaderHistoryUUIDs(client, leaderIndexMetadata, listener::onFailure, historyUUIDhandler);
-            } else {
-                listener.onFailure(e);
-            }
-        });
+        String leaderIndex = request.getLeaderIndex();
+        createFollowerIndexAndFollowRemoteIndex(request, remoteCluster, leaderIndex, listener);
     }
 
     private void createFollowerIndexAndFollowRemoteIndex(
             final PutFollowAction.Request request,
-            final String clusterAlias,
+            final String remoteCluster,
             final String leaderIndex,
             final ActionListener<PutFollowAction.Response> listener) {
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
                 client,
-                clusterAlias,
+                remoteCluster,
                 leaderIndex,
                 listener::onFailure,
                 (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
@@ -150,9 +122,12 @@ public final class TransportPutFollowAction
             final PutFollowAction.Request request,
             final ActionListener<PutFollowAction.Response> listener) {
         if (leaderIndexMetaData == null) {
-            listener.onFailure(new IllegalArgumentException("leader index [" + request.getFollowRequest().getLeaderIndex() +
-                    "] does not exist"));
+            listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
+        }
+        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+            listener.onFailure(
+                new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled"));
         }
 
         ActionListener<Boolean> handler = ActionListener.wrap(
@@ -188,6 +163,8 @@ public final class TransportPutFollowAction
                 Map<String, String> metadata = new HashMap<>();
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
+                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetaData.getIndex().getName());
+                metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, request.getRemoteCluster());
                 imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 
                 // Copy all settings, but overwrite a few settings.
@@ -197,6 +174,7 @@ public final class TransportPutFollowAction
                 settingsBuilder.put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                 settingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, followIndex);
                 settingsBuilder.put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
+                settingsBuilder.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
                 imdBuilder.settings(settingsBuilder);
 
                 // Copy mappings from leader IMD to follow IMD

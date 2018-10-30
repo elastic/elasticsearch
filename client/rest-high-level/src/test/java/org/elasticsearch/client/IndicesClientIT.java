@@ -521,7 +521,10 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(aliasExists(alias), equalTo(false));
 
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
-        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(index).aliases(alias).writeIndex(true);
+        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(index).aliases(alias);
+        if (randomBoolean()) {
+            addAction.writeIndex(randomBoolean());
+        }
         addAction.routing("routing").searchRouting("search_routing").filter("{\"term\":{\"year\":2016}}");
         aliasesAddRequest.addAliasAction(addAction);
         AcknowledgedResponse aliasesAddResponse = execute(aliasesAddRequest, highLevelClient().indices()::updateAliases,
@@ -536,7 +539,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Map<String, Object> term = (Map<String, Object>) filter.get("term");
         assertEquals(2016, term.get("year"));
         Boolean isWriteIndex = (Boolean) getAlias.get("is_write_index");
-        assertTrue(isWriteIndex);
+        assertThat(isWriteIndex, equalTo(addAction.writeIndex()));
 
         String alias2 = "alias2";
         IndicesAliasesRequest aliasesAddRemoveRequest = new IndicesAliasesRequest();

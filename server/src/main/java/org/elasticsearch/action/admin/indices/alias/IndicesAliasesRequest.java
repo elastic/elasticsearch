@@ -508,6 +508,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     + ",routing=" + routing
                     + ",indexRouting=" + indexRouting
                     + ",searchRouting=" + searchRouting
+                    + ",writeIndex=" + writeIndex
                     + "]";
         }
 
@@ -529,7 +530,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting);
+            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex);
         }
     }
 

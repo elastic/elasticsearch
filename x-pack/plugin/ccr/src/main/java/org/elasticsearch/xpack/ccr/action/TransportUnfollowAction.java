@@ -34,7 +34,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
                                    ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, UnfollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, UnfollowAction.Request::new);
+            UnfollowAction.Request::new, indexNameExpressionResolver);
     }
 
     @Override

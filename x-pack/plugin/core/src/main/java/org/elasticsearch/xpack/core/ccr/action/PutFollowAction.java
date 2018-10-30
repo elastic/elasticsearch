@@ -171,13 +171,11 @@ public final class PutFollowAction extends Action<
             return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             remoteCluster = in.readString();
             leaderIndex = in.readString();
-            followRequest = new ResumeFollowAction.Request();
-            followRequest.readFrom(in);
+            followRequest = new ResumeFollowAction.Request(in);
         }
 
         @Override

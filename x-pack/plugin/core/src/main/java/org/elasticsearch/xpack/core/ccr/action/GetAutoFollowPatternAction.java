@@ -62,9 +62,8 @@ public class GetAutoFollowPatternAction
             this.name = name;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             this.name = in.readOptionalString();
         }
 

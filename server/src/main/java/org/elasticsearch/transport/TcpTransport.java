@@ -65,6 +65,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -205,10 +206,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final MeanMetric readBytesMetric = new MeanMetric();
     private final MeanMetric transmittedBytesMetric = new MeanMetric();
-    private volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
+    private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private final TransportLogger transportLogger;
     private final BytesReference pingMessage;
+    private final String nodeName;
 
     public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -223,6 +225,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.networkService = networkService;
         this.transportName = transportName;
         this.transportLogger = new TransportLogger();
+        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
         final Settings defaultFeatures = DEFAULT_FEATURES_SETTING.get(settings);
         if (defaultFeatures == null) {
@@ -284,8 +287,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
 
         @Override
-        public VersionHandshakeResponse newInstance() {
-            return new VersionHandshakeResponse();
+        public VersionHandshakeResponse read(StreamInput in) throws IOException {
+            return new VersionHandshakeResponse(in);
         }
 
         @Override
@@ -947,7 +950,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             stream.setVersion(nodeVersion);
             stream.setFeatures(features);
             RemoteTransportException tx = new RemoteTransportException(
-                nodeName(), new TransportAddress(channel.getLocalAddress()), action, error);
+                nodeName, new TransportAddress(channel.getLocalAddress()), action, error);
             threadPool.getThreadContext().writeTo(stream);
             stream.writeException(tx);
             byte status = 0;
@@ -1273,7 +1276,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 if (isHandshake) {
                     handler = pendingHandshakes.remove(requestId);
                 } else {
-                    TransportResponseHandler theHandler = responseHandlers.onResponseReceived(requestId, messageListener);
+                    TransportResponseHandler<? extends TransportResponse> theHandler =
+                        responseHandlers.onResponseReceived(requestId, messageListener);
                     if (theHandler == null && TransportStatus.isError(status)) {
                         handler = pendingHandshakes.remove(requestId);
                     } else {
@@ -1319,8 +1323,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    private void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream, final TransportResponseHandler handler) {
-        final TransportResponse response;
+    private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream,
+                                final TransportResponseHandler<T> handler) {
+        final T response;
         try {
             response = handler.read(stream);
             response.remoteAddress(new TransportAddress(remoteAddress));
@@ -1469,17 +1474,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     private static final class VersionHandshakeResponse extends TransportResponse {
-        private Version version;
+        private final Version version;
 
         private VersionHandshakeResponse(Version version) {
             this.version = version;
         }
 
-        private VersionHandshakeResponse() {
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        private VersionHandshakeResponse(StreamInput in) throws IOException {
             super.readFrom(in);
             version = Version.readVersion(in);
         }
@@ -1736,7 +1737,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public final RequestHandlerRegistry getRequestHandler(String action) {
+    public final RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
         return requestHandlers.get(action);
     }
 }

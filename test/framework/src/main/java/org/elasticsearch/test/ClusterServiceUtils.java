@@ -50,7 +50,7 @@ import static junit.framework.TestCase.fail;
 public class ClusterServiceUtils {
 
     public static MasterService createMasterService(ThreadPool threadPool, ClusterState initialClusterState) {
-        MasterService masterService = new MasterService(Settings.EMPTY, threadPool);
+        MasterService masterService = new MasterService("test_master_node", Settings.EMPTY, threadPool);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialClusterState);
         masterService.setClusterStatePublisher((event, ackListener) -> clusterStateRef.set(event.state()));
         masterService.setClusterStateSupplier(clusterStateRef::get);

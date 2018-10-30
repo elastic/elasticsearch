@@ -6,24 +6,24 @@
 describeParent
 DESCRIBE test_emp;
 
-column               | type
-
-birth_date           | TIMESTAMP
-dep                  | STRUCT
-dep.dep_id           | VARCHAR
-dep.dep_name         | VARCHAR
-dep.dep_name.keyword | VARCHAR
-dep.from_date        | TIMESTAMP
-dep.to_date          | TIMESTAMP
-emp_no               | INTEGER
-first_name           | VARCHAR
-first_name.keyword   | VARCHAR
-gender               | VARCHAR
-hire_date            | TIMESTAMP
-languages            | TINYINT
-last_name            | VARCHAR
-last_name.keyword    | VARCHAR
-salary               | INTEGER
+       column       |     type      |    mapping    
+--------------------+---------------+---------------
+birth_date          |TIMESTAMP      |DATE           
+dep                 |STRUCT         |NESTED         
+dep.dep_id          |VARCHAR        |KEYWORD        
+dep.dep_name        |VARCHAR        |TEXT           
+dep.dep_name.keyword|VARCHAR        |KEYWORD        
+dep.from_date       |TIMESTAMP      |DATE           
+dep.to_date         |TIMESTAMP      |DATE           
+emp_no              |INTEGER        |INTEGER        
+first_name          |VARCHAR        |TEXT           
+first_name.keyword  |VARCHAR        |KEYWORD        
+gender              |VARCHAR        |KEYWORD        
+hire_date           |TIMESTAMP      |DATE           
+languages           |TINYINT        |BYTE           
+last_name           |VARCHAR        |TEXT           
+last_name.keyword   |VARCHAR        |KEYWORD        
+salary              |INTEGER        |INTEGER   
 ;
 
 // disable until we figure out how to use field names with . in their name
@@ -44,11 +44,11 @@ SELECT first_name f, last_name l, YEAR(dep.from_date) d FROM test_emp WHERE dep.
 
 f:s                  | l:s                  | d:i
 
-Alain                | Chappelet            | 1988
-Chirstian            | Koblick              | 1986
-Duangkaew            | Piveteau             | 1996
-Elvis                | Demeyer              | 1994
-Gino                 | Leonhardt            | 1989
+Chirstian            |Koblick               |1986           
+Duangkaew            |Piveteau              |1996           
+Gino                 |Leonhardt             |1989           
+Hidefumi             |Caine                 |1992           
+Jayson               |Mandell               |1999    
 ;
 
 filterPerNestedWithOrderByNested
@@ -56,11 +56,11 @@ SELECT first_name f, last_name l, YEAR(dep.from_date) d FROM test_emp WHERE dep.
 
 f:s                  | l:s                  | d:i
 
-Sreekrishna          | Servieres            | 1985
-Zhongwei             | Rosen                | 1986
-Chirstian            | Koblick              | 1986
-Vishv                | Zockler              | 1987
-Alain                | Chappelet            | 1988
+Sreekrishna          |Servieres             |1985           
+Zhongwei             |Rosen                 |1986           
+Chirstian            |Koblick               |1986           
+Vishv                |Zockler               |1987           
+null                 |Chappelet             |1988    
 ;
 
 filterPerNestedWithOrderByNestedWithAlias
@@ -92,11 +92,11 @@ SELECT first_name f, last_name l, YEAR(dep.from_date) start FROM test_emp WHERE 
 
 f:s                  | l:s                  | start:i
 
-Sreekrishna          | Servieres            | 1985
-Zhongwei             | Rosen                | 1986
-Chirstian            | Koblick              | 1986
-Alain                | Chappelet            | 1988
-Zvonko               | Nyanchama            | 1989
+Sreekrishna          |Servieres      |1985           
+Zhongwei             |Rosen          |1986           
+Chirstian            |Koblick        |1986           
+null                 |Chappelet      |1988           
+Zvonko               |Nyanchama      |1989     
 ;
 
 selectWithScalarOnNestedWithoutProjection
@@ -104,9 +104,109 @@ SELECT first_name f, last_name l FROM test_emp WHERE dep.dep_name = 'Production'
 
 f:s                  | l:s
 
-Sreekrishna          | Servieres
-Zhongwei             | Rosen
-Chirstian            | Koblick
-Alain                | Chappelet
-Zvonko               | Nyanchama
+Sreekrishna          |Servieres      
+Zhongwei             |Rosen          
+Chirstian            |Koblick        
+null                 |Chappelet      
+Zvonko               |Nyanchama  
+;
+
+//
+// Tests for bug https://github.com/elastic/elasticsearch/issues/32951 fix
+//
+
+selectNestedFieldFirst
+SELECT dep.dep_id, last_name FROM test_emp ORDER BY last_name LIMIT 5;
+
+dep.dep_id:s   |   last_name:s   
+
+d005           |Awdeh
+d003           |Azuma
+d002           |Baek
+d003           |Baek
+d004           |Bamford
+; 
+
+selectNestedFieldLast
+SELECT first_name, dep.dep_id FROM test_emp ORDER BY first_name LIMIT 5;
+
+first_name:s   |  dep.dep_id:s
+---------------+---------------
+Alejandro      |d002           
+Amabile        |d005           
+Anneke         |d005           
+Anoosh         |d005           
+Arumugam       |d008           
+;
+
+selectNestedFieldInTheMiddle
+SELECT first_name, dep.dep_name, last_name FROM test_emp ORDER BY first_name LIMIT 5;
+
+first_name:s   |dep.dep_name:s |last_name:s
+
+Alejandro      |Finance        |McAlpine
+Amabile        |Development    |Gomatam
+Anneke         |Development    |Preusig
+Anoosh         |Development    |Peyn
+Arumugam       |Research       |Ossenbruggen
+;
+
+selectNestedFieldInTheMiddleAndAtTheEnd
+SELECT first_name, dep.dep_name, last_name, dep.dep_id FROM test_emp ORDER BY first_name LIMIT 5;
+
+ first_name:s  |dep.dep_name:s | last_name:s   |  dep.dep_id:s
+
+Alejandro      |Finance        |McAlpine       |d002
+Amabile        |Development    |Gomatam        |d005
+Anneke         |Development    |Preusig        |d005
+Anoosh         |Development    |Peyn           |d005
+Arumugam       |Research       |Ossenbruggen   |d008
+;
+
+selectNestedFieldInTheMiddleAndAtBeggining
+SELECT dep.dep_id, first_name, dep.dep_name, last_name FROM test_emp ORDER BY first_name LIMIT 5;
+
+ dep.dep_id:s  | first_name:s  |dep.dep_name:s | last_name:s
+
+d002           |Alejandro      |Finance        |McAlpine
+d005           |Amabile        |Development    |Gomatam
+d005           |Anneke         |Development    |Preusig
+d005           |Anoosh         |Development    |Peyn
+d008           |Arumugam       |Research       |Ossenbruggen
+;
+
+selectNestedFieldWithWildcardAtBeggining
+SELECT dep.*, first_name FROM test_emp ORDER BY first_name LIMIT 5;
+
+ dep.dep_id:s  |dep.dep_name:s |   dep.from_date:ts     |    dep.to_date:ts      |  first_name:s
+
+d002           |Finance        |1991-06-26T00:00:00.000Z|9999-01-01T00:00:00.000Z|Alejandro
+d005           |Development    |1992-11-18T00:00:00.000Z|9999-01-01T00:00:00.000Z|Amabile
+d005           |Development    |1990-08-05T00:00:00.000Z|9999-01-01T00:00:00.000Z|Anneke
+d005           |Development    |1991-08-30T00:00:00.000Z|9999-01-01T00:00:00.000Z|Anoosh
+d008           |Research       |1987-04-18T00:00:00.000Z|1997-11-08T00:00:00.000Z|Arumugam
+;
+
+selectNestedFieldWithWildcardAtTheEnd
+SELECT first_name, dep.* FROM test_emp ORDER BY first_name LIMIT 5;
+
+ first_name:s  | dep.dep_id:s  |dep.dep_name:s |   dep.from_date:ts     |     dep.to_date:ts
+
+Alejandro      |d002           |Finance        |1991-06-26T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Amabile        |d005           |Development    |1992-11-18T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Anneke         |d005           |Development    |1990-08-05T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Anoosh         |d005           |Development    |1991-08-30T00:00:00.000Z|9999-01-01T00:00:00.000Z
+Arumugam       |d008           |Research       |1987-04-18T00:00:00.000Z|1997-11-08T00:00:00.000Z
+;
+
+selectNestedFieldWithWildcardInTheMiddle
+SELECT first_name, dep.*, last_name FROM test_emp ORDER BY first_name LIMIT 5;
+
+ first_name:s  | dep.dep_id:s  |dep.dep_name:s |   dep.from_date:ts     |    dep.to_date:ts      |   last_name:s
+
+Alejandro      |d002           |Finance        |1991-06-26T00:00:00.000Z|9999-01-01T00:00:00.000Z|McAlpine
+Amabile        |d005           |Development    |1992-11-18T00:00:00.000Z|9999-01-01T00:00:00.000Z|Gomatam
+Anneke         |d005           |Development    |1990-08-05T00:00:00.000Z|9999-01-01T00:00:00.000Z|Preusig
+Anoosh         |d005           |Development    |1991-08-30T00:00:00.000Z|9999-01-01T00:00:00.000Z|Peyn
+Arumugam       |d008           |Research       |1987-04-18T00:00:00.000Z|1997-11-08T00:00:00.000Z|Ossenbruggen
 ;

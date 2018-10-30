@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
@@ -105,6 +105,7 @@ import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
@@ -121,6 +122,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSe
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -160,6 +162,7 @@ import org.elasticsearch.xpack.security.action.token.TransportRefreshTokenAction
 import org.elasticsearch.xpack.security.action.user.TransportAuthenticateAction;
 import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.TransportDeleteUserAction;
+import org.elasticsearch.xpack.security.action.user.TransportGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportGetUsersAction;
 import org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
@@ -183,7 +186,6 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
@@ -206,6 +208,7 @@ import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
+import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
@@ -253,7 +256,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
-    private static final Logger logger = Loggers.getLogger(Security.class);
+    private static final Logger logger = LogManager.getLogger(Security.class);
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(SecurityField.setting("audit.outputs"),
@@ -416,7 +419,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
-        securityIndex.set(new SecurityIndexManager(settings, client, SecurityIndexManager.SECURITY_INDEX_NAME, clusterService));
+        securityIndex.set(new SecurityIndexManager(client, SecurityIndexManager.SECURITY_INDEX_NAME, clusterService));
 
         final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService);
         this.tokenService.set(tokenService);
@@ -704,6 +707,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
                 new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
                 new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
+                new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
                 new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
                 new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
                 new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
@@ -753,6 +757,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestChangePasswordAction(settings, restController, securityContext.get(), getLicenseState()),
                 new RestSetEnabledAction(settings, restController, getLicenseState()),
                 new RestHasPrivilegesAction(settings, restController, securityContext.get(), getLicenseState()),
+                new RestGetUserPrivilegesAction(settings, restController, securityContext.get(), getLicenseState()),
                 new RestGetRoleMappingsAction(settings, restController, getLicenseState()),
                 new RestPutRoleMappingAction(settings, restController, getLicenseState()),
                 new RestDeleteRoleMappingAction(settings, restController, getLicenseState()),

@@ -11,7 +11,7 @@ closure. For example:
 --------------------------------------------------
 def indexR = client.index {
     index "test"
-    type "type1"
+    type "_doc"
     id "1"
     source {
         test = "value"

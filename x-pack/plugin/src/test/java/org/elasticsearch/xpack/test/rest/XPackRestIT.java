@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -246,7 +247,7 @@ public class XPackRestIT extends ESClientYamlSuiteTestCase {
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).
-            XPackRestTestHelper.waitForPendingTasks(adminClient(), task -> {
+            ESRestTestCase.waitForPendingTasks(adminClient(), task -> {
                     // Don't check rollup jobs because we clear them in the superclass.
                     return task.contains(RollupJob.NAME);
             });

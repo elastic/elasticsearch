@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -81,7 +81,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
-    private static final Logger logger = Loggers.getLogger(RollupSearchAction.class);
+    private static final Logger logger = LogManager.getLogger(RollupSearchAction.class);
 
     @Inject
     public TransportRollupSearchAction(Settings settings, TransportService transportService,

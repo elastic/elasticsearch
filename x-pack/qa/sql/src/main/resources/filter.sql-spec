@@ -78,3 +78,29 @@ SELECT last_name l FROM "test_emp" WHERE emp_no BETWEEN 9990 AND 10003 ORDER BY 
 // end::whereBetween
 whereNotBetween
 SELECT last_name l FROM "test_emp" WHERE emp_no NOT BETWEEN 10010 AND 10020 ORDER BY emp_no LIMIT 5;
+
+whereNoMatch
+SELECT last_name l FROM "test_emp" WHERE 1 = 2 ORDER BY 1 LIMIT 10;
+
+//
+// IN expression
+//
+whereWithInAndOneValue
+SELECT last_name l FROM "test_emp" WHERE emp_no IN (10001);
+whereWithInAndMultipleValues
+// tag::whereWithInAndMultipleValues
+SELECT last_name l FROM "test_emp" WHERE emp_no IN (10000, 10001, 10002, 999) ORDER BY emp_no LIMIT 5;
+// end::whereWithInAndMultipleValues
+
+whereWithInAndOneValueWithNegation
+SELECT last_name l FROM "test_emp" WHERE emp_no NOT IN (10001) ORDER BY emp_no LIMIT 5;
+whereWithInAndMultipleValuesAndNegation
+SELECT last_name l FROM "test_emp" WHERE emp_no NOT IN (10000, 10001, 10002, 999) ORDER BY emp_no LIMIT 5;
+
+whereWithInAndComplexFunctions
+SELECT last_name l FROM "test_emp" WHERE emp_no NOT IN (10000, abs(2 - 10003), 10002, 999) AND lcase(first_name) IN ('sumant', 'mary', 'patricio', 'No''Match') ORDER BY emp_no LIMIT 5;
+
+whereWithInAndNullHandling1
+SELECT last_name l FROM "test_emp" WHERE languages in (2, 10)AND (emp_no = 10018 OR emp_no = 10019 OR emp_no = 10020) ORDER BY emp_no;
+whereWithInAndNullHandling2
+SELECT last_name l FROM "test_emp" WHERE languages in (2, null, 10) AND (emp_no = 10018 OR emp_no = 10019 OR emp_no = 10020) ORDER BY emp_no;

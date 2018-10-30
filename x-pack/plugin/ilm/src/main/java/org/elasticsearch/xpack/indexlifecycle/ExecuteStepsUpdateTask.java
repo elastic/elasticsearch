@@ -92,7 +92,11 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     // move the cluster state to the next step
                     logger.trace("[{}] performing cluster state action ({}) [{}], next: [{}]",
                         index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), currentStep.getNextStepKey());
-                    state = ((ClusterStateActionStep) currentStep).performAction(index, state);
+                    try {
+                        state = ((ClusterStateActionStep) currentStep).performAction(index, state);
+                    } catch (Exception exception) {
+                        return moveToErrorStep(state, currentStep.getKey(), exception);
+                    }
                     if (currentStep.getNextStepKey() == null) {
                         return state;
                     } else {
@@ -108,7 +112,12 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     // condition again
                     logger.trace("[{}] waiting for cluster state step condition ({}) [{}], next: [{}]",
                         index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), currentStep.getNextStepKey());
-                    ClusterStateWaitStep.Result result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state);
+                    ClusterStateWaitStep.Result result;
+                    try {
+                        result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state);
+                    } catch (Exception exception) {
+                        return moveToErrorStep(state, currentStep.getKey(), exception);
+                    }
                     if (result.isComplete()) {
                         logger.trace("[{}] cluster state step condition met successfully ({}) [{}], moving to next step {}",
                             index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), currentStep.getNextStepKey());
@@ -171,5 +180,13 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
     public void onFailure(String source, Exception e) {
         throw new ElasticsearchException(
                 "policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].", e);
+    }
+
+    private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) throws IOException {
+        logger.error("policy [{}] for index [{}] failed on cluster state step [{}]. Moving to ERROR step", policy, index.getName(),
+            currentStepKey);
+        MoveToErrorStepUpdateTask moveToErrorStepUpdateTask = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause,
+            nowSupplier);
+        return moveToErrorStepUpdateTask.execute(state);
     }
 }

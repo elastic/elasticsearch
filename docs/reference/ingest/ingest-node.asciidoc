@@ -2414,6 +2414,43 @@ its value will be replaced with the provided one.
 --------------------------------------------------
 // NOTCONSOLE
 
+
+[[ingest-node-set-security-user-processor]]
+=== Set Security User Processor
+Sets user-related details (such as `username`,  `roles`, `email`, `full_name`
+and `metadata` ) from the current
+authenticated user to the current document by pre-processing the ingest.
+
+IMPORTANT: Requires an authenticated user for the index request.
+
+[[set-security-user-options]]
+.Set Security User Options
+[options="header"]
+|======
+| Name          | Required  | Default                                                   | Description
+| `field`       | yes       | -                                                         | The field to store the user information into.
+| `properties`  | no        | [`username`, `roles`, `email`, `full_name`, `metadata`]   | Controls what user related properties are added to the `field`.
+|======
+//TODO: ensure common options are included once PR 35091 is merged.
+
+The following example adds all user details for the current authenticated user
+to the `user` field for all documents that are processed by this pipeline:
+
+[source,js]
+--------------------------------------------------
+{
+  "processors" : [
+    {
+      "set_security_user": {
+        "field": "user"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
 [[split-processor]]
 === Split Processor
 Splits a field into an array using a separator character. Only works on string fields.

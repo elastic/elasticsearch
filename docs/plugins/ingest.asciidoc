@@ -26,15 +26,6 @@ under the CCA-ShareAlike 3.0 license. For more details see, http://dev.maxmind.c
 A processor that extracts details from the User-Agent header value.
 
 [float]
-=== Security Ingest Plugin
-
-{stack-ov}/field-and-document-access-control.html#set-security-user-processor[set_security_user]::
-
-A processor that attaches user-related details
-(such as `username`, `roles`, `email`, `full_name`, and `metadata`)
-from the current authenticated user to the current document.
-
-[float]
 === Community contributed ingest plugins
 
 The following plugin has been contributed by our community:

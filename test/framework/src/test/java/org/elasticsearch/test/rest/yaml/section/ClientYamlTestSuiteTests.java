@@ -25,8 +25,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
-import java.util.Collections;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -538,7 +538,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ApiCallSection apiCall = new ApiCallSection("test");
         apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
         doSection.setApiCallSection(apiCall);
-        createTestSuite(skipSection, doSection);
+        createTestSuiteAndValidate(skipSection, doSection);
     }
 
     public void testAddingDoWithHeadersWithSkip() {
@@ -548,10 +548,6 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ApiCallSection apiCallSection = new ApiCallSection("test");
         apiCallSection.addHeaders(singletonMap("foo", "bar"));
         doSection.setApiCallSection(apiCallSection);
-        createTestSuite(skipSection, doSection);
-    }
-
-    private static void createTestSuite(SkipSection skipSection, DoSection doSection) {
         createTestSuiteAndValidate(skipSection, doSection);
     }
 

@@ -180,7 +180,7 @@ public class ClientYamlTestSuite {
 
         errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)
-            .filter(section -> false == section.getExpectedWarningHeaders().isEmpty())
+            .filter(section -> false == section.getApiCallSection().getHeaders().isEmpty())
             .filter(section -> false == hasSkipFeature("headers", testSection, setupSection, teardownSection))
             .map(section -> "attempted to add a [do] with a [headers] section without a corresponding "
                 + "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at " +

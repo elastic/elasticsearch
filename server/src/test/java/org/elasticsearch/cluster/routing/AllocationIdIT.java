@@ -120,7 +120,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         final Set<String> historyUUIDs = historyUUIDs(node1, indexName);
         String node2 = internalCluster().startNode();
         ensureGreen(indexName);
-        assertSameDocIdsOnShards();
+        internalCluster().assertSameDocIdsOnShards();
         // initial set up is done
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
@@ -184,7 +184,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         assertThat(historyUUIDs(node1, indexName), everyItem(not(isIn(historyUUIDs))));
         assertThat(historyUUIDs(node1, indexName), equalTo(historyUUIDs(node2, indexName)));
 
-        assertSameDocIdsOnShards();
+        internalCluster().assertSameDocIdsOnShards();
     }
 
     public void checkHealthStatus(String indexName, ClusterHealthStatus healthStatus) {

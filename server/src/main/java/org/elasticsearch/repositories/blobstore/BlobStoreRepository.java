@@ -204,7 +204,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String DATA_BLOB_PREFIX = "__";
 
-    private final Settings globalSettings;
+    private final Settings settings;
 
     private final RateLimiter snapshotRateLimiter;
 
@@ -236,11 +236,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Constructs new BlobStoreRepository
      *
      * @param metadata       The metadata for this repository including name and settings
-     * @param globalSettings Settings for the node this repository object is created on
+     * @param settings Settings for the node this repository object is created on
      */
-    protected BlobStoreRepository(RepositoryMetaData metadata, Settings globalSettings, NamedXContentRegistry namedXContentRegistry) {
-        super(globalSettings);
-        this.globalSettings = globalSettings;
+    protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry) {
+        super(settings);
+        this.settings = settings;
         this.metadata = metadata;
         this.namedXContentRegistry = namedXContentRegistry;
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
@@ -597,7 +597,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private RateLimiter getRateLimiter(Settings repositorySettings, String setting, ByteSizeValue defaultRate) {
         ByteSizeValue maxSnapshotBytesPerSec = repositorySettings.getAsBytesSize(setting,
-                globalSettings.getAsBytesSize(setting, defaultRate));
+                settings.getAsBytesSize(setting, defaultRate));
         if (maxSnapshotBytesPerSec.getBytes() <= 0) {
             return null;
         } else {

@@ -79,6 +79,7 @@ import java.util.function.Function;
  */
 public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRequest, AnalyzeResponse> {
 
+    private final Settings settings;
     private final IndicesService indicesService;
     private final Environment environment;
 
@@ -88,6 +89,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                                   IndexNameExpressionResolver indexNameExpressionResolver, Environment environment) {
         super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
             AnalyzeRequest::new, ThreadPool.Names.ANALYZE);
+        this.settings = settings;
         this.indicesService = indicesService;
         this.environment = environment;
     }
@@ -163,7 +165,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             }
             final AnalysisRegistry analysisRegistry = indicesService.getAnalysis();
             final int maxTokenCount = indexService == null ?
-                IndexSettings.MAX_TOKEN_COUNT_SETTING.get(Settings.EMPTY) : indexService.getIndexSettings().getMaxTokenCount();
+                IndexSettings.MAX_TOKEN_COUNT_SETTING.get(settings) : indexService.getIndexSettings().getMaxTokenCount();
             return analyze(request, field, analyzer, indexService != null ? indexService.getIndexAnalyzers() : null,
                 analysisRegistry, environment, maxTokenCount);
         } catch (IOException e) {

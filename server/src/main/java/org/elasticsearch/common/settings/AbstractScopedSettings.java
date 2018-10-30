@@ -59,7 +59,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Map<String, Setting<?>> keySettings;
     private final Map<Setting<?>, SettingUpgrader<?>> settingUpgraders;
     private final Setting.Property scope;
-    private Settings lastSettingsApplied = Settings.EMPTY;
+    private Settings lastSettingsApplied;
 
     protected AbstractScopedSettings(
             final Settings settings,

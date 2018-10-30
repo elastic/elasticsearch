@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 
 public class TransportDeleteUserAction extends HandledTransportAction<DeleteUserRequest, DeleteUserResponse> {
 
-    private Settings settings;
+    private final Settings settings;
     private final NativeUsersStore usersStore;
 
     @Inject

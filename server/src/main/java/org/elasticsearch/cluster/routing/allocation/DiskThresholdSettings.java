@@ -70,7 +70,6 @@ public class DiskThresholdSettings {
     private volatile boolean includeRelocations;
     private volatile boolean enabled;
     private volatile TimeValue rerouteInterval;
-    private volatile String floodStageRaw;
     private volatile Double freeDiskThresholdFloodStage;
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
 
@@ -232,7 +231,6 @@ public class DiskThresholdSettings {
 
     private void setFloodStageRaw(String floodStageRaw) {
         // Watermark is expressed in terms of used data, but we need "free" data watermark
-        this.floodStageRaw = floodStageRaw;
         this.freeDiskThresholdFloodStage = 100.0 - thresholdPercentageFromWatermark(floodStageRaw);
         this.freeBytesThresholdFloodStage = thresholdBytesFromWatermark(floodStageRaw,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey());
@@ -274,10 +272,6 @@ public class DiskThresholdSettings {
 
     public ByteSizeValue getFreeBytesThresholdFloodStage() {
         return freeBytesThresholdFloodStage;
-    }
-
-    public String getFloodStageRaw() {
-        return floodStageRaw;
     }
 
     public boolean includeRelocations() {

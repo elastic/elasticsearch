@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,17 +40,17 @@ public class JsonFieldParser {
     private final String rootFieldName;
     private final String keyedFieldName;
 
-    private final MappedFieldType fieldType;
     private final int ignoreAbove;
+    private final String nullValueAsString;
 
     JsonFieldParser(String rootFieldName,
                     String keyedFieldName,
-                    MappedFieldType fieldType,
-                    int ignoreAbove) {
+                    int ignoreAbove,
+                    String nullValueAsString) {
         this.rootFieldName = rootFieldName;
         this.keyedFieldName = keyedFieldName;
-        this.fieldType = fieldType;
         this.ignoreAbove = ignoreAbove;
+        this.nullValueAsString = nullValueAsString;
     }
 
     public List<IndexableField> parse(XContentParser parser) throws IOException {
@@ -111,9 +112,8 @@ public class JsonFieldParser {
             String value = parser.text();
             addField(path, currentName, value, fields);
         } else if (token == XContentParser.Token.VALUE_NULL) {
-            String value = fieldType.nullValueAsString();
-            if (value != null) {
-                addField(path, currentName, value, fields);
+            if (nullValueAsString != null) {
+                addField(path, currentName, nullValueAsString, fields);
             }
         } else {
             // Note that we throw an exception here just to be safe. We don't actually expect to reach
@@ -137,8 +137,8 @@ public class JsonFieldParser {
         }
         String keyedValue = createKeyedValue(key, value);
 
-        fields.add(new Field(rootFieldName, new BytesRef(value), fieldType));
-        fields.add(new Field(keyedFieldName, new BytesRef(keyedValue), fieldType));
+        fields.add(new StringField(rootFieldName, new BytesRef(value), Field.Store.NO));
+        fields.add(new StringField(keyedFieldName, new BytesRef(keyedValue), Field.Store.NO));
     }
 
     public static String createKeyedValue(String key, String value) {

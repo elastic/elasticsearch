@@ -92,16 +92,16 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 10 is required to build Elasticsearch. You must have a JDK 10 installation
+JDK 11 is required to build Elasticsearch. You must have a JDK 11 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 10 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 11 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 8, the build supports compiling with
-JDK 10 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 11 and testing on a JDK 8 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 8 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 8.
 
-> Note: It is also required to have `JAVA7_HOME`, `JAVA8_HOME` and
-`JAVA10_HOME` available so that the tests can pass.
+> Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, and
+`JAVA10_HOME` are available so that the tests can pass.
 
 > Warning: do not use `sdkman` for Java installations which do not have proper
 `jrunscript` for jdk distributions.
@@ -159,6 +159,9 @@ Please follow these formatting guidelines:
 
 * Java indent is 4 spaces
 * Line width is 140 characters
+* Lines of code surrounded by `// tag` and `// end` comments are included in the
+documentation and should only be 76 characters wide not counting
+leading indentation
 * The rest is left to Java coding standards
 * Disable “auto-format on save” to prevent unnecessary format changes. This makes reviews much harder as it generates unnecessary formatting changes. If your IDE supports formatting only modified chunks that is fine to do.
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail. This can be done automatically by your IDE:

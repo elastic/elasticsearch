@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
@@ -452,6 +453,11 @@ public class PeerFinderTests extends ESTestCase {
 
         transportService.sendRequest(localNode, REQUEST_PEERS_ACTION_NAME, new PeersRequest(sourceNode, Collections.emptyList()),
             new TransportResponseHandler<PeersResponse>() {
+                @Override
+                public PeersResponse read(StreamInput in) throws IOException {
+                    return new PeersResponse(in);
+                }
+
                 @Override
                 public void handleResponse(PeersResponse response) {
                     assertTrue(responseReceived.compareAndSet(false, true));

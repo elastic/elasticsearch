@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -328,7 +329,7 @@ public class MasterServiceTests extends ESTestCase {
                 Level.DEBUG,
                 "*processing [test3]: took [3s] done publishing updated cluster state (version: *, uuid: *)"));
 
-        Logger clusterLogger = Loggers.getLogger(masterService.getClass().getPackage().getName());
+        Logger clusterLogger = LogManager.getLogger(masterService.getClass().getPackage().getName());
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(4);
@@ -675,7 +676,7 @@ public class MasterServiceTests extends ESTestCase {
                 Level.WARN,
                 "*cluster state update task [test4] took [34s] above the warn threshold of *"));
 
-        Logger clusterLogger = Loggers.getLogger(masterService.getClass().getPackage().getName());
+        Logger clusterLogger = LogManager.getLogger(masterService.getClass().getPackage().getName());
         Loggers.addAppender(clusterLogger, mockAppender);
         try {
             final CountDownLatch latch = new CountDownLatch(5);
@@ -909,7 +910,7 @@ public class MasterServiceTests extends ESTestCase {
         public volatile Long currentTimeOverride = null;
 
         TimedMasterService(Settings settings, ThreadPool threadPool) {
-            super(settings, threadPool);
+            super("test_node", settings, threadPool);
         }
 
         @Override

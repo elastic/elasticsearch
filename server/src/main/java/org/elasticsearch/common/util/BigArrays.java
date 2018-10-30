@@ -44,7 +44,8 @@ public class BigArrays implements Releasable {
     public static final int LONG_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / Long.BYTES;
     public static final int OBJECT_PAGE_SIZE = BigArrays.PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 
-    /** Returns the next size to grow when working with parallel arrays that may have different page sizes or number of bytes per element. */
+    /** Returns the next size to grow when working with parallel arrays that
+     *  may have different page sizes or number of bytes per element. */
     public static long overSize(long minTargetSize) {
         return overSize(minTargetSize, PAGE_SIZE_IN_BYTES / 8, 1);
     }
@@ -345,7 +346,8 @@ public class BigArrays implements Releasable {
 
         @Override
         public long ramBytesUsed() {
-            return SHALLOW_SIZE + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * size());
+            return SHALLOW_SIZE + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER +
+                RamUsageEstimator.NUM_BYTES_OBJECT_REF * size());
         }
 
         @SuppressWarnings("unchecked")
@@ -503,7 +505,8 @@ public class BigArrays implements Releasable {
         }
     }
 
-    /** Grow an array to a size that is larger than <code>minSize</code>, preserving content, and potentially reusing part of the provided array. */
+    /** Grow an array to a size that is larger than <code>minSize</code>,
+     * preserving content, and potentially reusing part of the provided array. */
     public ByteArray grow(ByteArray array, long minSize) {
         if (minSize <= array.size()) {
             return array;
@@ -587,7 +590,8 @@ public class BigArrays implements Releasable {
         }
     }
 
-    /** Grow an array to a size that is larger than <code>minSize</code>, preserving content, and potentially reusing part of the provided array. */
+    /** Grow an array to a size that is larger than <code>minSize</code>,
+     * preserving content, and potentially reusing part of the provided array. */
     public IntArray grow(IntArray array, long minSize) {
         if (minSize <= array.size()) {
             return array;
@@ -638,7 +642,8 @@ public class BigArrays implements Releasable {
         }
     }
 
-    /** Grow an array to a size that is larger than <code>minSize</code>, preserving content, and potentially reusing part of the provided array. */
+    /** Grow an array to a size that is larger than <code>minSize</code>,
+     * preserving content, and potentially reusing part of the provided array. */
     public LongArray grow(LongArray array, long minSize) {
         if (minSize <= array.size()) {
             return array;
@@ -686,7 +691,8 @@ public class BigArrays implements Releasable {
         }
     }
 
-    /** Grow an array to a size that is larger than <code>minSize</code>, preserving content, and potentially reusing part of the provided array. */
+    /** Grow an array to a size that is larger than <code>minSize</code>,
+     * preserving content, and potentially reusing part of the provided array. */
     public DoubleArray grow(DoubleArray array, long minSize) {
         if (minSize <= array.size()) {
             return array;
@@ -734,7 +740,8 @@ public class BigArrays implements Releasable {
         }
     }
 
-    /** Grow an array to a size that is larger than <code>minSize</code>, preserving content, and potentially reusing part of the provided array. */
+    /** Grow an array to a size that is larger than <code>minSize</code>,
+     * preserving content, and potentially reusing part of the provided array. */
     public FloatArray grow(FloatArray array, long minSize) {
         if (minSize <= array.size()) {
             return array;
@@ -775,7 +782,8 @@ public class BigArrays implements Releasable {
         }
     }
 
-    /** Grow an array to a size that is larger than <code>minSize</code>, preserving content, and potentially reusing part of the provided array. */
+    /** Grow an array to a size that is larger than <code>minSize</code>,
+     * preserving content, and potentially reusing part of the provided array. */
     public <T> ObjectArray<T> grow(ObjectArray<T> array, long minSize) {
         if (minSize <= array.size()) {
             return array;

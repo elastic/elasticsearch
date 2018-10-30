@@ -72,7 +72,7 @@ SELECT COUNT(*) % 10000 AS x FROM test_emp GROUP BY gender ORDER BY gender;
 aggVariableTwoInputs
 SELECT MAX(emp_no) - MIN(emp_no) AS x FROM test_emp GROUP BY gender ORDER BY gender;
 aggVariableThreeInputs
-SELECT (MAX(emp_no) - MIN(emp_no)) + AVG(emp_no) AS x FROM test_emp GROUP BY gender ORDER BY gender;
+SELECT CAST((MAX(emp_no) - MIN(emp_no)) + FLOOR(AVG(emp_no)) AS INT) AS x FROM test_emp GROUP BY gender ORDER BY gender;
 
 // ordering
 orderByPlus

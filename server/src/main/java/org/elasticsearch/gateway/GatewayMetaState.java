@@ -139,7 +139,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
                     final long metaStateGeneration =
                             metaStateService.writeMetaState("startup", new MetaState(globalStateGeneration, indices));
-                    cleanupActions.add(()->metaStateService.cleanupMetaState(metaStateGeneration));
+                    cleanupActions.add(() -> metaStateService.cleanupMetaState(metaStateGeneration));
                     performCleanup(cleanupActions);
                 }
             } catch (Exception e) {
@@ -294,8 +294,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                     final String name = stateFile.getFileName().toString();
                     if (name.startsWith("metadata-")) {
                         throw new IllegalStateException("Detected pre 0.19 metadata file please upgrade to a version before "
-                            + Version.CURRENT.minimumIndexCompatibilityVersion()
-                            + " first to upgrade state structures - metadata found: [" + stateFile.getParent().toAbsolutePath());
+                                + Version.CURRENT.minimumIndexCompatibilityVersion()
+                                + " first to upgrade state structures - metadata found: [" + stateFile.getParent().toAbsolutePath());
                     }
                 }
             }
@@ -334,18 +334,18 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         final MetaData.Builder upgradedMetaData = MetaData.builder(metaData);
         for (IndexMetaData indexMetaData : metaData) {
             IndexMetaData newMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData,
-                Version.CURRENT.minimumIndexCompatibilityVersion());
+                    Version.CURRENT.minimumIndexCompatibilityVersion());
             changed |= indexMetaData != newMetaData;
             upgradedMetaData.put(newMetaData, false);
         }
         // upgrade global custom meta data
         if (applyPluginUpgraders(metaData.getCustoms(), metaDataUpgrader.customMetaDataUpgraders,
-            upgradedMetaData::removeCustom,upgradedMetaData::putCustom)) {
+                upgradedMetaData::removeCustom, upgradedMetaData::putCustom)) {
             changed = true;
         }
         // upgrade current templates
         if (applyPluginUpgraders(metaData.getTemplates(), metaDataUpgrader.indexTemplateMetaDataUpgraders,
-            upgradedMetaData::removeTemplate, (s, indexTemplateMetaData) -> upgradedMetaData.put(indexTemplateMetaData))) {
+                upgradedMetaData::removeTemplate, (s, indexTemplateMetaData) -> upgradedMetaData.put(indexTemplateMetaData))) {
             changed = true;
         }
         return changed ? upgradedMetaData.build() : metaData;
@@ -428,7 +428,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         for (ShardRouting routing : newRoutingNode) {
             indices.add(routing.index());
         }
-        // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if we have it written on disk previously
+        // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if
+        // we have it written on disk previously
         for (IndexMetaData indexMetaData : state.metaData()) {
             boolean isOrWasClosed = indexMetaData.getState().equals(IndexMetaData.State.CLOSE);
             // if the index is open we might still have to write the state if it just transitioned from closed to open

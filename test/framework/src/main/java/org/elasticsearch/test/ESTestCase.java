@@ -29,7 +29,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -140,8 +139,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.ZoneId;
 import java.security.Security;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -259,7 +258,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         System.setProperty("io.netty.leakDetection.level", "paranoid");
     }
 
-    protected final Logger logger = Loggers.getLogger(getClass());
+    protected final Logger logger = LogManager.getLogger(getClass());
     private ThreadContext threadContext;
 
     // -----------------------------------------------------------------

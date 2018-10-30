@@ -118,7 +118,8 @@ public class NodeJoinTests extends ESTestCase {
     private void setupFakeMasterServiceAndCoordinator(long term, ClusterState initialState) {
         deterministicTaskQueue
             = new DeterministicTaskQueue(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), random());
-        FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService("test", deterministicTaskQueue::scheduleNow);
+        FakeThreadPoolMasterService fakeMasterService = new FakeThreadPoolMasterService("test_node","test",
+                deterministicTaskQueue::scheduleNow);
         setupMasterServiceAndCoordinator(term, initialState, fakeMasterService, deterministicTaskQueue.getThreadPool(), Randomness.get());
         fakeMasterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             coordinator.handlePublishRequest(new PublishRequest(event.state()));
@@ -128,7 +129,7 @@ public class NodeJoinTests extends ESTestCase {
     }
 
     private void setupRealMasterServiceAndCoordinator(long term, ClusterState initialState) {
-        MasterService masterService = new MasterService(Settings.EMPTY, threadPool);
+        MasterService masterService = new MasterService("test_node", Settings.EMPTY, threadPool);
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
             clusterStateRef.set(event.state());
@@ -161,7 +162,7 @@ public class NodeJoinTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> initialState.nodes().getLocalNode(),
             clusterSettings, Collections.emptySet());
-        coordinator = new Coordinator(Settings.EMPTY, clusterSettings,
+        coordinator = new Coordinator("test_node", Settings.EMPTY, clusterSettings,
             transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,

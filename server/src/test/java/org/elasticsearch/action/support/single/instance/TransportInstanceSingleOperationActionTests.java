@@ -88,8 +88,11 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
     class TestTransportInstanceSingleOperationAction extends TransportInstanceSingleOperationAction<Request, Response> {
         private final Map<ShardId, Object> shards = new HashMap<>();
 
-        TestTransportInstanceSingleOperationAction(Settings settings, String actionName, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-            super(settings, actionName, THREAD_POOL, TransportInstanceSingleOperationActionTests.this.clusterService, transportService, actionFilters, indexNameExpressionResolver, request);
+        TestTransportInstanceSingleOperationAction(Settings settings, String actionName, TransportService transportService,
+                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                                   Supplier<Request> request) {
+            super(settings, actionName, THREAD_POOL, TransportInstanceSingleOperationActionTests.this.clusterService, transportService,
+                actionFilters, indexNameExpressionResolver, request);
         }
 
         public Map<ShardId, Object> getResults() {
@@ -212,7 +215,8 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         long requestId = transport.capturedRequests()[0].requestId;
         transport.clear();
         // this should not trigger retry or anything and the listener should report exception immediately
-        transport.handleRemoteError(requestId, new TransportException("a generic transport exception", new Exception("generic test exception")));
+        transport.handleRemoteError(requestId, new TransportException("a generic transport exception",
+            new Exception("generic test exception")));
 
         try {
             // result should return immediately

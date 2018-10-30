@@ -20,22 +20,31 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.security.PutRoleMappingRequest;
-import org.elasticsearch.client.security.PutRoleMappingResponse;
-import org.elasticsearch.client.security.DisableUserRequest;
-import org.elasticsearch.client.security.EnableUserRequest;
-import org.elasticsearch.client.security.GetSslCertificatesRequest;
-import org.elasticsearch.client.security.GetSslCertificatesResponse;
-import org.elasticsearch.client.security.PutUserRequest;
-import org.elasticsearch.client.security.PutUserResponse;
-import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.ClearRolesCacheResponse;
+import org.elasticsearch.client.security.CreateTokenRequest;
+import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
+import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteRoleResponse;
+import org.elasticsearch.client.security.DisableUserRequest;
+import org.elasticsearch.client.security.EmptyResponse;
+import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetRoleMappingsRequest;
+import org.elasticsearch.client.security.GetRoleMappingsResponse;
+import org.elasticsearch.client.security.GetSslCertificatesRequest;
+import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
+import org.elasticsearch.client.security.PutRoleMappingResponse;
+import org.elasticsearch.client.security.PutUserRequest;
+import org.elasticsearch.client.security.PutUserResponse;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Security APIs.
@@ -108,6 +117,40 @@ public final class SecurityClient {
     }
 
     /**
+     * Synchronously get role mapping(s).
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role-mapping.html">
+     * the docs</a> for more.
+     *
+     * @param request {@link GetRoleMappingsRequest} with role mapping name(s).
+     * If no role mapping name is provided then retrieves all role mappings.
+     * @param options the request options (e.g. headers), use
+     * {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the get role mapping call
+     * @throws IOException in case there is a problem sending the request or
+     * parsing back the response
+     */
+    public GetRoleMappingsResponse getRoleMappings(final GetRoleMappingsRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getRoleMappings,
+            options, GetRoleMappingsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously get role mapping(s).
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-role-mapping.html">
+     * the docs</a> for more.
+     *
+     * @param request {@link GetRoleMappingsRequest} with role mapping name(s).
+     * If no role mapping name is provided then retrieves all role mappings.
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getRoleMappingsAsync(final GetRoleMappingsRequest request, final RequestOptions options,
+            final ActionListener<GetRoleMappingsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getRoleMappings,
+                options, GetRoleMappingsResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Enable a native realm or built-in user synchronously.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html">
      * the docs</a> for more.
@@ -165,6 +208,36 @@ public final class SecurityClient {
                                  ActionListener<EmptyResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::disableUser, options,
             EmptyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Clears the native roles cache for a set of roles.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-role-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the roles for which the cache should be cleared.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the enable user call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ClearRolesCacheResponse clearRolesCache(ClearRolesCacheRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::clearRolesCache, options,
+            ClearRolesCacheResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Clears the native roles cache for a set of roles asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-role-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request  the request with the roles for which the cache should be cleared.
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void clearRolesCacheAsync(ClearRolesCacheRequest request, RequestOptions options,
+                                     ActionListener<ClearRolesCacheResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearRolesCache, options,
+            ClearRolesCacheResponse::fromXContent, listener, emptySet());
     }
 
     /**
@@ -252,4 +325,59 @@ public final class SecurityClient {
                 DeleteRoleMappingResponse::fromXContent, listener, emptySet());
     }
 
+    /**
+     * Removes role from the native realm.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role.html">
+     * the docs</a> for more.
+     * @param request the request with the role to delete
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the delete role call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DeleteRoleResponse deleteRole(DeleteRoleRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::deleteRole, options,
+            DeleteRoleResponse::fromXContent, singleton(404));
+    }
+
+    /**
+     * Removes role from the native realm.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-role.html">
+     * the docs</a> for more.
+     * @param request the request with the role to delete
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void deleteRoleAsync(DeleteRoleRequest request, RequestOptions options, ActionListener<DeleteRoleResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteRole, options,
+            DeleteRoleResponse::fromXContent, listener, singleton(404));
+    }
+
+    /**
+     * Creates an OAuth2 token.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request for the token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create token call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CreateTokenResponse createToken(CreateTokenRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::createToken, options,
+            CreateTokenResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates an OAuth2 token.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request for the token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void createTokenAsync(CreateTokenRequest request, RequestOptions options, ActionListener<CreateTokenResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::createToken, options,
+            CreateTokenResponse::fromXContent, listener, emptySet());
+    }
 }

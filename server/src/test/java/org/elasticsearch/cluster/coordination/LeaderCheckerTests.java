@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -34,6 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
@@ -374,6 +376,11 @@ public class LeaderCheckerTests extends ESTestCase {
         @Override
         public String executor() {
             return Names.GENERIC;
+        }
+
+        @Override
+        public TransportResponse.Empty read(StreamInput in) {
+            return TransportResponse.Empty.INSTANCE;
         }
     }
 

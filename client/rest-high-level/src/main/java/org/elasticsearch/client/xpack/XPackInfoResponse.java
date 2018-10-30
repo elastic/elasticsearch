@@ -20,24 +20,31 @@ package org.elasticsearch.client.xpack;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.client.license.LicenseStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class XPackInfoResponse {
+public class XPackInfoResponse implements ToXContentObject {
     /**
      * Value of the license's expiration time if it should never expire.
      */
@@ -78,6 +85,26 @@ public class XPackInfoResponse {
         return featureSetsInfo;
     }
 
+    @Override
+    public boolean equals(Object other) {
+        if (other == null || other.getClass() != getClass()) return false;
+        if (this == other) return true;
+        XPackInfoResponse rhs = (XPackInfoResponse) other;
+        return Objects.equals(buildInfo, rhs.buildInfo)
+                && Objects.equals(licenseInfo, rhs.licenseInfo)
+                && Objects.equals(featureSetsInfo, rhs.featureSetsInfo);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(buildInfo, licenseInfo, featureSetsInfo);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, false);
+    }
+
     private static final ConstructingObjectParser<XPackInfoResponse, Void> PARSER = new ConstructingObjectParser<>(
             "xpack_info_response", true, (a, v) -> {
                 BuildInfo buildInfo = (BuildInfo) a[0];
@@ -108,7 +135,37 @@ public class XPackInfoResponse {
         return PARSER.parse(parser, null);
     }
 
-    public static class LicenseInfo {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
+        if (buildInfo != null) {
+            builder.field("build", buildInfo, params);
+        }
+
+        EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category
+                .toSet(Strings.splitStringByCommaToArray(params.param("categories", "_all")));
+        if (licenseInfo != null) {
+            builder.field("license", licenseInfo, params);
+        } else if (categories.contains(XPackInfoRequest.Category.LICENSE)) {
+            // if the user requested the license info, and there is no license, we should send
+            // back an explicit null value (indicating there is no license). This is different
+            // than not adding the license info at all
+            builder.nullField("license");
+        }
+
+        if (featureSetsInfo != null) {
+            builder.field("features", featureSetsInfo, params);
+        }
+
+        if (params.paramAsBoolean("human", true)) {
+            builder.field("tagline", "You know, for X");
+        }
+
+        return builder.endObject();
+    }
+
+    public static class LicenseInfo implements ToXContentObject {
         private final String uid;
         private final String type;
         private final String mode;
@@ -143,6 +200,23 @@ public class XPackInfoResponse {
             return status;
         }
 
+        @Override
+        public boolean equals(Object other) {
+            if (other == null || other.getClass() != getClass()) return false;
+            if (this == other) return true;
+            LicenseInfo rhs = (LicenseInfo) other;
+            return Objects.equals(uid, rhs.uid)
+                    && Objects.equals(type, rhs.type)
+                    && Objects.equals(mode, rhs.mode)
+                    && Objects.equals(status, rhs.status)
+                    && expiryDate == rhs.expiryDate;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(uid, type, mode, status, expiryDate);
+        }
+
         private static final ConstructingObjectParser<LicenseInfo, Void> PARSER = new ConstructingObjectParser<>(
                 "license_info", true, (a, v) -> {
                     String uid = (String) a[0];
@@ -160,9 +234,22 @@ public class XPackInfoResponse {
             PARSER.declareString(constructorArg(), new ParseField("status"));
             PARSER.declareLong(optionalConstructorArg(), new ParseField("expiry_date_in_millis"));
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject()
+                .field("uid", uid)
+                .field("type", type)
+                .field("mode", mode)
+                .field("status", status.label());
+            if (expiryDate != BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
+                builder.timeField("expiry_date_in_millis", "expiry_date", expiryDate);
+            }
+            return builder.endObject();
+        }
     }
 
-    public static class BuildInfo {
+    public static class BuildInfo implements ToXContentObject {
         private final String hash;
         private final String timestamp;
 
@@ -179,15 +266,37 @@ public class XPackInfoResponse {
             return timestamp;
         }
 
+        @Override
+        public boolean equals(Object other) {
+            if (other == null || other.getClass() != getClass()) return false;
+            if (this == other) return true;
+            BuildInfo rhs = (BuildInfo) other;
+            return Objects.equals(hash, rhs.hash)
+                    && Objects.equals(timestamp, rhs.timestamp);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(hash, timestamp);
+        }
+
         private static final ConstructingObjectParser<BuildInfo, Void> PARSER = new ConstructingObjectParser<>(
                 "build_info", true, (a, v) -> new BuildInfo((String) a[0], (String) a[1]));
         static {
             PARSER.declareString(constructorArg(), new ParseField("hash"));
             PARSER.declareString(constructorArg(), new ParseField("date"));
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject()
+                    .field("hash", hash)
+                    .field("date", timestamp)
+                    .endObject();
+        }
     }
 
-    public static class FeatureSetsInfo {
+    public static class FeatureSetsInfo implements ToXContentObject {
         private final Map<String, FeatureSet> featureSets;
 
         public FeatureSetsInfo(Set<FeatureSet> featureSets) {
@@ -202,7 +311,30 @@ public class XPackInfoResponse {
             return featureSets;
         }
 
-        public static class FeatureSet {
+        @Override
+        public boolean equals(Object other) {
+            if (other == null || other.getClass() != getClass()) return false;
+            if (this == other) return true;
+            FeatureSetsInfo rhs = (FeatureSetsInfo) other;
+            return Objects.equals(featureSets, rhs.featureSets);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(featureSets);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            List<String> names = new ArrayList<>(this.featureSets.keySet()).stream().sorted().collect(Collectors.toList());
+            for (String name : names) {
+                builder.field(name, featureSets.get(name), params);
+            }
+            return builder.endObject();
+        }
+
+        public static class FeatureSet implements ToXContentObject {
             private final String name;
             @Nullable private final String description;
             private final boolean available;
@@ -240,6 +372,23 @@ public class XPackInfoResponse {
                 return nativeCodeInfo;
             }
 
+            @Override
+            public boolean equals(Object other) {
+                if (other == null || other.getClass() != getClass()) return false;
+                if (this == other) return true;
+                FeatureSet rhs = (FeatureSet) other;
+                return Objects.equals(name, rhs.name)
+                        && Objects.equals(description, rhs.description)
+                        && available == rhs.available
+                        && enabled == rhs.enabled
+                        && Objects.equals(nativeCodeInfo, rhs.nativeCodeInfo);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(name, description, available, enabled, nativeCodeInfo);
+            }
+
             private static final ConstructingObjectParser<FeatureSet, String> PARSER = new ConstructingObjectParser<>(
                     "feature_set", true, (a, name) -> {
                         String description = (String) a[0];
@@ -254,6 +403,20 @@ public class XPackInfoResponse {
                 PARSER.declareBoolean(constructorArg(), new ParseField("available"));
                 PARSER.declareBoolean(constructorArg(), new ParseField("enabled"));
                 PARSER.declareObject(optionalConstructorArg(), (p, name) -> p.map(), new ParseField("native_code_info"));
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                if (description != null) {
+                    builder.field("description", description);
+                }
+                builder.field("available", available);
+                builder.field("enabled", enabled);
+                if (nativeCodeInfo != null) {
+                    builder.field("native_code_info", nativeCodeInfo);
+                }
+                return builder.endObject();
             }
         }
     }

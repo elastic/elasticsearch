@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.joda.time.DateTime;
@@ -139,5 +140,15 @@ public class ExtractedFieldTests extends ESTestCase {
         assertThat(field.getAlias(), equalTo("a"));
         assertThat(field.getName(), equalTo("b"));
         assertThat(field.value(hit), equalTo(new Integer[] { 2 }));
+    }
+
+    public void testGetDocValueFormat() {
+        for (ExtractedField.ExtractionMethod method : ExtractedField.ExtractionMethod.values()) {
+            assertThat(ExtractedField.newField("f", method).getDocValueFormat(), equalTo(DocValueFieldsContext.USE_DEFAULT_FORMAT));
+        }
+        assertThat(ExtractedField.newTimeField("doc_value_time", ExtractedField.ExtractionMethod.DOC_VALUE).getDocValueFormat(),
+            equalTo("epoch_millis"));
+        assertThat(ExtractedField.newTimeField("source_time", ExtractedField.ExtractionMethod.SCRIPT_FIELD).getDocValueFormat(),
+            equalTo("epoch_millis"));
     }
 }

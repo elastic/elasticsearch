@@ -3,7 +3,7 @@
 //
 
 nullDate
-SELECT YEAR(CAST(NULL AS DATE)) d;
+SELECT YEAR(CAST(NULL AS DATE)) AS d;
 
 d:i
 null

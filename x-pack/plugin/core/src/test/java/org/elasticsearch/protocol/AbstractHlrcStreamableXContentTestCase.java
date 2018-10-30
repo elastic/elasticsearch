@@ -15,7 +15,7 @@ import java.io.IOException;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public abstract class AbstractHlrcStreamableXContentTestCase<T extends ToXContent & Streamable, H>
-    extends AbstractStreamableXContentTestCase<T> {
+        extends AbstractStreamableXContentTestCase<T> {
 
     /**
      * Generic test that creates new instance of HLRC request/response from the test instance and checks

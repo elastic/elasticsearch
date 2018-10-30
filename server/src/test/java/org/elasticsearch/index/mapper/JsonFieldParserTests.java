@@ -41,10 +41,7 @@ public class JsonFieldParserTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-
-        MappedFieldType fieldType = new RootJsonFieldType();
-        fieldType.setName("field");
-        parser = new JsonFieldParser("field", "field._keyed", fieldType, Integer.MAX_VALUE);
+        parser = new JsonFieldParser("field", "field._keyed", Integer.MAX_VALUE, null);
     }
 
     public void testTextValues() throws Exception {
@@ -222,9 +219,9 @@ public class JsonFieldParserTests extends ESTestCase {
 
         RootJsonFieldType fieldType = new RootJsonFieldType();
         fieldType.setName("field");
-        JsonFieldParser ignoreAboveParser = new JsonFieldParser("field", "field._keyed", fieldType, 10);
+        JsonFieldParser parserWithIgnoreAbove = new JsonFieldParser("field", "field._keyed", 10, null);
 
-        List<IndexableField> fields = ignoreAboveParser.parse(xContentParser);
+        List<IndexableField> fields = parserWithIgnoreAbove.parse(xContentParser);
         assertEquals(0, fields.size());
     }
 
@@ -236,13 +233,10 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals(0, fields.size());
 
         xContentParser = createXContentParser(input);
+        JsonFieldParser parserWithNullValue = new JsonFieldParser("field", "field._keyed",
+            Integer.MAX_VALUE, "placeholder");
 
-        RootJsonFieldType fieldType = new RootJsonFieldType();
-        fieldType.setName("field");
-        fieldType.setNullValue("placeholder");
-        JsonFieldParser nullValueParser = new JsonFieldParser("field", "field._keyed", fieldType, Integer.MAX_VALUE);
-
-        fields = nullValueParser.parse(xContentParser);
+        fields = parserWithNullValue.parse(xContentParser);
         assertEquals(2, fields.size());
 
         IndexableField field = fields.get(0);

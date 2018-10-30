@@ -48,7 +48,7 @@ import java.util.Objects;
  */
 public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(FieldNamesFieldMapper.class));
 
     public static final String NAME = "_field_names";
@@ -184,7 +184,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
-            DEPRECATION_LOGGER.deprecated(
+            deprecationLogger.deprecated(
                     "terms query on the _field_names field is deprecated and will be removed, use exists query instead");
             return super.termQuery(value, context);
         }

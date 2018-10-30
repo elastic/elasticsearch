@@ -511,8 +511,10 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                                 new TransportResponseHandler<ClusterStateResponse>() {
 
                                     @Override
-                                    public ClusterStateResponse newInstance() {
-                                        return new ClusterStateResponse();
+                                    public ClusterStateResponse read(StreamInput in) throws IOException {
+                                        final ClusterStateResponse clusterStateResponse = new ClusterStateResponse();
+                                        clusterStateResponse.readFrom(in);
+                                        return clusterStateResponse;
                                     }
 
                                     @Override

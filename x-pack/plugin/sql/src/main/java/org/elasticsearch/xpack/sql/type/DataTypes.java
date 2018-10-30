@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.sql.type;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.joda.time.DateTime;
 
-public abstract class DataTypes {
+public final class DataTypes {
+
+    private DataTypes() {}
 
     public static boolean isNull(DataType from) {
         return from == DataType.NULL;

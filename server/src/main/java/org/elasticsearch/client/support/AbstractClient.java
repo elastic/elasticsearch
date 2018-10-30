@@ -752,7 +752,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public void updateSettings(final ClusterUpdateSettingsRequest request, final ActionListener<ClusterUpdateSettingsResponse> listener) {
+        public void updateSettings(final ClusterUpdateSettingsRequest request,
+                                   final ActionListener<ClusterUpdateSettingsResponse> listener) {
             execute(ClusterUpdateSettingsAction.INSTANCE, request, listener);
         }
 

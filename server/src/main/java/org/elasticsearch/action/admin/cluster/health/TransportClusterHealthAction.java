@@ -47,7 +47,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Predicate;
 
-public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
+public class TransportClusterHealthAction
+        extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
     private final GatewayAllocator gatewayAllocator;
 

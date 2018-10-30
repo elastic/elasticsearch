@@ -276,6 +276,11 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
+        public void addConnectListener(ActionListener<Void> listener) {
+            addConnectListener(ActionListener.toBiConsumer(listener));
+        }
+
+        @Override
         public void setSoLinger(int value) throws IOException {
             SocketChannel rawChannel = getRawChannel();
             if (rawChannel.isConnected()) {

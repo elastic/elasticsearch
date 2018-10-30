@@ -43,6 +43,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
@@ -234,19 +235,21 @@ public class Netty4Transport extends TcpTransport {
         }
         addClosedExceptionLogger(channel);
 
-        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, "default");
+        CompletableContext<Void> connectContext = new CompletableContext<>();
+
+        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, "default", connectContext);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
 
         channelFuture.addListener(f -> {
             if (f.isSuccess()) {
-                listener.onResponse(null);
+                connectContext.complete(null);
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
                     ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    listener.onFailure(new Exception(cause));
+                    connectContext.completeExceptionally(new Exception(cause));
                 } else {
-                    listener.onFailure((Exception) cause);
+                    connectContext.completeExceptionally((Exception) cause);
                 }
             }
         });

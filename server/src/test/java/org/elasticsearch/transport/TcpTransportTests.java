@@ -272,6 +272,10 @@ public class TcpTransportTests extends ESTestCase {
         }
 
         @Override
+        public void addConnectListener(ActionListener<Void> listener) {
+        }
+
+        @Override
         public void setSoLinger(int value) throws IOException {
         }
 

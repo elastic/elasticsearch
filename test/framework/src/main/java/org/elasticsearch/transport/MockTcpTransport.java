@@ -176,7 +176,6 @@ public class MockTcpTransport extends TcpTransport {
             if (success == false) {
                 IOUtils.close(socket);
             }
-
         }
 
         executor.submit(() -> {
@@ -184,9 +183,9 @@ public class MockTcpTransport extends TcpTransport {
                 socket.connect(address);
                 socket.setSoLinger(false, 0);
                 channel.loopRead(executor);
-                connectListener.onResponse(null);
+                channel.connectFuture.complete(null);
             } catch (Exception ex) {
-                connectListener.onFailure(ex);
+                channel.connectFuture.completeExceptionally(ex);
             }
         });
 
@@ -238,6 +237,7 @@ public class MockTcpTransport extends TcpTransport {
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
         private final CompletableContext<Void> closeFuture = new CompletableContext<>();
+        private final CompletableContext<Void> connectFuture = new CompletableContext<>();
 
         /**
          * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
@@ -387,11 +387,15 @@ public class MockTcpTransport extends TcpTransport {
         }
 
         @Override
+        public void addConnectListener(ActionListener<Void> listener) {
+            connectFuture.addListener(ActionListener.toBiConsumer(listener));
+        }
+
+        @Override
         public void setSoLinger(int value) throws IOException {
             if (activeChannel != null && activeChannel.isClosed() == false) {
                 activeChannel.setSoLinger(true, value);
             }
-
         }
 
         @Override

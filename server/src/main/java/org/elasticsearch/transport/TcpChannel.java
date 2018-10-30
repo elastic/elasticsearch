@@ -85,7 +85,7 @@ public interface TcpChannel extends CloseableChannel {
      *
      * @param listener to be executed
      */
-    default void addConnectionListener(ActionListener<Void> listener) {
+    default void addConnectListener(ActionListener<Void> listener) {
         // TODO: Implement
     }
 

@@ -63,7 +63,7 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             new NoneCircuitBreakerService()) {
 
             @Override
-            public void asyncHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException {
+            public void asyncHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
                 if (doHandshake) {
                     super.asyncHandshake(node, channel, timeout, listener);
                 } else {

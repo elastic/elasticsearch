@@ -49,7 +49,6 @@ import java.util.stream.Collectors;
  */
 public abstract class AbstractScopedSettings extends AbstractComponent {
     public static final String ARCHIVED_SETTINGS_PREFIX = "archived.";
-    private Settings lastSettingsApplied = Settings.EMPTY;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
     private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
@@ -60,6 +59,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Map<String, Setting<?>> keySettings;
     private final Map<Setting<?>, SettingUpgrader<?>> settingUpgraders;
     private final Setting.Property scope;
+    private Settings lastSettingsApplied = Settings.EMPTY;
 
     protected AbstractScopedSettings(
             final Settings settings,

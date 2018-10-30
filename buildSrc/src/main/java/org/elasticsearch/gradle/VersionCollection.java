@@ -40,19 +40,18 @@ import static java.util.Collections.unmodifiableList;
  * Parse the Java source file containing the versions declarations and use the known rules to figure out which are all
  * the version the current one is wire and index compatible with.
  * On top of this, figure out which of these are unreleased and provide the branch they can be built from.
- * <p>
+ * 
  * Note that in this context, currentVersion is the unreleased version this build operates on.
  * At any point in time there will surely be four such unreleased versions being worked on,
  * thus currentVersion will be one of these.
- * <p>
+ *
  * Considering:
  * <dl>
- *     <dt>M, M &gt 0</dt>
+ *     <dt>M, M &gt; 0</dt>
  *     <dd>last released major</dd>
- *     <dt>N, N &gt 0</dt>
+ *     <dt>N, N &gt; 0</dt>
  *     <dd>last released minor</dd>
  * </dl>
- * </p>
  *
  * <ul>
  * <li>the unreleased <b>major</b>, M+1.0.0 on the `master` branch</li>
@@ -65,10 +64,11 @@ import static java.util.Collections.unmodifiableList;
  * <ul>
  * <li>the unreleased <b>staged</b>, M.N-2.0 (N &gt; 2) on the `M.(N-2)` branch</li>
  * </ul>
+ *
  * Each build is only concerned with versions before it, as those are the ones that need to be tested
  * for backwards compatibility. We never look forward, and don't add forward facing version number to branches of previous
  * version.
- * <p>
+ *
  * Each branch has a current version, and expected compatible versions are parsed from the server code's Version` class.
  * We can reliably figure out which the unreleased versions are due to the convention of always adding the next unreleased
  * version number to server in all branches when a version is released.
@@ -78,7 +78,6 @@ import static java.util.Collections.unmodifiableList;
  * authoritative source (maven central).
  * We are then able to map the unreleased version to branches in git and Gradle projects that are capable of checking
  * out and building them, so we can include these in the testing plan as well.
- * </p>
  */
 public class VersionCollection {
 

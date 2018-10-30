@@ -40,14 +40,13 @@ public class CcrStatsAction extends Action<CcrStatsAction.Request, CcrStatsActio
         public Request() {
         }
 
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
+        public Request(StreamInput in) throws IOException {
+            super(in);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public ActionRequestValidationException validate() {
+            return null;
         }
 
         @Override

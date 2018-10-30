@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
@@ -210,5 +211,35 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/role/" + name, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertNull(request.getEntity());
+    }
+
+    public void testCreateTokenWithPasswordGrant() throws Exception {
+        final String username = randomAlphaOfLengthBetween(1, 12);
+        final String password = randomAlphaOfLengthBetween(8, 12);
+        CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant(username, password.toCharArray());
+        Request request = SecurityRequestConverters.createToken(createTokenRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertToXContentBody(createTokenRequest, request.getEntity());
+    }
+
+    public void testCreateTokenWithRefreshTokenGrant() throws Exception {
+        final String refreshToken = randomAlphaOfLengthBetween(8, 24);
+        CreateTokenRequest createTokenRequest = CreateTokenRequest.refreshTokenGrant(refreshToken);
+        Request request = SecurityRequestConverters.createToken(createTokenRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertToXContentBody(createTokenRequest, request.getEntity());
+    }
+
+    public void testCreateTokenWithClientCredentialsGrant() throws Exception {
+        CreateTokenRequest createTokenRequest = CreateTokenRequest.clientCredentialsGrant();
+        Request request = SecurityRequestConverters.createToken(createTokenRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertToXContentBody(createTokenRequest, request.getEntity());
     }
 }

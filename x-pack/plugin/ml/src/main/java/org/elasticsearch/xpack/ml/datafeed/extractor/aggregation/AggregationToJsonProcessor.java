@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -42,7 +42,7 @@ import java.util.TreeMap;
  */
 class AggregationToJsonProcessor {
 
-    private static final Logger LOGGER = Loggers.getLogger(AggregationToJsonProcessor.class);
+    private static final Logger LOGGER = LogManager.getLogger(AggregationToJsonProcessor.class);
 
     private final String timeField;
     private final Set<String> fields;

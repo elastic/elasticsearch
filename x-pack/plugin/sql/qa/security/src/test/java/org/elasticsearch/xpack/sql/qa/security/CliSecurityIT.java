@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.sql.qa.security;
 
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.xpack.qa.sql.cli.EmbeddedCli;
-import org.elasticsearch.xpack.qa.sql.cli.EmbeddedCli.SecurityConfig;
-import org.elasticsearch.xpack.qa.sql.cli.ErrorsTestCase;
+import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli;
+import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.SecurityConfig;
+import org.elasticsearch.xpack.sql.qa.cli.ErrorsTestCase;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -20,7 +20,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.qa.sql.cli.CliIntegrationTestCase.elasticsearchAddress;
+import static org.elasticsearch.xpack.sql.qa.cli.CliIntegrationTestCase.elasticsearchAddress;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 

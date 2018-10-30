@@ -24,7 +24,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Represents a test section, which is composed of a skip section and multiple executable sections.
@@ -61,8 +63,8 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
     ClientYamlTestSection(XContentLocation location, String name, SkipSection skipSection, List<ExecutableSection> executableSections) {
         this.location = location;
         this.name = name;
-        this.skipSection = skipSection;
-        this.executableSections = executableSections;
+        this.skipSection = Objects.requireNonNull(skipSection, "skip section cannot be null");
+        this.executableSections = Collections.unmodifiableList(executableSections);
     }
 
     public XContentLocation getLocation() {

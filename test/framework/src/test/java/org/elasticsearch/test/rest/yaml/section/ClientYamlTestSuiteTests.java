@@ -26,8 +26,9 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -393,8 +394,9 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setApiCallSection(new ApiCallSection("test"));
         ClientYamlTestSection section = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
             SkipSection.EMPTY, Collections.singletonList(doSection));
-        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name", SetupSection.EMPTY, TeardownSection.EMPTY);
-        clientYamlTestSuite.addTestSection(section);
+        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name", SetupSection.EMPTY, TeardownSection.EMPTY,
+            Collections.singletonList(section));
+        clientYamlTestSuite.validate();
     }
 
     public void testAddingDoWithWarningWithoutSkipWarnings() {
@@ -402,9 +404,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> clientYamlTestSuiteSupplier(doSection).get());
-        assertEquals("Attempted to add a [do] with a [warnings] section without a corresponding [skip: \"features\": \"warnings\"] so " +
-            "runners that do not support the [warnings] section can skip the test at line [" + lineNumber + "]", e.getMessage());
+        ClientYamlTestSuite testSuite = createTestSuite(doSection);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertEquals("api/name:\nattempted to add a [do] with a [warnings] section without a corresponding " +
+            "[\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] section can skip the test " +
+            "at line [" + lineNumber + "]", e.getMessage());
     }
 
     public void testAddingDoWithHeaderWithoutSkipHeaders() {
@@ -413,9 +417,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ApiCallSection apiCallSection = new ApiCallSection("test");
         apiCallSection.addHeaders(Collections.singletonMap("header", "value"));
         doSection.setApiCallSection(apiCallSection);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> clientYamlTestSuiteSupplier(doSection).get());
-        assertEquals("Attempted to add a [do] with a [headers] section without a corresponding [skip: \"features\": \"headers\"] so " +
-            "runners that do not support the [headers] section can skip the test at line [" + lineNumber + "]", e.getMessage());
+        ClientYamlTestSuite testSuite = createTestSuite(doSection);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertEquals("api/name:\nattempted to add a [do] with a [headers] section without a corresponding " +
+            "[\"skip\": \"features\": \"headers\"] so runners that do not support the [headers] section can skip the test at line ["
+            + lineNumber + "]", e.getMessage());
     }
 
     public void testAddingDoWithNodeSelectorWithoutSkipNodeSelector() {
@@ -424,26 +430,81 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ApiCallSection apiCall = new ApiCallSection("test");
         apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
         doSection.setApiCallSection(apiCall);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> clientYamlTestSuiteSupplier(doSection).get());
-        assertEquals("Attempted to add a [do] with a [node_selector] section without a corresponding"
-            + " [skip: \"features\": \"node_selector\"] so runners that do not support the [node_selector] section can skip the test at"
+        ClientYamlTestSuite testSuite = createTestSuite(doSection);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertEquals("api/name:\nattempted to add a [do] with a [node_selector] section without a corresponding"
+            + " [\"skip\": \"features\": \"node_selector\"] so runners that do not support the [node_selector] section can skip the test at"
             + " line [" + lineNumber + "]", e.getMessage());
     }
 
-    private static Supplier<ClientYamlTestSuite> clientYamlTestSuiteSupplier(DoSection doSection) {
+    public void testAddingContainsWithoutSkipContains() {
+        int lineNumber = between(1, 10000);
+        ContainsAssertion containsAssertion = new ContainsAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            randomDouble());
+        ClientYamlTestSuite testSuite = createTestSuite(containsAssertion);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertEquals("api/name:\nattempted to add a [contains] assertion without a corresponding " +
+            "[\"skip\": \"features\": \"contains\"] so runners that do not support the [contains] assertion " +
+            "can skip the test at line [" + lineNumber + "]", e.getMessage());
+    }
+
+    public void testMultipleValidationErrors() {
+        int firstLineNumber = between(1, 10000);
+        List<ClientYamlTestSection> sections = new ArrayList<>();
+        {
+            ContainsAssertion containsAssertion = new ContainsAssertion(
+                new XContentLocation(firstLineNumber, 0),
+                randomAlphaOfLength(randomIntBetween(3, 30)),
+                randomDouble());
+            sections.add(new ClientYamlTestSection(
+                new XContentLocation(0, 0), "section1", SkipSection.EMPTY, Collections.singletonList(containsAssertion)));
+        }
+        int secondLineNumber = between(1, 10000);
+        int thirdLineNumber = between(1, 10000);
+        List<ExecutableSection> doSections = new ArrayList<>();
+        {
+            DoSection doSection = new DoSection(new XContentLocation(secondLineNumber, 0));
+            doSection.setExpectedWarningHeaders(singletonList("foo"));
+            doSection.setApiCallSection(new ApiCallSection("test"));
+            doSections.add(doSection);
+        }
+        {
+            DoSection doSection = new DoSection(new XContentLocation(thirdLineNumber, 0));
+            ApiCallSection apiCall = new ApiCallSection("test");
+            apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
+            doSection.setApiCallSection(apiCall);
+            doSections.add(doSection);
+        }
+        sections.add(new ClientYamlTestSection(new XContentLocation(0, 0), "section2", SkipSection.EMPTY, doSections));
+
+        ClientYamlTestSuite testSuite = new ClientYamlTestSuite("api", "name", SetupSection.EMPTY, TeardownSection.EMPTY, sections);
+        Exception e = expectThrows(IllegalArgumentException.class, testSuite::validate);
+        assertEquals("api/name:\n" +
+            "attempted to add a [contains] assertion without a corresponding [\"skip\": \"features\": \"contains\"] so runners " +
+                "that do not support the [contains] assertion can skip the test at line [" + firstLineNumber + "],\n" +
+            "attempted to add a [do] with a [warnings] section without a corresponding [\"skip\": \"features\": \"warnings\"] so " +
+                "runners that do not support the [warnings] section can skip the test at line [" + secondLineNumber + "],\n" +
+            "attempted to add a [do] with a [node_selector] section without a corresponding [\"skip\": \"features\": \"node_selector\"] " +
+                "so runners that do not support the [node_selector] section can skip the test at line [" + thirdLineNumber + "]",
+            e.getMessage());
+    }
+
+    private static ClientYamlTestSuite createTestSuite(ExecutableSection executableSection) {
         final SetupSection setupSection;
         final TeardownSection teardownSection;
         final ClientYamlTestSection clientYamlTestSection;
         switch(randomIntBetween(0, 2)) {
             case 0:
-                setupSection = new SetupSection(SkipSection.EMPTY, Collections.singletonList(doSection));
+                setupSection = new SetupSection(SkipSection.EMPTY, Collections.singletonList(executableSection));
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
                     SkipSection.EMPTY, Collections.emptyList());
                 break;
             case 1:
                 setupSection = SetupSection.EMPTY;
-                teardownSection = new TeardownSection(SkipSection.EMPTY, Collections.singletonList(doSection));
+                teardownSection = new TeardownSection(SkipSection.EMPTY, Collections.singletonList(executableSection));
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
                     SkipSection.EMPTY, Collections.emptyList());
                 break;
@@ -451,16 +512,14 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 setupSection = SetupSection.EMPTY;
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    SkipSection.EMPTY, Collections.singletonList(doSection));
+                    SkipSection.EMPTY, Collections.singletonList(executableSection));
                 break;
             default:
                 throw new UnsupportedOperationException();
         }
-        return () -> {
-            ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name", setupSection, teardownSection);
-            clientYamlTestSuite.addTestSection(clientYamlTestSection);
-            return clientYamlTestSuite;
-        };
+
+        return new ClientYamlTestSuite("api", "name", setupSection, teardownSection,
+            Collections.singletonList(clientYamlTestSection));
     }
 
     public void testAddingDoWithWarningWithSkip() {
@@ -469,7 +528,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         doSection.setExpectedWarningHeaders(singletonList("foo"));
         doSection.setApiCallSection(new ApiCallSection("test"));
         SkipSection skipSection = new SkipSection(null, singletonList("warnings"), null);
-        createTestSuite(skipSection, doSection);
+        createTestSuiteAndValidate(skipSection, doSection);
     }
 
     public void testAddingDoWithNodeSelectorWithSkip() {
@@ -493,6 +552,20 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
     }
 
     private static void createTestSuite(SkipSection skipSection, DoSection doSection) {
+        createTestSuiteAndValidate(skipSection, doSection);
+    }
+
+    public void testAddingContainsWithSkip() {
+        int lineNumber = between(1, 10000);
+        SkipSection skipSection = new SkipSection(null, singletonList("contains"), null);
+        ContainsAssertion containsAssertion = new ContainsAssertion(
+            new XContentLocation(lineNumber, 0),
+            randomAlphaOfLength(randomIntBetween(3, 30)),
+            randomDouble());
+        createTestSuiteAndValidate(skipSection, containsAssertion);
+    }
+
+    private static void createTestSuiteAndValidate(SkipSection skipSection, ExecutableSection executableSection) {
         final SetupSection setupSection;
         final TeardownSection teardownSection;
         final ClientYamlTestSection clientYamlTestSection;
@@ -501,37 +574,37 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                 setupSection = new SetupSection(skipSection, Collections.emptyList());
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    SkipSection.EMPTY, Collections.singletonList(doSection));
+                    SkipSection.EMPTY, Collections.singletonList(executableSection));
                 break;
             case 1:
                 setupSection = SetupSection.EMPTY;
                 teardownSection = new TeardownSection(skipSection, Collections.emptyList());
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    SkipSection.EMPTY, Collections.singletonList(doSection));
+                    SkipSection.EMPTY, Collections.singletonList(executableSection));
                 break;
             case 2:
                 setupSection = SetupSection.EMPTY;
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    skipSection, Collections.singletonList(doSection));
+                    skipSection, Collections.singletonList(executableSection));
                 break;
             case 3:
-                setupSection = new SetupSection(skipSection, Collections.singletonList(doSection));
+                setupSection = new SetupSection(skipSection, Collections.singletonList(executableSection));
                 teardownSection = TeardownSection.EMPTY;
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    SkipSection.EMPTY, randomBoolean() ? Collections.emptyList() : Collections.singletonList(doSection));
+                    SkipSection.EMPTY, randomBoolean() ? Collections.emptyList() : Collections.singletonList(executableSection));
                 break;
             case 4:
                 setupSection = SetupSection.EMPTY;
-                teardownSection = new TeardownSection(skipSection, Collections.singletonList(doSection));
+                teardownSection = new TeardownSection(skipSection, Collections.singletonList(executableSection));
                 clientYamlTestSection = new ClientYamlTestSection(new XContentLocation(0, 0), "test",
-                    SkipSection.EMPTY, randomBoolean() ? Collections.emptyList() : Collections.singletonList(doSection));
-
+                    SkipSection.EMPTY, randomBoolean() ? Collections.emptyList() : Collections.singletonList(executableSection));
                 break;
             default:
                 throw new UnsupportedOperationException();
         }
-        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name", setupSection, teardownSection);
-        clientYamlTestSuite.addTestSection(clientYamlTestSection);
+        ClientYamlTestSuite clientYamlTestSuite = new ClientYamlTestSuite("api", "name", setupSection, teardownSection,
+            Collections.singletonList(clientYamlTestSection));
+        clientYamlTestSuite.validate();
     }
 }

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Represents a setup section. Holds a skip section and multiple do sections.
@@ -70,8 +71,8 @@ public class SetupSection {
     private final List<ExecutableSection> executableSections;
 
     SetupSection(SkipSection skipSection, List<ExecutableSection> executableSections) {
-        this.skipSection = skipSection;
-        this.executableSections = executableSections;
+        this.skipSection = Objects.requireNonNull(skipSection, "skip section cannot be null");
+        this.executableSections = Collections.unmodifiableList(executableSections);
     }
 
     public SkipSection getSkipSection() {
@@ -79,7 +80,7 @@ public class SetupSection {
     }
 
     public List<ExecutableSection> getExecutableSections() {
-        return Collections.unmodifiableList(executableSections);
+        return executableSections;
     }
 
     public boolean isEmpty() {

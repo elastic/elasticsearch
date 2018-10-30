@@ -47,6 +47,15 @@ public class ExtractedFields {
         return docValueFields;
     }
 
+    /**
+     * Returns a new instance which only contains fields matching the given extraction method
+     * @param method the extraction method to filter fields on
+     * @return a new instance which only contains fields matching the given extraction method
+     */
+    public ExtractedFields filterFields(ExtractedField.ExtractionMethod method) {
+        return new ExtractedFields(filterFields(method, allFields));
+    }
+
     private static List<ExtractedField> filterFields(ExtractedField.ExtractionMethod method, List<ExtractedField> fields) {
         return fields.stream().filter(field -> field.getExtractionMethod() == method).collect(Collectors.toList());
     }

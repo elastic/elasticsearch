@@ -62,7 +62,8 @@ public class MetaDataTests extends ESTestCase {
             fail("exception should have been thrown");
         } catch (IllegalStateException e) {
             assertThat(e.getMessage(),
-                equalTo("index and alias names need to be unique, but the following duplicates were found [index (alias of [index])]"));
+                equalTo("index and alias names need to be unique, " +
+                    "but the following duplicates were found [index (alias of [index])]"));
         }
     }
 
@@ -165,7 +166,8 @@ public class MetaDataTests extends ESTestCase {
             metaData.resolveIndexRouting(null, "0", "alias1");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), is("Alias [alias1] has index routing associated with it [1], and was provided with routing value [0], rejecting operation"));
+            assertThat(ex.getMessage(), is("Alias [alias1] has index routing associated with it [1]," +
+                " and was provided with routing value [0], rejecting operation"));
         }
 
         try {
@@ -189,7 +191,8 @@ public class MetaDataTests extends ESTestCase {
             metaData.resolveIndexRouting(null, "1", "alias2");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2]" +
+                " that resolved to several routing values, rejecting operation"));
         }
 
         try {
@@ -260,7 +263,8 @@ public class MetaDataTests extends ESTestCase {
         exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting(null, "1", "alias2"));
         assertThat(exception.getMessage(),
             is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
-        exception = expectThrows(IllegalArgumentException.class, () -> metaData.resolveWriteIndexRouting(null, randomFrom("1", null), "alias4"));
+        exception = expectThrows(IllegalArgumentException.class,
+            () -> metaData.resolveWriteIndexRouting(null, randomFrom("1", null), "alias4"));
         assertThat(exception.getMessage(),
             is("index/alias [alias4] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
 

@@ -59,16 +59,6 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
 
-    static final Settings DEFAULT_SETTINGS = Settings.builder()
-        .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
-        .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
-        .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
-        .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-        .put(TransportService.TCP_CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
-        // value and the time of disruption and does not recover immediately
-        // when disruption is stop. We should make sure we recover faster
-        // then the default of 30s, causing ensureGreen and friends to time out
-        .build();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -129,6 +119,17 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         }
         return nodes;
     }
+
+    static final Settings DEFAULT_SETTINGS = Settings.builder()
+            .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
+            .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
+            .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
+            .put(TransportService.TCP_CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
+            // value and the time of disruption and does not recover immediately
+            // when disruption is stop. We should make sure we recover faster
+            // then the default of 30s, causing ensureGreen and friends to time out
+            .build();
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

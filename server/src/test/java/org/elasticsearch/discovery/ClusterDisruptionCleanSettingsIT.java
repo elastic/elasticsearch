@@ -24,15 +24,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -51,6 +48,8 @@ public class ClusterDisruptionCleanSettingsIT extends ESIntegTestCase {
      * node but already deleted on the source node. Search request should still work.
      */
     public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
+        // Don't use AbstractDisruptionTestCase.DEFAULT_SETTINGS as settings
+        // (which can cause node disconnects on a slow CI machine)
         internalCluster().startMasterOnlyNode();
         final String node_1 = internalCluster().startDataOnlyNode();
 
@@ -73,41 +72,5 @@ public class ClusterDisruptionCleanSettingsIT extends ESIntegTestCase {
         IndicesStoreIntegrationIT.relocateAndBlockCompletion(logger, "test", 0, node_1, node_2);
         // now search for the documents and see if we get a reply
         assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits(), equalTo(100L));
-    }
-
-    /**
-     * Tests that indices are properly deleted even if there is a master transition in between.
-     * Test for https://github.com/elastic/elasticsearch/issues/11665
-     */
-    public void testIndicesDeleted() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(AbstractDisruptionTestCase.DEFAULT_SETTINGS)
-            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0s") // don't wait on isolated data node
-            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // wait till cluster state is committed
-            .build();
-        final String idxName = "test";
-        final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(2, settings);
-        final String dataNode = internalCluster().startDataOnlyNode(settings);
-        ensureStableCluster(3);
-        assertAcked(prepareCreate("test"));
-
-        final String masterNode1 = internalCluster().getMasterName();
-        NetworkDisruption networkDisruption =
-            new NetworkDisruption(new NetworkDisruption.TwoPartitions(masterNode1, dataNode), new NetworkDisruption.NetworkUnresponsive());
-        internalCluster().setDisruptionScheme(networkDisruption);
-        networkDisruption.startDisrupting();
-        // We know this will time out due to the partition, we check manually below to not proceed until
-        // the delete has been applied to the master node and the master eligible node.
-        internalCluster().client(masterNode1).admin().indices().prepareDelete(idxName).setTimeout("0s").get();
-        // Don't restart the master node until we know the index deletion has taken effect on master and the master eligible node.
-        assertBusy(() -> {
-            for (String masterNode : allMasterEligibleNodes) {
-                final ClusterState masterState = internalCluster().clusterService(masterNode).state();
-                assertTrue("index not deleted on " + masterNode, masterState.metaData().hasIndex(idxName) == false);
-            }
-        });
-        internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);
-        ensureYellow();
-        assertFalse(client().admin().indices().prepareExists(idxName).get().isExists());
     }
 }

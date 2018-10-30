@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ilm/{policy}",
-      "paths": ["/_ilm/{policy}", "/_ilm"],
+      "path": "/_ilm/policy/{policy}",
+      "paths": ["/_ilm/policy/{policy}", "/_ilm/policy"],
       "parts": {
         "policy": {
           "type" : "string",

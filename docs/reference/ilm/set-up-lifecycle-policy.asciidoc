@@ -10,7 +10,7 @@ our indexes.
 
 [source,js]
 ------------------------
-PUT _ilm/my_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {

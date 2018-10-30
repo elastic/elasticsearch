@@ -10,8 +10,8 @@ Retrieves an existing policy
 
 ==== Request
 
-`GET _ilm`
-`GET _ilm/<policy>`
+`GET _ilm/policy`
+`GET _ilm/policy/<policy>`
 
 ==== Description
 
@@ -46,7 +46,7 @@ The following example retrieves the policy named `my_policy`:
 
 [source,js]
 --------------------------------------------------
-PUT _ilm/my_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {
@@ -75,7 +75,7 @@ PUT _ilm/my_policy
 
 [source,js]
 --------------------------------------------------
-GET _ilm
+GET _ilm/policy
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

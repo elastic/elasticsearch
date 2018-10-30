@@ -33,10 +33,9 @@ Let's first look at some of the optional arguments of a +{request}+:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-indices-types]
+include-tagged::{doc-tests-file}[{api}-request-indices]
 --------------------------------------------------
 <1> Restricts the request to an index
-<2> Limits the request to a type
 
 There are a couple of other interesting optional parameters:
 

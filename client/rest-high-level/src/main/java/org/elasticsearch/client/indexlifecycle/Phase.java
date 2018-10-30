@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  */
 public class Phase implements ToXContentObject {
 
-    static final ParseField MINIMUM_AGE = new ParseField("minimum_age");
+    static final ParseField MIN_AGE = new ParseField("min_age");
     static final ParseField ACTIONS_FIELD = new ParseField("actions");
 
     @SuppressWarnings("unchecked")
@@ -49,7 +49,7 @@ public class Phase implements ToXContentObject {
             .collect(Collectors.toMap(LifecycleAction::getName, Function.identity()))));
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), MINIMUM_AGE.getPreferredName()), MINIMUM_AGE, ValueType.VALUE);
+            (p, c) -> TimeValue.parseTimeValue(p.text(), MIN_AGE.getPreferredName()), MIN_AGE, ValueType.VALUE);
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
             (p, c, n) -> p.namedObject(LifecycleAction.class, n, null), v -> {
                 throw new IllegalArgumentException("ordered " + ACTIONS_FIELD.getPreferredName() + " are not supported");
@@ -111,7 +111,7 @@ public class Phase implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MINIMUM_AGE.getPreferredName(), minimumAge.getStringRep());
+        builder.field(MIN_AGE.getPreferredName(), minimumAge.getStringRep());
         builder.field(ACTIONS_FIELD.getPreferredName(), actions);
         builder.endObject();
         return builder;

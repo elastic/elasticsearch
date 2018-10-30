@@ -94,7 +94,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                         index.getName(), currentStep.getClass().getSimpleName(), currentStep.getKey(), currentStep.getNextStepKey());
                     try {
                         state = ((ClusterStateActionStep) currentStep).performAction(index, state);
-                    } catch (RuntimeException exception) {
+                    } catch (Exception exception) {
                         return moveToErrorStep(state, currentStep.getKey(), exception);
                     }
                     if (currentStep.getNextStepKey() == null) {
@@ -115,7 +115,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                     ClusterStateWaitStep.Result result;
                     try {
                         result = ((ClusterStateWaitStep) currentStep).isConditionMet(index, state);
-                    } catch (RuntimeException exception) {
+                    } catch (Exception exception) {
                         return moveToErrorStep(state, currentStep.getKey(), exception);
                     }
                     if (result.isComplete()) {
@@ -182,8 +182,9 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                 "policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].", e);
     }
 
-    private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, RuntimeException cause) throws IOException {
-        logger.error("policy [{}] for index [{}] failed on step [{}]. Moving to ERROR step", policy, index.getName(), currentStepKey);
+    private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) throws IOException {
+        logger.error("policy [{}] for index [{}] failed on cluster state step [{}]. Moving to ERROR step", policy, index.getName(),
+            currentStepKey);
         MoveToErrorStepUpdateTask moveToErrorStepUpdateTask = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause,
             nowSupplier);
         return moveToErrorStepUpdateTask.execute(state);

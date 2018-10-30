@@ -107,8 +107,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     @Override
     protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
-        RollupSearchContext rollupSearchContext = separateIndices(request.indices(),
-                clusterService.state().getMetaData().indices());
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(clusterService.getSettings());
+        String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request.indices());    
+        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetaData().indices());
 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
@@ -408,9 +409,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         });
         assert normal.size() + rollup.size() > 0;
         if (rollup.size() > 1) {
-            throw new IllegalArgumentException("RollupSearch currently only supports searching one rollup index at a time.");
+            throw new IllegalArgumentException("RollupSearch currently only supports searching one rollup index at a time. " +
+                "Found the following rollup indices: " + rollup);
         }
-        return new RollupSearchContext(normal.toArray(new String[normal.size()]), rollup.toArray(new String[rollup.size()]), jobCaps);
+        return new RollupSearchContext(normal.toArray(new String[0]), rollup.toArray(new String[0]), jobCaps);
     }
 
     class TransportHandler implements TransportRequestHandler<SearchRequest> {

@@ -172,9 +172,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
                             @Override
                             public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-                                ClusterSearchShardsResponse inst = new ClusterSearchShardsResponse();
-                                inst.readFrom(in);
-                                return inst;
+                                return new ClusterSearchShardsResponse(in);
                             }
                         });
                     TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK)
@@ -215,9 +213,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
                             @Override
                             public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-                                ClusterSearchShardsResponse inst = new ClusterSearchShardsResponse();
-                                inst.readFrom(in);
-                                return inst;
+                                return new ClusterSearchShardsResponse(in);
                             }
                         });
                     TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK)
@@ -233,9 +229,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         new FutureTransportResponseHandler<ClusterSearchShardsResponse>() {
                             @Override
                             public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
-                                ClusterSearchShardsResponse inst = new ClusterSearchShardsResponse();
-                                inst.readFrom(in);
-                                return inst;
+                                return new ClusterSearchShardsResponse(in);
                             }
                         });
                     TransportRequestOptions ops = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.REG)

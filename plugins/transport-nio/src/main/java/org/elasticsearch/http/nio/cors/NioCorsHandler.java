@@ -167,11 +167,6 @@ public class NioCorsHandler extends ChannelDuplexHandler {
     private boolean setOrigin(final HttpResponse response) {
         final String origin = request.headers().get(HttpHeaderNames.ORIGIN);
         if (!Strings.isNullOrEmpty(origin)) {
-            if ("null".equals(origin) && config.isNullOriginAllowed()) {
-                setAnyOrigin(response);
-                return true;
-            }
-
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
                     echoRequestOrigin(response);
@@ -198,10 +193,6 @@ public class NioCorsHandler extends ChannelDuplexHandler {
         final String origin = request.headers().get(HttpHeaderNames.ORIGIN);
         if (Strings.isNullOrEmpty(origin)) {
             // Not a CORS request so we cannot validate it. It may be a non CORS request.
-            return true;
-        }
-
-        if ("null".equals(origin) && config.isNullOriginAllowed()) {
             return true;
         }
 

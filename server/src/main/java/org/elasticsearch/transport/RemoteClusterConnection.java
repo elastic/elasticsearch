@@ -212,8 +212,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             new TransportResponseHandler<ClusterSearchShardsResponse>() {
 
                 @Override
-                public ClusterSearchShardsResponse newInstance() {
-                    return new ClusterSearchShardsResponse();
+                public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
+                    return new ClusterSearchShardsResponse(in);
                 }
 
                 @Override
@@ -585,8 +585,10 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             }
 
             @Override
-            public ClusterStateResponse newInstance() {
-                return new ClusterStateResponse();
+            public ClusterStateResponse read(StreamInput in) throws IOException {
+                ClusterStateResponse response = new ClusterStateResponse();
+                response.readFrom(in);
+                return response;
             }
 
             @Override

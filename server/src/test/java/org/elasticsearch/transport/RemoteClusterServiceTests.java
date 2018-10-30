@@ -196,12 +196,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testGroupClusterIndices() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-             MockTransportService otherSeedTransport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            DiscoveryNode otherSeedNode = otherSeedTransport.getLocalDiscoNode();
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            knownNodes.add(otherSeedTransport.getLocalDiscoNode());
+        try (MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
+             MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
+            DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
+            knownNodes.add(cluster1Transport.getLocalDiscoNode());
+            knownNodes.add(cluster2Transport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
 
             try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
@@ -209,8 +209,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seeds", seedNode.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seeds", otherSeedNode.getAddress().toString());
+                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
@@ -241,12 +241,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testGroupIndices() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-             MockTransportService otherSeedTransport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            DiscoveryNode otherSeedNode = otherSeedTransport.getLocalDiscoNode();
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            knownNodes.add(otherSeedTransport.getLocalDiscoNode());
+        try (MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
+             MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
+            DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
+            knownNodes.add(cluster1Transport.getLocalDiscoNode());
+            knownNodes.add(cluster2Transport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
 
             try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
@@ -254,8 +254,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seeds", seedNode.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seeds", otherSeedNode.getAddress().toString());
+                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
@@ -303,12 +303,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testIncrementallyAddClusters() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-             MockTransportService otherSeedTransport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            DiscoveryNode otherSeedNode = otherSeedTransport.getLocalDiscoNode();
-            knownNodes.add(seedTransport.getLocalDiscoNode());
-            knownNodes.add(otherSeedTransport.getLocalDiscoNode());
+        try (MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
+             MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
+            DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
+            knownNodes.add(cluster1Transport.getLocalDiscoNode());
+            knownNodes.add(cluster2Transport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
 
             try (MockTransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool,
@@ -316,16 +316,16 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seeds", seedNode.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seeds", otherSeedNode.getAddress().toString());
+                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
                 try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, transportService)) {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
                     assertFalse(service.isCrossClusterSearchEnabled());
-                    service.updateRemoteCluster("cluster_1", Collections.singletonList(seedNode.getAddress().toString()), null);
+                    service.updateRemoteCluster("cluster_1", Collections.singletonList(cluster1Seed.getAddress().toString()), null);
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
-                    service.updateRemoteCluster("cluster_2", Collections.singletonList(otherSeedNode.getAddress().toString()), null);
+                    service.updateRemoteCluster("cluster_2", Collections.singletonList(cluster2Seed.getAddress().toString()), null);
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     assertTrue(service.isRemoteClusterRegistered("cluster_2"));
@@ -343,7 +343,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            knownNodes.add(seedNode);
+            knownNodes.add(seedTransport.getLocalDiscoNode());
             TimeValue pingSchedule;
             Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.putList("cluster.remote.cluster_1.seeds", seedNode.getAddress().toString());
@@ -374,12 +374,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testCustomPingSchedule() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
-             MockTransportService otherSeedTransport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            DiscoveryNode otherSeedNode = otherSeedTransport.getLocalDiscoNode();
-            knownNodes.add(seedNode);
-            knownNodes.add(otherSeedNode);
+        try (MockTransportService cluster1Transport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
+             MockTransportService cluster2Transport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
+            DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
+            knownNodes.add(cluster1Transport.getLocalDiscoNode());
+            knownNodes.add(cluster2Transport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
             Settings.Builder settingsBuilder = Settings.builder();
             if (randomBoolean()) {
@@ -392,8 +392,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 transportService.start();
                 transportService.acceptIncomingRequests();
                 Settings.Builder builder = Settings.builder();
-                builder.putList("cluster.remote.cluster_1.seeds", seedNode.getAddress().toString());
-                builder.putList("cluster.remote.cluster_2.seeds", otherSeedNode.getAddress().toString());
+                builder.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
+                builder.putList("cluster.remote.cluster_2.seeds", cluster2Seed.getAddress().toString());
                 TimeValue pingSchedule1 = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(1, 10));
                 builder.put("cluster.remote.cluster_1.transport.ping_schedule", pingSchedule1);
                 TimeValue pingSchedule2 = randomBoolean() ? TimeValue.MINUS_ONE : TimeValue.timeValueSeconds(randomIntBetween(1, 10));
@@ -402,7 +402,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(service.isCrossClusterSearchEnabled());
                     service.initializeRemoteClusters();
                     assertTrue(service.isCrossClusterSearchEnabled());
-                    service.updateRemoteCluster("cluster_1", Collections.singletonList(seedNode.getAddress().toString()), null);
+                    service.updateRemoteCluster("cluster_1", Collections.singletonList(cluster1Seed.getAddress().toString()), null);
                     assertTrue(service.isCrossClusterSearchEnabled());
                     assertTrue(service.isRemoteClusterRegistered("cluster_1"));
                     RemoteClusterConnection remoteClusterConnection1 = service.getRemoteClusterConnection("cluster_1");

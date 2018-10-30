@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
@@ -21,12 +22,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -40,6 +43,7 @@ import java.util.stream.Collectors;
 public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         implements ToXContentObject, Diffable<LifecyclePolicy> {
     private static final Logger logger = LogManager.getLogger(LifecyclePolicy.class);
+    private static final int MAX_INDEX_NAME_BYTES = 255;
 
     public static final ParseField PHASES_FIELD = new ParseField("phases");
 
@@ -238,6 +242,42 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             }
         } else {
             throw new IllegalArgumentException("Phase [" + stepKey.getPhase() + "]  does not exist in policy [" + name + "]");
+        }
+    }
+
+    /**
+     * Validate the name for an policy against some static rules. Intended to match
+     * {@link org.elasticsearch.cluster.metadata.MetaDataCreateIndexService#validateIndexOrAliasName(String, BiFunction)}
+     * @param policy the policy name to validate
+     * @throws IllegalArgumentException if the name is invalid
+     */
+    public static void validatePolicyName(String policy) {
+        if (!Strings.validFileName(policy)) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain the following characters " +
+                Strings.INVALID_FILENAME_CHARS);
+        }
+        if (policy.contains("#")) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain '#'");
+        }
+        if (policy.contains(":")) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain ':'");
+        }
+        if (policy.charAt(0) == '_' || policy.charAt(0) == '-' || policy.charAt(0) == '+') {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not start with '_', '-', or '+'");
+        }
+        int byteCount = 0;
+        try {
+            byteCount = policy.getBytes("UTF-8").length;
+        } catch (UnsupportedEncodingException e) {
+            // UTF-8 should always be supported, but rethrow this if it is not for some reason
+            throw new ElasticsearchException("Unable to determine length of index name", e);
+        }
+        if (byteCount > MAX_INDEX_NAME_BYTES) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: name is too long, (" + byteCount + " > " +
+                MAX_INDEX_NAME_BYTES + ")");
+        }
+        if (policy.equals(".") || policy.equals("..")) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not be '.' or '..'");
         }
     }
 

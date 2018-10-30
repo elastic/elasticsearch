@@ -109,10 +109,12 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
         }
         if (primaryShardRouting.unassigned()) {
             return explainOrThrowRejectedCommand(explain, allocation,
-                "trying to allocate a replica shard [" + index + "][" + shardId + "], while corresponding primary shard is still unassigned");
+                "trying to allocate a replica shard [" + index + "][" + shardId +
+                    "], while corresponding primary shard is still unassigned");
         }
 
-        List<ShardRouting> replicaShardRoutings = allocation.routingTable().shardRoutingTable(index, shardId).replicaShardsWithState(ShardRoutingState.UNASSIGNED);
+        List<ShardRouting> replicaShardRoutings =
+            allocation.routingTable().shardRoutingTable(index, shardId).replicaShardsWithState(ShardRoutingState.UNASSIGNED);
         ShardRouting shardRouting;
         if (replicaShardRoutings.isEmpty()) {
             return explainOrThrowRejectedCommand(explain, allocation,
@@ -127,7 +129,8 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
             if (explain) {
                 return new RerouteExplanation(this, decision);
             }
-            throw new IllegalArgumentException("[" + name() + "] allocation of [" + index + "][" + shardId + "] on node " + discoNode + " is not allowed, reason: " + decision);
+            throw new IllegalArgumentException("[" + name() + "] allocation of [" + index + "][" + shardId + "] on node " + discoNode +
+                " is not allowed, reason: " + decision);
         }
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting);

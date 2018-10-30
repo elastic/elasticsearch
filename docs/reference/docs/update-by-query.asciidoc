@@ -203,8 +203,9 @@ also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeo
 and `scroll`.
 
 Sending the `refresh` will update all shards in the index being updated when
-the request completes. This is different than the Index API's `refresh`
+the request completes. This is different than the Update API's `refresh`
 parameter which causes just the shard that received the new data to be indexed.
+Also unlike the Update API it does not support `wait_for`.
 
 If the request contains `wait_for_completion=false` then Elasticsearch will
 perform some preflight checks, launch the request, and then return a `task`

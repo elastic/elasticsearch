@@ -51,7 +51,6 @@ dependencies {
   compile "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}"
   compile "org.elasticsearch.plugin:rank-eval-client:${version}"
   compile "org.elasticsearch.plugin:lang-mustache-client:${version}"
-  bundle project(':x-pack:protocol')
 
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "org.elasticsearch.test:framework:${version}"
@@ -88,6 +87,7 @@ integTestCluster {
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.token.enabled', 'true'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
   setting 'xpack.ssl.certificate_authorities', 'testnode.crt'
   setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'

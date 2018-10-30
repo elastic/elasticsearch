@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -18,7 +19,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
@@ -26,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class AutoFollowIT extends CcrIntegTestCase {
@@ -45,7 +47,12 @@ public class AutoFollowIT extends CcrIntegTestCase {
         createLeaderIndex("logs-201812", leaderIndexSettings);
 
         // Enabling auto following:
-        putAutoFollowPatterns("logs-*", "transactions-*");
+        if (randomBoolean()) {
+            putAutoFollowPatterns("my-pattern", new String[] {"logs-*", "transactions-*"});
+        } else {
+            putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"});
+            putAutoFollowPatterns("my-pattern2", new String[] {"transactions-*"});
+        }
 
         createLeaderIndex("metrics-201901", leaderIndexSettings);
 
@@ -76,7 +83,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .build();
 
-        putAutoFollowPatterns("logs-*");
+        putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
         int numIndices = randomIntBetween(4, 32);
         for (int i = 0; i < numIndices; i++) {
             createLeaderIndex("logs-" + i, leaderIndexSettings);
@@ -90,7 +97,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
         deleteAutoFollowPatternSetting();
         createLeaderIndex("logs-does-not-count", leaderIndexSettings);
 
-        putAutoFollowPatterns("logs-*");
+        putAutoFollowPatterns("my-pattern", new String[] {"logs-*"});
         int i = numIndices;
         numIndices = numIndices + randomIntBetween(4, 32);
         for (; i < numIndices; i++) {
@@ -113,12 +120,13 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // Enabling auto following:
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderCluster("leader_cluster");
+        request.setName("my-pattern");
+        request.setRemoteCluster("leader_cluster");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(randomIntBetween(0, Integer.MAX_VALUE));
+            request.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
             request.setMaxConcurrentReadBatches(randomIntBetween(0, Integer.MAX_VALUE));
@@ -127,16 +135,25 @@ public class AutoFollowIT extends CcrIntegTestCase {
             request.setMaxConcurrentWriteBatches(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxBatchOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+            request.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            request.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
             request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setPollTimeout(TimeValue.timeValueMillis(500));
+            request.setReadPollTimeout(TimeValue.timeValueMillis(500));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
         }
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
 
@@ -149,33 +166,87 @@ public class AutoFollowIT extends CcrIntegTestCase {
             ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTasksMetaData.tasks().iterator().next().getParams();
             assertThat(shardFollowTask.getLeaderShardId().getIndexName(), equalTo("logs-201901"));
             assertThat(shardFollowTask.getFollowShardId().getIndexName(), equalTo("copy-logs-201901"));
+            if (request.getMaxWriteBufferCount() != null) {
+                assertThat(shardFollowTask.getMaxWriteBufferCount(), equalTo(request.getMaxWriteBufferCount()));
+            }
             if (request.getMaxWriteBufferSize() != null) {
                 assertThat(shardFollowTask.getMaxWriteBufferSize(), equalTo(request.getMaxWriteBufferSize()));
             }
             if (request.getMaxConcurrentReadBatches() != null) {
-                assertThat(shardFollowTask.getMaxConcurrentReadBatches(), equalTo(request.getMaxConcurrentReadBatches()));
+                assertThat(shardFollowTask.getMaxOutstandingReadRequests(), equalTo(request.getMaxConcurrentReadBatches()));
             }
             if (request.getMaxConcurrentWriteBatches() != null) {
-                assertThat(shardFollowTask.getMaxConcurrentWriteBatches(), equalTo(request.getMaxConcurrentWriteBatches()));
+                assertThat(shardFollowTask.getMaxOutstandingWriteRequests(), equalTo(request.getMaxConcurrentWriteBatches()));
             }
-            if (request.getMaxBatchOperationCount() != null) {
-                assertThat(shardFollowTask.getMaxBatchOperationCount(), equalTo(request.getMaxBatchOperationCount()));
+            if (request.getMaxReadRequestOperationCount() != null) {
+                assertThat(shardFollowTask.getMaxReadRequestOperationCount(), equalTo(request.getMaxReadRequestOperationCount()));
             }
-            if (request.getMaxBatchSize() != null) {
-                assertThat(shardFollowTask.getMaxBatchSize(), equalTo(request.getMaxBatchSize()));
+            if (request.getMaxReadRequestSize() != null) {
+                assertThat(shardFollowTask.getMaxReadRequestSize(), equalTo(request.getMaxReadRequestSize()));
             }
             if (request.getMaxRetryDelay() != null) {
                 assertThat(shardFollowTask.getMaxRetryDelay(), equalTo(request.getMaxRetryDelay()));
             }
-            if (request.getPollTimeout() != null) {
-                assertThat(shardFollowTask.getPollTimeout(), equalTo(request.getPollTimeout()));
+            if (request.getReadPollTimeout() != null) {
+                assertThat(shardFollowTask.getReadPollTimeout(), equalTo(request.getReadPollTimeout()));
+            }
+            if (request.getMaxWriteRequestOperationCount() != null) {
+                assertThat(shardFollowTask.getMaxWriteRequestOperationCount(), equalTo(request.getMaxWriteRequestOperationCount()));
+            }
+            if (request.getMaxWriteRequestSize() != null) {
+                assertThat(shardFollowTask.getMaxWriteRequestSize(), equalTo(request.getMaxWriteRequestSize()));
             }
         });
     }
 
-    private void putAutoFollowPatterns(String... patterns) {
+    public void testConflictingPatterns() throws Exception {
+        Settings leaderIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+
+        // Enabling auto following:
+        putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"});
+        putAutoFollowPatterns("my-pattern2", new String[] {"logs-2018*"});
+
+        createLeaderIndex("logs-201701", leaderIndexSettings);
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(0L));
+            assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+        });
+        IndicesExistsRequest request = new IndicesExistsRequest("copy-logs-201701");
+        assertTrue(followerClient().admin().indices().exists(request).actionGet().isExists());
+
+        createLeaderIndex("logs-201801", leaderIndexSettings);
+        assertBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), greaterThanOrEqualTo(1L));
+            assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+
+            assertThat(autoFollowStats.getRecentAutoFollowErrors().size(), equalTo(2));
+            ElasticsearchException autoFollowError1 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern1:logs-201801");
+            assertThat(autoFollowError1, notNullValue());
+            assertThat(autoFollowError1.getRootCause().getMessage(), equalTo("index to follow [logs-201801] for pattern [my-pattern1] " +
+                "matches with other patterns [my-pattern2]"));
+
+            ElasticsearchException autoFollowError2 = autoFollowStats.getRecentAutoFollowErrors().get("my-pattern2:logs-201801");
+            assertThat(autoFollowError2, notNullValue());
+            assertThat(autoFollowError2.getRootCause().getMessage(), equalTo("index to follow [logs-201801] for pattern [my-pattern2] " +
+                "matches with other patterns [my-pattern1]"));
+        });
+
+        request = new IndicesExistsRequest("copy-logs-201801");
+        assertFalse(followerClient().admin().indices().exists(request).actionGet().isExists());
+    }
+
+    private void putAutoFollowPatterns(String name, String[] patterns) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
-        request.setLeaderCluster("leader_cluster");
+        request.setName(name);
+        request.setRemoteCluster("leader_cluster");
         request.setLeaderIndexPatterns(Arrays.asList(patterns));
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
@@ -184,13 +255,13 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
     private void deleteAutoFollowPatternSetting() {
         DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request();
-        request.setLeaderCluster("leader_cluster");
+        request.setName("my-pattern");
         assertTrue(followerClient().execute(DeleteAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 
     private AutoFollowStats getAutoFollowStats() {
-        AutoFollowStatsAction.Request request = new AutoFollowStatsAction.Request();
-        return followerClient().execute(AutoFollowStatsAction.INSTANCE, request).actionGet().getStats();
+        CcrStatsAction.Request request = new CcrStatsAction.Request();
+        return followerClient().execute(CcrStatsAction.INSTANCE, request).actionGet().getAutoFollowStats();
     }
 
     private void createLeaderIndex(String index, Settings settings) {

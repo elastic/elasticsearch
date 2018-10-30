@@ -176,11 +176,6 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         tests.add(new TestConfiguration(null, "shishi.xn--fiqs8s","shishi.xn--fiqs8s"));
     }
 
-    public void testEmptyToLetBuildPass() {
-        // remove this once one of the awaitsfixes are removed!!
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34683")
     public void testIsolated() throws Exception {
         Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
@@ -200,7 +195,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
             String mapAsJson = Strings.toString(jsonBuilder().map(params));
             logger.info("params={}", mapAsJson);
 
-            Request searchRequest = new Request("GET", "/painless/test/_search");
+            Request searchRequest = new Request("GET", "/painless/_search");
             searchRequest.setJsonEntity(
                     "{\n" +
                     "    \"query\" : {\n" +
@@ -210,7 +205,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
                     "        \"domain_split\" : {\n" +
                     "            \"script\" : {\n" +
                     "                \"lang\": \"painless\",\n" +
-                    "                \"inline\": \"" +
+                    "                \"source\": \"" +
                     " return domainSplit(params['host']); \",\n" +
                     "                \"params\": " + mapAsJson + "\n" +
                     "            }\n" +

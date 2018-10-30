@@ -87,10 +87,11 @@ public class MockTransport implements Transport, LifecycleComponent {
      * simulate a response for the given requestId
      */
     @SuppressWarnings("unchecked")
-    public void handleResponse(final long requestId, final TransportResponse response) {
-        final TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
+    public <Response extends TransportResponse> void handleResponse(final long requestId, final Response response) {
+        final TransportResponseHandler<Response> transportResponseHandler =
+                (TransportResponseHandler<Response>) responseHandlers.onResponseReceived(requestId, listener);
         if (transportResponseHandler != null) {
-            final TransportResponse deliveredResponse;
+            final Response deliveredResponse;
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 response.writeTo(output);
                 deliveredResponse = transportResponseHandler.read(output.bytes().streamInput());

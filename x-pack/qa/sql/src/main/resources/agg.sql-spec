@@ -35,6 +35,8 @@ groupByOnNumberWithWhereAndLimit
 SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY emp_no ORDER BY emp_no DESC LIMIT 1;
 groupByOnNumberOnAlias
 SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY e ORDER BY emp_no DESC;
+groupByOnNumberWithAliasInSelect
+SELECT emp_no e FROM "test_emp" WHERE emp_no < 10020 GROUP BY emp_no ORDER BY e DESC;
 
 // group by scalar
 groupByAddScalar
@@ -139,12 +141,22 @@ aggCountOnColumnAndMultipleHaving
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender ;
 aggCountOnColumnAndMultipleHavingEquals
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c = 63 ORDER BY gender ;
+//
+// Count(column) = Column(*) which is a bug
+// https://github.com/elastic/elasticsearch/issues/34549
+//
 aggCountOnColumnAndMultipleHavingWithLimit
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender LIMIT 1;
-aggCountOnColumnAndHavingBetween
-SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender;
-aggCountOnColumnAndHavingBetweenWithLimit
+aggCountOnColumnAndHavingBetween-Ignore
+SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender ASC;
+aggCountOnColumnAndHavingBetweenWithLimit-Ignore
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender LIMIT 1;
+aggCountStarAndMultipleHavingWithLimit
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING c > 10 AND c < 70 ORDER BY gender LIMIT 1;
+aggCountStarAndHavingBetween
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender ASC;
+aggCountStarAndHavingBetweenWithLimit
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING c BETWEEN 10 AND 70 ORDER BY gender LIMIT 1;
 aggCountOnColumnAndHavingOnAliasAndFunction
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING c > 10 AND COUNT(gender) < 70 ORDER BY gender;
 aggCountOnColumnAndHavingOnAliasAndFunctionWildcard -> COUNT(*/1) vs COUNT(gender)
@@ -206,6 +218,8 @@ aggMinWithCastAndFilter
 SELECT gender g, CAST(MIN(emp_no) AS SMALLINT) m, COUNT(1) c FROM "test_emp" WHERE emp_no < 10020 GROUP BY gender ORDER BY gender;
 aggMinWithAlias
 SELECT gender g, MIN(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
+aggMinOnDate
+SELECT gender, MIN(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 
 // Conditional MIN
 aggMinWithHaving
@@ -260,6 +274,8 @@ aggMaxAndCountWithFilterAndLimit
 SELECT gender g, MAX(emp_no) m, COUNT(1) c FROM "test_emp" WHERE emp_no > 10000 GROUP BY gender ORDER BY gender LIMIT 1;
 aggMaxWithAlias
 SELECT gender g, MAX(emp_no) m FROM "test_emp" GROUP BY g ORDER BY gender;
+aggMaxOnDate
+SELECT gender, MAX(birth_date) m FROM "test_emp" GROUP BY gender ORDER BY gender;
 
 // Conditional MAX
 aggMaxWithHaving
@@ -322,7 +338,7 @@ SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "test_emp" GROUP BY gender OR
 aggAvgWithCastToDouble
 SELECT gender g, CAST(AVG(emp_no) AS DOUBLE) a FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvg
-SELECT AVG(salary) AS avg FROM test_emp;
+SELECT CAST(FLOOR(AVG(salary)) AS INT) AS avg FROM test_emp;
 aggAvgWithCastAndCount
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a, COUNT(1) c FROM "test_emp" GROUP BY gender ORDER BY gender;
 aggAvgWithCastAndCountWithFilter
@@ -412,4 +428,44 @@ SELECT MIN(emp_no) AS a, 1 + MIN(emp_no) AS b, ABS(MIN(emp_no)) AS c FROM test_e
 aggRepeatFunctionBetweenSelectAndHaving
 SELECT gender, COUNT(DISTINCT languages) AS c FROM test_emp GROUP BY gender HAVING count(DISTINCT languages) > 0 ORDER BY gender;
 
+// filter with IN
+aggMultiWithHavingUsingIn
+SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max IN(74999, 74600) ORDER BY gender;
+aggMultiGroupByMultiWithHavingUsingIn
+SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74500, 74600) ORDER BY gender, languages;
 
+
+// HAVING filter resulting in NoMatch
+aggWithNoMatchHaving
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING 1 > 2 ORDER BY gender;
+
+//
+// NULL tests
+//
+selectGenderWithNullsAndGroupByGender
+SELECT gender, COUNT(*) count FROM test_emp GROUP BY gender ORDER BY gender;
+selectFirstNameWithNullsAndGroupByFirstName
+SELECT first_name FROM test_emp GROUP BY first_name ORDER BY first_name;
+selectCountWhereIsNull
+SELECT COUNT(*) count FROM test_emp WHERE first_name IS NULL;
+selectLanguagesCountWithNullsAndGroupByLanguage
+SELECT languages l, COUNT(*) c FROM test_emp GROUP BY languages ORDER BY languages;
+selectHireDateGroupByHireDate
+SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
+selectHireDateGroupByHireDate
+SELECT hire_date HD, COUNT(*) c FROM test_emp GROUP BY hire_date ORDER BY hire_date DESC;
+selectSalaryGroupBySalary
+SELECT salary, COUNT(*) c FROM test_emp GROUP BY salary ORDER BY salary DESC;
+selectLangGroupByLangHavingCountIsNotNull
+SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING COUNT(*) IS NOT NULL ORDER BY languages DESC;
+selectLangGroupByLangHavingNotEquality
+SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING NOT COUNT(*) = 1 ORDER BY languages DESC;
+selectLangGroupByLangHavingDifferent
+SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING COUNT(*) <> 1 ORDER BY languages DESC;
+
+
+// filter with IN
+aggMultiWithHavingUsingInAndNullHandling
+SELECT MIN(salary) min, MAX(salary) max, gender g, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g HAVING max IN(74999, null, 74600) ORDER BY gender;
+aggMultiGroupByMultiWithHavingUsingInAndNullHandling
+SELECT MIN(salary) min, MAX(salary) max, gender g, languages l, COUNT(*) c FROM "test_emp" WHERE languages > 0 GROUP BY g, languages HAVING max IN (74500, null, 74600) ORDER BY gender, languages;

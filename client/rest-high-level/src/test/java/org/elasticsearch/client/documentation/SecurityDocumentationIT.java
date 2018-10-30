@@ -19,34 +19,61 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.ClearRolesCacheResponse;
+import org.elasticsearch.client.security.CreateTokenRequest;
+import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
+import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.ExpressionRoleMapping;
+import org.elasticsearch.client.security.GetRoleMappingsRequest;
+import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.support.CertificateInfo;
+import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -150,6 +177,119 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetRoleMappings() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        final RoleMapperExpression rules1 = AnyRoleMapperExpression.builder().addExpression(FieldRoleMapperExpression.ofUsername("*"))
+                .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com")).build();
+        final PutRoleMappingRequest putRoleMappingRequest1 = new PutRoleMappingRequest("mapping-example-1", true, Collections.singletonList(
+                "superuser"), rules1, null, RefreshPolicy.NONE);
+        final PutRoleMappingResponse putRoleMappingResponse1 = client.security().putRoleMapping(putRoleMappingRequest1,
+                RequestOptions.DEFAULT);
+        boolean isCreated1 = putRoleMappingResponse1.isCreated();
+        assertTrue(isCreated1);
+        final RoleMapperExpression rules2 = AnyRoleMapperExpression.builder().addExpression(FieldRoleMapperExpression.ofGroups(
+                "cn=admins,dc=example,dc=com")).build();
+        final Map<String, Object> metadata2 = new HashMap<>();
+        metadata2.put("k1", "v1");
+        final PutRoleMappingRequest putRoleMappingRequest2 = new PutRoleMappingRequest("mapping-example-2", true, Collections.singletonList(
+                "monitoring"), rules2, metadata2, RefreshPolicy.NONE);
+        final PutRoleMappingResponse putRoleMappingResponse2 = client.security().putRoleMapping(putRoleMappingRequest2,
+                RequestOptions.DEFAULT);
+        boolean isCreated2 = putRoleMappingResponse2.isCreated();
+        assertTrue(isCreated2);
+
+        {
+            // tag::get-role-mappings-execute
+            final GetRoleMappingsRequest request = new GetRoleMappingsRequest("mapping-example-1");
+            final GetRoleMappingsResponse response = client.security().getRoleMappings(request, RequestOptions.DEFAULT);
+            // end::get-role-mappings-execute
+            // tag::get-role-mappings-response
+            List<ExpressionRoleMapping> mappings = response.getMappings();
+            // end::get-role-mappings-response
+            assertNotNull(mappings);
+            assertThat(mappings.size(), is(1));
+            assertThat(mappings.get(0).isEnabled(), is(true));
+            assertThat(mappings.get(0).getName(), is("mapping-example-1"));
+            assertThat(mappings.get(0).getExpression(), equalTo(rules1));
+            assertThat(mappings.get(0).getMetadata(), equalTo(Collections.emptyMap()));
+            assertThat(mappings.get(0).getRoles(), contains("superuser"));
+        }
+
+        {
+            // tag::get-role-mappings-list-execute
+            final GetRoleMappingsRequest request = new GetRoleMappingsRequest("mapping-example-1", "mapping-example-2");
+            final GetRoleMappingsResponse response = client.security().getRoleMappings(request, RequestOptions.DEFAULT);
+            // end::get-role-mappings-list-execute
+            List<ExpressionRoleMapping> mappings = response.getMappings();
+            assertNotNull(mappings);
+            assertThat(mappings.size(), is(2));
+            for (ExpressionRoleMapping roleMapping : mappings) {
+                assertThat(roleMapping.isEnabled(), is(true));
+                assertThat(roleMapping.getName(), isIn(new String[] { "mapping-example-1", "mapping-example-2" }));
+                if (roleMapping.getName().equals("mapping-example-1")) {
+                    assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
+                    assertThat(roleMapping.getExpression(), equalTo(rules1));
+                    assertThat(roleMapping.getRoles(), contains("superuser"));
+                } else {
+                    assertThat(roleMapping.getMetadata(), equalTo(metadata2));
+                    assertThat(roleMapping.getExpression(), equalTo(rules2));
+                    assertThat(roleMapping.getRoles(), contains("monitoring"));
+                }
+            }
+        }
+
+        {
+            // tag::get-role-mappings-all-execute
+            final GetRoleMappingsRequest request = new GetRoleMappingsRequest();
+            final GetRoleMappingsResponse response = client.security().getRoleMappings(request, RequestOptions.DEFAULT);
+            // end::get-role-mappings-all-execute
+            List<ExpressionRoleMapping> mappings = response.getMappings();
+            assertNotNull(mappings);
+            assertThat(mappings.size(), is(2));
+            for (ExpressionRoleMapping roleMapping : mappings) {
+                assertThat(roleMapping.isEnabled(), is(true));
+                assertThat(roleMapping.getName(), isIn(new String[] { "mapping-example-1", "mapping-example-2" }));
+                if (roleMapping.getName().equals("mapping-example-1")) {
+                    assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
+                    assertThat(roleMapping.getExpression(), equalTo(rules1));
+                    assertThat(roleMapping.getRoles(), contains("superuser"));
+                } else {
+                    assertThat(roleMapping.getMetadata(), equalTo(metadata2));
+                    assertThat(roleMapping.getExpression(), equalTo(rules2));
+                    assertThat(roleMapping.getRoles(), contains("monitoring"));
+                }
+            }
+        }
+
+        {
+            final GetRoleMappingsRequest request = new GetRoleMappingsRequest();
+            // tag::get-role-mappings-execute-listener
+            ActionListener<GetRoleMappingsResponse> listener = new ActionListener<GetRoleMappingsResponse>() {
+                @Override
+                public void onResponse(GetRoleMappingsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-role-mappings-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-role-mappings-execute-async
+            client.security().getRoleMappingsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-role-mappings-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testEnableUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
         char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
@@ -239,6 +379,53 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+
+    public void testClearRolesCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::clear-roles-cache-request
+            ClearRolesCacheRequest request = new ClearRolesCacheRequest("my_role");
+            //end::clear-roles-cache-request
+            //tag::clear-roles-cache-execute
+            ClearRolesCacheResponse response = client.security().clearRolesCache(request, RequestOptions.DEFAULT);
+            //end::clear-roles-cache-execute
+
+            assertNotNull(response);
+            assertThat(response.getNodes(), not(empty()));
+
+            //tag::clear-roles-cache-response
+            List<ClearRolesCacheResponse.Node> nodes = response.getNodes(); // <1>
+            //end::clear-roles-cache-response
+        }
+
+        {
+            //tag::clear-roles-cache-execute-listener
+            ClearRolesCacheRequest request = new ClearRolesCacheRequest("my_role");
+            ActionListener<ClearRolesCacheResponse> listener = new ActionListener<ClearRolesCacheResponse>() {
+                @Override
+                public void onResponse(ClearRolesCacheResponse clearRolesCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::clear-roles-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-roles-cache-execute-async
+            client.security().clearRolesCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clear-roles-cache-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
     public void testGetSslCertificates() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -305,7 +492,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     // <2>
                 }
             };
-
             // end::get-certificates-execute-listener
 
             // Replace the empty listener by a blocking listener in test
@@ -341,7 +527,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             ChangePasswordRequest request = new ChangePasswordRequest("change_password_user", password, RefreshPolicy.NONE);
             ActionListener<EmptyResponse> listener = new ActionListener<EmptyResponse>() {
                 @Override
-                public void onResponse(EmptyResponse emptyResponse) {
+                public void onResponse(EmptyResponse response) {
                     // <1>
                 }
 
@@ -417,4 +603,147 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testDeleteRole() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        addRole("testrole");
+
+        {
+            // tag::delete-role-request
+            DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest(
+                "testrole");    // <1>
+            // end::delete-role-request
+
+            // tag::delete-role-execute
+            DeleteRoleResponse deleteRoleResponse = client.security().deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
+            // end::delete-role-execute
+
+            // tag::delete-role-response
+            boolean found = deleteRoleResponse.isFound();    // <1>
+            // end::delete-role-response
+            assertTrue(found);
+
+            // check if deleting the already deleted role again will give us a different response
+            deleteRoleResponse = client.security().deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
+            assertFalse(deleteRoleResponse.isFound());
+        }
+
+        {
+            DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest("testrole");
+
+            ActionListener<DeleteRoleResponse> listener;
+            //tag::delete-role-execute-listener
+            listener = new ActionListener<DeleteRoleResponse>() {
+                @Override
+                public void onResponse(DeleteRoleResponse deleteRoleResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::delete-role-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            //tag::delete-role-execute-async
+            client.security().deleteRoleAsync(deleteRoleRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::delete-role-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    // TODO: move all calls to high-level REST client once APIs for adding new role exist
+    private void addRole(String roleName) throws IOException {
+        Request addRoleRequest = new Request(HttpPost.METHOD_NAME, "/_xpack/security/role/" + roleName);
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.array("cluster", "all");
+            }
+            builder.endObject();
+            addRoleRequest.setEntity(new NStringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
+        }
+        client().performRequest(addRoleRequest);
+    }
+
+    public void testCreateToken() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // Setup user
+            PutUserRequest putUserRequest = new PutUserRequest("token_user", "password".toCharArray(),
+                Collections.singletonList("kibana_user"), null, null, true, null, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putUserResponse.isCreated());
+        }
+        {
+            // tag::create-token-password-request
+            final char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+            CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("token_user", password);
+            // end::create-token-password-request
+
+            // tag::create-token-execute
+            CreateTokenResponse createTokenResponse = client.security().createToken(createTokenRequest, RequestOptions.DEFAULT);
+            // end::create-token-execute
+
+            // tag::create-token-response
+            String accessToken = createTokenResponse.getAccessToken();    // <1>
+            String refreshToken = createTokenResponse.getRefreshToken();    // <2>
+            // end::create-token-response
+            assertNotNull(accessToken);
+            assertNotNull(refreshToken);
+            assertNotNull(createTokenResponse.getExpiresIn());
+
+            // tag::create-token-refresh-request
+            createTokenRequest = CreateTokenRequest.refreshTokenGrant(refreshToken);
+            // end::create-token-refresh-request
+
+            CreateTokenResponse refreshResponse = client.security().createToken(createTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(refreshResponse.getAccessToken());
+            assertNotNull(refreshResponse.getRefreshToken());
+        }
+
+        {
+            // tag::create-token-client-credentials-request
+            CreateTokenRequest createTokenRequest = CreateTokenRequest.clientCredentialsGrant();
+            // end::create-token-client-credentials-request
+
+            ActionListener<CreateTokenResponse> listener;
+            //tag::create-token-execute-listener
+            listener = new ActionListener<CreateTokenResponse>() {
+                @Override
+                public void onResponse(CreateTokenResponse createTokenResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::create-token-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<CreateTokenResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            //tag::create-token-execute-async
+            client.security().createTokenAsync(createTokenRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::create-token-execute-async
+
+            assertNotNull(future.get(30, TimeUnit.SECONDS));
+            assertNotNull(future.get().getAccessToken());
+            // "client-credentials" grants aren't refreshable
+            assertNull(future.get().getRefreshToken());
+        }
+
+    }
 }

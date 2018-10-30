@@ -132,8 +132,9 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         }
 
         public Indices(StreamInput in) throws IOException {
-            indices = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-            privileges = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
+            // The use of TreeSet is to provide a consistent order that can be relied upon in tests
+            indices = Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString)));
+            privileges = Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString)));
             fieldSecurity = Collections.unmodifiableSet(in.readSet(input -> {
                 final String[] grant = input.readOptionalStringArray();
                 final String[] exclude = input.readOptionalStringArray();

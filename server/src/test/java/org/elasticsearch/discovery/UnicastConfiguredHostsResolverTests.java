@@ -54,7 +54,7 @@ public class UnicastConfiguredHostsResolverTests extends ESTestCase {
         when(transportService.getThreadPool()).thenReturn(threadPool);
 
         unicastConfiguredHostsResolver
-            = new UnicastConfiguredHostsResolver(Settings.EMPTY, transportService, hostsResolver -> transportAddresses);
+            = new UnicastConfiguredHostsResolver("test_node", Settings.EMPTY, transportService, hostsResolver -> transportAddresses);
         unicastConfiguredHostsResolver.start();
     }
 

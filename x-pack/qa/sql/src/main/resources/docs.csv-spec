@@ -12,24 +12,24 @@ describeTable
 // tag::describeTable
 DESCRIBE emp;
 
-       column       |     type      
---------------------+---------------
-birth_date          |TIMESTAMP      
-dep                 |STRUCT         
-dep.dep_id          |VARCHAR        
-dep.dep_name        |VARCHAR        
-dep.dep_name.keyword|VARCHAR        
-dep.from_date       |TIMESTAMP      
-dep.to_date         |TIMESTAMP      
-emp_no              |INTEGER        
-first_name          |VARCHAR        
-first_name.keyword  |VARCHAR        
-gender              |VARCHAR        
-hire_date           |TIMESTAMP      
-languages           |TINYINT        
-last_name           |VARCHAR        
-last_name.keyword   |VARCHAR        
-salary              |INTEGER  
+       column       |     type      |    mapping    
+--------------------+---------------+---------------
+birth_date          |TIMESTAMP      |DATE           
+dep                 |STRUCT         |NESTED         
+dep.dep_id          |VARCHAR        |KEYWORD        
+dep.dep_name        |VARCHAR        |TEXT           
+dep.dep_name.keyword|VARCHAR        |KEYWORD        
+dep.from_date       |TIMESTAMP      |DATE           
+dep.to_date         |TIMESTAMP      |DATE           
+emp_no              |INTEGER        |INTEGER        
+first_name          |VARCHAR        |TEXT           
+first_name.keyword  |VARCHAR        |KEYWORD        
+gender              |VARCHAR        |KEYWORD        
+hire_date           |TIMESTAMP      |DATE           
+languages           |TINYINT        |BYTE           
+last_name           |VARCHAR        |TEXT           
+last_name.keyword   |VARCHAR        |KEYWORD        
+salary              |INTEGER        |INTEGER           
 
 // end::describeTable
 ;
@@ -51,24 +51,24 @@ showColumns
 // tag::showColumns
 SHOW COLUMNS IN emp;
 
-       column       |     type      
---------------------+---------------
-birth_date          |TIMESTAMP      
-dep                 |STRUCT         
-dep.dep_id          |VARCHAR        
-dep.dep_name        |VARCHAR        
-dep.dep_name.keyword|VARCHAR        
-dep.from_date       |TIMESTAMP      
-dep.to_date         |TIMESTAMP      
-emp_no              |INTEGER        
-first_name          |VARCHAR        
-first_name.keyword  |VARCHAR        
-gender              |VARCHAR        
-hire_date           |TIMESTAMP      
-languages           |TINYINT        
-last_name           |VARCHAR        
-last_name.keyword   |VARCHAR        
-salary              |INTEGER   
+       column       |     type      |    mapping    
+--------------------+---------------+---------------
+birth_date          |TIMESTAMP      |DATE           
+dep                 |STRUCT         |NESTED         
+dep.dep_id          |VARCHAR        |KEYWORD        
+dep.dep_name        |VARCHAR        |TEXT           
+dep.dep_name.keyword|VARCHAR        |KEYWORD        
+dep.from_date       |TIMESTAMP      |DATE           
+dep.to_date         |TIMESTAMP      |DATE           
+emp_no              |INTEGER        |INTEGER        
+first_name          |VARCHAR        |TEXT           
+first_name.keyword  |VARCHAR        |KEYWORD        
+gender              |VARCHAR        |KEYWORD        
+hire_date           |TIMESTAMP      |DATE           
+languages           |TINYINT        |BYTE           
+last_name           |VARCHAR        |TEXT           
+last_name.keyword   |VARCHAR        |KEYWORD        
+salary              |INTEGER        |INTEGER       
 
 // end::showColumns
 ;
@@ -148,7 +148,8 @@ emp            |BASE TABLE
 // end::showTablesLikeMixed
 ;
 
-showTablesLikeEscape-Ignore
+showTablesLikeEscape
+schema::name:s|type:s
 // tag::showTablesLikeEscape
 SHOW TABLES LIKE 'emp!%' ESCAPE '!';
 
@@ -275,7 +276,9 @@ RTRIM           |SCALAR
 SPACE           |SCALAR         
 SUBSTRING       |SCALAR         
 UCASE           |SCALAR         
-SCORE           |SCORE           
+CAST            |SCALAR
+CONVERT         |SCALAR
+SCORE           |SCORE
 // end::showFunctions
 ;
 
@@ -463,23 +466,27 @@ Facello
 ///////////////////////////////
 
 groupByColumn
+schema::g:s
 // tag::groupByColumn
 SELECT gender AS g FROM emp GROUP BY gender;
 
        g       
 ---------------
-F              
-M   
+null
+F
+M
 
 // end::groupByColumn
 ;
 
 groupByOrdinal
+schema::gender:s
 // tag::groupByOrdinal
 SELECT gender FROM emp GROUP BY 1;
 
     gender     
 ---------------
+null
 F              
 M   
 
@@ -487,11 +494,13 @@ M
 ;
 
 groupByAlias
+schema::g:s
 // tag::groupByAlias
 SELECT gender AS g FROM emp GROUP BY g;
 
        g       
 ---------------
+null
 F              
 M  
 
@@ -504,6 +513,7 @@ SELECT languages + 1 AS l FROM emp GROUP BY l;
 
        l       
 ---------------
+null
 2              
 3              
 4              
@@ -515,21 +525,28 @@ SELECT languages + 1 AS l FROM emp GROUP BY l;
 ;
 
 groupByMulti
+schema::g:s|l:i|c:l
 // tag::groupByMulti
 SELECT gender g, languages l, COUNT(*) c FROM "emp" GROUP BY g, l ORDER BY languages ASC, gender DESC;
 
-       g       |       l       |       c
+       g       |       l       |       c       
 ---------------+---------------+---------------
-M              |1              |12
-F              |1              |4
-M              |2              |12
-F              |2              |8
-M              |3              |15
-F              |3              |7
-M              |4              |11
-F              |4              |7
-M              |5              |13
-F              |5              |11 
+M              |null           |7              
+F              |null           |3              
+M              |1              |9              
+F              |1              |4              
+null           |1              |2              
+M              |2              |11             
+F              |2              |5              
+null           |2              |3              
+M              |3              |11             
+F              |3              |6              
+M              |4              |11             
+F              |4              |6              
+null           |4              |1              
+M              |5              |8              
+F              |5              |9              
+null           |5              |4  
 
 
 // end::groupByMulti
@@ -537,37 +554,43 @@ F              |5              |11
 
 
 groupByAndAgg
+schema::g:s|c:i
 // tag::groupByAndAgg
 SELECT gender AS g, COUNT(*) AS c FROM emp GROUP BY gender;
 
        g       |       c       
 ---------------+---------------
-F              |37             
-M              |63   
+null           |10             
+F              |33             
+M              |57       
 
 // end::groupByAndAgg
 ;
 
 groupByAndAggExpression
 // tag::groupByAndAggExpression
+schema::g:s|salary:i
 SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gender;
 
        g       |    salary     
 ---------------+---------------
+null           |253            
 F              |260            
-M              |253     
-
+M              |259        
 // end::groupByAndAggExpression
 ;
 
 groupByAndMultipleAggs
+schema::g:s|k:d|s:d
 // tag::groupByAndMultipleAggs
 SELECT gender AS g, KURTOSIS(salary) AS k, SKEWNESS(salary) AS s FROM emp GROUP BY gender;
 
        g       |        k         |         s         
 ---------------+------------------+-------------------
-F              |1.8427808415250482|0.04517149340491813
-M              |2.259327644285826 |0.40268950715550333
+null           |2.2215791166941923|-0.03373126000214023
+F              |1.7873117044424276|0.05504995122217512 
+M              |2.280646181070106 |0.44302407229580243 
+
 
 // end::groupByAndMultipleAggs
 ;
@@ -595,9 +618,10 @@ SELECT languages AS l, COUNT(*) AS c FROM emp GROUP BY l HAVING c BETWEEN 15 AND
 
        l       |       c       
 ---------------+---------------
-1              |16             
-2              |20             
-4              |18   
+1              |15             
+2              |19             
+3              |17             
+4              |18     
 
 // end::groupByHaving
 ;
@@ -608,11 +632,13 @@ SELECT MIN(salary) AS min, MAX(salary) AS max, MAX(salary) - MIN(salary) AS diff
 
       min      |      max      |     diff      
 ---------------+---------------+---------------
+28336          |74999          |46663          
 25976          |73717          |47741          
 29175          |73578          |44403          
-26436          |74999          |48563          
+26436          |74970          |48534          
 27215          |74572          |47357          
-25324          |73851          |48527 
+25324          |66817          |41493          
+
 
 // end::groupByHavingMultiple
 ;
@@ -621,7 +647,7 @@ groupByImplicitMultipleAggs
 // tag::groupByImplicitMultipleAggs
 SELECT MIN(salary) AS min, MAX(salary) AS max, AVG(salary) AS avg, COUNT(*) AS count FROM emp;
 
-      min      |      max      |      avg      |     count     
+      min:i    |      max:i    |      avg:d    |     count:l     
 ---------------+---------------+---------------+---------------
 25324          |74999          |48248          |100  
 
@@ -741,7 +767,7 @@ aggAvg
 // tag::aggAvg
 SELECT AVG(salary) AS avg FROM emp;
 
-      avg      
+      avg:d      
 ---------------
 48248          
 // end::aggAvg
@@ -815,11 +841,12 @@ SELECT languages, PERCENTILE(salary, 95) AS "95th" FROM emp
 
    languages   |      95th       
 ---------------+-----------------
-1              |72605.2          
-2              |71741.0          
-3              |74981.6          
+null           |74999.0          
+1              |72790.5          
+2              |71924.70000000001
+3              |73638.25         
 4              |72115.59999999999
-5              |68927.19999999998
+5              |61071.7       
 // end::aggPercentile
 ;
 
@@ -829,11 +856,12 @@ SELECT languages, PERCENTILE_RANK(salary, 65000) AS rank FROM emp GROUP BY langu
 
    languages   |      rank       
 ---------------+-----------------
-1              |75.37108985853756
-2              |89.43605326660112
-3              |77.74873333978765
+null           |73.65766569962062
+1              |73.7291625157734 
+2              |88.88005607010643
+3              |79.43662623295829
 4              |85.70446389643493
-5              |92.52677973666592
+5              |100.0      
 // end::aggPercentileRank
 ;
 
@@ -1038,11 +1066,11 @@ LaLaLa
 // end::stringRepeat
 ;
 
-stringReplace-Ignore
+stringReplace
 // tag::stringReplace
-SELECT REPLACE('Elastic', 'El', 'Fant');
+SELECT REPLACE('Elastic','El','Fant');
 
-  REPLACE(Elastic, El, Fant)
+  REPLACE(Elastic,El,Fant)
 -----------------------------
 Fantastic
 // end::stringReplace
@@ -1069,6 +1097,7 @@ Elastic
 ;
 
 stringSpace-Ignore
+schema::SPACE(3):s
 // tag::stringSpace
 SELECT SPACE(3);
 
@@ -1136,6 +1165,33 @@ SELECT YEAR(CAST('2018-05-19T11:23:45Z' AS TIMESTAMP)) AS year;
 2018
 // end::conversionStringToDateCast
 ;
+
+///////////////////////////////
+//
+// Convert
+//
+///////////////////////////////
+
+conversionStringToIntConvertESDataType
+// tag::conversionStringToIntConvertESDataType
+SELECT CONVERT('123', INTEGER) AS int;
+
+      int
+---------------
+123
+// end::conversionStringToIntConvertESDataType
+;
+
+conversionStringToIntConvertODBCDataType
+// tag::conversionStringToIntConvertODBCDataType
+SELECT CONVERT('123', SQL_INTEGER) AS int;
+
+      int
+---------------
+123
+// end::conversionStringToIntConvertODBCDataType
+;
+
 
 ///////////////////////////////
 //

@@ -20,6 +20,7 @@ package org.elasticsearch.transport.netty4;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -102,7 +103,7 @@ public class Netty4ScheduledPingTests extends ESTestCase {
                 TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
-                    public TransportResponse.Empty newInstance() {
+                    public TransportResponse.Empty read(StreamInput in) {
                         return TransportResponse.Empty.INSTANCE;
                     }
 

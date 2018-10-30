@@ -14,6 +14,7 @@ Single document APIs::
 * <<{upid}-exists>>
 * <<{upid}-delete>>
 * <<{upid}-update>>
+* <<{upid}-term-vectors>>
 
 [[multi-doc]]
 Multi-document APIs::
@@ -29,6 +30,7 @@ include::document/get.asciidoc[]
 include::document/exists.asciidoc[]
 include::document/delete.asciidoc[]
 include::document/update.asciidoc[]
+include::document/term-vectors.asciidoc[]
 include::document/bulk.asciidoc[]
 include::document/multi-get.asciidoc[]
 include::document/reindex.asciidoc[]
@@ -238,6 +240,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-update-job>>
 * <<{upid}-get-job-stats>>
 * <<{upid}-put-datafeed>>
+* <<{upid}-update-datafeed>>
 * <<{upid}-get-datafeed>>
 * <<{upid}-delete-datafeed>>
 * <<{upid}-preview-datafeed>>
@@ -264,6 +267,7 @@ include::ml/close-job.asciidoc[]
 include::ml/update-job.asciidoc[]
 include::ml/flush-job.asciidoc[]
 include::ml/put-datafeed.asciidoc[]
+include::ml/update-datafeed.asciidoc[]
 include::ml/get-datafeed.asciidoc[]
 include::ml/delete-datafeed.asciidoc[]
 include::ml/preview-datafeed.asciidoc[]
@@ -299,16 +303,21 @@ include::migration/get-assistance.asciidoc[]
 The Java High Level REST Client supports the following Rollup APIs:
 
 * <<java-rest-high-x-pack-rollup-put-job>>
+* <<{upid}-rollup-start-job>>
 * <<{upid}-rollup-delete-job>>
 * <<java-rest-high-x-pack-rollup-get-job>>
 * <<{upid}-x-pack-rollup-get-rollup-caps>>
 
 include::rollup/put_job.asciidoc[]
+include::rollup/start_job.asciidoc[]
 include::rollup/delete_job.asciidoc[]
 include::rollup/get_job.asciidoc[]
 include::rollup/get_rollup_caps.asciidoc[]
 
 == Security APIs
+
+:upid: {mainid}-security
+:doc-tests-file: {doc-tests}/SecurityDocumentationIT.java
 
 The Java High Level REST Client supports the following Security APIs:
 
@@ -316,17 +325,25 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-enable-user>>
 * <<java-rest-high-security-disable-user>>
 * <<java-rest-high-security-change-password>>
+* <<java-rest-high-security-delete-role>>
+* <<{upid}-clear-roles-cache>>
 * <<java-rest-high-security-get-certificates>>
 * <<java-rest-high-security-put-role-mapping>>
+* <<java-rest-high-security-get-role-mappings>>
 * <<java-rest-high-security-delete-role-mapping>>
+* <<java-rest-high-security-create-token>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
+include::security/delete-role.asciidoc[]
+include::security/clear-roles-cache.asciidoc[]
 include::security/get-certificates.asciidoc[]
 include::security/put-role-mapping.asciidoc[]
+include::security/get-role-mappings.asciidoc[]
 include::security/delete-role-mapping.asciidoc[]
+include::security/create-token.asciidoc[]
 
 == Watcher APIs
 
@@ -335,14 +352,20 @@ include::security/delete-role-mapping.asciidoc[]
 
 The Java High Level REST Client supports the following Watcher APIs:
 
+* <<{upid}-start-watch-service>>
+* <<{upid}-stop-watch-service>>
 * <<java-rest-high-x-pack-watcher-put-watch>>
 * <<java-rest-high-x-pack-watcher-delete-watch>>
+* <<java-rest-high-watcher-deactivate-watch>>
 * <<{upid}-ack-watch>>
 * <<{upid}-activate-watch>>
 
+include::watcher/start-watch-service.asciidoc[]
+include::watcher/stop-watch-service.asciidoc[]
 include::watcher/put-watch.asciidoc[]
 include::watcher/delete-watch.asciidoc[]
 include::watcher/ack-watch.asciidoc[]
+include::watcher/deactivate-watch.asciidoc[]
 include::watcher/activate-watch.asciidoc[]
 
 == Graph APIs

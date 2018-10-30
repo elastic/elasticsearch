@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test.junit.listeners;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.runner.Description;

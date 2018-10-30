@@ -43,6 +43,11 @@ public class PauseFollowAction extends Action<PauseFollowAction.Request, Acknowl
         public Request() {
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            followIndex = in.readString();
+        }
+
         public String getFollowIndex() {
             return followIndex;
         }
@@ -50,12 +55,6 @@ public class PauseFollowAction extends Action<PauseFollowAction.Request, Acknowl
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            followIndex = in.readString();
         }
 
         @Override

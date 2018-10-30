@@ -118,6 +118,9 @@ public class PutAutoFollowPatternAction
         private TimeValue maxRetryDelay;
         private TimeValue readPollTimeout;
 
+        public Request() {
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
@@ -260,9 +263,8 @@ public class PutAutoFollowPatternAction
             this.readPollTimeout = readPollTimeout;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             name = in.readString();
             remoteCluster = in.readString();
             leaderIndexPatterns = in.readList(StreamInput::readString);

@@ -38,7 +38,7 @@ public class TransportGetAutoFollowPatternAction
                                                ActionFilters actionFilters,
                                                IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, GetAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, GetAutoFollowPatternAction.Request::new);
+            GetAutoFollowPatternAction.Request::new, indexNameExpressionResolver);
     }
 
     @Override

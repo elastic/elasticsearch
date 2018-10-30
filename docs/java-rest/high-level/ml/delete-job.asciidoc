@@ -1,14 +1,19 @@
-[[java-rest-high-x-pack-ml-delete-job]]
+--
+:api: delete-job 
+:request: DeleteJobRequest
+:response: AcknowledgedResponse
+--
+[id="{upid}-{api}"]
 === Delete Job API
 
-[[java-rest-high-x-pack-machine-learning-delete-job-request]]
+[id="{upid}-{api}-request"]
 ==== Delete Job Request
 
-A `DeleteJobRequest` object requires a non-null `jobId`.
+A +{request}+ object requires a non-null `jobId` and can optionally set `force`.
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-job-request]
+include-tagged::{doc-tests-file}[{api}-request]
 ---------------------------------------------------
 <1> Constructing a new request referencing an existing `jobId`
 
@@ -18,7 +23,7 @@ The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-job-request-force]
+include-tagged::{doc-tests-file}[{api}-request-force]
 ---------------------------------------------------
 <1> Use to forcefully delete an opened job;
 this method is quicker than closing and deleting the job.
@@ -26,55 +31,23 @@ Defaults to `false`.
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-job-request-wait-for-completion]
+include-tagged::{doc-tests-file}[{api}-request-wait-for-completion]
 ---------------------------------------------------
 <1> Use to set whether the request should wait until the operation has completed before returning.
 Defaults to `true`.
 
-[[java-rest-high-x-pack-machine-learning-delete-job-execution]]
-==== Execution
 
-The request can be executed through the `MachineLearningClient` contained
-in the `RestHighLevelClient` object, accessed via the `machineLearningClient()` method.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-job-execute]
---------------------------------------------------
-
-[[java-rest-high-x-pack-machine-learning-delete-job-response]]
+[id="{upid}-{api}-response"]
 ==== Delete Job Response
 
-The returned `DeleteJobResponse` object contains the acknowledgement of the
-job deletion or the deletion task depending on whether the request was set
-to wait for completion:
+The returned +{response}+ object indicates the acknowledgement of the job deletion or
+the deletion task depending on whether the request was set to wait for completion:
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-job-response]
+include-tagged::{doc-tests-file}[{api}-response]
 ---------------------------------------------------
 <1> whether was job deletion was acknowledged or not; will be `null` when set not to wait for completion
 <2> the id of the job deletion task; will be `null` when set to wait for completion
 
-[[java-rest-high-x-pack-machine-learning-delete-job-async]]
-==== Delete Job Asynchronously
-
-This request can also be made asynchronously.
-["source","java",subs="attributes,callouts,macros"]
----------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-job-request-async]
----------------------------------------------------
-<1> The `DeleteJobRequest` to execute and the `ActionListener` to alert on completion or error.
-
-The deletion request returns immediately. Once the request is completed, the `ActionListener` is
-called back using the `onResponse` or `onFailure`. The latter indicates some failure occurred when
-making the request.
-
-A typical listener for a `DeleteJobRequest` could be defined as follows:
-
-["source","java",subs="attributes,callouts,macros"]
----------------------------------------------------
-include-tagged::{doc-tests}/MlClientDocumentationIT.java[x-pack-delete-ml-job-request-listener]
----------------------------------------------------
-<1> The action to be taken when it is completed
-<2> What to do when a failure occurs
+include::../execution.asciidoc[]

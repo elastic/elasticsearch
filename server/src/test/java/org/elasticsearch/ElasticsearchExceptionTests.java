@@ -114,7 +114,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             ElasticsearchException[] rootCauses = exception.guessRootCauses();
             assertEquals(rootCauses.length, 1);
             assertEquals(ElasticsearchException.getExceptionName(rootCauses[0]), "index_not_found_exception");
-            assertEquals(rootCauses[0].getMessage(), "no such index");
+            assertEquals("no such index [foo]", rootCauses[0].getMessage());
             ShardSearchFailure failure = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
                     new SearchShardTarget("node_1", new Index("foo", "_na_"), 1, null));
             ShardSearchFailure failure1 = new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),

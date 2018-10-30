@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.joda.time.DateTime;
@@ -13,6 +14,7 @@ import org.joda.time.DateTime;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 public class ExtractedFieldTests extends ESTestCase {
 
@@ -96,11 +98,32 @@ public class ExtractedFieldTests extends ESTestCase {
     }
 
     public void testValueGivenTimeField() {
-        SearchHit hit = new SearchHitBuilder(42).addField("time", new DateTime(123456789L)).build();
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new DateTime(millis)).build();
+        final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+        assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
+    }
 
-        ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+    public void testValueGivenStringTimeField() {
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
+        final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+        assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
+    }
 
-        assertThat(timeField.value(hit), equalTo(new Object[] { 123456789L }));
+    public void testValueGivenPre6xTimeField() {
+        // Prior to 6.x, timestamps were simply `long` milliseconds-past-the-epoch values
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", millis).build();
+        final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+        assertThat(timeField.value(hit), equalTo(new Object[] { millis }));
+    }
+
+    public void testValueGivenUnknownFormatTimeField() {
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new Object()).build();
+        final ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
+        assertThat(expectThrows(IllegalStateException.class, () -> timeField.value(hit)).getMessage(),
+            startsWith("Unexpected value for a time field"));
     }
 
     public void testAliasVersusName() {
@@ -117,5 +140,15 @@ public class ExtractedFieldTests extends ESTestCase {
         assertThat(field.getAlias(), equalTo("a"));
         assertThat(field.getName(), equalTo("b"));
         assertThat(field.value(hit), equalTo(new Integer[] { 2 }));
+    }
+
+    public void testGetDocValueFormat() {
+        for (ExtractedField.ExtractionMethod method : ExtractedField.ExtractionMethod.values()) {
+            assertThat(ExtractedField.newField("f", method).getDocValueFormat(), equalTo(DocValueFieldsContext.USE_DEFAULT_FORMAT));
+        }
+        assertThat(ExtractedField.newTimeField("doc_value_time", ExtractedField.ExtractionMethod.DOC_VALUE).getDocValueFormat(),
+            equalTo("epoch_millis"));
+        assertThat(ExtractedField.newTimeField("source_time", ExtractedField.ExtractionMethod.SCRIPT_FIELD).getDocValueFormat(),
+            equalTo("epoch_millis"));
     }
 }

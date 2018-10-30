@@ -66,18 +66,20 @@ public class MetaDataTests extends ESTestCase {
             assertThat(aliases.size(), equalTo(0));
         }
         {
+            final GetAliasesRequest request;
+            if (randomBoolean()) {
+                request = new GetAliasesRequest();
+            } else {
+                request = new GetAliasesRequest(randomFrom("alias1", "alias2"));
+                // replacing with empty aliases behaves as if aliases were unspecified at request building
+                request.replaceAliases(Strings.EMPTY_ARRAY);
+            }
             ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(new GetAliasesRequest(), new String[]{"index"});
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetaData> aliasMetaDataList = aliases.get("index");
             assertThat(aliasMetaDataList.size(), equalTo(2));
             assertThat(aliasMetaDataList.get(0).alias(), equalTo("alias1"));
             assertThat(aliasMetaDataList.get(1).alias(), equalTo("alias2"));
-        }
-        {
-            GetAliasesRequest getAliasesRequest = new GetAliasesRequest("alias1");
-            getAliasesRequest.replaceAliases(Strings.EMPTY_ARRAY);
-            ImmutableOpenMap<String, List<AliasMetaData>> aliases = metaData.findAliases(getAliasesRequest, new String[]{"index"});
-            assertThat(aliases.size(), equalTo(0));
         }
         {
             ImmutableOpenMap<String, List<AliasMetaData>> aliases =
@@ -152,7 +154,8 @@ public class MetaDataTests extends ESTestCase {
             MetaData.builder().put(builder).build();
             fail("exception should have been thrown");
         } catch (IllegalStateException e) {
-            assertThat(e.getMessage(), equalTo("index and alias names need to be unique, but the following duplicates were found [index (alias of [index])]"));
+            assertThat(e.getMessage(),
+                equalTo("index and alias names need to be unique, but the following duplicates were found [index (alias of [index])]"));
         }
     }
 
@@ -247,7 +250,8 @@ public class MetaDataTests extends ESTestCase {
             metaData.resolveIndexRouting("0", "alias1");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), is("Alias [alias1] has index routing associated with it [1], and was provided with routing value [0], rejecting operation"));
+            assertThat(ex.getMessage(), is("Alias [alias1] has index routing associated with it [1], " +
+                "and was provided with routing value [0], rejecting operation"));
         }
 
         // alias with invalid index routing.
@@ -255,14 +259,16 @@ public class MetaDataTests extends ESTestCase {
             metaData.resolveIndexRouting(null, "alias2");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that" +
+                " resolved to several routing values, rejecting operation"));
         }
 
         try {
             metaData.resolveIndexRouting("1", "alias2");
             fail("should fail");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that resolved to several routing values, rejecting operation"));
+            assertThat(ex.getMessage(), is("index/alias [alias2] provided with routing value [1,2] that" +
+                " resolved to several routing values, rejecting operation"));
         }
 
         IndexMetaData.Builder builder2 = IndexMetaData.builder("index2")

@@ -8,6 +8,7 @@
 directly to configure and access {xpack} features.
 
 * <<info-api,Info API>>
+* <<ccr-apis,Cross-cluster replication APIs>>
 * <<graph-explore-api,Graph Explore API>>
 * <<licensing-apis,Licensing APIs>>
 * <<ml-apis,Machine Learning APIs>>
@@ -19,6 +20,7 @@ directly to configure and access {xpack} features.
 
 
 include::info.asciidoc[]
+include::{es-repo-dir}/ccr/apis/ccr-apis.asciidoc[]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/licensing/index.asciidoc[]
 include::{es-repo-dir}/migration/migration.asciidoc[]

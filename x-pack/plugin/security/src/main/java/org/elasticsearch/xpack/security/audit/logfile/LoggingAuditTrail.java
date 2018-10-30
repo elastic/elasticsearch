@@ -109,13 +109,19 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     public static final String OPAQUE_ID_FIELD_NAME = "opaque_id";
 
     public static final String NAME = "logfile";
-    public static final Setting<Boolean> EMIT_HOST_ADDRESS_SETTING = Setting
-            .boolSetting(setting("audit.logfile.prefix.emit_node_host_address"), false, Property.NodeScope, Property.Dynamic);
-    public static final Setting<Boolean> EMIT_HOST_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_host_name"),
-            false, Property.NodeScope, Property.Dynamic);
-    public static final Setting<Boolean> EMIT_NODE_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), false,
-            Property.NodeScope, Property.Dynamic);
-    public static final Setting<Boolean> EMIT_NODE_ID_SETTING = Setting.boolSetting(setting("audit.logfile.prefix.emit_node_id"), true,
+    public static final Setting<Boolean> DEPRECATED_EMIT_HOST_ADDRESS_SETTING = Setting.boolSetting(
+            setting("audit.logfile.prefix.emit_node_host_address"), false, Property.NodeScope, Property.Dynamic, Property.Deprecated);
+    public static final Setting<Boolean> EMIT_HOST_ADDRESS_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_host_address"),
+            DEPRECATED_EMIT_HOST_ADDRESS_SETTING, Property.NodeScope, Property.Dynamic);
+    public static final Setting<Boolean> DEPRECATED_EMIT_HOST_NAME_SETTING = Setting.boolSetting(
+            setting("audit.logfile.prefix.emit_node_host_name"), false, Property.NodeScope, Property.Dynamic, Property.Deprecated);
+    public static final Setting<Boolean> EMIT_HOST_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_host_name"),
+            DEPRECATED_EMIT_HOST_NAME_SETTING, Property.NodeScope, Property.Dynamic);
+    public static final Setting<Boolean> DEPRECATED_EMIT_NODE_NAME_SETTING = Setting
+            .boolSetting(setting("audit.logfile.prefix.emit_node_name"), false, Property.NodeScope, Property.Dynamic, Property.Deprecated);
+    public static final Setting<Boolean> EMIT_NODE_NAME_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_name"),
+            DEPRECATED_EMIT_NODE_NAME_SETTING, Property.NodeScope, Property.Dynamic);
+    public static final Setting<Boolean> EMIT_NODE_ID_SETTING = Setting.boolSetting(setting("audit.logfile.emit_node_id"), true,
             Property.NodeScope, Property.Dynamic);
     private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(ACCESS_DENIED.toString(), ACCESS_GRANTED.toString(),
             ANONYMOUS_ACCESS_DENIED.toString(), AUTHENTICATION_FAILED.toString(), CONNECTION_DENIED.toString(), TAMPERED_REQUEST.toString(),

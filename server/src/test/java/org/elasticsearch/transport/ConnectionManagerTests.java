@@ -64,7 +64,7 @@ public class ConnectionManagerTests extends ESTestCase {
     }
 
     public void testConnectionProfileResolve() {
-        final ConnectionProfile defaultProfile = ConnectionManager.buildDefaultConnectionProfile(Settings.EMPTY);
+        final ConnectionProfile defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
         assertEquals(defaultProfile, ConnectionProfile.resolveConnectionProfile(null, defaultProfile));
 
         final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -96,7 +96,7 @@ public class ConnectionManagerTests extends ESTestCase {
     }
 
     public void testDefaultConnectionProfile() {
-        ConnectionProfile profile = ConnectionManager.buildDefaultConnectionProfile(Settings.EMPTY);
+        ConnectionProfile profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
         assertEquals(13, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
@@ -104,7 +104,7 @@ public class ConnectionManagerTests extends ESTestCase {
         assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
 
-        profile = ConnectionManager.buildDefaultConnectionProfile(Settings.builder().put("node.master", false).build());
+        profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.builder().put("node.master", false).build());
         assertEquals(12, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
@@ -112,7 +112,7 @@ public class ConnectionManagerTests extends ESTestCase {
         assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
 
-        profile = ConnectionManager.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).build());
+        profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.builder().put("node.data", false).build());
         assertEquals(11, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));
         assertEquals(6, profile.getNumConnectionsPerType(TransportRequestOptions.Type.REG));
@@ -120,7 +120,7 @@ public class ConnectionManagerTests extends ESTestCase {
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
 
-        profile = ConnectionManager.buildDefaultConnectionProfile(Settings.builder().put("node.data", false)
+        profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.builder().put("node.data", false)
             .put("node.master", false).build());
         assertEquals(10, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));

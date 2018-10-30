@@ -96,7 +96,6 @@ public class AllocationIdIT extends ESIntegTestCase {
          * - start node1 (shard would not start as it is stale)
          * - allocate stale primary - allocation id is adjusted (*) - but it fails due to the presence of corruption marker
          * - stop node1
-         * - stop master to forget about recoverySource (it is stored in a routing table)
          * - remove a corruption marker
          * - try to open index on node1
          *  -> node1 has a RED index if (*) points to a fake shard -> node requires another AllocateStalePrimary
@@ -108,7 +107,7 @@ public class AllocationIdIT extends ESIntegTestCase {
 
         // initial set up
         final String indexName = "index42";
-        String master = internalCluster().startMasterOnlyNode();
+        final String master = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
         createIndex(indexName);
         final int numDocs = indexDocs(indexName, "foo", "bar");
@@ -154,16 +153,11 @@ public class AllocationIdIT extends ESIntegTestCase {
             assertThat(shardRouting.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
         });
 
-        // stop master to forget about recoverySource, it is stored in a routing table (in memory, not in a disk state)
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(master));
-
         try(Store store = new Store(shardId, indexSettings, new SimpleFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.removeCorruptionMarker();
         }
 
-        master = internalCluster().startMasterOnlyNode();
-
-        // open index - no any reasons to wait 30 sec as no any health shard for that
+        // open index; no any reasons to wait 30 sec as no any health shard for that
         client(node1).admin().indices().prepareOpen(indexName).setTimeout(TimeValue.timeValueSeconds(5)).get();
 
         // index is red: no any shard is allocated (allocation id is a fake id that does not match to anything)

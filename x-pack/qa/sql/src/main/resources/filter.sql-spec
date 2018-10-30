@@ -101,6 +101,6 @@ whereWithInAndComplexFunctions
 SELECT last_name l FROM "test_emp" WHERE emp_no NOT IN (10000, abs(2 - 10003), 10002, 999) AND lcase(first_name) IN ('sumant', 'mary', 'patricio', 'No''Match') ORDER BY emp_no LIMIT 5;
 
 whereWithInAndNullHandling1
-SELECT last_name l FROM "test_emp" WHERE birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)) AND (emp_no = 10038 OR emp_no = 10039 OR emp_no = 10040) ORDER BY emp_no;
+SELECT last_name l FROM "test_emp" WHERE languages in (2, 10)AND (emp_no = 10018 OR emp_no = 10019 OR emp_no = 10020) ORDER BY emp_no;
 whereWithInAndNullHandling2
-SELECT last_name l FROM "test_emp" WHERE birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), null, CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)) AND (emp_no = 10038 OR emp_no = 10039 OR emp_no = 10040) ORDER BY emp_no;
+SELECT last_name l FROM "test_emp" WHERE languages in (2, null, 10) AND (emp_no = 10018 OR emp_no = 10019 OR emp_no = 10020) ORDER BY emp_no;

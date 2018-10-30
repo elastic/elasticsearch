@@ -56,7 +56,6 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchNode> container = createTestClustersContainerExtension(project);
 
@@ -64,7 +63,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         createListClustersTask(project, container);
 
         // create DSL for tasks to mark clusters these use
-        creteUseClusterTaskExtension(project);
+        createUseClusterTaskExtension(project);
 
         // There's a single Gradle instance for multi project builds, this means that some configuration needs to be
         // done only once even if the plugin is applied multiple times as a part of multi project build
@@ -87,8 +86,6 @@ public class TestClustersPlugin implements Plugin<Project> {
 
             // After each task we determine if there are clusters that are no longer needed.
             configureStopClustersHook(project);
-        } else {
-            logger.lifecycle("Allready configured for {}", project);
         }
     }
 
@@ -117,7 +114,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private void creteUseClusterTaskExtension(Project project) {
+    private void createUseClusterTaskExtension(Project project) {
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.
         project.getTasks().all((Task task) ->
@@ -140,7 +137,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                         synchronized (claimsInventory) {
                             claimsInventory.put(each, claimsInventory.getOrDefault(each, 0) + 1);
                         }
-                        each.lockConfiguration();
+                        each.freeze();
                     })
                 )
         );

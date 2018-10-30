@@ -31,7 +31,7 @@ public class ElasticsearchNode {
 
     private final String name;
     private final GradleServicesAdapter services;
-    private final AtomicBoolean configurationLocked = new AtomicBoolean(false);
+    private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Logger logger = Logging.getLogger(ElasticsearchNode.class);
 
     private Distribution distribution;
@@ -51,7 +51,7 @@ public class ElasticsearchNode {
     }
 
     public void setVersion(Version version) {
-        checkNotRunning();
+        checkFrozen();
         this.version = version;
     }
 
@@ -60,7 +60,7 @@ public class ElasticsearchNode {
     }
 
     public void setDistribution(Distribution distribution) {
-        checkNotRunning();
+        checkFrozen();
         this.distribution = distribution;
     }
 
@@ -72,13 +72,13 @@ public class ElasticsearchNode {
         logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
     }
 
-    public void lockConfiguration() {
+    public void freeze() {
         logger.info("Locking configuration of `{}`", this);
-        configurationLocked.set(true);
+        configurationFrozen.set(true);
     }
 
-    private void checkNotRunning() {
-        if (configurationLocked.get()) {
+    private void checkFrozen() {
+        if (configurationFrozen.get()) {
             throw new IllegalStateException("Configuration can not be altered, already locked");
         }
     }

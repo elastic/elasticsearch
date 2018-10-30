@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
@@ -40,17 +41,7 @@ public class InProcessor implements Processor {
     @Override
     public Object process(Object input) {
         Object leftValue = processsors.get(processsors.size() - 1).process(input);
-        Boolean result = false;
-
-        for (int i = 0; i < processsors.size() - 1; i++) {
-            Boolean compResult = Comparisons.eq(leftValue, processsors.get(i).process(input));
-            if (compResult == null) {
-                result = null;
-            } else if (compResult) {
-                return true;
-            }
-        }
-        return result;
+        return In.doFold(leftValue, Processors.process(processsors.subList(0, processsors.size() - 1), input));
     }
 
     @Override

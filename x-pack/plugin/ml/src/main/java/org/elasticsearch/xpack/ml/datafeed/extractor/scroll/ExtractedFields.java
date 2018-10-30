@@ -31,7 +31,7 @@ class ExtractedFields {
 
     private final ExtractedField timeField;
     private final List<ExtractedField> allFields;
-    private final String[] docValueFields;
+    private final List<ExtractedField> docValueFields;
     private final String[] sourceFields;
 
     ExtractedFields(ExtractedField timeField, List<ExtractedField> allFields) {
@@ -41,7 +41,8 @@ class ExtractedFields {
         this.timeField = Objects.requireNonNull(timeField);
         this.allFields = Collections.unmodifiableList(allFields);
         this.docValueFields = filterFields(ExtractedField.ExtractionMethod.DOC_VALUE, allFields);
-        this.sourceFields = filterFields(ExtractedField.ExtractionMethod.SOURCE, allFields);
+        this.sourceFields = filterFields(ExtractedField.ExtractionMethod.SOURCE, allFields).stream().map(ExtractedField::getName)
+            .toArray(String[]::new);
     }
 
     public List<ExtractedField> getAllFields() {
@@ -52,18 +53,12 @@ class ExtractedFields {
         return sourceFields;
     }
 
-    public String[] getDocValueFields() {
+    public List<ExtractedField> getDocValueFields() {
         return docValueFields;
     }
 
-    private static String[] filterFields(ExtractedField.ExtractionMethod method, List<ExtractedField> fields) {
-        List<String> result = new ArrayList<>();
-        for (ExtractedField field : fields) {
-            if (field.getExtractionMethod() == method) {
-                result.add(field.getName());
-            }
-        }
-        return result.toArray(new String[result.size()]);
+    private static List<ExtractedField> filterFields(ExtractedField.ExtractionMethod method, List<ExtractedField> fields) {
+        return fields.stream().filter(field -> field.getExtractionMethod() == method).collect(Collectors.toList());
     }
 
     public String timeField() {

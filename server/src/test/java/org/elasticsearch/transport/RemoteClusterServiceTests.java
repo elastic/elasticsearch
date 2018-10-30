@@ -343,7 +343,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            knownNodes.add(seedTransport.getLocalDiscoNode());
+            knownNodes.add(seedNode);
             TimeValue pingSchedule;
             Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.putList("cluster.remote.cluster_1.seeds", seedNode.getAddress().toString());

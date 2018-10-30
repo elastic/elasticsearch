@@ -16,7 +16,7 @@ ids for each user that uses the same index, otherwise they might overwrite other
 users' documents. The ingest processor just adds properties for the current
 authenticated user to the documents that are being indexed.
 
-{ref}/ingest-node-set-security-user-processor.html[Set Security User Processor] processor attaches user-related details (such as
+The {ref}/ingest-node-set-security-user-processor.html[set security user processor] attaches user-related details (such as
 `username`,  `roles`, `email`, `full_name` and `metadata` ) from the current
 authenticated user to the current document by pre-processing the ingest. When
 you index data with an ingest pipeline, user details are automatically attached

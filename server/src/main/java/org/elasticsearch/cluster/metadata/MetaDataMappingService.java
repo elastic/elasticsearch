@@ -310,7 +310,8 @@ public class MetaDataMappingService extends AbstractComponent {
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource, MergeReason.MAPPING_UPDATE, request.updateAllTypes());
+                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource,
+                    MergeReason.MAPPING_UPDATE, request.updateAllTypes());
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {

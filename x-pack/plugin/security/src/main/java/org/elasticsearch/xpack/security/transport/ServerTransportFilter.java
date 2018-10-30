@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 import io.netty.channel.Channel;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
@@ -17,7 +18,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -67,7 +67,7 @@ public interface ServerTransportFilter {
      * request is properly authenticated and authorized
      */
     class NodeProfile implements ServerTransportFilter {
-        private static final Logger logger = Loggers.getLogger(NodeProfile.class);
+        private static final Logger logger = LogManager.getLogger(NodeProfile.class);
 
         private final AuthenticationService authcService;
         private final AuthorizationService authzService;

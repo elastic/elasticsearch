@@ -51,12 +51,15 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
+        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT))
+            .numberOfShards(3).numberOfReplicas(1))
                 .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1)).build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder()
+            .addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
@@ -80,7 +83,8 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Adding three node and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
-                .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3"))).build();
+                .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))
+                    .add(newNode("node3"))).build();
 
         ClusterState newState = strategy.reroute(clusterState, "reroute");
         assertThat(newState, not(equalTo(clusterState)));
@@ -167,12 +171,16 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1)).build();
+        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT))
+            .numberOfShards(3).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT))
+                    .numberOfShards(3).numberOfReplicas(1)).build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder()
+            .addAsNew(metaData.index("test")).addAsNew(metaData.index("test1")).build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {
@@ -311,11 +319,13 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         logger.info("Building initial routing table");
 
-        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(3).numberOfReplicas(1)).build();
+        MetaData metaData = MetaData.builder().put(IndexMetaData.builder("test").settings(settings(Version.CURRENT))
+            .numberOfShards(3).numberOfReplicas(1)).build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metaData.index("test")).build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(3));
         for (int i = 0; i < clusterState.routingTable().index("test").shards().size(); i++) {

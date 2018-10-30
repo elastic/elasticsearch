@@ -22,3 +22,12 @@ Using automatically expanded fields for the "all fields" mode ("default_field": 
 for the `query_string`, `multi_match` and `simple_query_string` now raises a warning and
 a deprecation notice to be logged for queries beyond 1024 fields. This limit will be
 enforced with a hard error starting in 7.0.
+
+[float]
+==== Deprecate `_source_exclude` and `_source_include` URL Parameters
+
+`_source_exclude` and `_source_include` are deprecated in favor of
+`_source_excludes` and `_source_includes` because those line up better with the
+rest of Elasticsearc's APIs and Elasticsearch will raise a deprecation warning
+if those are used on any APIs. We plan to drop support for `_source_exclude` and
+`_source_include` in 7.0.

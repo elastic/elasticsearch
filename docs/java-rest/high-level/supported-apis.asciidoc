@@ -329,6 +329,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-put-role-mapping>>
 * <<java-rest-high-security-get-role-mappings>>
 * <<java-rest-high-security-delete-role-mapping>>
+* <<java-rest-high-security-create-token>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
@@ -340,6 +341,7 @@ include::security/get-certificates.asciidoc[]
 include::security/put-role-mapping.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/delete-role-mapping.asciidoc[]
+include::security/create-token.asciidoc[]
 
 == Watcher APIs
 
@@ -352,6 +354,7 @@ The Java High Level REST Client supports the following Watcher APIs:
 * <<{upid}-stop-watch-service>>
 * <<java-rest-high-x-pack-watcher-put-watch>>
 * <<java-rest-high-x-pack-watcher-delete-watch>>
+* <<java-rest-high-watcher-deactivate-watch>>
 * <<{upid}-ack-watch>>
 * <<{upid}-activate-watch>>
 
@@ -360,6 +363,7 @@ include::watcher/stop-watch-service.asciidoc[]
 include::watcher/put-watch.asciidoc[]
 include::watcher/delete-watch.asciidoc[]
 include::watcher/ack-watch.asciidoc[]
+include::watcher/deactivate-watch.asciidoc[]
 include::watcher/activate-watch.asciidoc[]
 
 == Graph APIs

@@ -48,6 +48,6 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
             return;
         }
         transportService.sendRequest(node, action.name(), request, transportOptions,
-            new ActionListenerResponseHandler<>(listener, action::newResponse));
+            new ActionListenerResponseHandler<>(listener, action.getResponseReader()));
     }
 }

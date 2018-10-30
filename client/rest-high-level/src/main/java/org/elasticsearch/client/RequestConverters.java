@@ -72,13 +72,12 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.client.core.TermVectorsRequest;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -267,6 +266,18 @@ final class RequestConverters {
 
         return request;
     }
+    
+    static Request sourceExists(GetRequest getRequest) {
+        Request request = new Request(HttpHead.METHOD_NAME, endpoint(getRequest.index(), getRequest.type(), getRequest.id(), "_source"));
+
+        Params parameters = new Params(request);
+        parameters.withPreference(getRequest.preference());
+        parameters.withRouting(getRequest.routing());
+        parameters.withRefresh(getRequest.refresh());
+        parameters.withRealtime(getRequest.realtime());
+        // Version params are not currently supported by the source exists API so are not passed
+        return request;
+    }    
 
     static Request multiGet(MultiGetRequest multiGetRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_mget");
@@ -589,6 +600,19 @@ final class RequestConverters {
         return req;
     }
 
+    static Request termVectors(TermVectorsRequest tvrequest) throws IOException {
+        String endpoint = new EndpointBuilder().addPathPart(
+            tvrequest.getIndex(), tvrequest.getType(), tvrequest.getId()).addPathPartAsIs("_termvectors").build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Params params = new Params(request);
+        params.withRouting(tvrequest.getRouting());
+        params.withPreference(tvrequest.getPreference());
+        params.withFields(tvrequest.getFields());
+        params.withRealtime(tvrequest.getRealtime());
+        request.setEntity(createEntity(tvrequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -603,37 +627,6 @@ final class RequestConverters {
         Params params = new Params(request);
         params.withTimeout(deleteStoredScriptRequest.timeout());
         params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
-        return request;
-    }
-
-    static Request xPackWatcherPutWatch(PutWatchRequest putWatchRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
-            .addPathPart(putWatchRequest.getId())
-            .build();
-
-        Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        Params params = new Params(request).withVersion(putWatchRequest.getVersion());
-        if (putWatchRequest.isActive() == false) {
-            params.putParam("active", "false");
-        }
-        ContentType contentType = createContentType(putWatchRequest.xContentType());
-        BytesReference source = putWatchRequest.getSource();
-        request.setEntity(new ByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
-        return request;
-    }
-
-    static Request xPackWatcherDeleteWatch(DeleteWatchRequest deleteWatchRequest) {
-        String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("watch")
-            .addPathPart(deleteWatchRequest.getId())
-            .build();
-
-        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         return request;
     }
 
@@ -721,10 +714,10 @@ final class RequestConverters {
                     putParam("_source", Boolean.FALSE.toString());
                 }
                 if (fetchSourceContext.includes() != null && fetchSourceContext.includes().length > 0) {
-                    putParam("_source_include", String.join(",", fetchSourceContext.includes()));
+                    putParam("_source_includes", String.join(",", fetchSourceContext.includes()));
                 }
                 if (fetchSourceContext.excludes() != null && fetchSourceContext.excludes().length > 0) {
-                    putParam("_source_exclude", String.join(",", fetchSourceContext.excludes()));
+                    putParam("_source_excludes", String.join(",", fetchSourceContext.excludes()));
                 }
             }
             return this;

@@ -39,6 +39,7 @@ public abstract class ShowTestCase extends CliIntegrationTestCase {
         while (scalarFunction.matcher(line).matches()) {
             line = readLine();
         }
+
         assertThat(line, RegexMatcher.matches("\\s*SCORE\\s*\\|\\s*SCORE\\s*"));
         assertEquals("", readLine());
     }

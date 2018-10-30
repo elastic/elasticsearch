@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.ml.job.process.normalizer.output;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -26,15 +24,14 @@ import java.util.List;
 /**
  * Reads normalizer output.
  */
-public class NormalizerResultHandler extends AbstractComponent {
+public class NormalizerResultHandler {
 
     private static final int READ_BUF_SIZE = 1024;
 
     private final InputStream inputStream;
     private final List<NormalizerResult> normalizedResults;
 
-    public NormalizerResultHandler(Settings settings, InputStream inputStream) {
-        super(settings);
+    public NormalizerResultHandler(InputStream inputStream) {
         this.inputStream = inputStream;
         normalizedResults = new ArrayList<>();
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPr
 
 import java.util.Arrays;
 
+import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
 public class InProcessorTests extends AbstractWireSerializingTestCase<InProcessor> {
@@ -22,7 +23,6 @@ public class InProcessorTests extends AbstractWireSerializingTestCase<InProcesso
     private static final Literal ONE = L(1);
     private static final Literal TWO = L(2);
     private static final Literal THREE = L(3);
-    private static final Literal NULL = L(null);
 
     public static InProcessor randomProcessor() {
         return new InProcessor(Arrays.asList(new ConstantProcessor(randomLong()), new ConstantProcessor(randomLong())));

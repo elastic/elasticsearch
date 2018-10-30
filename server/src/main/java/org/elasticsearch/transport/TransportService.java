@@ -433,8 +433,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             PlainTransportFuture<HandshakeResponse> futureHandler = new PlainTransportFuture<>(
                 new FutureTransportResponseHandler<HandshakeResponse>() {
                 @Override
-                public HandshakeResponse newInstance() {
-                    return new HandshakeResponse();
+                public HandshakeResponse read(StreamInput in) throws IOException {
+                    return new HandshakeResponse(in);
                 }
             });
             sendRequest(connection, HANDSHAKE_ACTION_NAME, HandshakeRequest.INSTANCE,
@@ -467,12 +467,9 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     }
 
     public static class HandshakeResponse extends TransportResponse {
-        private DiscoveryNode discoveryNode;
-        private ClusterName clusterName;
-        private Version version;
-
-        HandshakeResponse() {
-        }
+        private final DiscoveryNode discoveryNode;
+        private final ClusterName clusterName;
+        private final Version version;
 
         public HandshakeResponse(DiscoveryNode discoveryNode, ClusterName clusterName, Version version) {
             this.discoveryNode = discoveryNode;
@@ -480,9 +477,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
             this.clusterName = clusterName;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public HandshakeResponse(StreamInput in) throws IOException {
+            super(in);
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = new ClusterName(in);
             version = Version.readVersion(in);
@@ -929,7 +925,7 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         }
     }
 
-    public RequestHandlerRegistry getRequestHandler(String action) {
+    public RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
         return transport.getRequestHandler(action);
     }
 
@@ -976,8 +972,8 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     @Override
     public void onConnectionClosed(Transport.Connection connection) {
         try {
-            List<Transport.ResponseContext> pruned = responseHandlers.prune(h -> h.connection().getCacheKey().equals(connection
-                .getCacheKey()));
+            List<Transport.ResponseContext<? extends TransportResponse>> pruned =
+                responseHandlers.prune(h -> h.connection().getCacheKey().equals(connection.getCacheKey()));
             // callback that an exception happened, but on a different thread since we don't
             // want handlers to worry about stack overflows
             getExecutorService().execute(() -> {

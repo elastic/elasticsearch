@@ -43,7 +43,8 @@ import java.util.List;
 /**
  * ForceMerge index/indices action.
  */
-public class TransportForceMergeAction extends TransportBroadcastByNodeAction<ForceMergeRequest, ForceMergeResponse, TransportBroadcastByNodeAction.EmptyResult> {
+public class TransportForceMergeAction
+        extends TransportBroadcastByNodeAction<ForceMergeRequest, ForceMergeResponse, TransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
 
@@ -62,7 +63,9 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<Fo
     }
 
     @Override
-    protected ForceMergeResponse newResponse(ForceMergeRequest request, int totalShards, int successfulShards, int failedShards, List<EmptyResult> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
+    protected ForceMergeResponse newResponse(ForceMergeRequest request, int totalShards, int successfulShards, int failedShards,
+                                             List<EmptyResult> responses, List<DefaultShardOperationFailedException> shardFailures,
+                                             ClusterState clusterState) {
         return new ForceMergeResponse(totalShards, successfulShards, failedShards, shardFailures);
     }
 

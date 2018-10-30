@@ -28,8 +28,10 @@ import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.min;
 import static java.util.Collections.unmodifiableList;
 
 /**
@@ -114,6 +116,7 @@ public class VersionCollection {
                 (match.group(4) == null ? "" : match.group(4)).replace('_', '-'),
                 false
             ))
+            .sorted()
             .filter(version -> version.getSuffix().isEmpty() || version.equals(currentVersionProperty))
             .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
 
@@ -293,32 +296,36 @@ public class VersionCollection {
         return groupByMajor.values().stream()
             .flatMap(Collection::stream)
             .filter(each -> unreleased.contains(each) == false)
-            .sorted()
             .collect(Collectors.toList());
     }
 
     public List<Version> getIndexCompatible() {
         return unmodifiableList(
-            groupByMajor.values().stream()
-                .flatMap(Collection::stream)
+            Stream.concat(
+                groupByMajor.get(currentVersion.getMajor() - 1).stream(),
+                groupByMajor.get(currentVersion.getMajor()).stream()
+            )
                 .filter(version -> version.equals(currentVersion) == false)
-                .sorted()
                 .collect(Collectors.toList())
         );
     }
 
     public List<Version> getWireCompatible() {
-        Version lastPreviousMinor = getLatestVersionByKey(groupByMajor, currentVersion.getMajor() - 1);
-        Version firstPreviousMinor = new Version(lastPreviousMinor.getMajor(), lastPreviousMinor.getMinor(), 0);
-        return unmodifiableList(
-            groupByMajor.values()
-                .stream()
-                .flatMap(Collection::stream)
-                .filter(version -> version.compareTo(firstPreviousMinor) >= 0)
-                .filter(version -> version.equals(currentVersion) == false)
-                .sorted()
-                .collect(Collectors.toList())
-        );
+        List<Version> wireCompat = new ArrayList<>();
+
+        List<Version> prevMajors = groupByMajor.get(currentVersion.getMajor() - 1);
+        int minor = prevMajors.get(prevMajors.size() - 1).getMinor();
+        for (int i = prevMajors.size() - 1;
+             i > 0 && prevMajors.get(i).getMinor() == minor;
+             i--
+        ) {
+            wireCompat.add(prevMajors.get(i));
+        }
+        wireCompat.addAll(groupByMajor.get(currentVersion.getMajor()));
+        wireCompat.remove(currentVersion);
+        wireCompat.sort(Version::compareTo);
+
+        return unmodifiableList(wireCompat);
     }
 
     public List<Version> getUnreleasedIndexCompatible() {

@@ -46,7 +46,6 @@ public interface TcpChannel extends CloseableChannel {
      */
     String getProfile();
 
-
     /**
      * This sets the low level socket option {@link java.net.StandardSocketOptions} SO_LINGER on a channel.
      *
@@ -54,7 +53,6 @@ public interface TcpChannel extends CloseableChannel {
      * @throws IOException that can be throw by the low level socket implementation
      */
     void setSoLinger(int value) throws IOException;
-
 
     /**
      * Returns the local address for this channel.
@@ -78,6 +76,18 @@ public interface TcpChannel extends CloseableChannel {
      * @param listener to execute upon send completion
      */
     void sendMessage(BytesReference reference, ActionListener<Void> listener);
+
+    /**
+     * Adds a listener that will be executed when the channel is connected. If the channel is still
+     * unconnected when this listener is added, the listener will be executed by the thread that eventually
+     * finishes the channel connection. If the channel is already connected when the listener is added the
+     * listener will immediately be executed by the thread that is attempting to add the listener.
+     *
+     * @param listener to be executed
+     */
+    default void addConnectionListener(ActionListener<Void> listener) {
+        // TODO: Implement
+    }
 
     /**
      * Awaits for all of the pending connections to complete. Will throw an exception if at least one of the

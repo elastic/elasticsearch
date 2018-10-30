@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -28,11 +29,14 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -71,6 +75,9 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  *
  * Note that \0 is a reserved separator character, and cannot be used in the keys of the JSON object
  * (see {@link JsonFieldParser#SEPARATOR}).
+ *
+ * When 'store' is enabled, a single stored field is added containing the entire JSON object in
+ * pretty-printed format.
  */
 public final class JsonFieldMapper extends FieldMapper {
 
@@ -137,12 +144,6 @@ public final class JsonFieldMapper extends FieldMapper {
         @Override
         public Builder copyTo(CopyTo copyTo) {
             throw new UnsupportedOperationException("[copy_to] is not supported for [" + CONTENT_TYPE + "] fields.");
-        }
-
-        @Override
-        public Builder store(boolean store) {
-            throw new UnsupportedOperationException("[store] is not currently supported for [" +
-                CONTENT_TYPE + "] fields.");
         }
 
         @Override
@@ -377,7 +378,8 @@ public final class JsonFieldMapper extends FieldMapper {
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 
         this.ignoreAbove = ignoreAbove;
-        this.fieldParser = new JsonFieldParser(fieldType.name(), keyedFieldName(), fieldType, ignoreAbove);
+        this.fieldParser = new JsonFieldParser(fieldType.name(), keyedFieldName(),
+            ignoreAbove, fieldType.nullValueAsString());
     }
 
     @Override
@@ -415,12 +417,36 @@ public final class JsonFieldMapper extends FieldMapper {
             return;
         }
 
-        if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            fields.addAll(fieldParser.parse(context.parser()));
-            createFieldNamesField(context, fields);
-        } else {
+        if (fieldType.indexOptions() == IndexOptions.NONE && !fieldType.stored()) {
             context.parser().skipChildren();
+            return;
         }
+
+        BytesRef storedValue = null;
+        if (fieldType.stored()) {
+            XContentBuilder builder = XContentFactory.jsonBuilder()
+                .prettyPrint()
+                .copyCurrentStructure(context.parser());
+            storedValue = BytesReference.bytes(builder).toBytesRef();
+            fields.add(new StoredField(fieldType.name(), storedValue));
+        }
+
+        if (fieldType().indexOptions() != IndexOptions.NONE) {
+            XContentParser indexedFieldsParser = context.parser();
+
+            // If store is enabled, we've already consumed the content to produce the stored field. Here we
+            // 'reset' the parser, so that we can traverse the content again.
+            if (storedValue != null) {
+                indexedFieldsParser = JsonXContent.jsonXContent.createParser(context.parser().getXContentRegistry(),
+                    context.parser().getDeprecationHandler(),
+                    storedValue.bytes);
+                indexedFieldsParser.nextToken();
+            }
+
+            fields.addAll(fieldParser.parse(indexedFieldsParser));
+        }
+
+        createFieldNamesField(context, fields);
     }
 
     @Override

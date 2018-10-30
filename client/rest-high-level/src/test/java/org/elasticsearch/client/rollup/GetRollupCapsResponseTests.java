@@ -21,7 +21,6 @@ package org.elasticsearch.client.rollup;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class GetRollupCapsResponseTests extends RollupCapsResponseTestCase<GetRollupCapsResponse> {
 

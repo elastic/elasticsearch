@@ -196,11 +196,12 @@ public class DiffableTests extends ESTestCase {
      */
     public abstract class MapDriver<T, V> {
         protected final Set<Integer> keys = randomPositiveIntSet();
-        protected final Set<Integer> keysToRemove = new HashSet<>(randomSubsetOf(randomInt(keys.size()), keys.toArray(new Integer[keys.size()])));
+        protected final Set<Integer> keysToRemove = new HashSet<>(randomSubsetOf(randomInt(keys.size()), keys.toArray(new Integer[0])));
         protected final Set<Integer> keysThatAreNotRemoved = Sets.difference(keys, keysToRemove);
         protected final Set<Integer> keysToOverride = new HashSet<>(randomSubsetOf(randomInt(keysThatAreNotRemoved.size()),
                 keysThatAreNotRemoved.toArray(new Integer[keysThatAreNotRemoved.size()])));
-        protected final Set<Integer> keysToAdd = Sets.difference(randomPositiveIntSet(), keys); // make sure keysToAdd does not contain elements in keys
+        // make sure keysToAdd does not contain elements in keys
+        protected final Set<Integer> keysToAdd = Sets.difference(randomPositiveIntSet(), keys);
         protected final Set<Integer> keysUnchanged = Sets.difference(keysThatAreNotRemoved, keysToOverride);
 
         protected final DiffableUtils.KeySerializer<Integer> keySerializer = randomBoolean()

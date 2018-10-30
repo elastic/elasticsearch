@@ -33,7 +33,7 @@ PUT _ilm/my_policy
         }
       },
       "delete": {
-        "minimum_age": "30d",
+        "min_age": "30d",
         "actions": {
           "delete": {}
         }
@@ -65,7 +65,7 @@ PUT _ilm/my_policy
         }
       },
       "delete": {
-        "minimum_age": "10d", <1>
+        "min_age": "10d", <1>
         "actions": {
           "delete": {}
         }
@@ -76,7 +76,7 @@ PUT _ilm/my_policy
 ------------------------
 // CONSOLE
 // TEST[continued]
-<1> update `minimum_age` to 10 days
+<1> update `min_age` to 10 days
 
 //////////
 [source,js]
@@ -99,7 +99,7 @@ with its version bumped to 2.
     "policy": {
       "phases": {
         "hot": {
-          "minimum_age": "0ms",
+          "min_age": "0ms",
           "actions": {
             "rollover": {
               "max_size": "25gb"
@@ -107,7 +107,7 @@ with its version bumped to 2.
           }
         },
         "delete": {
-          "minimum_age": "10d",
+          "min_age": "10d",
           "actions": {
             "delete": {}
           }
@@ -148,7 +148,7 @@ PUT _ilm/my_executing_policy
         }
       },
       "delete": {
-        "minimum_age": "10d",
+        "min_age": "10d",
         "actions": {
           "delete": {}
         }
@@ -203,7 +203,7 @@ GET my_index/_ilm/explain
         "modified_date_in_millis": 1538475653317,
         "version": 1,
         "phase_definition": {
-          "minimum_age": "0ms",
+          "min_age": "0ms",
           "actions": {
             "rollover": {
               "max_docs": 1
@@ -231,7 +231,7 @@ PUT _ilm/my_executing_policy
   "policy": {
     "phases": {
       "warm": {
-        "minimum_age": "1d",
+        "min_age": "1d",
         "actions": {
           "forcemerge": {
             "max_num_segments": 1
@@ -239,7 +239,7 @@ PUT _ilm/my_executing_policy
         }
       },
       "delete": {
-        "minimum_age": "10d",
+        "min_age": "10d",
         "actions": {
           "delete": {}
         }
@@ -283,7 +283,7 @@ GET my_index/_ilm/explain
         "modified_date_in_millis": 1538475653317,
         "version": 1,
         "phase_definition": {
-          "minimum_age": "0ms",
+          "min_age": "0ms",
           "actions": {
             "rollover": {
               "max_docs": 1
@@ -339,7 +339,7 @@ GET my_index/_ilm/explain
         "modified_date_in_millis": 1538475653317,
         "version": 2, <1>
         "phase_definition": {
-          "minimum_age": "1d",
+          "min_age": "1d",
           "actions": {
             "forcemerge": {
               "max_num_segments": 1
@@ -383,7 +383,7 @@ PUT _ilm/my_policy
         }
       },
       "delete": {
-        "minimum_age": "10d",
+        "min_age": "10d",
         "actions": {
           "delete": {}
         }
@@ -397,7 +397,7 @@ PUT _ilm/my_other_policy
   "policy": {
     "phases": {
       "delete": {
-        "minimum_age": "1d",
+        "min_age": "1d",
         "actions": {
           "delete": {}
         }

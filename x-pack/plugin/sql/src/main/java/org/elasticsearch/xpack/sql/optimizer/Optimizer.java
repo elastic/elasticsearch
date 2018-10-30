@@ -686,7 +686,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (TRUE.equals(filter.condition())) {
                     return filter.child();
                 }
-                // TODO: add comparison with null as well
                 if (FALSE.equals(filter.condition()) || FoldNull.isNull(filter.condition())) {
                     return new LocalRelation(filter.location(), new EmptyExecutable(filter.output()));
                 }

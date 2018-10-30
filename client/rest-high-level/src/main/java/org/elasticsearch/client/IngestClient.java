@@ -39,11 +39,10 @@ import static java.util.Collections.emptySet;
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
  */
 public final class IngestClient {
-
-    private final RestRequestActions requestActions;
+    private final RestRequestActions restHighLevelClient;
 
     IngestClient(RestRequestActions requestActions) {
-        this.requestActions = requestActions;
+        this.restHighLevelClient = requestActions;
     }
 
     /**
@@ -56,7 +55,7 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse putPipeline(PutPipelineRequest request, RequestOptions options) throws IOException {
-        return requestActions.performRequestAndParseEntity( request, IngestRequestConverters::putPipeline, options,
+        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::putPipeline, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
 
@@ -69,7 +68,7 @@ public final class IngestClient {
      * @param listener the listener to be notified upon request completion
      */
     public void putPipelineAsync(PutPipelineRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        requestActions.performRequestAsyncAndParseEntity( request, IngestRequestConverters::putPipeline, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::putPipeline, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -83,7 +82,7 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetPipelineResponse getPipeline(GetPipelineRequest request, RequestOptions options) throws IOException {
-        return requestActions.performRequestAndParseEntity( request, IngestRequestConverters::getPipeline, options,
+        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::getPipeline, options,
             GetPipelineResponse::fromXContent, Collections.singleton(404));
     }
 
@@ -96,7 +95,7 @@ public final class IngestClient {
      * @param listener the listener to be notified upon request completion
      */
     public void getPipelineAsync(GetPipelineRequest request, RequestOptions options, ActionListener<GetPipelineResponse> listener) {
-        requestActions.performRequestAsyncAndParseEntity( request, IngestRequestConverters::getPipeline, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::getPipeline, options,
             GetPipelineResponse::fromXContent, listener, Collections.singleton(404));
     }
 
@@ -111,7 +110,7 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse deletePipeline(DeletePipelineRequest request, RequestOptions options) throws IOException {
-        return requestActions.performRequestAndParseEntity( request, IngestRequestConverters::deletePipeline, options,
+        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::deletePipeline, options,
             AcknowledgedResponse::fromXContent, emptySet());
     }
 
@@ -125,7 +124,7 @@ public final class IngestClient {
      * @param listener the listener to be notified upon request completion
      */
     public void deletePipelineAsync(DeletePipelineRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        requestActions.performRequestAsyncAndParseEntity( request, IngestRequestConverters::deletePipeline, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::deletePipeline, options,
             AcknowledgedResponse::fromXContent, listener, emptySet());
     }
 
@@ -141,7 +140,7 @@ public final class IngestClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public SimulatePipelineResponse simulate(SimulatePipelineRequest request, RequestOptions options) throws IOException {
-        return requestActions.performRequestAndParseEntity( request, IngestRequestConverters::simulatePipeline, options,
+        return restHighLevelClient.performRequestAndParseEntity( request, IngestRequestConverters::simulatePipeline, options,
             SimulatePipelineResponse::fromXContent, emptySet());
     }
 
@@ -158,7 +157,7 @@ public final class IngestClient {
     public void simulateAsync(SimulatePipelineRequest request,
                               RequestOptions options,
                               ActionListener<SimulatePipelineResponse> listener) {
-        requestActions.performRequestAsyncAndParseEntity( request, IngestRequestConverters::simulatePipeline, options,
+        restHighLevelClient.performRequestAsyncAndParseEntity( request, IngestRequestConverters::simulatePipeline, options,
             SimulatePipelineResponse::fromXContent, listener, emptySet());
     }
 }

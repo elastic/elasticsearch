@@ -43,10 +43,10 @@ import java.util.Collections;
  */
 public class RollupClient {
 
-    private final RestRequestActions requestActions;
+    private final RestRequestActions restHighLevelClient;
 
     RollupClient(final RestRequestActions requestActions) {
-        this.requestActions = requestActions;
+        this.restHighLevelClient = requestActions;
     }
 
     /**
@@ -59,7 +59,7 @@ public class RollupClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public PutRollupJobResponse putRollupJob(PutRollupJobRequest request, RequestOptions options) throws IOException {
-        return requestActions.performRequestAndParseEntity(request,
+        return restHighLevelClient.performRequestAndParseEntity(request,
             RollupRequestConverters::putJob,
             options,
             PutRollupJobResponse::fromXContent,
@@ -75,7 +75,7 @@ public class RollupClient {
      * @param listener the listener to be notified upon request completion
      */
     public void putRollupJobAsync(PutRollupJobRequest request, RequestOptions options, ActionListener<PutRollupJobResponse> listener) {
-        requestActions.performRequestAsyncAndParseEntity(request,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
             RollupRequestConverters::putJob,
             options,
             PutRollupJobResponse::fromXContent,
@@ -92,7 +92,7 @@ public class RollupClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public StartRollupJobResponse startRollupJob(StartRollupJobRequest request, RequestOptions options)  throws IOException {
-        return requestActions.performRequestAndParseEntity(request,
+        return restHighLevelClient.performRequestAndParseEntity(request,
             RollupRequestConverters::startJob,
             options,
             StartRollupJobResponse::fromXContent,
@@ -109,7 +109,7 @@ public class RollupClient {
      */
     public void startRollupJobAsync(StartRollupJobRequest request, RequestOptions options,
             ActionListener<StartRollupJobResponse> listener) {
-        requestActions.performRequestAsyncAndParseEntity(request,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
             RollupRequestConverters::startJob,
             options,
             StartRollupJobResponse::fromXContent,
@@ -126,7 +126,7 @@ public class RollupClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public DeleteRollupJobResponse deleteRollupJob(DeleteRollupJobRequest request, RequestOptions options) throws IOException {
-        return requestActions.performRequestAndParseEntity(request,
+        return restHighLevelClient.performRequestAndParseEntity(request,
             RollupRequestConverters::deleteJob,
             options,
             DeleteRollupJobResponse::fromXContent,
@@ -143,7 +143,7 @@ public class RollupClient {
     public void deleteRollupJobAsync(DeleteRollupJobRequest request,
                                      RequestOptions options,
                                      ActionListener<DeleteRollupJobResponse> listener) {
-        requestActions.performRequestAsyncAndParseEntity(request,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
             RollupRequestConverters::deleteJob,
             options,
             DeleteRollupJobResponse::fromXContent,
@@ -160,7 +160,7 @@ public class RollupClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetRollupJobResponse getRollupJob(GetRollupJobRequest request, RequestOptions options) throws IOException {
-        return requestActions.performRequestAndParseEntity(request,
+        return restHighLevelClient.performRequestAndParseEntity(request,
             RollupRequestConverters::getJob,
             options,
             GetRollupJobResponse::fromXContent,
@@ -178,7 +178,7 @@ public class RollupClient {
 
 
     public void getRollupJobAsync(GetRollupJobRequest request, RequestOptions options, ActionListener<GetRollupJobResponse> listener) {
-        requestActions.performRequestAsyncAndParseEntity(request,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
             RollupRequestConverters::getJob,
             options,
             GetRollupJobResponse::fromXContent,
@@ -195,7 +195,7 @@ public class RollupClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetRollupCapsResponse getRollupCapabilities(GetRollupCapsRequest request, RequestOptions options) throws IOException {
-        return requestActions.performRequestAndParseEntity(request,
+        return restHighLevelClient.performRequestAndParseEntity(request,
             RollupRequestConverters::getRollupCaps,
             options,
             GetRollupCapsResponse::fromXContent,
@@ -212,7 +212,7 @@ public class RollupClient {
      */
     public void getRollupCapabilitiesAsync(GetRollupCapsRequest request, RequestOptions options,
                                            ActionListener<GetRollupCapsResponse> listener) {
-        requestActions.performRequestAsyncAndParseEntity(request,
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
             RollupRequestConverters::getRollupCaps,
             options,
             GetRollupCapsResponse::fromXContent,

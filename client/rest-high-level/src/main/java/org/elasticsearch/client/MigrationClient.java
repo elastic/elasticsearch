@@ -33,11 +33,10 @@ import java.util.Collections;
  * X-Pack Migration APIs on elastic.co</a> for more information.
  */
 public final class MigrationClient {
-
-    private final RestRequestActions requestActions;
+    private final RestRequestActions restHighLevelClient;
 
     MigrationClient(RestRequestActions requestActions) {
-        this.requestActions = requestActions;
+        this.restHighLevelClient = requestActions;
     }
 
     /**
@@ -49,7 +48,7 @@ public final class MigrationClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public IndexUpgradeInfoResponse getAssistance(IndexUpgradeInfoRequest request, RequestOptions options) throws IOException {
-        return requestActions.performRequestAndParseEntity(request, MigrationRequestConverters::getMigrationAssistance, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, MigrationRequestConverters::getMigrationAssistance, options,
             IndexUpgradeInfoResponse::fromXContent, Collections.emptySet());
     }
 }

@@ -29,10 +29,10 @@ import static java.util.Collections.emptySet;
 
 
 public class GraphClient {
-    private final RestRequestActions requestActions;
+    private final RestRequestActions restHighLevelClient;
 
     GraphClient(RestRequestActions requestActions) {
-        this.requestActions = requestActions;
+        this.restHighLevelClient = requestActions;
     }
     
     /**
@@ -43,7 +43,7 @@ public class GraphClient {
      */
     public final GraphExploreResponse explore(GraphExploreRequest graphExploreRequest,
                                                              RequestOptions options) throws IOException {
-        return requestActions.performRequestAndParseEntity(graphExploreRequest, GraphRequestConverters::explore,
+        return restHighLevelClient.performRequestAndParseEntity(graphExploreRequest, GraphRequestConverters::explore,
                 options, GraphExploreResponse::fromXContext, emptySet());
     }
 
@@ -56,7 +56,7 @@ public class GraphClient {
     public final void exploreAsync(GraphExploreRequest graphExploreRequest,
                                            RequestOptions options,
                                            ActionListener<GraphExploreResponse> listener) {
-        requestActions.performRequestAsyncAndParseEntity(graphExploreRequest, GraphRequestConverters::explore,
+        restHighLevelClient.performRequestAsyncAndParseEntity(graphExploreRequest, GraphRequestConverters::explore,
             options, GraphExploreResponse::fromXContext, listener, emptySet());
     }    
     

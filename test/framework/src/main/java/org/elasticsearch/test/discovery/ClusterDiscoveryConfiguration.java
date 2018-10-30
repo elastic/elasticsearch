@@ -149,6 +149,11 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
             for (int i = 0; i < unicastHostPorts.length; i++) {
                 boolean foundPortInRange = false;
                 while (tries < PORTS_PER_JVM && !foundPortInRange) {
+                    // Port 30210 collides in tests for unknown reasons so we manually exclude it.
+                    // See https://github.com/elastic/elasticsearch/issues/33675 for more.
+                    if (nextPort == 30210) {
+                        nextPort++;
+                    }
                     try (ServerSocket serverSocket = new ServerSocket()) {
                         // Set SO_REUSEADDR as we may bind here and not be able to reuse the address immediately without it.
                         serverSocket.setReuseAddress(NetworkUtils.defaultReuseAddress());

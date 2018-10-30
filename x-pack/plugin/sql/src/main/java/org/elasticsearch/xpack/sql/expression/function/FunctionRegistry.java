@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -142,6 +143,8 @@ public class FunctionRegistry {
                 def(Skewness.class, Skewness::new),
                 def(Kurtosis.class, Kurtosis::new));
         // Scalar functions
+        // conditional
+        addToMap(def(Coalesce.class, Coalesce::new));
         // Date
         addToMap(def(DayName.class, DayName::new, "DAYNAME"),
                 def(DayOfMonth.class, DayOfMonth::new, "DAYOFMONTH", "DAY", "DOM"),
@@ -311,6 +314,26 @@ public class FunctionRegistry {
     }
 
     /**
+     * Build a {@linkplain FunctionDefinition} for multi-arg function that
+     * is not aware of time zone and does not support {@code DISTINCT}.
+     */
+    @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
+    static <T extends Function> FunctionDefinition def(Class<T> function,
+            MultiFunctionBuilder<T> ctorRef, String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) -> {
+            if (distinct) {
+                throw new IllegalArgumentException("does not support DISTINCT yet it was specified");
+            }
+            return ctorRef.build(location, children);
+        };
+        return def(function, builder, false, aliases);
+    }
+
+    interface MultiFunctionBuilder<T> {
+        T build(Location location, List<Expression> children);
+    }
+    
+    /**
      * Build a {@linkplain FunctionDefinition} for a unary function that is not
      * aware of time zone but does support {@code DISTINCT}.
      */
@@ -325,6 +348,7 @@ public class FunctionRegistry {
         };
         return def(function, builder, false, aliases);
     }
+
     interface DistinctAwareUnaryFunctionBuilder<T> {
         T build(Location location, Expression target, boolean distinct);
     }

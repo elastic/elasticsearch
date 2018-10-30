@@ -1,0 +1,9 @@
+//
+// Null expressions
+//
+
+coalesceField
+SELECT COALESCE(null, ABS(emp_no) + 1) AS c FROM test_emp ORDER BY emp_no LIMIT 5;
+
+coalesceHaving
+SELECT COALESCE(languages, 0) c FROM test_emp GROUP BY languages ORDER BY languages;

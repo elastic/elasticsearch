@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.test.AbstractBuilderTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
@@ -26,7 +26,7 @@ import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.startsWith;
 
-public class QueryFolderTests extends AbstractBuilderTestCase {
+public class QueryFolderTests extends ESTestCase {
 
     private static SqlParser parser;
     private static Analyzer analyzer;

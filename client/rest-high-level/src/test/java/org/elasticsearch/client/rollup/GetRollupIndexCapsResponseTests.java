@@ -21,13 +21,12 @@ package org.elasticsearch.client.rollup;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
 
-public class GetRollupCapsResponseTests extends RollupCapsResponseTestCase<GetRollupCapsResponse> {
+public class GetRollupIndexCapsResponseTests extends RollupCapsResponseTestCase<GetRollupIndexCapsResponse> {
 
     @Override
-    protected GetRollupCapsResponse createTestInstance() {
-        return new GetRollupCapsResponse(indices);
+    protected GetRollupIndexCapsResponse createTestInstance() {
+        return new GetRollupIndexCapsResponse(indices);
     }
 
     @Override
@@ -36,7 +35,8 @@ public class GetRollupCapsResponseTests extends RollupCapsResponseTestCase<GetRo
     }
 
     @Override
-    protected GetRollupCapsResponse doParseInstance(final XContentParser parser) throws IOException {
-        return GetRollupCapsResponse.fromXContent(parser);
+    protected GetRollupIndexCapsResponse doParseInstance(final XContentParser parser) throws IOException {
+        return GetRollupIndexCapsResponse.fromXContent(parser);
     }
+
 }

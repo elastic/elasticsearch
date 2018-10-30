@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -14,7 +15,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 public class JobDataDeleter {
 
-    private static final Logger LOGGER = Loggers.getLogger(JobDataDeleter.class);
+    private static final Logger LOGGER = LogManager.getLogger(JobDataDeleter.class);
 
     private final Client client;
     private final String jobId;

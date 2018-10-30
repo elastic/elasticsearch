@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
@@ -19,7 +20,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -80,8 +80,8 @@ import java.util.stream.Collectors;
  */
 public class JobManager extends AbstractComponent {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-            new DeprecationLogger(Loggers.getLogger(JobManager.class));
+    private static final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(LogManager.getLogger(JobManager.class));
 
     private final Environment environment;
     private final JobResultsProvider jobResultsProvider;
@@ -194,7 +194,7 @@ public class JobManager extends AbstractComponent {
         Job job = request.getJobBuilder().build(new Date());
 
         if (job.getDataDescription() != null && job.getDataDescription().getFormat() == DataDescription.DataFormat.DELIMITED) {
-            DEPRECATION_LOGGER.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
+            deprecationLogger.deprecated("Creating jobs with delimited data format is deprecated. Please use xcontent instead.");
         }
 
         // pre-flight check, not necessarily required, but avoids figuring this out while on the CS update thread

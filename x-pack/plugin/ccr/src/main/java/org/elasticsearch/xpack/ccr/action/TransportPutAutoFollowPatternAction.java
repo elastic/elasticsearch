@@ -160,14 +160,16 @@ public class TransportPutAutoFollowPatternAction extends
             request.getRemoteCluster(),
             request.getLeaderIndexPatterns(),
             request.getFollowIndexNamePattern(),
-            request.getMaxBatchOperationCount(),
+            request.getMaxReadRequestOperationCount(),
+            request.getMaxReadRequestSize(),
             request.getMaxConcurrentReadBatches(),
-            request.getMaxBatchSize(),
+            request.getMaxWriteRequestOperationCount(),
+            request.getMaxWriteRequestSize(),
             request.getMaxConcurrentWriteBatches(),
             request.getMaxWriteBufferCount(),
             request.getMaxWriteBufferSize(),
             request.getMaxRetryDelay(),
-            request.getPollTimeout());
+            request.getReadPollTimeout());
         patterns.put(request.getName(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
         newState.metaData(MetaData.builder(localState.getMetaData())

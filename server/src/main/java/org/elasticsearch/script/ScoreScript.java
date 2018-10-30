@@ -46,7 +46,8 @@ public abstract class ScoreScript {
 
     public ScoreScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         this.params = params;
-        this.leafLookup = lookup.getLeafSearchLookup(leafContext);
+        // null check needed b/c of expression engine subclass
+        this.leafLookup = lookup == null ? null : lookup.getLeafSearchLookup(leafContext);
     }
 
     public abstract double execute();

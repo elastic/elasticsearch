@@ -21,10 +21,11 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.function.Supplier;
 
 /**
  * Base class for delegating transport response to a transport channel
@@ -34,19 +35,19 @@ public class TransportChannelResponseHandler<T extends TransportResponse> implem
     private final Logger logger;
     private final TransportChannel channel;
     private final String extraInfoOnError;
-    private final Supplier<T> responseSupplier;
+    private final Writeable.Reader<T> reader;
 
     public TransportChannelResponseHandler(Logger logger, TransportChannel channel, String extraInfoOnError,
-                                           Supplier<T> responseSupplier) {
+                                           Writeable.Reader<T> reader) {
         this.logger = logger;
         this.channel = channel;
         this.extraInfoOnError = extraInfoOnError;
-        this.responseSupplier = responseSupplier;
+        this.reader = reader;
     }
 
     @Override
-    public T newInstance() {
-        return responseSupplier.get();
+    public T read(StreamInput in) throws IOException {
+        return reader.read(in);
     }
 
     @Override

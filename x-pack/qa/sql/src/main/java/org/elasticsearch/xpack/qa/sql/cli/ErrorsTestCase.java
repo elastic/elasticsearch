@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.qa.sql.cli;
 
-import java.io.IOException;
 import org.elasticsearch.client.Request;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.startsWith;
 
@@ -43,7 +44,8 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
         client().performRequest(request);
 
         assertFoundOneProblem(command("SELECT * FROM test"));
-        assertEquals("line 1:15: [test] doesn't have any types so it is incompatible with sql" + END, readLine());
+        //assertEquals("line 1:15: [test] doesn't have any types so it is incompatible with sql" + END, readLine());
+        assertEquals("line 1:15: Unknown index [test]" + END, readLine());
     }
 
     @Override

@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -29,12 +30,13 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
-import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.Not;
-import org.elasticsearch.xpack.sql.expression.predicate.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
@@ -80,7 +82,9 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.hamcrest.Matchers.contains;
 
 public class OptimizerTests extends ESTestCase {
 
@@ -92,7 +96,6 @@ public class OptimizerTests extends ESTestCase {
     private static final Literal FOUR = L(4);
     private static final Literal FIVE = L(5);
     private static final Literal SIX = L(6);
-
 
     public static class DummyBooleanExpression extends Expression {
 
@@ -146,6 +149,11 @@ public class OptimizerTests extends ESTestCase {
     private static Literal L(Object value) {
         return Literal.of(EMPTY, value);
     }
+
+    private static FieldAttribute getFieldAttribute() {
+        return new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+    }
+
 
     public void testPruneSubqueryAliases() {
         ShowTables s = new ShowTables(EMPTY, null, null);
@@ -204,7 +212,7 @@ public class OptimizerTests extends ESTestCase {
         // SELECT
         p = new Project(EMPTY, p, Arrays.asList(a, b));
         // ORDER BY
-        p = new OrderBy(EMPTY, p, singletonList(new Order(EMPTY, b, OrderDirection.ASC)));
+        p = new OrderBy(EMPTY, p, singletonList(new Order(EMPTY, b, OrderDirection.ASC, null)));
 
         LogicalPlan result = new ReplaceFoldableAttributes().apply(p);
         assertNotSame(p, result);
@@ -263,6 +271,20 @@ public class OptimizerTests extends ESTestCase {
                 new ConstantFolding().rule(new Or(EMPTY, new GreaterThanOrEqual(EMPTY, TWO, THREE), Literal.TRUE)).canonical());
     }
 
+    public void testConstantFoldingBinaryLogic_WithNullHandling() {
+        assertEquals(NULL, new ConstantFolding().rule(new And(EMPTY, NULL, Literal.TRUE)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new And(EMPTY, Literal.TRUE, NULL)).canonical());
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new And(EMPTY, NULL, Literal.FALSE)).canonical());
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new And(EMPTY, Literal.FALSE, NULL)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new And(EMPTY, NULL, NULL)).canonical());
+
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new Or(EMPTY, NULL, Literal.TRUE)).canonical());
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new Or(EMPTY, Literal.TRUE, NULL)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new Or(EMPTY, NULL, Literal.FALSE)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new Or(EMPTY, Literal.FALSE, NULL)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new Or(EMPTY, NULL, NULL)).canonical());
+    }
+
     public void testConstantFoldingRange() {
         assertEquals(true, new ConstantFolding().rule(new Range(EMPTY, FIVE, FIVE, true, L(10), false)).fold());
         assertEquals(false, new ConstantFolding().rule(new Range(EMPTY, FIVE, FIVE, false, L(10), false)).fold());
@@ -298,6 +320,35 @@ public class OptimizerTests extends ESTestCase {
                 new WeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), UTC)));
     }
 
+    public void testConstantFoldingIn() {
+        In in = new In(EMPTY, ONE,
+            Arrays.asList(ONE, TWO, ONE, THREE, new Sub(EMPTY, THREE, ONE), ONE, FOUR, new Abs(EMPTY, new Sub(EMPTY, TWO, FIVE))));
+        Literal result= (Literal) new ConstantFolding().rule(in);
+        assertEquals(true, result.value());
+    }
+
+    public void testConstantFoldingIn_LeftValueNotFoldable() {
+        Project p = new Project(EMPTY, FROM(), Collections.singletonList(
+        new In(EMPTY, getFieldAttribute(),
+            Arrays.asList(ONE, TWO, ONE, THREE, new Sub(EMPTY, THREE, ONE), ONE, FOUR, new Abs(EMPTY, new Sub(EMPTY, TWO, FIVE))))));
+        p = (Project) new ConstantFolding().apply(p);
+        assertEquals(1, p.projections().size());
+        In in = (In) p.projections().get(0);
+        assertThat(Foldables.valuesOf(in.list(), DataType.INTEGER), contains(1 ,2 ,3 ,4));
+    }
+
+    public void testConstantFoldingIn_RightValueIsNull() {
+        In in = new In(EMPTY, getFieldAttribute(), Arrays.asList(NULL, NULL));
+        Literal result= (Literal) new ConstantFolding().rule(in);
+        assertEquals(false, result.value());
+    }
+
+    public void testConstantFoldingIn_LeftValueIsNull() {
+        In in = new In(EMPTY, NULL, Arrays.asList(ONE, TWO, THREE));
+        Literal result= (Literal) new ConstantFolding().rule(in);
+        assertNull(result.value());
+    }
+
     public void testArithmeticFolding() {
         assertEquals(10, foldOperator(new Add(EMPTY, L(7), THREE)));
         assertEquals(4, foldOperator(new Sub(EMPTY, L(7), THREE)));
@@ -319,7 +370,7 @@ public class OptimizerTests extends ESTestCase {
         return ((Literal) new ConstantFolding().rule(f)).value();
     }
 
-    private static Object foldOperator(BinaryOperator b) {
+    private static Object foldOperator(BinaryOperator<?, ?, ?, ?> b) {
         return ((Literal) new ConstantFolding().rule(b)).value();
     }
 
@@ -389,7 +440,7 @@ public class OptimizerTests extends ESTestCase {
 
     // 6 < a <= 5  -> FALSE
     public void testFoldExcludingRangeToFalse() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r = new Range(EMPTY, fa, SIX, false, FIVE, true);
         assertTrue(r.foldable());
@@ -398,7 +449,7 @@ public class OptimizerTests extends ESTestCase {
 
     // 6 < a <= 5.5 -> FALSE
     public void testFoldExcludingRangeWithDifferentTypesToFalse() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r = new Range(EMPTY, fa, SIX, false, L(5.5d), true);
         assertTrue(r.foldable());
@@ -408,7 +459,7 @@ public class OptimizerTests extends ESTestCase {
     // Conjunction
 
     public void testCombineBinaryComparisonsNotComparable() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
         LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, SIX);
         LessThan lt = new LessThan(EMPTY, fa, Literal.FALSE);
 
@@ -420,7 +471,7 @@ public class OptimizerTests extends ESTestCase {
 
     // a <= 6 AND a < 5  -> a < 5
     public void testCombineBinaryComparisonsUpper() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
         LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, SIX);
         LessThan lt = new LessThan(EMPTY, fa, FIVE);
 
@@ -434,7 +485,7 @@ public class OptimizerTests extends ESTestCase {
 
     // 6 <= a AND 5 < a  -> 6 <= a
     public void testCombineBinaryComparisonsLower() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
         GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, SIX);
         GreaterThan gt = new GreaterThan(EMPTY, fa, FIVE);
 
@@ -448,7 +499,7 @@ public class OptimizerTests extends ESTestCase {
 
     // 5 <= a AND 5 < a  -> 5 < a
     public void testCombineBinaryComparisonsInclude() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
         GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, FIVE);
         GreaterThan gt = new GreaterThan(EMPTY, fa, FIVE);
 
@@ -462,7 +513,7 @@ public class OptimizerTests extends ESTestCase {
 
     // 3 <= a AND 4 < a AND a <= 7 AND a < 6 -> 4 < a < 6
     public void testCombineMultipleBinaryComparisons() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
         GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, THREE);
         GreaterThan gt = new GreaterThan(EMPTY, fa, FOUR);
         LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, L(7));
@@ -481,7 +532,7 @@ public class OptimizerTests extends ESTestCase {
 
     // 3 <= a AND TRUE AND 4 < a AND a != 5 AND a <= 7 -> 4 < a <= 7 AND a != 5 AND TRUE
     public void testCombineMixedMultipleBinaryComparisons() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
         GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, THREE);
         GreaterThan gt = new GreaterThan(EMPTY, fa, FOUR);
         LessThanOrEqual lte = new LessThanOrEqual(EMPTY, fa, L(7));
@@ -503,7 +554,7 @@ public class OptimizerTests extends ESTestCase {
 
     // 1 <= a AND a < 5  -> 1 <= a < 5
     public void testCombineComparisonsIntoRange() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
         GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, ONE);
         LessThan lt = new LessThan(EMPTY, fa, FIVE);
 
@@ -520,7 +571,7 @@ public class OptimizerTests extends ESTestCase {
 
     // a != NULL AND a > 1 AND a < 5 AND a == 10  -> (a != NULL AND a == 10) AND 1 <= a < 5
     public void testCombineUnbalancedComparisonsMixedWithEqualsIntoRange() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
         IsNotNull isn = new IsNotNull(EMPTY, fa);
         GreaterThanOrEqual gte = new GreaterThanOrEqual(EMPTY, fa, ONE);
 
@@ -544,7 +595,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (2 < a < 3) AND (1 < a < 4) -> (2 < a < 3)
     public void testCombineBinaryComparisonsConjunctionOfIncludedRange() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r1 = new Range(EMPTY, fa, TWO, false, THREE, false);
         Range r2 = new Range(EMPTY, fa, ONE, false, FOUR, false);
@@ -558,7 +609,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (2 < a < 3) AND a < 2 -> 2 < a < 2
     public void testCombineBinaryComparisonsConjunctionOfNonOverlappingBoundaries() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r1 = new Range(EMPTY, fa, TWO, false, THREE, false);
         Range r2 = new Range(EMPTY, fa, ONE, false, TWO, false);
@@ -578,7 +629,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (2 < a < 3) AND (2 < a <= 3) -> 2 < a < 3
     public void testCombineBinaryComparisonsConjunctionOfUpperEqualsOverlappingBoundaries() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r1 = new Range(EMPTY, fa, TWO, false, THREE, false);
         Range r2 = new Range(EMPTY, fa, TWO, false, THREE, true);
@@ -592,7 +643,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (2 < a < 3) AND (1 < a < 3) -> 2 < a < 3
     public void testCombineBinaryComparisonsConjunctionOverlappingUpperBoundary() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r2 = new Range(EMPTY, fa, TWO, false, THREE, false);
         Range r1 = new Range(EMPTY, fa, ONE, false, THREE, false);
@@ -606,7 +657,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (2 < a <= 3) AND (1 < a < 3) -> 2 < a < 3
     public void testCombineBinaryComparisonsConjunctionWithDifferentUpperLimitInclusion() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r1 = new Range(EMPTY, fa, ONE, false, THREE, false);
         Range r2 = new Range(EMPTY, fa, TWO, false, THREE, true);
@@ -625,7 +676,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (0 < a <= 1) AND (0 <= a < 2) -> 0 < a <= 1
     public void testRangesOverlappingConjunctionNoLowerBoundary() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r1 = new Range(EMPTY, fa, L(0), false, ONE, true);
         Range r2 = new Range(EMPTY, fa, L(0), true, TWO, false);
@@ -640,7 +691,7 @@ public class OptimizerTests extends ESTestCase {
     // Disjunction
 
     public void testCombineBinaryComparisonsDisjunctionNotComparable() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         GreaterThan gt1 = new GreaterThan(EMPTY, fa, ONE);
         GreaterThan gt2 = new GreaterThan(EMPTY, fa, Literal.FALSE);
@@ -655,7 +706,7 @@ public class OptimizerTests extends ESTestCase {
 
     // 2 < a OR 1 < a OR 3 < a -> 1 < a
     public void testCombineBinaryComparisonsDisjunctionLowerBound() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         GreaterThan gt1 = new GreaterThan(EMPTY, fa, ONE);
         GreaterThan gt2 = new GreaterThan(EMPTY, fa, TWO);
@@ -673,7 +724,7 @@ public class OptimizerTests extends ESTestCase {
 
     // 2 < a OR 1 < a OR 3 <= a -> 1 < a
     public void testCombineBinaryComparisonsDisjunctionIncludeLowerBounds() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         GreaterThan gt1 = new GreaterThan(EMPTY, fa, ONE);
         GreaterThan gt2 = new GreaterThan(EMPTY, fa, TWO);
@@ -691,7 +742,7 @@ public class OptimizerTests extends ESTestCase {
 
     // a < 1 OR a < 2 OR a < 3 ->  a < 3
     public void testCombineBinaryComparisonsDisjunctionUpperBound() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         LessThan lt1 = new LessThan(EMPTY, fa, ONE);
         LessThan lt2 = new LessThan(EMPTY, fa, TWO);
@@ -709,7 +760,7 @@ public class OptimizerTests extends ESTestCase {
 
     // a < 2 OR a <= 2 OR a < 1 ->  a <= 2
     public void testCombineBinaryComparisonsDisjunctionIncludeUpperBounds() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         LessThan lt1 = new LessThan(EMPTY, fa, ONE);
         LessThan lt2 = new LessThan(EMPTY, fa, TWO);
@@ -727,7 +778,7 @@ public class OptimizerTests extends ESTestCase {
 
     // a < 2 OR 3 < a OR a < 1 OR 4 < a ->  a < 2 OR 3 < a
     public void testCombineBinaryComparisonsDisjunctionOfLowerAndUpperBounds() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         LessThan lt1 = new LessThan(EMPTY, fa, ONE);
         LessThan lt2 = new LessThan(EMPTY, fa, TWO);
@@ -753,7 +804,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (2 < a < 3) OR (1 < a < 4) -> (1 < a < 4)
     public void testCombineBinaryComparisonsDisjunctionOfIncludedRangeNotComparable() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r1 = new Range(EMPTY, fa, TWO, false, THREE, false);
         Range r2 = new Range(EMPTY, fa, ONE, false, Literal.FALSE, false);
@@ -765,10 +816,9 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(or, exp);
     }
 
-
     // (2 < a < 3) OR (1 < a < 4) -> (1 < a < 4)
     public void testCombineBinaryComparisonsDisjunctionOfIncludedRange() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
 
         Range r1 = new Range(EMPTY, fa, TWO, false, THREE, false);
@@ -789,7 +839,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (2 < a < 3) OR (1 < a < 2) -> same
     public void testCombineBinaryComparisonsDisjunctionOfNonOverlappingBoundaries() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r1 = new Range(EMPTY, fa, TWO, false, THREE, false);
         Range r2 = new Range(EMPTY, fa, ONE, false, TWO, false);
@@ -803,7 +853,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (2 < a < 3) OR (2 < a <= 3) -> 2 < a <= 3
     public void testCombineBinaryComparisonsDisjunctionOfUpperEqualsOverlappingBoundaries() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r1 = new Range(EMPTY, fa, TWO, false, THREE, false);
         Range r2 = new Range(EMPTY, fa, TWO, false, THREE, true);
@@ -817,7 +867,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (2 < a < 3) OR (1 < a < 3) -> 1 < a < 3
     public void testCombineBinaryComparisonsOverlappingUpperBoundary() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r2 = new Range(EMPTY, fa, TWO, false, THREE, false);
         Range r1 = new Range(EMPTY, fa, ONE, false, THREE, false);
@@ -831,7 +881,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (2 < a <= 3) OR (1 < a < 3) -> same (the <= prevents the ranges from being combined)
     public void testCombineBinaryComparisonsWithDifferentUpperLimitInclusion() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r1 = new Range(EMPTY, fa, ONE, false, THREE, false);
         Range r2 = new Range(EMPTY, fa, TWO, false, THREE, true);
@@ -845,7 +895,7 @@ public class OptimizerTests extends ESTestCase {
 
     // (0 < a <= 1) OR (0 < a < 2) -> 0 < a < 2
     public void testRangesOverlappingNoLowerBoundary() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
 
         Range r2 = new Range(EMPTY, fa, L(0), false, TWO, false);
         Range r1 = new Range(EMPTY, fa, L(0), false, ONE, true);
@@ -861,7 +911,7 @@ public class OptimizerTests extends ESTestCase {
 
     // a == 1 AND a == 2 -> FALSE
     public void testDualEqualsConjunction() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
         Equals eq1 = new Equals(EMPTY, fa, ONE);
         Equals eq2 = new Equals(EMPTY, fa, TWO);
 
@@ -872,7 +922,7 @@ public class OptimizerTests extends ESTestCase {
 
     // 1 <= a < 10 AND a == 1 -> a == 1
     public void testEliminateRangeByEqualsInInterval() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
         Equals eq1 = new Equals(EMPTY, fa, ONE);
         Range r = new Range(EMPTY, fa, ONE, true, L(10), false);
 
@@ -883,7 +933,7 @@ public class OptimizerTests extends ESTestCase {
 
     // 1 < a < 10 AND a == 10 -> FALSE
     public void testEliminateRangeByEqualsOutsideInterval() {
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        FieldAttribute fa = getFieldAttribute();
         Equals eq1 = new Equals(EMPTY, fa, L(10));
         Range r = new Range(EMPTY, fa, ONE, false, L(10), false);
 

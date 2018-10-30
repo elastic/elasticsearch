@@ -10,7 +10,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.xpack.CCRSingleNodeTestCase;
+import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
@@ -23,7 +23,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-public class LocalIndexFollowingIT extends CCRSingleNodeTestCase {
+public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
     public void testFollowIndex() throws Exception {
         final String leaderIndexSettings = getIndexSettings(2, 0,
@@ -31,7 +31,7 @@ public class LocalIndexFollowingIT extends CCRSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader");
 
-        final PutFollowAction.Request followRequest = new PutFollowAction.Request(getFollowRequest());
+        final PutFollowAction.Request followRequest = getPutFollowRequest();
         client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
@@ -52,8 +52,7 @@ public class LocalIndexFollowingIT extends CCRSingleNodeTestCase {
             assertThat(client().prepareSearch("follower").get().getHits().totalHits, equalTo(firstBatchNumDocs + secondBatchNumDocs));
         });
 
-        PauseFollowAction.Request pauseRequest = new PauseFollowAction.Request();
-        pauseRequest.setFollowIndex("follower");
+        PauseFollowAction.Request pauseRequest = new PauseFollowAction.Request("follower");
         client().execute(PauseFollowAction.INSTANCE, pauseRequest);
 
         final long thirdBatchNumDocs = randomIntBetween(2, 64);
@@ -61,11 +60,27 @@ public class LocalIndexFollowingIT extends CCRSingleNodeTestCase {
             client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
         }
 
-        client().execute(ResumeFollowAction.INSTANCE, getFollowRequest()).get();
+        client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest()).get();
         assertBusy(() -> {
             assertThat(client().prepareSearch("follower").get().getHits().totalHits,
                 equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
         });
+        ensureEmptyWriteBuffers();
+    }
+
+    public void testDoNotCreateFollowerIfLeaderDoesNotHaveSoftDeletes() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(2, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "false"));
+        assertAcked(client().admin().indices().prepareCreate("leader-index").setSource(leaderIndexSettings, XContentType.JSON));
+        ResumeFollowAction.Request followRequest = getResumeFollowRequest();
+        followRequest.setFollowerIndex("follower-index");
+        PutFollowAction.Request putFollowRequest = getPutFollowRequest();
+        putFollowRequest.setLeaderIndex("leader-index");
+        putFollowRequest.setFollowRequest(followRequest);
+        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+            () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
+        assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled"));
+        assertThat(client().admin().indices().prepareExists("follower-index").get().isExists(), equalTo(false));
     }
 
     private String getIndexSettings(final int numberOfShards, final int numberOfReplicas,

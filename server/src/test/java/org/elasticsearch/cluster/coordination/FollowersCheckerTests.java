@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.test.ESTestCase;
@@ -442,6 +443,11 @@ public class FollowersCheckerTests extends ESTestCase {
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(leaderTerm, leader),
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
+                    public TransportResponse.Empty read(StreamInput in) {
+                        return TransportResponse.Empty.INSTANCE;
+                    }
+
+                    @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("unexpected success");
                     }
@@ -501,6 +507,11 @@ public class FollowersCheckerTests extends ESTestCase {
             transportService.sendRequest(follower, FOLLOWER_CHECK_ACTION_NAME, new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
+                    public TransportResponse.Empty read(StreamInput in) {
+                        return TransportResponse.Empty.INSTANCE;
+                    }
+
+                    @Override
                     public void handleResponse(TransportResponse.Empty response) {
                         fail("unexpected success");
                     }
@@ -544,5 +555,11 @@ public class FollowersCheckerTests extends ESTestCase {
         public boolean succeeded() {
             return responseReceived.get();
         }
+
+        @Override
+        public TransportResponse.Empty read(StreamInput in) {
+            return TransportResponse.Empty.INSTANCE;
+        }
+
     }
 }

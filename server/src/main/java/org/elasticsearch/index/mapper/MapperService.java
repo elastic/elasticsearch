@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -117,7 +117,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             "_size", "_timestamp", "_ttl", IgnoredFieldMapper.NAME
     );
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MapperService.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MapperService.class));
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -408,7 +408,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new IllegalArgumentException("The [default] mapping cannot be updated on index [" + index().getName() +
                         "]: defaults mappings are not useful anymore now that indices can have at most one type.");
             } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates
-                DEPRECATION_LOGGER.deprecated("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
+                deprecationLogger.deprecated("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
                         "cannot have more than one type");
             }
             assert defaultMapper.type().equals(DEFAULT_MAPPING);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.service;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
@@ -39,7 +40,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
@@ -74,6 +74,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected ClusterStatePublisher clusterStatePublisher;
 
+    private final String nodeName;
+
     private java.util.function.Supplier<ClusterState> clusterStateSupplier;
 
     private volatile TimeValue slowTaskLoggingThreshold;
@@ -83,8 +85,9 @@ public class MasterService extends AbstractLifecycleComponent {
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
 
-    public MasterService(Settings settings, ThreadPool threadPool) {
+    public MasterService(String nodeName, Settings settings, ThreadPool threadPool) {
         super(settings);
+        this.nodeName = nodeName;
         // TODO: introduce a dedicated setting for master service
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
         this.threadPool = threadPool;
@@ -112,7 +115,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
         return EsExecutors.newSinglePrioritizing(
-                nodeName() + "/" + MASTER_UPDATE_THREAD_NAME,
+                nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
                 daemonThreadFactory(settings, MASTER_UPDATE_THREAD_NAME),
                 threadPool.getThreadContext(),
                 threadPool.scheduler());
@@ -595,7 +598,7 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private static class AckCountDownListener implements Discovery.AckListener {
 
-        private static final Logger logger = Loggers.getLogger(AckCountDownListener.class);
+        private static final Logger logger = LogManager.getLogger(AckCountDownListener.class);
 
         private final AckedClusterStateTaskListener ackedTaskListener;
         private final CountDown countDown;

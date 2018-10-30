@@ -37,7 +37,7 @@ import static org.elasticsearch.common.Booleans.parseBoolean;
 
 public class HttpInfo implements Writeable, ToXContentFragment {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(HttpInfo.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(HttpInfo.class));
 
     /** Whether to add hostname to publish host field when serializing. */
     private static final boolean CNAME_IN_PUBLISH_HOST =
@@ -86,7 +86,7 @@ public class HttpInfo implements Writeable, ToXContentFragment {
             if (cnameInPublishHost) {
                 publishAddressString = hostString + '/' + publishAddress.toString();
             } else {
-                DEPRECATION_LOGGER.deprecated(
+                deprecationLogger.deprecated(
                     "[http.publish_host] was printed as [ip:port] instead of [hostname/ip:port]. "
                         + "This format is deprecated and will change to [hostname/ip:port] in a future version. "
                         + "Use -Des.http.cname_in_publish_address=true to enforce non-deprecated formatting."

@@ -116,7 +116,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
 
-    public Coordinator(Settings settings, ClusterSettings clusterSettings, TransportService transportService,
+    public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        AllocationService allocationService, MasterService masterService,
                        Supplier<CoordinationState.PersistedState> persistedStateSupplier, UnicastHostsProvider unicastHostsProvider,
                        ClusterApplier clusterApplier, Random random) {
@@ -132,7 +132,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.publishTimeout = PUBLISH_TIMEOUT_SETTING.get(settings);
         this.electionSchedulerFactory = new ElectionSchedulerFactory(settings, random, transportService.getThreadPool());
         this.preVoteCollector = new PreVoteCollector(settings, transportService, this::startElection, this::updateMaxTermSeen);
-        configuredHostsResolver = new UnicastConfiguredHostsResolver(settings, transportService, unicastHostsProvider);
+        configuredHostsResolver = new UnicastConfiguredHostsResolver(nodeName, settings, transportService, unicastHostsProvider);
         this.peerFinder = new CoordinatorPeerFinder(settings, transportService,
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
         this.publicationHandler = new PublicationTransportHandler(settings, transportService, this::handlePublishRequest,

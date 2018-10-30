@@ -48,9 +48,12 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
     private final UnicastHostsProvider hostsProvider;
     private final SetOnce<ExecutorService> executorService = new SetOnce<>();
     private final TimeValue resolveTimeout;
+    private final String nodeName;
 
-    public UnicastConfiguredHostsResolver(Settings settings, TransportService transportService, UnicastHostsProvider hostsProvider) {
+    public UnicastConfiguredHostsResolver(String nodeName, Settings settings, TransportService transportService, UnicastHostsProvider
+            hostsProvider) {
         super(settings);
+        this.nodeName = nodeName;
         this.transportService = transportService;
         this.hostsProvider = hostsProvider;
         resolveTimeout = UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
@@ -61,7 +64,7 @@ public class UnicastConfiguredHostsResolver extends AbstractLifecycleComponent i
         final int concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
         logger.debug("using concurrent_connects [{}], resolve_timeout [{}]", concurrentConnects, resolveTimeout);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings, "[unicast_configured_hosts_resolver]");
-        executorService.set(EsExecutors.newScaling(nodeName() + "/" + "unicast_configured_hosts_resolver",
+        executorService.set(EsExecutors.newScaling(nodeName + "/" + "unicast_configured_hosts_resolver",
             0, concurrentConnects, 60, TimeUnit.SECONDS, threadFactory, transportService.getThreadPool().getThreadContext()));
     }
 

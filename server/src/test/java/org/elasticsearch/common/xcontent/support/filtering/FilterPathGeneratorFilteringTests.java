@@ -34,7 +34,8 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
     private final JsonFactory JSON_FACTORY = new JsonFactory();
 
     public void testInclusiveFilters() throws Exception {
-        final String SAMPLE = "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}";
+        final String SAMPLE = "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}";
 
         assertResult(SAMPLE, "a", true, "{'a':0}");
         assertResult(SAMPLE, "b", true, "{'b':true}");
@@ -79,48 +80,80 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
     }
 
     public void testExclusiveFilters() throws Exception {
-        final String SAMPLE = "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}";
+        final String SAMPLE = "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}";
 
-        assertResult(SAMPLE, "a", false, "{'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
-        assertResult(SAMPLE, "b", false, "{'a':0,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
-        assertResult(SAMPLE, "c", false, "{'a':0,'b':true,'d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
-        assertResult(SAMPLE, "d", false, "{'a':0,'b':true,'c':'c_value','e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
+        assertResult(SAMPLE, "a", false, "{'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
+        assertResult(SAMPLE, "b", false, "{'a':0,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
+        assertResult(SAMPLE, "c", false, "{'a':0,'b':true,'d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
+        assertResult(SAMPLE, "d", false, "{'a':0,'b':true,'c':'c_value','e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
         assertResult(SAMPLE, "e", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
-        assertResult(SAMPLE, "h", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "z", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
+        assertResult(SAMPLE, "h", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "z", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
 
-        assertResult(SAMPLE, "e.f1", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
-        assertResult(SAMPLE, "e.f2", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value'},{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
-        assertResult(SAMPLE, "e.f*", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
-        assertResult(SAMPLE, "e.*2", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value'},{'g1':'g1_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
+        assertResult(SAMPLE, "e.f1", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
+        assertResult(SAMPLE, "e.f2", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
+        assertResult(SAMPLE, "e.f*", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'g1':'g1_value','g2':'g2_value'}]," +
+            "'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
+        assertResult(SAMPLE, "e.*2", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value'},{'g1':'g1_value'}]," +
+            "'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
 
-        assertResult(SAMPLE, "h.i", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.i.j", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.i.j.k", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.i.j.k.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.i", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.i.j", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.i.j.k", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.i.j.k.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
 
-        assertResult(SAMPLE, "h.*", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "*.i", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.*", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "*.i", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
 
-        assertResult(SAMPLE, "*.i.j", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.*.j", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.i.*", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "*.i.j", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.*.j", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.i.*", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
 
-        assertResult(SAMPLE, "*.i.j.k", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.*.j.k", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.i.*.k", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.i.j.*", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "*.i.j.k", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.*.j.k", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.i.*.k", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.i.j.*", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
 
-        assertResult(SAMPLE, "*.i.j.k.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.*.j.k.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.i.*.k.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.i.j.*.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "h.i.j.k.*", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "*.i.j.k.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.*.j.k.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.i.*.k.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.i.j.*.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.i.j.k.*", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
 
-        assertResult(SAMPLE, "h.*.j.*.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
-        assertResult(SAMPLE, "**.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'},{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "h.*.j.*.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
+        assertResult(SAMPLE, "**.l", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," +
+            "{'g1':'g1_value','g2':'g2_value'}]}");
 
-        assertResult(SAMPLE, "**.*2", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value'},{'g1':'g1_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
+        assertResult(SAMPLE, "**.*2", false, "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value'}," +
+            "{'g1':'g1_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
 
     }
 

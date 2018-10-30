@@ -17,21 +17,22 @@ import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.Order;
+import org.elasticsearch.xpack.sql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.predicate.And;
 import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
-import org.elasticsearch.xpack.sql.expression.predicate.Not;
-import org.elasticsearch.xpack.sql.expression.predicate.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ConvertTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DateEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DereferenceContext;
@@ -349,7 +351,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Order visitOrderBy(OrderByContext ctx) {
         return new Order(source(ctx), expression(ctx.expression()),
-            ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC);
+                ctx.DESC() != null ? Order.OrderDirection.DESC : Order.OrderDirection.ASC,
+                ctx.NULLS() != null ? (ctx.FIRST() != null ? NullsPosition.FIRST : NullsPosition.LAST) : null);
     }
 
     @Override
@@ -385,6 +388,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case "varchar":
             case "string":
                 return DataType.KEYWORD;
+            case "ip":
+                return DataType.IP;
             default:
                 throw new ParsingException(source(ctx), "Does not recognize type {}", type);
         }
@@ -395,8 +400,27 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     //
     @Override
     public Cast visitCastExpression(CastExpressionContext ctx) {
-        CastTemplateContext ctc = ctx.castTemplate();
-        return new Cast(source(ctc), expression(ctc.expression()), typedParsing(ctc.dataType(), DataType.class));
+        CastTemplateContext castTc = ctx.castTemplate();
+        if (castTc != null) {
+            return new Cast(source(castTc), expression(castTc.expression()), typedParsing(castTc.dataType(), DataType.class));
+        } else {
+            ConvertTemplateContext convertTc = ctx.convertTemplate();
+            String convertDataType = convertTc.dataType().getText().toUpperCase(Locale.ROOT);
+            DataType dataType;
+            if (convertDataType.startsWith(DataType.ODBC_DATATYPE_PREFIX)) {
+                dataType = DataType.fromODBCType(convertDataType);
+                if (dataType == null) {
+                    throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
+                }
+            } else {
+                try {
+                    dataType = DataType.valueOf(convertDataType);
+                } catch (IllegalArgumentException e) {
+                    throw new ParsingException(source(convertTc.dataType()), "Invalid data type [{}] provided", convertDataType);
+                }
+            }
+            return new Cast(source(convertTc), expression(convertTc.expression()), dataType);
+        }
     }
 
     @Override

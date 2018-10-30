@@ -1286,12 +1286,12 @@ public class CoordinatorTests extends ESTestCase {
 
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterApplier = new FakeClusterApplier(settings, clusterSettings);
-                masterService = new AckedFakeThreadPoolMasterService("test",
+                masterService = new AckedFakeThreadPoolMasterService("test_node","test",
                     runnable -> deterministicTaskQueue.scheduleNow(onNode(localNode, runnable)));
                 transportService = mockTransport.createTransportService(
                     settings, deterministicTaskQueue.getThreadPool(runnable -> onNode(localNode, runnable)), NOOP_TRANSPORT_INTERCEPTOR,
                     a -> localNode, null, emptySet());
-                coordinator = new Coordinator(settings, clusterSettings, transportService,
+                coordinator = new Coordinator("test_node", settings, clusterSettings, transportService,
                     ESAllocationTestCase.createAllocationService(Settings.EMPTY), masterService, this::getPersistedState,
                     Cluster.this::provideUnicastHosts, clusterApplier, Randomness.get());
                 masterService.setClusterStatePublisher(coordinator);
@@ -1572,8 +1572,8 @@ public class CoordinatorTests extends ESTestCase {
 
         AckCollector nextAckCollector = new AckCollector();
 
-        AckedFakeThreadPoolMasterService(String serviceName, Consumer<Runnable> onTaskAvailableToRun) {
-            super(serviceName, onTaskAvailableToRun);
+        AckedFakeThreadPoolMasterService(String nodeName, String serviceName, Consumer<Runnable> onTaskAvailableToRun) {
+            super(nodeName, serviceName, onTaskAvailableToRun);
         }
 
         @Override

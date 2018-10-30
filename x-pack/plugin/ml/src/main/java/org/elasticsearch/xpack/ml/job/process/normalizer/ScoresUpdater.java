@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedDocumentsIterator;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.ArrayList;
 import java.util.Deque;
@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  * with the renormalized scores
  */
 public class ScoresUpdater {
-    private static final Logger LOGGER = Loggers.getLogger(ScoresUpdater.class);
+    private static final Logger LOGGER = LogManager.getLogger(ScoresUpdater.class);
 
     /**
      * Target number of buckets to renormalize at a time

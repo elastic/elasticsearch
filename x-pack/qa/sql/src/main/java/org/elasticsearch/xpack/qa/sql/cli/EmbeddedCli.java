@@ -11,6 +11,7 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xpack.sql.cli.Cli;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;

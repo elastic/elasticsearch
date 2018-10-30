@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.UnaryExpression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
@@ -354,11 +353,6 @@ final class QueryTranslator {
         return new BoolQuery(loc, false, left, right);
     }
 
-    static Query not(Query query) {
-        Check.isTrue(query != null, "Expressions is null");
-        return new NotQuery(query.location(), query);
-    }
-
     static String nameOf(Expression e) {
         if (e instanceof DateTimeFunction) {
             return nameOf(((DateTimeFunction) e).field());
@@ -484,20 +478,41 @@ final class QueryTranslator {
 
         @Override
         protected QueryTranslation asQuery(Not not, boolean onAggs) {
-            QueryTranslation translation = toQuery(not.field(), onAggs);
-            return new QueryTranslation(not(translation.query), translation.aggFilter);
+            Query query = null;
+            AggFilter aggFilter = null;
+
+            if (onAggs) {
+                aggFilter = new AggFilter(not.id().toString(), not.asScript());
+            } else {
+                query = new NotQuery(not.location(), toQuery(not.field(), false).query);
+                // query directly on the field
+                if (not.field() instanceof FieldAttribute) {
+                    query = wrapIfNested(query, not.field());
+                }
+            }
+
+            return new QueryTranslation(query, aggFilter);
         }
     }
 
-    static class Nulls extends ExpressionTranslator<UnaryExpression> {
+    static class Nulls extends ExpressionTranslator<IsNotNull> {
 
         @Override
-        protected QueryTranslation asQuery(UnaryExpression ue, boolean onAggs) {
-            // TODO: handle onAggs - missing bucket aggregation
-            if (ue instanceof IsNotNull) {
-                return new QueryTranslation(new ExistsQuery(ue.location(), nameOf(ue.child())));
+        protected QueryTranslation asQuery(IsNotNull inn, boolean onAggs) {
+            Query query = null;
+            AggFilter aggFilter = null;
+
+            if (onAggs) {
+                aggFilter = new AggFilter(inn.id().toString(), inn.asScript());
+            } else {
+                query = new ExistsQuery(inn.location(), nameOf(inn.field()));
+                // query directly on the field
+                if (inn.field() instanceof NamedExpression) {
+                    query = wrapIfNested(query, inn.field());
+                }
             }
-            return null;
+
+            return new QueryTranslation(query, aggFilter);
         }
     }
 

@@ -51,7 +51,8 @@ import java.util.function.Supplier;
  * Base class for requests that should be executed on all shards of an index or several indices.
  * This action sends shard requests to all primary shards of the indices and they are then replicated like write requests
  */
-public abstract class TransportBroadcastReplicationAction<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse, ShardRequest extends ReplicationRequest<ShardRequest>, ShardResponse extends ReplicationResponse>
+public abstract class TransportBroadcastReplicationAction<Request extends BroadcastRequest<Request>, Response extends BroadcastResponse,
+        ShardRequest extends ReplicationRequest<ShardRequest>, ShardResponse extends ReplicationResponse>
         extends HandledTransportAction<Request, Response> {
 
     private final TransportReplicationAction replicatedBroadcastShardAction;
@@ -60,7 +61,8 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
 
     public TransportBroadcastReplicationAction(String name, Supplier<Request> request, Settings settings, ClusterService clusterService,
                                                TransportService transportService,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, TransportReplicationAction replicatedBroadcastShardAction) {
+                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                               TransportReplicationAction replicatedBroadcastShardAction) {
         super(settings, name, transportService, actionFilters, request);
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;
@@ -96,7 +98,8 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                     if (TransportActions.isShardNotAvailableException(e)) {
                         failures = new ReplicationResponse.ShardInfo.Failure[0];
                     } else {
-                        ReplicationResponse.ShardInfo.Failure failure = new ReplicationResponse.ShardInfo.Failure(shardId, null, e, ExceptionsHelper.status(e), true);
+                        ReplicationResponse.ShardInfo.Failure failure = new ReplicationResponse.ShardInfo.Failure(shardId, null, e,
+                            ExceptionsHelper.status(e), true);
                         failures = new ReplicationResponse.ShardInfo.Failure[totalNumCopies];
                         Arrays.fill(failures, failure);
                     }
@@ -126,7 +129,8 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         for (String index : concreteIndices) {
             IndexMetaData indexMetaData = clusterState.metaData().getIndices().get(index);
             if (indexMetaData != null) {
-                for (IntObjectCursor<IndexShardRoutingTable> shardRouting : clusterState.getRoutingTable().indicesRouting().get(index).getShards()) {
+                for (IntObjectCursor<IndexShardRoutingTable> shardRouting
+                        : clusterState.getRoutingTable().indicesRouting().get(index).getShards()) {
                     shardIds.add(shardRouting.value.shardId());
                 }
             }
@@ -156,7 +160,8 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                     shardFailures = new ArrayList<>();
                 }
                 for (ReplicationResponse.ShardInfo.Failure failure : shardResponse.getShardInfo().getFailures()) {
-                    shardFailures.add(new DefaultShardOperationFailedException(new BroadcastShardOperationFailedException(failure.fullShardId(), failure.getCause())));
+                    shardFailures.add(new DefaultShardOperationFailedException(
+                        new BroadcastShardOperationFailedException(failure.fullShardId(), failure.getCause())));
                 }
             }
         }

@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.sql.expression.function;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.Score;
 
 
 public enum FunctionType {
+
     AGGREGATE(AggregateFunction.class),
     SCALAR(ScalarFunction.class),
     SCORE(Score.class);

@@ -422,6 +422,7 @@ public class MockScriptEngine implements ScriptEngine {
             Map<String, Object> map = new HashMap<>();
 
             if (getParams() != null) {
+                map.putAll(getParams());
                 map.put("params", getParams());
             }
 
@@ -452,6 +453,7 @@ public class MockScriptEngine implements ScriptEngine {
                     Map<String, Object> map = new HashMap<>();
 
                     if (getParams() != null) {
+                        map.putAll(getParams());
                         map.put("params", getParams());
                     }
 
@@ -478,6 +480,7 @@ public class MockScriptEngine implements ScriptEngine {
             Map<String, Object> map = new HashMap<>();
 
             if (getParams() != null) {
+                map.putAll(getParams());
                 map.put("params", getParams());
             }
 
@@ -499,6 +502,7 @@ public class MockScriptEngine implements ScriptEngine {
             Map<String, Object> map = new HashMap<>();
 
             if (getParams() != null) {
+                map.putAll(getParams());
                 map.put("params", getParams());
             }
 

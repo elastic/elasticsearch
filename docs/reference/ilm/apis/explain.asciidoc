@@ -52,7 +52,7 @@ PUT _ilm/my_policy
   "policy": {
     "phases": {
       "warm": {
-        "minimum_age": "10d",
+        "min_age": "10d",
         "actions": {
           "forcemerge": {
             "max_num_segments": 1
@@ -60,7 +60,7 @@ PUT _ilm/my_policy
         }
       },
       "delete": {
-        "minimum_age": "30d",
+        "min_age": "30d",
         "actions": {
           "delete": {}
         }
@@ -120,7 +120,7 @@ When the index is first taken over by ILM you will see a response like the follo
 <1> Shows if the index is being managed by ILM. If the index is not managed by
 ILM the other fields will not be shown
 <2> The name of the policy which ILM is using for this index
-<3> The timestamp used for the `minimum_age`
+<3> The timestamp used for the `min_age`
 <4> The current phase
 <5> The timestamp for when the index entered the current phase
 <6> The current action
@@ -151,7 +151,7 @@ phase definition has been completely executed.
       "phase_execution": { <1>
         "policy": "my_lifecycle3", <2>
         "phase_definition": { <3>
-          "minimum_age": "0ms",
+          "min_age": "0ms",
           "actions": {
             "rollover": {
               "max_age": "30s"
@@ -203,7 +203,7 @@ If the policy is waiting for a step to complete for the index, the response will
       "phase_execution": {
         "policy": "my_lifecycle3",
         "phase_definition": {
-          "minimum_age": "0ms",
+          "min_age": "0ms",
           "actions": {
             "allocate": {
               "number_of_replicas": 2,
@@ -262,7 +262,7 @@ that occurred in `step_info`.
       "phase_execution": {
         "policy": "my_lifecycle3",
         "phase_definition": {
-          "minimum_age": "0ms",
+          "min_age": "0ms",
           "actions": {
             "rollover": {
               "max_age": "30s"

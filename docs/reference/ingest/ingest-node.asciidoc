@@ -852,7 +852,7 @@ The full power of the <<modules-scripting-painless, Painless Scripting Language>
 running in the {painless}/painless-ingest-processor-context.html#null-safe-operator[ingest processor context]
 can be used to determine if the condition should evaluate to `true` or `false`.
 
-IMPORTANT: The value of ctx is read-only in `if` conditions. Trying to mutate it will throw and Exception.
+IMPORTANT: The value of ctx is read-only in `if` conditions. 
 
 A more complex `if` condition that drops the document (i.e. not index it)
 unless it has a multi-valued tag field with at least one value that contains the characters

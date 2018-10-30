@@ -270,7 +270,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             byteCount = policy.getBytes("UTF-8").length;
         } catch (UnsupportedEncodingException e) {
             // UTF-8 should always be supported, but rethrow this if it is not for some reason
-            throw new ElasticsearchException("Unable to determine length of index name", e);
+            throw new ElasticsearchException("Unable to determine length of policy name", e);
         }
         if (byteCount > MAX_INDEX_NAME_BYTES) {
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: name is too long, (" + byteCount + " > " +

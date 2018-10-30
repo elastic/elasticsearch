@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.RollupDataExtra
 import org.elasticsearch.xpack.ml.datafeed.extractor.scroll.ScrollDataExtractorFactory;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -325,7 +326,8 @@ public class DataExtractorFactoryTests extends ESTestCase {
     }
 
     private void givenAggregatableRollup(String field, String type, int minuteInterval, String... groupByTerms) {
-        List<MetricConfig> metricConfigs = Collections.singletonList(new MetricConfig(field, Collections.singletonList(type)));
+        List<MetricConfig> metricConfigs = Arrays.asList(new MetricConfig(field, Collections.singletonList(type)),
+            new MetricConfig("time", Arrays.asList("min", "max")));
         TermsGroupConfig termsGroupConfig = null;
         if (groupByTerms.length > 0) {
             termsGroupConfig = new TermsGroupConfig(groupByTerms);

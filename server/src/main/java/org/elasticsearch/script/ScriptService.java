@@ -109,6 +109,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public static final Setting<List<String>> CONTEXTS_ALLOWED_SETTING =
         Setting.listSetting("script.allowed_contexts", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
 
+    private final Settings settings;
     private final Set<String> typesAllowed;
     private final Set<String> contextsAllowed;
 
@@ -128,8 +129,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
         super(settings);
-
-        Objects.requireNonNull(settings);
+        this.settings = Objects.requireNonNull(settings);
         this.engines = Objects.requireNonNull(engines);
         this.contexts = Objects.requireNonNull(contexts);
 

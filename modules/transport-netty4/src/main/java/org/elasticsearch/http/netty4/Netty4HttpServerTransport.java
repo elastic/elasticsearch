@@ -193,7 +193,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         byteSizeSetting("http.netty.receive_predictor_max", SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
             Property.NodeScope, Property.Deprecated);
 
-
+    private final Settings settings;
     protected final NetworkService networkService;
     protected final BigArrays bigArrays;
 
@@ -254,6 +254,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                      NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
         super(settings);
+        this.settings = settings;
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.networkService = networkService;
         this.bigArrays = bigArrays;

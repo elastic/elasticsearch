@@ -105,6 +105,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
+    private final Settings settings;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
@@ -127,6 +128,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             final NamedXContentRegistry xContentRegistry,
             final boolean forbidPrivateIndexSettings) {
         super(settings);
+        this.settings = settings;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;

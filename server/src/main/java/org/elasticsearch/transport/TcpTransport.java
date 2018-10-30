@@ -93,6 +93,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -474,51 +475,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         }
 
-        ActionListener<Void> channelsConnectedListener = new ActionListener<Void>() {
-
-            private AtomicInteger pendingConnections = new AtomicInteger(numConnections);
-
-            @Override
-            public void onResponse(Void v) {
-                if (pendingConnections.decrementAndGet() == 0) {
-                    final TcpChannel handshakeChannel = channels.get(0);
-                    try {
-                        asyncHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout(), new ActionListener<Version>() {
-                            @Override
-                            public void onResponse(Version version) {
-                                NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
-                                nodeChannels.channels.forEach(ch -> ch.addCloseListener(ActionListener.wrap(nodeChannels::close)));
-                                listener.onResponse(nodeChannels);
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                CloseableChannel.closeChannels(channels, false);
-
-                                if (e instanceof ConnectTransportException) {
-                                    listener.onFailure(e);
-                                } else {
-                                    listener.onFailure(new ConnectTransportException(node, "general node connection failure", e));
-                                }
-                            }
-                        });
-                    } catch (Exception ex) {
-                        CloseableChannel.closeChannels(channels, false);
-                        listener.onFailure(ex);
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(Exception ex) {
-                CloseableChannel.closeChannels(channels, false);
-                listener.onFailure(ex);
-            }
-        };
+        ChannelsConnectedListener channelsConnectedListener = new ChannelsConnectedListener(node, connectionProfile, channels, listener);
 
         for (TcpChannel channel : channels) {
             channel.addConnectListener(channelsConnectedListener);
         }
+
+        TimeValue connectTimeout = connectionProfile.getConnectTimeout();
+        threadPool.schedule(connectTimeout, ThreadPool.Names.GENERIC, channelsConnectedListener::onTimeout);
     }
 
     protected Version getCurrentVersion() {
@@ -1538,52 +1502,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout)
-        throws IOException, InterruptedException {
-        return null;
-//        numHandshakes.inc();
-//        final long requestId = responseHandlers.newRequestId();
-//        final HandshakeResponseHandler handler = new HandshakeResponseHandler(channel);
-//        AtomicReference<Version> versionRef = handler.versionRef;
-//        AtomicReference<Exception> exceptionRef = handler.exceptionRef;
-//        pendingHandshakes.put(requestId, handler);
-//        boolean success = false;
-//        try {
-//            if (channel.isOpen() == false) {
-//                // we have to protect us here since sendRequestToChannel won't barf if the channel is closed.
-//                // it's weird but to change it will cause a lot of impact on the exception handling code all over the codebase.
-//                // yet, if we don't check the state here we might have registered a pending handshake handler but the close
-//                // listener calling #onChannelClosed might have already run and we are waiting on the latch below unitl we time out.
-//                throw new IllegalStateException("handshake failed, channel already closed");
-//            }
-//            // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
-//            // we also have no payload on the request but the response will contain the actual version of the node we talk
-//            // to as the payload.
-//            final Version minCompatVersion = getCurrentVersion().minimumCompatibilityVersion();
-//            sendRequestToChannel(node, channel, requestId, HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE,
-//                TransportRequestOptions.EMPTY, minCompatVersion, TransportStatus.setHandshake((byte) 0));
-//            if (handler.latch.await(timeout.millis(), TimeUnit.MILLISECONDS) == false) {
-//                throw new ConnectTransportException(node, "handshake_timeout[" + timeout + "]");
-//            }
-//            success = true;
-//            if (exceptionRef.get() != null) {
-//                throw new IllegalStateException("handshake failed", exceptionRef.get());
-//            } else {
-//                Version version = versionRef.get();
-//                if (getCurrentVersion().isCompatible(version) == false) {
-//                    throw new IllegalStateException("Received message from unsupported version: [" + version
-//                        + "] minimal compatible version is: [" + getCurrentVersion().minimumCompatibilityVersion() + "]");
-//                }
-//                return version;
-//            }
-//        } finally {
-//            final TransportResponseHandler<?> removedHandler = pendingHandshakes.remove(requestId);
-//            // in the case of a timeout or an exception on the send part the handshake has not been removed yet.
-//            // but the timeout is tricky since it's basically a race condition so we only assert on the success case.
-//            assert success && removedHandler == null || success == false : "handler for requestId [" + requestId + "] is not been removed";
-//        }
-    }
-
     final int getNumPendingHandshakes() { // for testing
         return pendingHandshakes.size();
     }
@@ -1768,5 +1686,84 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     @Override
     public final RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
         return requestHandlers.get(action);
+    }
+
+    private final class ChannelsConnectedListener implements ActionListener<Void> {
+
+        private static final int FAILED = -1;
+
+        private final DiscoveryNode node;
+        private final ConnectionProfile connectionProfile;
+        private final List<TcpChannel> channels;
+        private final ActionListener<NodeChannels> listener;
+        private final AtomicInteger pendingConnections;
+
+        private ChannelsConnectedListener(DiscoveryNode node, ConnectionProfile connectionProfile, List<TcpChannel> channels,
+                                          ActionListener<NodeChannels> listener) {
+            this.node = node;
+            this.connectionProfile = connectionProfile;
+            this.channels = channels;
+            this.listener = listener;
+            this.pendingConnections = new AtomicInteger(channels.size());
+        }
+
+        @Override
+        public void onResponse(Void v) {
+            assert pendingConnections.get() != 0 : "Should not called onResponse when the pending connections is 0.";
+            if (pendingConnections.get() != FAILED && pendingConnections.decrementAndGet() == 0) {
+                final TcpChannel handshakeChannel = channels.get(0);
+                try {
+                    asyncHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout(), new ActionListener<Version>() {
+                        @Override
+                        public void onResponse(Version version) {
+                            NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);
+                            nodeChannels.channels.forEach(ch -> ch.addCloseListener(ActionListener.wrap(nodeChannels::close)));
+                            listener.onResponse(nodeChannels);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            CloseableChannel.closeChannels(channels, false);
+
+                            if (e instanceof ConnectTransportException) {
+                                listener.onFailure(e);
+                            } else {
+                                listener.onFailure(new ConnectTransportException(node, "general node connection failure", e));
+                            }
+                        }
+                    });
+                } catch (Exception ex) {
+                    CloseableChannel.closeChannels(channels, false);
+                    listener.onFailure(ex);
+                }
+            }
+        }
+
+        @Override
+        public void onFailure(Exception ex) {
+            assert pendingConnections.get() != 0 : "Should not receive non-timeout connection exception if no connections pending.";
+            if (setFailed()) {
+                CloseableChannel.closeChannels(channels, false);
+                listener.onFailure(new ConnectTransportException(node, "connect_exception", ex));
+            }
+        }
+
+        public void onTimeout() {
+            if (setFailed()) {
+                CloseableChannel.closeChannels(channels, false);
+                listener.onFailure(new ConnectTransportException(node, "connect_timeout[" + connectionProfile.getConnectTimeout()  + "]"));
+            }
+        }
+
+        private boolean setFailed() {
+            while (true) {
+                int pendingConnections = this.pendingConnections.get();
+                if (pendingConnections == 0 || pendingConnections == FAILED) {
+                    return false;
+                } else if (this.pendingConnections.compareAndSet(pendingConnections, FAILED)) {
+                    return true;
+                }
+            }
+        }
     }
 }

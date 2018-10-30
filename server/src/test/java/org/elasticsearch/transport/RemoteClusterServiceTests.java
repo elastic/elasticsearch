@@ -378,7 +378,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
              MockTransportService otherSeedTransport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             DiscoveryNode otherSeedNode = otherSeedTransport.getLocalDiscoNode();
-            knownNodes.add(seedTransport.getLocalDiscoNode());
+            knownNodes.add(seedNode);
             knownNodes.add(otherSeedTransport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
             Settings.Builder settingsBuilder = Settings.builder();

@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
@@ -71,6 +72,7 @@ import static org.hamcrest.Matchers.not;
  * Tests various cluster operations (e.g., indexing) during disruptions.
  */
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
     /**
@@ -360,7 +362,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
      */
     public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
         // don't use DEFAULT settings (which can cause node disconnects on a slow CI machine)
-        configureCluster(Settings.EMPTY, 3);
+        configureCluster(Settings.EMPTY);
         internalCluster().startMasterOnlyNode();
         final String node_1 = internalCluster().startDataOnlyNode();
 
@@ -387,10 +389,8 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {
         // test for https://github.com/elastic/elasticsearch/issues/8823
-        configureCluster(2);
         String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
-        setMinimumMasterNodes(1);
         ensureStableCluster(2);
         assertAcked(prepareCreate("index").setSettings(Settings.builder().put("index.number_of_replicas", 0)));
         index("index", "_doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
@@ -418,7 +418,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s") // wait till cluster state is committed
             .build();
         final String idxName = "test";
-        configureCluster(settings, 3);
+        configureCluster(settings);
         final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(2);
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(3);

@@ -28,6 +28,7 @@ import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * Tests for discovery during disruptions.
  */
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testIsolatedUnicastNodes() throws Exception {
@@ -136,15 +138,8 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
      * Test cluster join with issues in cluster state publishing *
      */
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
-        List<String> nodes = startCluster(2);
-        setMinimumMasterNodes(1);
-        String masterNode = internalCluster().getMasterName();
-        String nonMasterNode;
-        if (masterNode.equals(nodes.get(0))) {
-            nonMasterNode = nodes.get(1);
-        } else {
-            nonMasterNode = nodes.get(0);
-        }
+        String masterNode = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        String nonMasterNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
@@ -194,7 +189,6 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testClusterFormingWithASlowNode() throws Exception {
-        configureCluster(3);
 
         SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(random(), 0, 0, 1000, 2000);
 
@@ -210,7 +204,6 @@ public class DiscoveryDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     public void testElectMasterWithLatestVersion() throws Exception {
-        configureCluster(3);
         final Set<String> nodes = new HashSet<>(internalCluster().startNodes(3));
         ensureStableCluster(3);
         ServiceDisruptionScheme isolateAllNodes =

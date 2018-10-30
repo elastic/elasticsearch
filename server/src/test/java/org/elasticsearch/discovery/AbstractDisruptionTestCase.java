@@ -29,7 +29,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -53,20 +52,32 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
+
+    static final Settings DEFAULT_SETTINGS = Settings.builder()
+        .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
+        .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
+        .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
+        .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
+        .put(TransportService.TCP_CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
+        // value and the time of disruption and does not recover immediately
+        // when disruption is stop. We should make sure we recover faster
+        // then the default of 30s, causing ensureGreen and friends to time out
+        .build();
 
     private Settings currentSettings;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(currentSettings)
+        if (currentSettings == null) {
+            currentSettings = DEFAULT_SETTINGS;
+        }
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(currentSettings)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
     }
 
@@ -117,7 +128,6 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     }
 
     List<String> startCluster(int numberOfNodes) {
-        configureCluster(numberOfNodes);
         InternalTestCluster internalCluster = internalCluster();
         List<String> nodes = internalCluster.startNodes(numberOfNodes);
         ensureStableCluster(numberOfNodes);
@@ -130,36 +140,16 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         return nodes;
     }
 
-    static final Settings DEFAULT_SETTINGS = Settings.builder()
-            .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), "1s") // for hitting simulated network failures quickly
-            .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
-            .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
-            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-            .put(TransportService.TCP_CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
-            // value and the time of disruption and does not recover immediately
-            // when disruption is stop. We should make sure we recover faster
-            // then the default of 30s, causing ensureGreen and friends to time out
-            .build();
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
-    void configureCluster(int numberOfNodes) {
-        configureCluster(DEFAULT_SETTINGS, numberOfNodes);
-    }
-
-    void configureCluster(Settings settings, int numberOfNodes) {
+    void configureCluster(Settings settings) {
         logger.info("---> configured unicast");
-        if (currentSettings == null) {
-            // TODO: Rarely use default settings form some of these
-            currentSettings = Settings.builder()
-                .put(settings)
-                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numberOfNodes)
-                .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
-                .build();
-        }
+        assert currentSettings == null;
+        // TODO: Rarely use default settings form some of these
+        currentSettings = Settings.builder().put(settings).build();
     }
 
     ClusterState getNodeClusterState(String node) {

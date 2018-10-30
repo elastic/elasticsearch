@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.expression.predicate;
+package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttr
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptWeaver;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Comparisons;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;

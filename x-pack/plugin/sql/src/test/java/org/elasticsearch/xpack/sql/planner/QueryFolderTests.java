@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
+import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
@@ -56,6 +57,24 @@ public class QueryFolderTests extends AbstractBuilderTestCase {
 
     public void testFoldingToLocalExecWithProject() {
         PhysicalPlan p = plan("SELECT keyword FROM test WHERE 1 = 2");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec le = (LocalExec) p;
+        assertEquals(EmptyExecutable.class, le.executable().getClass());
+        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
+    public void testFoldingOfIsNotNull() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE (keyword IS NULL) IS NOT NULL");
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
+    public void testFoldingToLocalExecWithNullFilter() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE null IN (1, 2)");
         assertEquals(LocalExec.class, p.getClass());
         LocalExec le = (LocalExec) p;
         assertEquals(EmptyExecutable.class, le.executable().getClass());

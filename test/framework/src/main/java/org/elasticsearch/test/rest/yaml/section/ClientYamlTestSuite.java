@@ -144,10 +144,8 @@ public class ClientYamlTestSuite {
     public void validate() {
         Stream<String> errors = validateExecutableSections(setupSection.getExecutableSections(), null, setupSection, null);
         errors = Stream.concat(errors, validateExecutableSections(teardownSection.getDoSections(), null, null, teardownSection));
-        for (ClientYamlTestSection testSection : testSections) {
-            errors = Stream.concat(errors,
-                validateExecutableSections(testSection.getExecutableSections(), testSection, setupSection, teardownSection));
-        }
+        errors = Stream.concat(errors, testSections.stream()
+            .flatMap(section -> validateExecutableSections(section.getExecutableSections(), section, setupSection, teardownSection)));
         String errorMessage = errors.collect(Collectors.joining(",\n"));
         if (errorMessage.isEmpty() == false) {
             throw new IllegalArgumentException(getPath() + ":\n" + errorMessage);
@@ -160,22 +158,23 @@ public class ClientYamlTestSuite {
 
         Stream<String> errors = sections.stream().filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)
-            .filter(section -> false == section.getExpectedWarningHeaders().isEmpty()
-                && false == hasSkipFeature("warnings", testSection, setupSection, teardownSection))
+            .filter(section -> false == section.getExpectedWarningHeaders().isEmpty())
+            .filter(section -> false == hasSkipFeature("warnings", testSection, setupSection, teardownSection))
             .map(section -> "attempted to add a [do] with a [warnings] section " +
                 "without a corresponding [\"skip\": \"features\": \"warnings\"] so runners that do not support the [warnings] " +
                 "section can skip the test at line [" + section.getLocation().lineNumber + "]");
 
         errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof DoSection)
             .map(section -> (DoSection) section)
-            .filter(section -> NodeSelector.ANY != section.getApiCallSection().getNodeSelector()
-                && false == hasSkipFeature("node_selector", testSection, setupSection, teardownSection))
+            .filter(section -> NodeSelector.ANY != section.getApiCallSection().getNodeSelector())
+            .filter(section -> false == hasSkipFeature("node_selector", testSection, setupSection, teardownSection))
             .map(section -> "attempted to add a [do] with a [node_selector] " +
                 "section without a corresponding [\"skip\": \"features\": \"node_selector\"] so runners that do not support the " +
                 "[node_selector] section can skip the test at line [" + section.getLocation().lineNumber + "]"));
 
-        errors = Stream.concat(errors, sections.stream().filter(section -> section instanceof ContainsAssertion
-            && false == hasSkipFeature("contains", testSection, setupSection, teardownSection))
+        errors = Stream.concat(errors, sections.stream()
+            .filter(section -> section instanceof ContainsAssertion)
+            .filter(section -> false == hasSkipFeature("contains", testSection, setupSection, teardownSection))
             .map(section -> "attempted to add a [contains] assertion " +
                 "without a corresponding [\"skip\": \"features\": \"contains\"] so runners that do not support the " +
                 "[contains] assertion can skip the test at line [" + section.getLocation().lineNumber + "]"));

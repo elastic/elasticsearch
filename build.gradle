@@ -236,7 +236,7 @@ subprojects {
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
   ]
   // substitute unreleased versions with projects that check out and build locally
-  bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionDescription unreleasedVersion ->
+  bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion ->
     Version unreleased = unreleasedVersion.version
     String snapshotProject = ":distribution:bwc:${unreleasedVersion.gradleProjectName}"
     ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${unreleased}"] = snapshotProject

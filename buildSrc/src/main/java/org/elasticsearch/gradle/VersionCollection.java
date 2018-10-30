@@ -33,29 +33,50 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 
 /**
+ * A container for elasticsearch supported version information used in BWC testing.
+ *
  * Parse the Java source file containing the versions declarations and use the known rules to figure out which are all
  * the version the current one is wire and index compatible with.
  * On top of this, figure out which of these are unreleased and provide the branch they can be built from.
  * <p>
  * Note that in this context, currentVersion is the unreleased version this build operates on.
  * At any point in time there will surely be four such unreleased versions being worked on,
- * thus currentVersion will be one of these:
- * - the unreleased <b>major</b>, a+1.0.0 on the `master` branch
- * - the unreleased <b>minor</b>,  a.b.0 ( b != 0) on the `a.x` branch
- * - the unreleased <b>maintenance</b>, a.b.c (c != 0) on the `a.b` branch
- * - the unreleased <b>bugfix</b>, a-1.d.e ( d != 0, e != 0) on the `(a-1).d` branch
+ * thus currentVersion will be one of these.
+ * <p>
+ * Considering:
+ * <dl>
+ *     <dt>M, M &gt 0</dt>
+ *     <dd>last released major</dd>
+ *     <dt>N, N &gt 0</dt>
+ *     <dd>last released minor</dd>
+ * </dl>
+ * </p>
+ *
+ * <ul>
+ * <li>the unreleased <b>major</b>, M+1.0.0 on the `master` branch</li>
+ * <li>the unreleased <b>minor</b>,  M.N.0 on the `M.x` (x is literal) branch</li>
+ * <li>the unreleased <b>bugfix</b>, M.N.c (c &gt; 0) on the `M.b` branch</li>
+ * <li>the unreleased <b>maintenance</b>, M-1.d.e ( d &gt; 0, e &gt; 0) on the `(M-1).d` branch</li>
+ * </ul>
  * In addition to these, there will be a fifth one when a minor reaches feature freeze, we call this the <i>staged</i>
  * version:
- * - the unreleased <b>staged</b>, a.b-2.0 (b &gt; 2) on the `a.(b-2)` branch
- * Each build is only concerned with possible unreleased versions before it, as those are the ones that need to be tested
+ * <ul>
+ * <li>the unreleased <b>staged</b>, M.N-2.0 (N &gt; 2) on the `M.(N-2)` branch</li>
+ * </ul>
+ * Each build is only concerned with versions before it, as those are the ones that need to be tested
  * for backwards compatibility. We never look forward, and don't add forward facing version number to branches of previous
  * version.
  * <p>
- * The build know the current version, and we parse server code to find the rest making sure that these match.
+ * Each branch has a current version, and expected compatible versions are parsed from the server code's Version` class.
  * We can reliably figure out which the unreleased versions are due to the convention of always adding the next unreleased
  * version number to server in all branches when a version is released.
+ * E.x when M.N.c is released M.N.c+1 is added to the Version class mentioned above in all the following branches:
+ *  `M.b`, `M.x` and `master` so we can reliably assume that the leafs of the version tree are unreleased.
  * This convention is enforced by checking the versions we consider to be unreleased against an
  * authoritative source (maven central).
+ * We are then able to map the unreleased version to branches in git and Gradle projects that are capable of checking
+ * out and building them, so we can include these in the testing plan as well.
+ * </p>
  */
 public class VersionCollection {
 
@@ -66,27 +87,15 @@ public class VersionCollection {
     private final Version currentVersion;
     private final Map<Integer, List<Version>> groupByMajor;
 
-    public class UnreleasedVersionDescription {
-        private final Version version;
-        private final String branch;
-        private final String gradleProjectName;
+    public class UnreleasedVersionInfo {
+        public final Version version;
+        public final String branch;
+        public final String gradleProjectName;
 
-        UnreleasedVersionDescription(Version version, String branch, String gradleProjectName) {
+        UnreleasedVersionInfo(Version version, String branch, String gradleProjectName) {
             this.version = version;
             this.branch = branch;
             this.gradleProjectName = gradleProjectName;
-        }
-
-        public Version getVersion() {
-            return version;
-        }
-
-        public String getBranch() {
-            return branch;
-        }
-
-        public String getGradleProjectName() {
-            return gradleProjectName;
         }
     }
 
@@ -126,21 +135,17 @@ public class VersionCollection {
     }
 
     private void markUnreleasedAsSnapshot() {
-        getUnreleased()
-            .forEach(unreleased -> {
-                groupByMajor.get(unreleased.getMajor()).remove(unreleased);
-                groupByMajor.get(unreleased.getMajor()).add(
-                    new Version(
-                        unreleased.getMajor(), unreleased.getMinor(), unreleased.getRevision(),
-                        unreleased.getSuffix(), true
-                    )
-                );
-            });
+        getUnreleased().forEach(uv ->
+            groupByMajor.get(uv.getMajor()).set(
+                groupByMajor.get(uv.getMajor()).indexOf(uv),
+                new Version(uv.getMajor(), uv.getMinor(), uv.getRevision(),uv.getSuffix(), true)
+            )
+        );
     }
 
     private void assertNoOlderThanTwoMajors() {
         Set<Integer> majors = groupByMajor.keySet();
-        if (majors.size() != 2) {
+        if (majors.size() != 2 && currentVersion.getMinor() != 0 && currentVersion.getMajor() != 0) {
             throw new IllegalStateException(
                 "Expected exactly 2 majors in parsed versions but found: " + majors
             );
@@ -157,11 +162,11 @@ public class VersionCollection {
         }
     }
 
-    public void forPreviousUnreleased(Consumer<UnreleasedVersionDescription> consumer) {
+    public void forPreviousUnreleased(Consumer<UnreleasedVersionInfo> consumer) {
         getUnreleased().stream()
             .filter(version -> version.equals(currentVersion) == false)
             .forEach(version -> consumer.accept(
-                new UnreleasedVersionDescription(
+                new UnreleasedVersionInfo(
                     version,
                     getBranchFor(version),
                     getGradleProjectNameFor(version)
@@ -187,9 +192,9 @@ public class VersionCollection {
             if (releasedMajorGroupedByMinor
                 .getOrDefault(version.getMinor(), emptyList())
                 .contains(version)) {
-                return "maintenance";
-            } else {
                 return "bugfix";
+            } else {
+                return "maintenance";
             }
         }
     }

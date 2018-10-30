@@ -297,23 +297,23 @@ public class VersionCollectionTests extends GradleUnitTestCase {
 
     public void testGetGradleProjectName() {
         assertUnreleasedGradleProjectNames(
-            asList("maintenance", "minor"),
+            asList("bugfix", "minor"),
             getVersionCollection("7.0.0-alpha1")
         );
         assertUnreleasedGradleProjectNames(
-            asList("bugfix", "maintenance"),
+            asList("maintenance", "bugfix"),
             getVersionCollection("6.5.0")
         );
         assertUnreleasedGradleProjectNames(
-            singletonList("bugfix"),
+            singletonList("maintenance"),
             getVersionCollection("6.4.2")
         );
         assertUnreleasedGradleProjectNames(
-            asList("bugfix", "maintenance", "staged"),
+            asList("maintenance", "bugfix", "staged"),
             getVersionCollection("6.6.0")
         );
         assertUnreleasedGradleProjectNames(
-            asList("maintenance", "staged", "minor"),
+            asList("bugfix", "staged", "minor"),
             getVersionCollection("8.0.0")
         );
     }
@@ -368,20 +368,19 @@ public class VersionCollectionTests extends GradleUnitTestCase {
 
     private void assertUnreleasedGradleProjectNames(List<String> expectedNAmes, VersionCollection versionCollection) {
         List<String> actualNames = new ArrayList<>();
-        versionCollection.forPreviousUnreleased(unreleasedVersionDescription ->
-            actualNames.add(unreleasedVersionDescription.getGradleProjectName())
+        versionCollection.forPreviousUnreleased(unreleasedVersion ->
+            actualNames.add(unreleasedVersion.gradleProjectName)
         );
         assertEquals(expectedNAmes, actualNames);
     }
 
     private void assertUnreleasedBranchNames(List<String> expectedBranches, VersionCollection versionCollection) {
         List<String> actualBranches = new ArrayList<>();
-        versionCollection.forPreviousUnreleased(unreleasedVersionDescription ->
-            actualBranches.add(unreleasedVersionDescription.getBranch())
+        versionCollection.forPreviousUnreleased(unreleasedVersionInfo ->
+            actualBranches.add(unreleasedVersionInfo.branch)
         );
         assertEquals(expectedBranches, actualBranches);
     }
-
 
     private String formatVersionToLine(final String version) {
         return " public static final Version V_" + version.replaceAll("\\.", "_") + " ";

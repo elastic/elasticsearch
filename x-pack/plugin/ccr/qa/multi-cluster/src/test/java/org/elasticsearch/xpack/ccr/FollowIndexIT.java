@@ -71,11 +71,11 @@ public class FollowIndexIT extends ESCCRRestTestCase {
     public void testFollowNonExistingLeaderIndex() throws Exception {
         assumeFalse("Test should only run when both clusters are running", "leader".equals(targetCluster));
         ResponseException e = expectThrows(ResponseException.class, () -> resumeFollow("non-existing-index"));
-        assertThat(e.getMessage(), containsString("no such index"));
+        assertThat(e.getMessage(), containsString("no such index [non-existing-index]"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
         e = expectThrows(ResponseException.class, () -> followIndex("non-existing-index", "non-existing-index"));
-        assertThat(e.getMessage(), containsString("no such index"));
+        assertThat(e.getMessage(), containsString("no such index [non-existing-index]"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
@@ -83,7 +83,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         assumeFalse("Test should only run when both clusters are running", "leader".equals(targetCluster));
 
         Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"leader_cluster\": \"leader_cluster\"}");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-*\"], \"remote_cluster\": \"leader_cluster\"}");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {
@@ -102,8 +102,9 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         }
 
         assertBusy(() -> {
-            Request statsRequest = new Request("GET", "/_ccr/auto_follow/stats");
-            Map<String, ?> response = toMap(client().performRequest(statsRequest));
+            Request statsRequest = new Request("GET", "/_ccr/stats");
+            Map<?, ?> response = toMap(client().performRequest(statsRequest));
+            response = (Map<?, ?>) response.get("auto_follow_stats");
             assertThat(response.get("number_of_successful_follow_indices"), equalTo(1));
 
             ensureYellow("logs-20190101");

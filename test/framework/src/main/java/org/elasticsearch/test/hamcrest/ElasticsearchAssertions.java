@@ -58,6 +58,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
+import org.hamcrest.core.CombinableMatcher;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -70,6 +71,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -470,6 +472,14 @@ public class ElasticsearchAssertions {
 
     public static Matcher<SearchHit> hasScore(final float score) {
         return new ElasticsearchMatchers.SearchHitHasScoreMatcher(score);
+    }
+
+    public static <T, V> CombinableMatcher<T> hasProperty(Function<? super T, ? extends V> property, Matcher<V> valueMatcher) {
+        return ElasticsearchMatchers.HasPropertyLambdaMatcher.hasProperty(property, valueMatcher);
+    }
+
+    public static Function<SearchHit, Object> fieldFromSource(String fieldName) {
+        return (response) ->  response.getSourceAsMap().get(fieldName);
     }
 
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {

@@ -472,6 +472,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     }
 
     @Override
+    public BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType) {
+        return new BulkRequestBuilder(this, BulkAction.INSTANCE, globalIndex, globalType);
+    }
+
+    @Override
     public ActionFuture<GetResponse> get(final GetRequest request) {
         return execute(GetAction.INSTANCE, request);
     }
@@ -752,7 +757,8 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
-        public void updateSettings(final ClusterUpdateSettingsRequest request, final ActionListener<ClusterUpdateSettingsResponse> listener) {
+        public void updateSettings(final ClusterUpdateSettingsRequest request,
+                                   final ActionListener<ClusterUpdateSettingsResponse> listener) {
             execute(ClusterUpdateSettingsAction.INSTANCE, request, listener);
         }
 

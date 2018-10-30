@@ -99,7 +99,9 @@ RTRIM           |SCALAR
 SPACE           |SCALAR         
 SUBSTRING       |SCALAR         
 UCASE           |SCALAR         
-SCORE           |SCORE          
+CAST            |SCALAR
+CONVERT         |SCALAR
+SCORE           |SCORE
 ;
 
 showFunctionsWithExactMatch
@@ -152,6 +154,7 @@ showTables
 SHOW TABLES;
 
        name        |     type      
+logs               |BASE TABLE
 test_alias         |ALIAS          
 test_alias_emp     |ALIAS          
 test_emp           |BASE TABLE     

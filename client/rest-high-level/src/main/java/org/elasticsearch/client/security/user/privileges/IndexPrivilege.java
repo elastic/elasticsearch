@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.security.user;
+package org.elasticsearch.client.security.user.privileges;
 
 import java.util.HashMap;
 import java.util.Map;

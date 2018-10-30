@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.security.user;
+package org.elasticsearch.client.security.user.privileges;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -50,20 +50,6 @@ public final class IndicesPrivileges implements ToXContentObject {
     public static final ParseField QUERY = new ParseField("query");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Tuple<Collection<String>, Collection<String>>, Void> FLS_PARSER =
-        new ConstructingObjectParser<>( "field_level_parser", false, constructorObjects -> {
-                int i = 0;
-                final Collection<String> grantFields = (Collection<String>) constructorObjects[i++];
-                final Collection<String> exceptFields = (Collection<String>) constructorObjects[i];
-                return new Tuple<>(grantFields, exceptFields);
-            });
-
-    static {
-        FLS_PARSER.declareStringArray(optionalConstructorArg(), GRANT_FIELDS);
-        FLS_PARSER.declareStringArray(optionalConstructorArg(), EXCEPT_FIELDS);
-    }
-
-    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<IndicesPrivileges, Void> PARSER =
         new ConstructingObjectParser<>("indices_privileges", false, constructorObjects -> {
                 int i = 0;
@@ -78,9 +64,19 @@ public final class IndicesPrivileges implements ToXContentObject {
             });
 
     static {
+        final ConstructingObjectParser<Tuple<Collection<String>, Collection<String>>, Void> fls_parser =
+                new ConstructingObjectParser<>( "field_level_parser", false, constructorObjects -> {
+                        int i = 0;
+                        final Collection<String> grantFields = (Collection<String>) constructorObjects[i++];
+                        final Collection<String> exceptFields = (Collection<String>) constructorObjects[i];
+                        return new Tuple<>(grantFields, exceptFields);
+                    });
+        fls_parser.declareStringArray(optionalConstructorArg(), GRANT_FIELDS);
+        fls_parser.declareStringArray(optionalConstructorArg(), EXCEPT_FIELDS);
+
         PARSER.declareStringArray(constructorArg(), NAMES);
         PARSER.declareStringArray(constructorArg(), PRIVILEGES);
-        PARSER.declareObject(optionalConstructorArg(), FLS_PARSER, FIELD_PERMISSIONS);
+        PARSER.declareObject(optionalConstructorArg(), fls_parser, FIELD_PERMISSIONS);
         PARSER.declareStringOrNull(optionalConstructorArg(), QUERY);
     }
 

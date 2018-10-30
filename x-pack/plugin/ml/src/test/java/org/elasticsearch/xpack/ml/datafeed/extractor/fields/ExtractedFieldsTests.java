@@ -56,7 +56,7 @@ public class ExtractedFieldsTests extends ESTestCase {
         when(fieldCapabilitiesResponse.getField("value")).thenReturn(valueCaps);
         when(fieldCapabilitiesResponse.getField("airline")).thenReturn(airlineCaps);
 
-        ExtractedFields extractedFields = ExtractedFields.build("test", Arrays.asList("time", "value", "airline", "airport"),
+        ExtractedFields extractedFields = ExtractedFields.build(Arrays.asList("time", "value", "airline", "airport"),
             new HashSet<>(Collections.singletonList("airport")), fieldCapabilitiesResponse);
 
         assertThat(extractedFields.getDocValueFields().size(), equalTo(2));
@@ -89,7 +89,7 @@ public class ExtractedFieldsTests extends ESTestCase {
         when(fieldCapabilitiesResponse.getField("airport")).thenReturn(text);
         when(fieldCapabilitiesResponse.getField("airport.keyword")).thenReturn(keyword);
 
-        ExtractedFields extractedFields = ExtractedFields.build("test", Arrays.asList("airline.text", "airport.keyword"),
+        ExtractedFields extractedFields = ExtractedFields.build(Arrays.asList("airline.text", "airport.keyword"),
                 Collections.emptySet(), fieldCapabilitiesResponse);
 
         assertThat(extractedFields.getDocValueFields().size(), equalTo(1));
@@ -108,7 +108,7 @@ public class ExtractedFieldsTests extends ESTestCase {
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ExtractedFields.build(
-            "test", Collections.singletonList("value"), Collections.emptySet(), fieldCapabilitiesResponse));
+                Collections.singletonList("value"), Collections.emptySet(), fieldCapabilitiesResponse));
         assertThat(e.getMessage(), equalTo("cannot retrieve field [value] because it has no mappings"));
     }
 

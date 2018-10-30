@@ -51,7 +51,7 @@ public class ExtractedFields {
         return fields.stream().filter(field -> field.getExtractionMethod() == method).collect(Collectors.toList());
     }
 
-    public static ExtractedFields build(String extractionId, Collection<String> allFields, Set<String> scriptFields,
+    public static ExtractedFields build(Collection<String> allFields, Set<String> scriptFields,
                                         FieldCapabilitiesResponse fieldsCapabilities) {
         ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(scriptFields, fieldsCapabilities);
         return new ExtractedFields(allFields.stream().map(field -> extractionMethodDetector.detect(field)).collect(Collectors.toList()));

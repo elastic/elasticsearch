@@ -10,7 +10,7 @@ directly to configure and access {xpack} features.
 * <<info-api,Info API>>
 * <<ccr-apis,Cross-cluster replication APIs>>
 * <<graph-explore-api,Graph Explore API>>
-* <<ilm-apis,Index lifecycle management APIs>>
+* <<index-lifecycle-management-api,Index lifecycle management APIs>>
 * <<licensing-apis,Licensing APIs>>
 * <<ml-apis,Machine Learning APIs>>
 * <<security-api,Security APIs>>

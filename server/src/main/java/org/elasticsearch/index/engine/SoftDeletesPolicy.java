@@ -131,8 +131,21 @@ final class SoftDeletesPolicy {
         final BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
         queryBuilder.add(LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getMinRetainedSeqNo(), Long.MAX_VALUE), BooleanClause.Occur.SHOULD);
         if (retentionAge.seconds() > 0) {
-            // we prefer using a docValues instead of an indexed field to avoid impact on append-only indices.
-            // however, it's a trade-off as we have to linearly scan to find the most recent documents.
+            // To implement a time-based retention policy, we need to associate every soft-deleted document a timestamp.
+            // There are several possible ways to do this:
+            //
+            // 1. Use an indexed field (i.e., LongPoint). While the retention query is fast, we need to index the timestamp field
+            // for every document whether it's soft-deleted or not. This degrades performance in the case where the deletion ratio
+            // is low especially append-only indices.
+            //
+            // 2. Use an updatable numeric docValues. We prefer this approach because we only need to add timestamps to soft-deleted
+            // documents; and there is no impact for append-only indices. Here we use second as the timestamp unit to allow the docValues
+            // compress better. We need fewer than 4 bytes to store a timestamp. The downside is the retention query is slow.
+            // We need to scan linearly soft-deleted documents to find out those should be retained.
+            //
+            // 3. Another option is to track the last modified timestamp for each segment. This should offer the best performance
+            // and least overhead. However, this approach might be too relaxed as a segment is prevented from merging if there's a
+            // single soft-deleted document should be retained.
             final Query timestampQuery = NumericDocValuesField.newSlowRangeQuery(SeqNoFieldMapper.UPDATE_TIMESTAMP_IN_SECONDS_NAME,
                 absoluteTimeInSeconds.getAsLong() - retentionAge.seconds(), Long.MAX_VALUE);
             queryBuilder.add(timestampQuery, BooleanClause.Occur.SHOULD);

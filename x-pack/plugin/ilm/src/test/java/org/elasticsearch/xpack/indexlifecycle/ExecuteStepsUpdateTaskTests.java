@@ -272,6 +272,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(lifecycleState.getActionTime(), nullValue());
         assertThat(lifecycleState.getStepInfo(), equalTo("{\"type\":\"runtime_exception\",\"reason\":\"error\"}"));
     }
+
     public void testClusterWaitStepThrowsException() throws IOException {
         RuntimeException thrownException = new RuntimeException("error");
         secondStep.setException(thrownException);

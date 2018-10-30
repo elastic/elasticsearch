@@ -182,7 +182,7 @@ public class ExecuteStepsUpdateTask extends ClusterStateUpdateTask {
                 "policy [" + policy + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].", e);
     }
 
-    private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) throws IOException {
+    private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, RuntimeException cause) throws IOException {
         logger.error("policy [{}] for index [{}] failed on step [{}]. Moving to ERROR step", policy, index.getName(), currentStepKey);
         MoveToErrorStepUpdateTask moveToErrorStepUpdateTask = new MoveToErrorStepUpdateTask(index, policy, currentStepKey, cause,
             nowSupplier);

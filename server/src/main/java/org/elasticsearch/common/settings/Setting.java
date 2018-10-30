@@ -823,7 +823,7 @@ public class Setting<T> implements ToXContentObject {
     public interface Validator<T> {
 
         /**
-         * The validation routine for this validator.
+         * Validate this setting's value in isolation.
          *
          * @param value the value of this setting
          */

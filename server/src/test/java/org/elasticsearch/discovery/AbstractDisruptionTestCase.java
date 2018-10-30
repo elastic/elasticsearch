@@ -70,20 +70,10 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
         // then the default of 30s, causing ensureGreen and friends to time out
         .build();
 
-    private Settings currentSettings;
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        if (currentSettings == null) {
-            currentSettings = DEFAULT_SETTINGS;
-        }
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(currentSettings)
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(DEFAULT_SETTINGS)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
-    }
-
-    @Before
-    public void clearConfig() {
-        currentSettings = null;
     }
 
     @Override
@@ -143,13 +133,6 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class);
-    }
-
-    void configureCluster(Settings settings) {
-        logger.info("---> configured unicast");
-        assert currentSettings == null;
-        // TODO: Rarely use default settings form some of these
-        currentSettings = Settings.builder().put(settings).build();
     }
 
     ClusterState getNodeClusterState(String node) {

@@ -89,6 +89,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
             TimeValue.timeValueMinutes(20), Property.NodeScope, Property.Deprecated);
     private static final String ROLE_DOC_TYPE = "doc";
 
+    private final Settings settings;
     private final Client client;
     private final XPackLicenseState licenseState;
 
@@ -97,6 +98,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
 
     public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex) {
         super(settings);
+        this.settings = settings;
         this.client = client;
         this.securityClient = new SecurityClient(client);
         this.licenseState = licenseState;

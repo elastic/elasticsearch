@@ -46,7 +46,7 @@ import java.io.Closeable;
 import java.io.IOException;
 
 public class NodeService extends AbstractComponent implements Closeable {
-
+    private final Settings settings;
     private final ThreadPool threadPool;
     private final MonitorService monitorService;
     private final TransportService transportService;
@@ -69,6 +69,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
                 SearchTransportService searchTransportService) {
         super(settings);
+        this.settings = settings;
         this.threadPool = threadPool;
         this.monitorService = monitorService;
         this.transportService = transportService;

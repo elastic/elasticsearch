@@ -55,6 +55,7 @@ public class ClusterStatsCollector extends Collector {
      */
     public static final Setting<TimeValue> CLUSTER_STATS_TIMEOUT = collectionTimeoutSetting("cluster.stats.timeout");
 
+    private final Settings settings;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final LicenseService licenseService;
     private final Client client;
@@ -74,7 +75,7 @@ public class ClusterStatsCollector extends Collector {
                           final LicenseService licenseService,
                           final IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);
-
+        this.settings = settings;
         this.client = client;
         this.licenseService = licenseService;
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);

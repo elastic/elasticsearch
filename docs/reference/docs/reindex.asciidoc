@@ -1,9 +1,8 @@
 [[docs-reindex]]
 == Reindex API
 
-IMPORTANT: Reindex requires 
-[`_source`](https://www.elastic.co/guide/en/elasticsearch/reference/6.4/mapping-source-field.html) 
-to be enabled for all documents in the source index.
+IMPORTANT: Reindex requires <<mapping-source-field,`_source`>> to be enabled for
+all documents in the source index.
 
 IMPORTANT: Reindex does not attempt to set up the destination index.  It does
 not copy the settings of the source index.  You should set up the destination

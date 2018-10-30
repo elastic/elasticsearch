@@ -31,6 +31,9 @@ Vagrant.configure(2) do |config|
     # Give the box more memory and cpu because our tests are beasts!
     vbox.memory = Integer(ENV['VAGRANT_MEMORY'] || 8192)
     vbox.cpus = Integer(ENV['VAGRANT_CPUS'] || 4)
+
+    # see https://github.com/hashicorp/vagrant/issues/9524
+    vbox.customize ["modifyvm", :id, "--audio", "none"]
   end
 
   # Switch the default share for the project root from /vagrant to
@@ -55,6 +58,15 @@ Vagrant.configure(2) do |config|
       deb_common config, box, extra: <<-SHELL
         # Install Jayatana so we can work around it being present.
         [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
+      SHELL
+    end
+  end
+  'ubuntu-1804'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/ubuntu-18.04-x86_64'
+      deb_common config, box, extra: <<-SHELL
+       # Install Jayatana so we can work around it being present.
+       [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
       SHELL
     end
   end

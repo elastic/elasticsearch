@@ -7,9 +7,12 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+
+import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
 public class DataTypeConversionTests extends ESTestCase {
     public void testConversionToString() {
@@ -45,8 +48,8 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.BOOLEAN, to);
             assertNull(conversion.convert(null));
-            assertEquals(1, conversion.convert(true));
-            assertEquals(0, conversion.convert(false));
+            assertEquals(1L, conversion.convert(true));
+            assertEquals(0L, conversion.convert(false));
         }
         Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, to);
         assertNull(conversion.convert(null));
@@ -142,11 +145,18 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(false, conversion.convert(0));
         }
         {
+            Conversion conversion = DataTypeConversion.conversionFor(DataType.LONG, DataType.BOOLEAN);
+            assertNull(conversion.convert(null));
+            assertEquals(true, conversion.convert(10L));
+            assertEquals(true, conversion.convert(-10L));
+            assertEquals(false, conversion.convert(0L));
+        }
+        {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.DOUBLE, DataType.BOOLEAN);
             assertNull(conversion.convert(null));
-            assertEquals(true, conversion.convert(10.0));
-            assertEquals(true, conversion.convert(-10.0));
-            assertEquals(false, conversion.convert(0.0));
+            assertEquals(true, conversion.convert(10.0d));
+            assertEquals(true, conversion.convert(-10.0d));
+            assertEquals(false, conversion.convert(0.0d));
         }
         {
             Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, DataType.BOOLEAN);
@@ -238,5 +248,26 @@ public class DataTypeConversionTests extends ESTestCase {
         for (DataType type : DataType.values()) {
             assertEquals(type, DataType.fromEsType(type.esType));
         }
+    }
+
+    public void testConversionToUnsupported() {
+            Exception e = expectThrows(SqlIllegalArgumentException.class,
+                () -> DataTypeConversion.conversionFor(DataType.INTEGER, DataType.UNSUPPORTED));
+            assertEquals("cannot convert from [INTEGER] to [UNSUPPORTED]", e.getMessage());
+    }
+
+    public void testStringToIp() {
+        Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, DataType.IP);
+        assertNull(conversion.convert(null));
+        assertEquals("192.168.1.1", conversion.convert("192.168.1.1"));
+        Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("10.1.1.300"));
+        assertEquals("[10.1.1.300] is not a valid IPv4 or IPv6 address", e.getMessage());
+    }
+
+    public void testIpToString() {
+        Conversion ipToString = DataTypeConversion.conversionFor(DataType.IP, DataType.KEYWORD);
+        assertEquals("10.0.0.1", ipToString.convert(new Literal(EMPTY, "10.0.0.1", DataType.IP)));
+        Conversion stringToIp = DataTypeConversion.conversionFor(DataType.KEYWORD, DataType.IP);
+        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(Literal.of(EMPTY, "10.0.0.1"))));
     }
 }

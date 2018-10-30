@@ -37,7 +37,7 @@ import java.util.ArrayList;
  */
 public final class RequestOptions {
     public static final RequestOptions DEFAULT = new Builder(
-        Collections.<Header>emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT).build();
+            Collections.<Header>emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT).build();
 
     private final List<Header> headers;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
@@ -48,8 +48,7 @@ public final class RequestOptions {
     }
 
     public Builder toBuilder() {
-        Builder builder = new Builder(headers, httpAsyncResponseConsumerFactory);
-        return builder;
+        return new Builder(headers, httpAsyncResponseConsumerFactory);
     }
 
     /**
@@ -133,7 +132,7 @@ public final class RequestOptions {
         }
 
         /**
-         * set the {@link HttpAsyncResponseConsumerFactory} used to create one
+         * Set the {@link HttpAsyncResponseConsumerFactory} used to create one
          * {@link HttpAsyncResponseConsumer} callback per retry. Controls how the
          * response body gets streamed from a non-blocking HTTP connection on the
          * client side.

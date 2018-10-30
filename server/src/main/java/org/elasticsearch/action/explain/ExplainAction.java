@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Entry point for the explain feature.
  */
-public class ExplainAction extends Action<ExplainRequest, ExplainResponse> {
+public class ExplainAction extends Action<ExplainResponse> {
 
     public static final ExplainAction INSTANCE = new ExplainAction();
     public static final String NAME = "indices:data/read/explain";

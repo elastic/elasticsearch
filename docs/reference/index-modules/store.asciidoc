@@ -67,10 +67,12 @@ process equal to the size of the file being mapped. Before using this
 class, be sure you have allowed plenty of
 <<vm-max-map-count,virtual address space>>.
 
-[[default_fs]]`default_fs` deprecated[5.0.0, The `default_fs` store type is deprecated - use `fs` instead]::
-
-The `default` type is deprecated and is aliased to `fs` for backward
-compatibility.
+[[allow-mmapfs]]
+You can restrict the use of the `mmapfs` store type via the setting
+`node.store.allow_mmapfs`. This is a boolean setting indicating whether or not
+`mmapfs` is allowed. The default is to allow `mmapfs`. This setting is useful,
+for example, if you are in an environment where you can not control the ability
+to create a lot of memory maps so you need disable the ability to use `mmapfs`.
 
 === Pre-loading data into the file system cache
 

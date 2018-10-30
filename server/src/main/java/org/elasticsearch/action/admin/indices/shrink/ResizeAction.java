@@ -22,7 +22,7 @@ package org.elasticsearch.action.admin.indices.shrink;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 
-public class ResizeAction extends Action<ResizeRequest, ResizeResponse> {
+public class ResizeAction extends Action<ResizeResponse> {
 
     public static final ResizeAction INSTANCE = new ResizeAction();
     public static final String NAME = "indices:admin/resize";

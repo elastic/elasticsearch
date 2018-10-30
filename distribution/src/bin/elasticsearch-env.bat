@@ -42,7 +42,7 @@ if defined JAVA_OPTS (
 )
 
 rem check the Java version
-%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.launchers.JavaVersionChecker" || exit /b 1
+%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 
 set HOSTNAME=%COMPUTERNAME%
 

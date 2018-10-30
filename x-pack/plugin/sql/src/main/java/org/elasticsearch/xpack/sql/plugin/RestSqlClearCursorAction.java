@@ -12,6 +12,8 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
+import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 
@@ -37,6 +39,6 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "sql_translate_action";
+        return "xpack_sql_clear_cursor_action";
     }
 }

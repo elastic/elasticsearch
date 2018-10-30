@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.watcher.transform;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransform;
 import org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransformFactory;
@@ -20,9 +19,9 @@ public class TransformRegistry {
 
     private final Map<String, TransformFactory> factories;
 
-    public TransformRegistry(Settings settings, Map<String, TransformFactory> factories) {
+    public TransformRegistry(Map<String, TransformFactory> factories) {
         Map<String, TransformFactory> map = new HashMap<>(factories);
-        map.put(ChainTransform.TYPE, new ChainTransformFactory(settings, this));
+        map.put(ChainTransform.TYPE, new ChainTransformFactory(this));
         this.factories = Collections.unmodifiableMap(map);
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
@@ -103,6 +104,11 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
         return TYPE;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
+    }
+
     public RepositoriesMetaData(StreamInput in) throws IOException {
         RepositoryMetaData[] repository = new RepositoryMetaData[in.readVInt()];
         for (int i = 0; i < repository.length; i++) {
@@ -151,7 +157,8 @@ public class RepositoriesMetaData extends AbstractNamedDiffable<Custom> implemen
                             }
                             settings = Settings.fromXContent(parser);
                         } else {
-                            throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]", name, currentFieldName);
+                            throw new ElasticsearchParseException("failed to parse repository [{}], unknown field [{}]",
+                                name, currentFieldName);
                         }
                     } else {
                         throw new ElasticsearchParseException("failed to parse repository [{}]", name);

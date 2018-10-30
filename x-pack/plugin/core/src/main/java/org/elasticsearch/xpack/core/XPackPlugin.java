@@ -6,12 +6,13 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -28,30 +29,37 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
@@ -59,26 +67,24 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
 
-import javax.security.auth.DestroyFailedException;
-
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
-import java.security.GeneralSecurityException;
 import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, ExtensiblePlugin {
+public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, ExtensiblePlugin, RepositoryPlugin, EnginePlugin {
 
-    private static Logger logger = ESLoggerFactory.getLogger(XPackPlugin.class);
+    private static Logger logger = LogManager.getLogger(XPackPlugin.class);
     private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     public static final String XPACK_INSTALLED_NODE_ATTR = "xpack.installed";
@@ -96,6 +102,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
                 public Void run() {
                     try {
                         Class.forName("com.unboundid.util.Debug");
+                        Class.forName("com.unboundid.ldap.sdk.LDAPConnectionOptions");
                     } catch (ClassNotFoundException e) {
                         throw new RuntimeException(e);
                     }
@@ -117,7 +124,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     //private final Environment env;
     protected boolean transportClientMode;
     protected final Licensing licensing;
-    // These should not be directly accessed as they cannot be overriden in tests. Please use the getters so they can be overridden.
+    // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static final SetOnce<SSLService> sslService = new SetOnce<>();
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
@@ -200,7 +207,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
         final MetaData metaData = clusterState.metaData();
         return metaData.custom(LicensesMetaData.TYPE) != null ||
-            metaData.custom(MLMetadataField.TYPE) != null ||
+            metaData.custom(MlMetadata.TYPE) != null ||
             metaData.custom(WatcherMetaData.TYPE) != null ||
             clusterState.custom(TokenMetaData.TYPE) != null;
     }
@@ -264,8 +271,8 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     }
 
     @Override
-    public List<GenericAction> getClientActions() {
-        List<GenericAction> actions = new ArrayList<>();
+    public List<Action<? extends ActionResponse>> getClientActions() {
+        List<Action<? extends ActionResponse>> actions = new ArrayList<>();
         actions.addAll(licensing.getClientActions());
         actions.addAll(super.getClientActions());
         return actions;
@@ -315,5 +322,51 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
             }
         }
         return config;
+    }
+
+    public interface XPackClusterStateCustom extends ClusterState.Custom {
+
+        @Override
+        default Optional<String> getRequiredFeature() {
+            return XPackClientPlugin.X_PACK_FEATURE;
+        }
+
+    }
+
+    public interface XPackMetaDataCustom extends MetaData.Custom {
+
+        @Override
+        default Optional<String> getRequiredFeature() {
+            return XPackClientPlugin.X_PACK_FEATURE;
+        }
+
+    }
+
+    public interface XPackPersistentTaskParams extends PersistentTaskParams {
+
+        @Override
+        default Optional<String> getRequiredFeature() {
+            return XPackClientPlugin.X_PACK_FEATURE;
+        }
+    }
+
+    @Override
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
+    }
+
+    @Override
+    public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+        if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
+            return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> settings = super.getSettings();
+        settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
+        return settings;
     }
 }

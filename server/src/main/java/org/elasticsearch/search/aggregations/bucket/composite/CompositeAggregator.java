@@ -25,12 +25,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.RoaringDocIdSet;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.DocValueFormat;
@@ -40,6 +39,7 @@ import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -95,7 +95,7 @@ final class CompositeAggregator extends BucketsAggregator {
     @Override
     protected void doPreCollection() throws IOException {
         List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        deferredCollectors = BucketCollector.wrap(collectors);
+        deferredCollectors = MultiBucketCollector.wrap(collectors);
         collectableSubAggregators = BucketCollector.NO_OP_COLLECTOR;
     }
 
@@ -148,20 +148,20 @@ final class CompositeAggregator extends BucketsAggregator {
         finishLeaf();
         boolean fillDocIdSet = deferredCollectors != NO_OP_COLLECTOR;
         if (sortedDocsProducer != null) {
-            /**
-             * The producer will visit documents sorted by the leading source of the composite definition
-             * and terminates when the leading source value is guaranteed to be greater than the lowest
-             * composite bucket in the queue.
+            /*
+              The producer will visit documents sorted by the leading source of the composite definition
+              and terminates when the leading source value is guaranteed to be greater than the lowest
+              composite bucket in the queue.
              */
             DocIdSet docIdSet = sortedDocsProducer.processLeaf(context.query(), queue, ctx, fillDocIdSet);
             if (fillDocIdSet) {
                 entries.add(new Entry(ctx, docIdSet));
             }
 
-            /**
-             * We can bypass search entirely for this segment, all the processing has been done in the previous call.
-             * Throwing this exception will terminate the execution of the search for this root aggregation,
-             * see {@link MultiCollector} for more details on how we handle early termination in aggregations.
+            /*
+              We can bypass search entirely for this segment, all the processing has been done in the previous call.
+              Throwing this exception will terminate the execution of the search for this root aggregation,
+              see {@link org.apache.lucene.search.MultiCollector} for more details on how we handle early termination in aggregations.
              */
             throw new CollectionTerminatedException();
         } else {
@@ -202,14 +202,14 @@ final class CompositeAggregator extends BucketsAggregator {
 
     /**
      * Replay the documents that might contain a top bucket and pass top buckets to
-     * the {@link this#deferredCollectors}.
+     * the {@link #deferredCollectors}.
      */
     private void runDeferredCollections() throws IOException {
-        final boolean needsScores = needsScores();
+        final boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {
             Query query = context.query();
-            weight = context.searcher().createNormalizedWeight(query, true);
+            weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
         }
         deferredCollectors.preCollection();
         for (Entry entry : entries) {

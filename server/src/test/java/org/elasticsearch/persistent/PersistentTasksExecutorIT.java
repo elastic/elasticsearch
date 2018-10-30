@@ -31,7 +31,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService.WaitForPersistentTaskListener;
-import org.elasticsearch.persistent.TestPersistentTasksPlugin.Status;
+import org.elasticsearch.persistent.TestPersistentTasksPlugin.State;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestPersistentTasksExecutor;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestParams;
 import org.elasticsearch.persistent.TestPersistentTasksPlugin.TestTasksRequestBuilder;
@@ -190,11 +190,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PersistentTasksCustomMetaData tasksInProgress = internalCluster().clusterService().state().getMetaData()
                 .custom(PersistentTasksCustomMetaData.TYPE);
         assertThat(tasksInProgress.tasks().size(), equalTo(1));
-        assertThat(tasksInProgress.tasks().iterator().next().getStatus(), nullValue());
+        assertThat(tasksInProgress.tasks().iterator().next().getState(), nullValue());
 
         int numberOfUpdates = randomIntBetween(1, 10);
         for (int i = 0; i < numberOfUpdates; i++) {
-            logger.info("Updating the task status");
+            logger.info("Updating the task states");
             // Complete the running task and make sure it finishes properly
             assertThat(new TestTasksRequestBuilder(client()).setOperation("update_status").setTaskId(firstRunningTask.getTaskId())
                     .get().getTasks().size(), equalTo(1));
@@ -202,8 +202,8 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
             int finalI = i;
             WaitForPersistentTaskFuture<?> future1 = new WaitForPersistentTaskFuture<>();
             persistentTasksService.waitForPersistentTaskCondition(taskId,
-                    task -> task != null && task.getStatus() != null && task.getStatus().toString() != null &&
-                            task.getStatus().toString().equals("{\"phase\":\"phase " + (finalI + 1) + "\"}"),
+                    task -> task != null && task.getState() != null && task.getState().toString() != null &&
+                            task.getState().toString().equals("{\"phase\":\"phase " + (finalI + 1) + "\"}"),
                     TimeValue.timeValueSeconds(10), future1);
             assertThat(future1.get().getId(), equalTo(taskId));
         }
@@ -215,7 +215,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         assertThrows(future1, IllegalStateException.class, "timed out after 10ms");
 
         PlainActionFuture<PersistentTask<?>> failedUpdateFuture = new PlainActionFuture<>();
-        persistentTasksService.updateStatus(taskId, -2, new Status("should fail"), failedUpdateFuture);
+        persistentTasksService.sendUpdateStateRequest(taskId, -2, new State("should fail"), failedUpdateFuture);
         assertThrows(failedUpdateFuture, ResourceNotFoundException.class, "the task with id " + taskId +
                 " and allocation id -2 doesn't exist");
 

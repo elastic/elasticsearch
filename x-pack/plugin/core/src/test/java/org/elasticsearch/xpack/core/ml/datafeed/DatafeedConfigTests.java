@@ -6,15 +6,16 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -27,8 +28,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -39,7 +40,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.TimeZone;
@@ -100,7 +100,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             if (aggHistogramInterval == null) {
                 builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
             } else {
-                builder.setFrequency(TimeValue.timeValueMillis(randomIntBetween(1, 5) * aggHistogramInterval));
+                builder.setFrequency(TimeValue.timeValueSeconds(randomIntBetween(1, 5) * aggHistogramInterval));
             }
         }
         if (randomBoolean()) {
@@ -140,7 +140,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     @Override
     protected DatafeedConfig doParseInstance(XContentParser parser) {
-        return DatafeedConfig.CONFIG_PARSER.apply(parser, null).build();
+        return DatafeedConfig.STRICT_PARSER.apply(parser, null).build();
     }
 
     private static final String FUTURE_DATAFEED = "{\n" +
@@ -155,16 +155,16 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testFutureConfigParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> DatafeedConfig.CONFIG_PARSER.apply(parser, null).build());
-        assertEquals("[datafeed_config] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
+        XContentParseException e = expectThrows(XContentParseException.class,
+                () -> DatafeedConfig.STRICT_PARSER.apply(parser, null).build());
+        assertEquals("[6:5] [datafeed_config] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
     }
 
     public void testFutureMetadataParse() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, FUTURE_DATAFEED);
         // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
-        assertNotNull(DatafeedConfig.METADATA_PARSER.apply(parser, null).build());
+        assertNotNull(DatafeedConfig.LENIENT_PARSER.apply(parser, null).build());
     }
 
     public void testCopyConstructor() {
@@ -192,11 +192,11 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     public void testDefaultQueryDelay() {
         DatafeedConfig.Builder feedBuilder1 = new DatafeedConfig.Builder("datafeed1", "job1");
-        feedBuilder1.setIndices(Arrays.asList("foo"));
+        feedBuilder1.setIndices(Collections.singletonList("foo"));
         DatafeedConfig.Builder feedBuilder2 = new DatafeedConfig.Builder("datafeed2", "job1");
-        feedBuilder2.setIndices(Arrays.asList("foo"));
+        feedBuilder2.setIndices(Collections.singletonList("foo"));
         DatafeedConfig.Builder feedBuilder3 = new DatafeedConfig.Builder("datafeed3", "job2");
-        feedBuilder3.setIndices(Arrays.asList("foo"));
+        feedBuilder3.setIndices(Collections.singletonList("foo"));
         DatafeedConfig feed1 = feedBuilder1.build();
         DatafeedConfig feed2 = feedBuilder2.build();
         DatafeedConfig feed3 = feedBuilder3.build();
@@ -207,19 +207,19 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertThat(feed1.getQueryDelay(), not(equalTo(feed3.getQueryDelay())));
     }
 
-    public void testCheckValid_GivenNullIndices() throws IOException {
+    public void testCheckValid_GivenNullIndices() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         expectThrows(IllegalArgumentException.class, () -> conf.setIndices(null));
     }
 
-    public void testCheckValid_GivenEmptyIndices() throws IOException {
+    public void testCheckValid_GivenEmptyIndices() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         conf.setIndices(Collections.emptyList());
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, conf::build);
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[]"), e.getMessage());
     }
 
-    public void testCheckValid_GivenIndicesContainsOnlyNulls() throws IOException {
+    public void testCheckValid_GivenIndicesContainsOnlyNulls() {
         List<String> indices = new ArrayList<>();
         indices.add(null);
         indices.add(null);
@@ -229,7 +229,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[null, null]"), e.getMessage());
     }
 
-    public void testCheckValid_GivenIndicesContainsOnlyEmptyStrings() throws IOException {
+    public void testCheckValid_GivenIndicesContainsOnlyEmptyStrings() {
         List<String> indices = new ArrayList<>();
         indices.add("");
         indices.add("");
@@ -239,27 +239,27 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "indices", "[, ]"), e.getMessage());
     }
 
-    public void testCheckValid_GivenNegativeQueryDelay() throws IOException {
+    public void testCheckValid_GivenNegativeQueryDelay() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
                 () -> conf.setQueryDelay(TimeValue.timeValueMillis(-10)));
         assertEquals("query_delay cannot be less than 0. Value = -10", e.getMessage());
     }
 
-    public void testCheckValid_GivenZeroFrequency() throws IOException {
+    public void testCheckValid_GivenZeroFrequency() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setFrequency(TimeValue.ZERO));
         assertEquals("frequency cannot be less or equal than 0. Value = 0s", e.getMessage());
     }
 
-    public void testCheckValid_GivenNegativeFrequency() throws IOException {
+    public void testCheckValid_GivenNegativeFrequency() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
                 () -> conf.setFrequency(TimeValue.timeValueMinutes(-1)));
         assertEquals("frequency cannot be less or equal than 0. Value = -1", e.getMessage());
     }
 
-    public void testCheckValid_GivenNegativeScrollSize() throws IOException {
+    public void testCheckValid_GivenNegativeScrollSize() {
         DatafeedConfig.Builder conf = new DatafeedConfig.Builder("datafeed1", "job1");
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, () -> conf.setScrollSize(-1000));
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "scroll_size", -1000L), e.getMessage());
@@ -413,7 +413,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     public void testDefaultFrequency_GivenNoAggregations() {
         DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", "job");
-        datafeedBuilder.setIndices(Arrays.asList("my_index"));
+        datafeedBuilder.setIndices(Collections.singletonList("my_index"));
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         assertEquals(TimeValue.timeValueMinutes(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(1)));

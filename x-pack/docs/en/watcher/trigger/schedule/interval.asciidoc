@@ -34,3 +34,4 @@ For example, the following `interval` schedule triggers every five minutes:
   }
 }
 --------------------------------------------------
+// NOTCONSOLE

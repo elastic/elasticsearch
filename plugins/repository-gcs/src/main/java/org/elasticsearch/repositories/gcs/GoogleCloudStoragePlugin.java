@@ -24,35 +24,34 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin {
+public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
-    private final Map<String, GoogleCloudStorageClientSettings> clientsSettings;
+    // package-private for tests
+    final GoogleCloudStorageService storageService;
 
     public GoogleCloudStoragePlugin(final Settings settings) {
-        clientsSettings = GoogleCloudStorageClientSettings.load(settings);
-    }
-
-    protected Map<String, GoogleCloudStorageClientSettings> getClientsSettings() {
-        return clientsSettings;
+        this.storageService = createStorageService(settings);
+        // eagerly load client settings so that secure settings are readable (not closed)
+        reload(settings);
     }
 
     // overridable for tests
-    protected GoogleCloudStorageService createStorageService(Environment environment) {
-        return new GoogleCloudStorageService(environment, clientsSettings);
+    protected GoogleCloudStorageService createStorageService(Settings settings) {
+        return new GoogleCloudStorageService(settings);
     }
 
     @Override
     public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.singletonMap(GoogleCloudStorageRepository.TYPE,
-            (metadata) -> new GoogleCloudStorageRepository(metadata, env, namedXContentRegistry, createStorageService(env)));
+            (metadata) -> new GoogleCloudStorageRepository(metadata, env, namedXContentRegistry, this.storageService));
     }
 
     @Override
@@ -65,5 +64,16 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
             GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING,
             GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING,
             GoogleCloudStorageClientSettings.TOKEN_URI_SETTING);
+    }
+
+    @Override
+    public void reload(Settings settings) {
+        // Secure settings should be readable inside this method. Duplicate client
+        // settings in a format (`GoogleCloudStorageClientSettings`) that does not
+        // require for the `SecureSettings` to be open. Pass that around (the
+        // `GoogleCloudStorageClientSettings` instance) instead of the `Settings`
+        // instance.
+        final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
+        this.storageService.refreshAndClearCache(clientsSettings);
     }
 }

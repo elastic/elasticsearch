@@ -35,12 +35,14 @@ The following example output provides information about the "rdeniro" user:
 --------------------------------------------------
 {
   "username": "rdeniro",
-  "roles": [
-    "admin",
-    "kibana4"
+  "roles": [ 
+    "admin"
   ],
-  "metadata" : {
-    "employee_id": "8675309"
-  }
+  "full_name": null,
+  "email":  null,
+  "metadata": { },
+  "enabled": true
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"rdeniro"/"$body.username"/]
+// TESTRESPONSE[s/"admin"/"superuser"/]

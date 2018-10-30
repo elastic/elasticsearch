@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.single;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.transport.TransportService;
@@ -61,6 +63,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     public synchronized void publish(final ClusterChangedEvent event,
                                      final AckListener ackListener) {
         clusterState = event.state();
+        ackListener.onCommit(TimeValue.ZERO);
         CountDownLatch latch = new CountDownLatch(1);
 
         ClusterApplyListener listener = new ClusterApplyListener() {
@@ -111,7 +114,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
     }
 
     protected ClusterState createInitialState(DiscoveryNode localNode) {
-        ClusterState.Builder builder = clusterApplier.newClusterStateBuilder();
+        ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
         return builder.nodes(DiscoveryNodes.builder().add(localNode)
                 .localNodeId(localNode.getId())
                 .masterNodeId(localNode.getId())

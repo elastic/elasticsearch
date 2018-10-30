@@ -21,7 +21,7 @@ package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.Action;
 
-public class MultiTermVectorsAction extends Action<MultiTermVectorsRequest, MultiTermVectorsResponse> {
+public class MultiTermVectorsAction extends Action<MultiTermVectorsResponse> {
 
     public static final MultiTermVectorsAction INSTANCE = new MultiTermVectorsAction();
     public static final String NAME = "indices:data/read/mtv";

@@ -129,14 +129,14 @@ public final class AuthorizationUtils {
      */
     public static class AsyncAuthorizer {
 
-        private final ActionListener listener;
+        private final ActionListener<Void> listener;
         private final BiConsumer<Role, Role> consumer;
         private final Authentication authentication;
         private volatile Role userRoles;
         private volatile Role runAsRoles;
         private CountDown countDown = new CountDown(2); // we expect only two responses!!
 
-        public AsyncAuthorizer(Authentication authentication, ActionListener listener, BiConsumer<Role, Role> consumer) {
+        public AsyncAuthorizer(Authentication authentication, ActionListener<Void> listener, BiConsumer<Role, Role> consumer) {
             this.consumer = consumer;
             this.listener = listener;
             this.authentication = authentication;

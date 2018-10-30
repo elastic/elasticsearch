@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -117,6 +118,8 @@ public abstract class DataTypeConversion {
             case KEYWORD:
             case TEXT:
                 return conversionToString(from);
+            case IP:
+                return conversionToIp(from);
             case LONG:
                 return conversionToLong(from);
             case INTEGER:
@@ -146,6 +149,13 @@ public abstract class DataTypeConversion {
         return Conversion.OTHER_TO_STRING;
     }
 
+    private static Conversion conversionToIp(DataType from) {
+        if (from.isString()) {
+            return Conversion.STRING_TO_IP;
+        }
+        return null;
+    }
+
     private static Conversion conversionToLong(DataType from) {
         if (from.isRational) {
             return Conversion.RATIONAL_TO_LONG;
@@ -154,7 +164,7 @@ public abstract class DataTypeConversion {
             return Conversion.INTEGER_TO_LONG;
         }
         if (from == BOOLEAN) {
-            return Conversion.BOOL_TO_INT; // We emit an int here which is ok because of Java's casting rules
+            return Conversion.BOOL_TO_LONG;
         }
         if (from.isString()) {
             return Conversion.STRING_TO_LONG;
@@ -407,7 +417,16 @@ public abstract class DataTypeConversion {
 
         NUMERIC_TO_BOOLEAN(fromLong(value -> value != 0)),
         STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean")),
-        DATE_TO_BOOLEAN(fromDate(value -> value != 0));
+        DATE_TO_BOOLEAN(fromDate(value -> value != 0)),
+
+        BOOL_TO_LONG(fromBool(value -> value ? 1L : 0L)),
+
+        STRING_TO_IP(o -> {
+            if (!InetAddresses.isInetAddress(o.toString())) {
+                throw new SqlIllegalArgumentException( "[" + o + "] is not a valid IPv4 or IPv6 address");
+            }
+            return o;
+        });
 
         private final Function<Object, Object> converter;
 

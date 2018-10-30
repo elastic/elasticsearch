@@ -31,6 +31,9 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
+import org.elasticsearch.xpack.sql.action.SqlQueryAction;
+import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 
@@ -59,6 +62,11 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                         case JDBC:
                             if (licenseState.isJdbcAllowed() == false) {
                                 throw LicenseUtils.newComplianceException("jdbc");
+                            }
+                            break;
+                        case ODBC:
+                            if (licenseState.isOdbcAllowed() == false) {
+                                throw LicenseUtils.newComplianceException("odbc");
                             }
                             break;
                         case PLAIN:

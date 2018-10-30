@@ -233,26 +233,10 @@ states that:
 * `news` must not be present
 * `quick` and `brown` are optional -- their presence increases the relevance
 
-The familiar operators `AND`, `OR` and `NOT` (also written `&&`, `||` and `!`)
-are also supported.  However, the effects of these operators can be more
-complicated than is obvious at first glance.  `NOT` takes precedence over
-`AND`, which takes precedence over `OR`.  While the `+` and `-` only affect
-the term to the right of the operator, `AND` and `OR` can affect the terms to
-the left and right.
-
-****
-Rewriting the above query using `AND`, `OR` and `NOT` demonstrates the
-complexity:
-
-`quick OR brown AND fox AND NOT news`::
-
-This is incorrect, because `brown` is now a required term.
-
-`(quick OR brown) AND fox AND NOT news`::
-
-This is incorrect because at least one of `quick` or `brown` is now required
-and the search for those terms would be scored differently from the original
-query.
+The familiar boolean operators `AND`, `OR` and `NOT` (also written `&&`, `||`
+and `!`) are also supported but beware that they do not honor the usual
+precedence rules, so parentheses should be used whenever multiple operators are
+used together. For instance the previous query could be rewritten as:
 
 `((quick AND fox) OR (brown AND fox) OR fox) AND NOT news`::
 
@@ -270,7 +254,6 @@ would look like this:
         }
     }
 
-****
 
 ===== Grouping
 

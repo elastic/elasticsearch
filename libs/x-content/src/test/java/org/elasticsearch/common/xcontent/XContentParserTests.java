@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -29,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -140,6 +140,42 @@ public class XContentParserTests extends ESTestCase {
         assertThat(map.size(), equalTo(0));
     }
 
+    public void testMap() throws IOException {
+        String source = "{\"i\": {\"_doc\": {\"f1\": {\"type\": \"text\", \"analyzer\": \"english\"}, " +
+            "\"f2\": {\"type\": \"object\", \"properties\": {\"sub1\": {\"type\": \"keyword\", \"foo\": 17}}}}}}";
+        Map<String, Object> f1 = new HashMap<>();
+        f1.put("type", "text");
+        f1.put("analyzer", "english");
+
+        Map<String, Object> sub1 = new HashMap<>();
+        sub1.put("type", "keyword");
+        sub1.put("foo", 17);
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("sub1", sub1);
+
+        Map<String, Object> f2 = new HashMap<>();
+        f2.put("type", "object");
+        f2.put("properties", properties);
+
+        Map<String, Object> doc = new HashMap<>();
+        doc.put("f1", f1);
+        doc.put("f2", f2);
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("_doc", doc);
+
+        Map<String, Object> i = new HashMap<>();
+        i.put("i", expected);
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            XContentParser.Token token = parser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+            Map<String, Object> map = parser.map();
+            assertThat(map, equalTo(i));
+        }
+    }
+
     private Map<String, String> readMapStrings(String source) throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             XContentParser.Token token = parser.nextToken();
@@ -150,35 +186,6 @@ public class XContentParserTests extends ESTestCase {
             token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
             return randomBoolean() ? parser.mapStringsOrdered() : parser.mapStrings();
-        }
-    }
-
-    @SuppressWarnings("deprecation") // #isBooleanValueLenient() and #booleanValueLenient() are the test subjects
-    public void testReadLenientBooleans() throws IOException {
-        // allow String, boolean and int representations of lenient booleans
-        String falsy = randomFrom("\"off\"", "\"no\"", "\"0\"", "0", "\"false\"", "false");
-        String truthy = randomFrom("\"on\"", "\"yes\"", "\"1\"", "1", "\"true\"", "true");
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"foo\": " + falsy + ", \"bar\": " + truthy + "}")) {
-            XContentParser.Token token = parser.nextToken();
-            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
-            token = parser.nextToken();
-            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
-            assertThat(parser.currentName(), equalTo("foo"));
-            token = parser.nextToken();
-            assertThat(token, isIn(
-                Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_BOOLEAN)));
-            assertTrue(parser.isBooleanValueLenient());
-            assertFalse(parser.booleanValueLenient());
-
-            token = parser.nextToken();
-            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
-            assertThat(parser.currentName(), equalTo("bar"));
-            token = parser.nextToken();
-            assertThat(token, isIn(
-                Arrays.asList(XContentParser.Token.VALUE_STRING, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_BOOLEAN)));
-            assertTrue(parser.isBooleanValueLenient());
-            assertTrue(parser.booleanValueLenient());
         }
     }
 

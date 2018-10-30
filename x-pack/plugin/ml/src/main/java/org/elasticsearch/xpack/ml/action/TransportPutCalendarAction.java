@@ -14,22 +14,22 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -39,17 +39,15 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
     private final Client client;
 
     @Inject
-    public TransportPutCalendarAction(Settings settings, ThreadPool threadPool,
-                           TransportService transportService, ActionFilters actionFilters,
-                           IndexNameExpressionResolver indexNameExpressionResolver,
-                           Client client) {
-        super(settings, PutCalendarAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, PutCalendarAction.Request::new);
+    public TransportPutCalendarAction(Settings settings, TransportService transportService,
+                                      ActionFilters actionFilters, Client client) {
+        super(settings, PutCalendarAction.NAME, transportService, actionFilters,
+            (Supplier<PutCalendarAction.Request>) PutCalendarAction.Request::new);
         this.client = client;
     }
 
     @Override
-    protected void doExecute(PutCalendarAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
+    protected void doExecute(Task task, PutCalendarAction.Request request, ActionListener<PutCalendarAction.Response> listener) {
         Calendar calendar = request.getCalendar();
 
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, calendar.documentId());

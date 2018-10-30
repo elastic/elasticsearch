@@ -74,8 +74,61 @@ teardown:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
+  - match: { watch_record.user: "watcher_manager" }
 
 
+
+
+---
+"Test watch is runas user properly recorded":
+  - do:
+      xpack.watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "search" : {
+                "request" : {
+                  "indices" : [ "my_test_index" ],
+                  "body" :{
+                    "query" : { "match_all": {} }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "compare" : {
+                "ctx.payload.hits.total" : {
+                  "gte" : 1
+                }
+              }
+            },
+            "actions": {
+              "logging": {
+                "logging": {
+                  "text": "Successfully ran my_watch to test for search input"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      xpack.watcher.get_watch:
+        id: "my_watch"
+  - match: { _id: "my_watch" }
+  - is_false: watch.status.headers
+
+  - do:
+      headers: { es-security-runas-user: x_pack_rest_user }
+      xpack.watcher.execute_watch:
+        id: "my_watch"
+  - match: { watch_record.watch_id: "my_watch" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.user: "x_pack_rest_user" }
 
 
 ---
@@ -130,6 +183,7 @@ teardown:
   - match: { watch_record.watch_id: "my_watch" }
   # because we are not allowed to read the index, there wont be any data
   - match: { watch_record.state: "execution_not_needed" }
+  - match: { watch_record.user: "watcher_manager" }
 
 
 ---
@@ -272,6 +326,7 @@ teardown:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
+  - match: { watch_record.user: "watcher_manager" }
 
   - do:
       get:
@@ -320,6 +375,7 @@ teardown:
         id: "my_watch"
   - match: { watch_record.watch_id: "my_watch" }
   - match: { watch_record.state: "executed" }
+  - match: { watch_record.user: "watcher_manager" }
 
   - do:
       get:

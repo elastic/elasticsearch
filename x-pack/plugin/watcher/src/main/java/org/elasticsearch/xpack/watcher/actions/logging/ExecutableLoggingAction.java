@@ -6,8 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.logging;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -22,9 +21,9 @@ public class ExecutableLoggingAction extends ExecutableAction<LoggingAction> {
     private final Logger textLogger;
     private final TextTemplateEngine templateEngine;
 
-    public ExecutableLoggingAction(LoggingAction action, Logger logger, Settings settings, TextTemplateEngine templateEngine) {
+    public ExecutableLoggingAction(LoggingAction action, Logger logger, TextTemplateEngine templateEngine) {
         super(action, logger);
-        this.textLogger = action.category != null ? Loggers.getLogger(action.category, settings) : logger;
+        this.textLogger = action.category != null ? LogManager.getLogger(action.category) : logger;
         this.templateEngine = templateEngine;
     }
 
@@ -41,7 +40,7 @@ public class ExecutableLoggingAction extends ExecutableAction<LoggingAction> {
 
     @Override
     public  Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
-        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
 
         String loggedText = templateEngine.render(action.text, model);
         if (ctx.simulateAction(actionId)) {

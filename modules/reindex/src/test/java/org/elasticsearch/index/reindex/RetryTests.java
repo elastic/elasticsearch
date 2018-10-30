@@ -28,7 +28,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -125,8 +124,10 @@ public class RetryTests extends ESIntegTestCase {
             assertNotNull(masterNode);
 
             TransportAddress address = masterNode.getHttp().getAddress().publishAddress();
-            RemoteInfo remote = new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null,
-                    null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+            RemoteInfo remote =
+                new RemoteInfo("http", address.getAddress(), address.getPort(), null,
+                    new BytesArray("{\"match_all\":{}}"), null, null, emptyMap(),
+                    RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
             ReindexRequestBuilder request = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source("source").destination("dest")
                     .setRemoteInfo(remote);
             return request;
@@ -187,7 +188,7 @@ public class RetryTests extends ESIntegTestCase {
         }
 
         Retry retry = new Retry(BackoffPolicy.exponentialBackoff(), client().threadPool());
-        BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request(), client().settings()).actionGet();
+        BulkResponse initialBulkResponse = retry.withBackoff(client()::bulk, bulk.request()).actionGet();
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         client().admin().indices().prepareRefresh("source").get();
 

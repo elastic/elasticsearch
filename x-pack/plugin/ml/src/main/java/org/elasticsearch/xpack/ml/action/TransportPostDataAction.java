@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,12 +27,11 @@ public class TransportPostDataAction extends TransportJobTaskAction<PostDataActi
     private final AnalysisRegistry analysisRegistry;
 
     @Inject
-    public TransportPostDataAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportPostDataAction(Settings settings, TransportService transportService,
                                    ClusterService clusterService, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, AutodetectProcessManager processManager,
-                                   AnalysisRegistry analysisRegistry) {
-        super(settings, PostDataAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                PostDataAction.Request::new, PostDataAction.Response::new, ThreadPool.Names.SAME, processManager);
+                                   AutodetectProcessManager processManager, AnalysisRegistry analysisRegistry) {
+        super(settings, PostDataAction.NAME, clusterService, transportService, actionFilters,
+            PostDataAction.Request::new, PostDataAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
         this.analysisRegistry = analysisRegistry;
     }

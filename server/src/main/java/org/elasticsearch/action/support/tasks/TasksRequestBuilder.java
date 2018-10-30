@@ -33,7 +33,7 @@ public class TasksRequestBuilder<
             RequestBuilder extends TasksRequestBuilder<Request, Response, RequestBuilder>
         > extends ActionRequestBuilder<Request, Response> {
 
-    protected TasksRequestBuilder(ElasticsearchClient client, Action<Request, Response> action, Request request) {
+    protected TasksRequestBuilder(ElasticsearchClient client, Action<Response> action, Request request) {
         super(client, action, request);
     }
 

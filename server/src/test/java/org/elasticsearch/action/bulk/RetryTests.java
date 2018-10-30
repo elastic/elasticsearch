@@ -85,7 +85,7 @@ public class RetryTests extends ESTestCase {
 
         BulkRequest bulkRequest = createBulkRequest();
         BulkResponse response = new Retry(backoff, bulkClient.threadPool())
-            .withBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings())
+            .withBackoff(bulkClient::bulk, bulkRequest)
             .actionGet();
 
         assertFalse(response.hasFailures());
@@ -97,7 +97,7 @@ public class RetryTests extends ESTestCase {
 
         BulkRequest bulkRequest = createBulkRequest();
         BulkResponse response = new Retry(backoff, bulkClient.threadPool())
-            .withBackoff(bulkClient::bulk, bulkRequest, bulkClient.settings())
+            .withBackoff(bulkClient::bulk, bulkRequest)
             .actionGet();
 
         assertTrue(response.hasFailures());
@@ -110,7 +110,7 @@ public class RetryTests extends ESTestCase {
 
         BulkRequest bulkRequest = createBulkRequest();
         Retry retry = new Retry(backoff, bulkClient.threadPool());
-        retry.withBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings());
+        retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
         listener.awaitCallbacksCalled();
         listener.assertOnResponseCalled();
@@ -125,7 +125,7 @@ public class RetryTests extends ESTestCase {
 
         BulkRequest bulkRequest = createBulkRequest();
         Retry retry = new Retry(backoff, bulkClient.threadPool());
-        retry.withBackoff(bulkClient::bulk, bulkRequest, listener, bulkClient.settings());
+        retry.withBackoff(bulkClient::bulk, bulkRequest, listener);
 
         listener.awaitCallbacksCalled();
 
@@ -230,7 +230,8 @@ public class RetryTests extends ESTestCase {
         }
 
         private BulkItemResponse failedResponse() {
-            return new BulkItemResponse(1, OpType.INDEX, new BulkItemResponse.Failure("test", "test", "1", new EsRejectedExecutionException("pool full")));
+            return new BulkItemResponse(1, OpType.INDEX, new BulkItemResponse.Failure("test", "test", "1",
+                new EsRejectedExecutionException("pool full")));
         }
     }
 }

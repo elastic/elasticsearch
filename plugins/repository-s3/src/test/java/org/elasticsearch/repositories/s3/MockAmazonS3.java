@@ -20,15 +20,16 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.CopyObjectRequest;
-import com.amazonaws.services.s3.model.CopyObjectResult;
 import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsResult;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.HeadBucketRequest;
+import com.amazonaws.services.s3.model.HeadBucketResult;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -75,8 +76,15 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     }
 
     @Override
-    public boolean doesBucketExist(final String bucket) {
-        return this.bucket.equalsIgnoreCase(bucket);
+    public HeadBucketResult headBucket(final HeadBucketRequest headBucketRequest) throws SdkClientException, AmazonServiceException {
+        if (this.bucket.equalsIgnoreCase(headBucketRequest.getBucketName())) {
+            return new HeadBucketResult();
+        } else {
+            final AmazonServiceException e =
+                    new AmazonServiceException("bucket [" + headBucketRequest.getBucketName() + "] does not exist");
+            e.setStatusCode(404);
+            throw e;
+        }
     }
 
     @Override
@@ -149,33 +157,14 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     }
 
     @Override
-    public CopyObjectResult copyObject(final CopyObjectRequest request) throws AmazonClientException {
-        assertThat(request.getSourceBucketName(), equalTo(bucket));
-        assertThat(request.getDestinationBucketName(), equalTo(bucket));
-
-        final String sourceBlobName = request.getSourceKey();
-
-        final byte[] content = blobs.get(sourceBlobName);
-        if (content == null) {
-            AmazonS3Exception exception = new AmazonS3Exception("[" + sourceBlobName + "] does not exist.");
-            exception.setStatusCode(404);
-            throw exception;
-        }
-
-        blobs.put(request.getDestinationKey(), content);
-        return new CopyObjectResult();
+    public void deleteObject(final DeleteObjectRequest request) throws AmazonClientException {
+        assertThat(request.getBucketName(), equalTo(bucket));
+        blobs.remove(request.getKey());
     }
 
     @Override
-    public void deleteObject(final DeleteObjectRequest request) throws AmazonClientException {
-        assertThat(request.getBucketName(), equalTo(bucket));
-
-        final String blobName = request.getKey();
-        if (blobs.remove(blobName) == null) {
-            AmazonS3Exception exception = new AmazonS3Exception("[" + blobName + "] does not exist.");
-            exception.setStatusCode(404);
-            throw exception;
-        }
+    public void shutdown() {
+        // TODO check close
     }
 
     @Override

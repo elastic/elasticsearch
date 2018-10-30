@@ -14,6 +14,11 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 public interface CachingRealm {
 
     /**
+     * @return The name of this realm.
+     */
+    String name();
+
+    /**
      * Expires a single user from the cache identified by the String agument
      * @param username the identifier of the user to be cleared
      */

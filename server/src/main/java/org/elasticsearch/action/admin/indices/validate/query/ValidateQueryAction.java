@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.Action;
 
-public class ValidateQueryAction extends Action<ValidateQueryRequest, ValidateQueryResponse> {
+public class ValidateQueryAction extends Action<ValidateQueryResponse> {
 
     public static final ValidateQueryAction INSTANCE = new ValidateQueryAction();
     public static final String NAME = "indices:admin/validate/query";

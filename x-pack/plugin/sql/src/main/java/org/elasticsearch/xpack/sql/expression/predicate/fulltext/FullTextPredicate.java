@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.expression.predicate.fulltext;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.List;
 import java.util.Map;

@@ -150,7 +150,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
      * to get the ActiveShardCount.
      */
-    @SuppressWarnings("unchecked")
     public final Request waitForActiveShards(final int waitForActiveShards) {
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }

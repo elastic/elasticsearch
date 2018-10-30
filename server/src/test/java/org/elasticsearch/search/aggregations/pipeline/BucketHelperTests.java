@@ -42,9 +42,8 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
-import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;

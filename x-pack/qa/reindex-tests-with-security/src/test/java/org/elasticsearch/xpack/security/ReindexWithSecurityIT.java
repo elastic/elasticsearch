@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -21,10 +19,7 @@ import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.security.SecurityField;
 
-import java.util.Collection;
-import java.util.stream.Collectors;
 
-import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
 public class ReindexWithSecurityIT extends SecurityIntegTestCase {
 
@@ -65,7 +60,7 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
                         .source("test1", "index1")
                         .filter(QueryBuilders.matchAllQuery())
                         .get());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [index1]", e.getMessage());
     }
 
     public void testUpdateByQuery() {
@@ -80,7 +75,7 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
 
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> new UpdateByQueryRequestBuilder(client(), UpdateByQueryAction.INSTANCE).source("test1", "index1").get());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [index1]", e.getMessage());
     }
 
     public void testReindex() {
@@ -95,6 +90,6 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
 
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
                 () -> new ReindexRequestBuilder(client(), ReindexAction.INSTANCE).source("test1", "index1").destination("dest").get());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [index1]", e.getMessage());
     }
 }

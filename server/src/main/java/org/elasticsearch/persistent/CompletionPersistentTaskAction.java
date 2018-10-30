@@ -48,7 +48,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Action that is used by executor node to indicate that the persistent action finished or failed on the node and needs to be
  * removed from the cluster state in case of successful completion or restarted on some other node in case of failure.
  */
-public class CompletionPersistentTaskAction extends Action<CompletionPersistentTaskAction.Request, PersistentTaskResponse> {
+public class CompletionPersistentTaskAction extends Action<PersistentTaskResponse> {
 
     public static final CompletionPersistentTaskAction INSTANCE = new CompletionPersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/completion";

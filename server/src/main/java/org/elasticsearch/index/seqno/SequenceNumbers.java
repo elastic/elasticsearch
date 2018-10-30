@@ -37,7 +37,7 @@ public class SequenceNumbers {
      */
     public static final long UNASSIGNED_SEQ_NO = -2L;
     /**
-     * Represents no operations have been performed on the shard.
+     * Represents no operations have been performed on the shard. Initial value of a sequence number.
      */
     public static final long NO_OPS_PERFORMED = -1L;
 

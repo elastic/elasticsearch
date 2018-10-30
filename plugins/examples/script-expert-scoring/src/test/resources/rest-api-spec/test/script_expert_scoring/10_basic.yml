@@ -1,6 +1,9 @@
 # Integration tests for the expert scoring script example plugin
 #
 "Plugin loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 
@@ -10,4 +13,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: script-expert-scoring  }
+    - contains:  { nodes.$master.plugins: { name: script-expert-scoring } }

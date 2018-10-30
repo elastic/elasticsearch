@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,19 +85,22 @@ public class IndicesStatsResponse extends BroadcastResponse {
         }
         Map<String, IndexStats> indicesStats = new HashMap<>();
 
-        Set<String> indices = new HashSet<>();
+        Set<Index> indices = new HashSet<>();
         for (ShardStats shard : shards) {
-            indices.add(shard.getShardRouting().getIndexName());
+            indices.add(shard.getShardRouting().index());
         }
 
-        for (String indexName : indices) {
+        for (Index index : indices) {
             List<ShardStats> shards = new ArrayList<>();
+            String indexName = index.getName();
             for (ShardStats shard : this.shards) {
                 if (shard.getShardRouting().getIndexName().equals(indexName)) {
                     shards.add(shard);
                 }
             }
-            indicesStats.put(indexName, new IndexStats(indexName, shards.toArray(new ShardStats[shards.size()])));
+            indicesStats.put(
+                indexName, new IndexStats(indexName, index.getUUID(), shards.toArray(new ShardStats[shards.size()]))
+            );
         }
         this.indicesStats = indicesStats;
         return indicesStats;
@@ -169,7 +173,7 @@ public class IndicesStatsResponse extends BroadcastResponse {
             builder.startObject(Fields.INDICES);
             for (IndexStats indexStats : getIndices().values()) {
                 builder.startObject(indexStats.getIndex());
-
+                builder.field("uuid", indexStats.getUuid());
                 builder.startObject("primaries");
                 indexStats.getPrimaries().toXContent(builder, params);
                 builder.endObject();

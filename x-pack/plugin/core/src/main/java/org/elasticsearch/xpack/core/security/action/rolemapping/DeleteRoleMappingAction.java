@@ -6,13 +6,12 @@
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
 
 /**
  * Action for deleting a role-mapping from the
  * org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class DeleteRoleMappingAction extends Action<DeleteRoleMappingRequest, DeleteRoleMappingResponse> {
+public class DeleteRoleMappingAction extends Action<DeleteRoleMappingResponse> {
 
     public static final DeleteRoleMappingAction INSTANCE = new DeleteRoleMappingAction();
     public static final String NAME = "cluster:admin/xpack/security/role_mapping/delete";

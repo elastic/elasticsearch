@@ -13,7 +13,7 @@ in the watch payload to determine whether or not to execute the watch actions.
 * <<condition-array-compare, `array_compare`>>: compare an array of values in the
 watch payload to a given value to determine whether or not to execute the watch 
 actions.
-* <<condition-script, `script`>>: use a script to determine wehther or not to
+* <<condition-script, `script`>>: use a script to determine whether or not to
 execute the watch actions.
 
 NOTE: If you omit the condition definition from a watch, the condition defaults

@@ -88,6 +88,9 @@ class ClusterFormationTasks {
         Configuration currentDistro = project.configurations.create("${prefix}_elasticsearchDistro")
         Configuration bwcDistro = project.configurations.create("${prefix}_elasticsearchBwcDistro")
         Configuration bwcPlugins = project.configurations.create("${prefix}_elasticsearchBwcPlugins")
+        if (System.getProperty('tests.distribution', 'oss-zip') == 'integ-test-zip') {
+            throw new Exception("tests.distribution=integ-test-zip is not supported")
+        }
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
         if (config.numBwcNodes > 0) {
             if (config.bwcVersion == null) {
@@ -119,8 +122,31 @@ class ClusterFormationTasks {
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
-            Object dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
-            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, nodes.get(0)))
+            Closure<Map> writeConfigSetup
+            Object dependsOn
+            if (node.nodeVersion.onOrAfter("6.5.0-SNAPSHOT")) {
+                writeConfigSetup = { Map esConfig ->
+                    // Don't force discovery provider if one is set by the test cluster specs already
+                    if (esConfig.containsKey('discovery.zen.hosts_provider') == false) {
+                        esConfig['discovery.zen.hosts_provider'] = 'file'
+                    }
+                    esConfig['discovery.zen.ping.unicast.hosts'] = []
+                    esConfig
+                }
+                dependsOn = startDependencies
+            } else {
+                dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
+                writeConfigSetup = { Map esConfig ->
+                    String unicastTransportUri = node.config.unicastTransportUri(nodes.get(0), node, project.ant)
+                    if (unicastTransportUri == null) {
+                        esConfig['discovery.zen.ping.unicast.hosts'] = []
+                    } else {
+                        esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
+                    }
+                    esConfig
+                }
+            }
+            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, writeConfigSetup))
         }
 
         Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks, config.nodeStartupWaitSeconds)
@@ -179,7 +205,7 @@ class ClusterFormationTasks {
      * @return a task which starts the node.
      */
     static Task configureNode(Project project, String prefix, Task runner, Object dependsOn, NodeInfo node, ClusterConfiguration config,
-                              Configuration distribution, NodeInfo seedNode) {
+                              Configuration distribution, Closure<Map> writeConfig) {
 
         // tasks are chained so their execution order is maintained
         Task setup = project.tasks.create(name: taskName(prefix, node, 'clean'), type: Delete, dependsOn: dependsOn) {
@@ -195,7 +221,7 @@ class ClusterFormationTasks {
         setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution)
-        setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, seedNode)
+        setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, writeConfig)
         setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
         setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
         setup = configureAddKeystoreFileTasks(prefix, project, setup, node)
@@ -298,7 +324,7 @@ class ClusterFormationTasks {
     }
 
     /** Adds a task to write elasticsearch.yml for the given node configuration */
-    static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
+    static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, Closure<Map> configFilter) {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
                 'node.name'                    : "node-" + node.nodeNum,
@@ -317,6 +343,13 @@ class ClusterFormationTasks {
             // this will also allow new and old nodes in the BWC case to become the master
             esConfig['discovery.initial_state_timeout'] = '0s'
         }
+        if (esConfig.containsKey('discovery.zen.master_election.wait_for_joins_timeout') == false) {
+            // If a node decides to become master based on partial information from the pinging, don't let it hang for 30 seconds to correct
+            // its mistake. Instead, only wait 5s to do another round of pinging.
+            // This is necessary since we use 30s as the default timeout in REST requests waiting for cluster formation
+            // so we need to bail quicker than the default 30s for the cluster to form in time.
+            esConfig['discovery.zen.master_election.wait_for_joins_timeout'] = '5s'
+        }
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
         esConfig['transport.tcp.port'] =  node.config.transportPort
@@ -328,14 +361,23 @@ class ClusterFormationTasks {
         }
         // increase script compilation limit since tests can rapid-fire script compilations
         esConfig['script.max_compilations_rate'] = '2048/1m'
-        esConfig.putAll(node.config.settings)
+        // Temporarily disable the real memory usage circuit breaker. It depends on real memory usage which we have no full control
+        // over and the REST client will not retry on circuit breaking exceptions yet (see #31986 for details). Once the REST client
+        // can retry on circuit breaking exceptions, we can revert again to the default configuration.
+        if (node.nodeVersion.major >= 7) {
+            esConfig['indices.breaker.total.use_real_memory'] = false
+        }
+        for (Map.Entry<String, Object> setting : node.config.settings) {
+            if (setting.value == null) {
+                esConfig.remove(setting.key)
+            } else {
+                esConfig.put(setting.key, setting.value)
+            }
+        }
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
-            String unicastTransportUri = node.config.unicastTransportUri(seedNode, node, project.ant)
-            if (unicastTransportUri != null) {
-                esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
-            }
+            esConfig = configFilter.call(esConfig)
             File configFile = new File(node.pathConf, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
@@ -533,7 +575,8 @@ class ClusterFormationTasks {
 
     static Task configureInstallModuleTask(String name, Project project, Task setup, NodeInfo node, Project module) {
         if (node.config.distribution != 'integ-test-zip') {
-            throw new GradleException("Module ${module.path} not allowed be installed distributions other than integ-test-zip because they should already have all modules bundled!")
+            project.logger.info("Not installing modules for $name, ${node.config.distribution} already has them")
+            return setup
         }
         if (module.plugins.hasPlugin(PluginBuildPlugin) == false) {
             throw new GradleException("Task ${name} cannot include module ${module.path} which is not an esplugin")
@@ -599,7 +642,6 @@ class ClusterFormationTasks {
 
     /** Adds a task to start an elasticsearch node with the given configuration */
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
-
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
             ant.exec(executable: node.executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
@@ -620,13 +662,6 @@ class ClusterFormationTasks {
                 node.writeWrapperScript()
             }
 
-            // we must add debug options inside the closure so the config is read at execution time, as
-            // gradle task options are not processed until the end of the configuration phase
-            if (node.config.debug) {
-                println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
-                node.env['ES_JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
-            }
-
             node.getCommandString().eachLine { line -> logger.info(line) }
 
             if (logger.isInfoEnabled() || node.config.daemonize == false) {
@@ -643,12 +678,49 @@ class ClusterFormationTasks {
             BuildPlugin.requireJavaHome(start, node.javaVersion)
         }
         start.doLast(elasticsearchRunner)
+        start.doFirst {
+            // Configure ES JAVA OPTS - adds system properties, assertion flags, remote debug etc
+            List<String> esJavaOpts = [node.env.get('ES_JAVA_OPTS', '')]
+            String collectedSystemProperties = node.config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
+            esJavaOpts.add(collectedSystemProperties)
+            esJavaOpts.add(node.config.jvmArgs)
+            if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
+                // put the enable assertions options before other options to allow
+                // flexibility to disable assertions for specific packages or classes
+                // in the cluster-specific options
+                esJavaOpts.add("-ea")
+                esJavaOpts.add("-esa")
+            }
+            // we must add debug options inside the closure so the config is read at execution time, as
+            // gradle task options are not processed until the end of the configuration phase
+            if (node.config.debug) {
+                println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
+                esJavaOpts.add('-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000')
+            }
+            node.env['ES_JAVA_OPTS'] = esJavaOpts.join(" ")
+
+            //
+            project.logger.info("Starting node in ${node.clusterName} distribution: ${node.config.distribution}")
+        }
         return start
     }
 
     static Task configureWaitTask(String name, Project project, List<NodeInfo> nodes, List<Task> startTasks, int waitSeconds) {
         Task wait = project.tasks.create(name: name, dependsOn: startTasks)
         wait.doLast {
+
+            Collection<String> unicastHosts = new HashSet<>()
+            nodes.forEach { otherNode ->
+                String unicastHost = otherNode.config.unicastTransportUri(otherNode, null, project.ant)
+                if (unicastHost != null) {
+                    unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
+                }
+            }
+            String unicastHostsTxt = String.join("\n", unicastHosts)
+            nodes.forEach { node ->
+                node.pathConf.toPath().resolve("unicast_hosts.txt").setText(unicastHostsTxt)
+            }
+
             ant.waitfor(maxwait: "${waitSeconds}", maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
                 or {
                     for (NodeInfo node : nodes) {

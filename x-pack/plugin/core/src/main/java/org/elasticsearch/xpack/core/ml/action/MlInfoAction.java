@@ -21,7 +21,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public class MlInfoAction extends Action<MlInfoAction.Request, MlInfoAction.Response> {
+public class MlInfoAction extends Action<MlInfoAction.Response> {
 
     public static final MlInfoAction INSTANCE = new MlInfoAction();
     public static final String NAME = "cluster:monitor/xpack/ml/info/get";

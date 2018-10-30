@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Forecast;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ForecastJobAction extends Action<ForecastJobAction.Request, ForecastJobAction.Response> {
+public class ForecastJobAction extends Action<ForecastJobAction.Response> {
 
     public static final ForecastJobAction INSTANCE = new ForecastJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/forecast";

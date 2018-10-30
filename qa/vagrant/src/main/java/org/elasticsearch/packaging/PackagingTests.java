@@ -19,10 +19,19 @@
 
 package org.elasticsearch.packaging;
 
+import org.elasticsearch.packaging.test.DefaultDebPreservationTests;
+import org.elasticsearch.packaging.test.DefaultDebBasicTests;
+import org.elasticsearch.packaging.test.DefaultRpmPreservationTests;
+import org.elasticsearch.packaging.test.DefaultRpmBasicTests;
+import org.elasticsearch.packaging.test.OssDebPreservationTests;
+import org.elasticsearch.packaging.test.OssDebBasicTests;
+import org.elasticsearch.packaging.test.OssRpmPreservationTests;
+import org.elasticsearch.packaging.test.OssRpmBasicTests;
 import org.elasticsearch.packaging.test.OssTarTests;
 import org.elasticsearch.packaging.test.OssZipTests;
 import org.elasticsearch.packaging.test.DefaultTarTests;
 import org.elasticsearch.packaging.test.DefaultZipTests;
+import org.elasticsearch.packaging.test.PackageDependenciesTests;
 
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
@@ -31,8 +40,17 @@ import org.junit.runners.Suite.SuiteClasses;
 @RunWith(Suite.class)
 @SuiteClasses({
     DefaultTarTests.class,
-    DefaultZipTests.class,
     OssTarTests.class,
-    OssZipTests.class
+    DefaultZipTests.class,
+    OssZipTests.class,
+    PackageDependenciesTests.class,
+    DefaultRpmBasicTests.class,
+    OssRpmBasicTests.class,
+    DefaultDebBasicTests.class,
+    OssDebBasicTests.class,
+    DefaultDebPreservationTests.class,
+    OssDebPreservationTests.class,
+    DefaultRpmPreservationTests.class,
+    OssRpmPreservationTests.class
 })
 public class PackagingTests {}

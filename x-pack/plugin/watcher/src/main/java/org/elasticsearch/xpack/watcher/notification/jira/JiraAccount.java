@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.notification.jira;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -26,7 +25,7 @@ import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
-import org.elasticsearch.xpack.watcher.common.http.auth.basic.BasicAuth;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -64,7 +63,6 @@ public class JiraAccount {
         this.httpClient = httpClient;
         this.name = name;
         String url = getSetting(name, URL_SETTING, settings, SECURE_URL_SETTING);
-        ESLoggerFactory.getLogger(getClass()).error("THE URL WAS [{}]", url);
         try {
             URI uri = new URI(url);
             Scheme protocol = Scheme.parse(uri.getScheme());

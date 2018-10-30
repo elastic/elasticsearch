@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
-import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
-import org.elasticsearch.xpack.sql.client.shared.StringUtils;
-import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
+import org.elasticsearch.xpack.sql.client.StringUtils;
+import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.jdbc.JdbcSQLException;
 
 import java.net.URI;
@@ -22,8 +22,8 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.sql.client.shared.UriUtils.parseURI;
-import static org.elasticsearch.xpack.sql.client.shared.UriUtils.removeQuery;
+import static org.elasticsearch.xpack.sql.client.UriUtils.parseURI;
+import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
 
 /**
  / Supports the following syntax
@@ -66,7 +66,6 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     }
 
     // immutable properties
-    private final String originalUrl;
     private final boolean debug;
     private final String debugOut;
 
@@ -146,8 +145,6 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     // and also do input processing as oppose to handling this from the constructor (which is tricky or impossible)
     private JdbcConfiguration(URI baseURI, String u, Properties props) throws JdbcSQLException {
         super(baseURI, u, props);
-
-        this.originalUrl = u;
 
         this.debug = parseValue(DEBUG, props.getProperty(DEBUG, DEBUG_DEFAULT), Boolean::parseBoolean);
         this.debugOut = props.getProperty(DEBUG_OUTPUT, DEBUG_OUTPUT_DEFAULT);

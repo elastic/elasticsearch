@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Request, GetCalendarEventsAction.Response> {
+public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Response> {
     public static final GetCalendarEventsAction INSTANCE = new GetCalendarEventsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/calendars/events/get";
 

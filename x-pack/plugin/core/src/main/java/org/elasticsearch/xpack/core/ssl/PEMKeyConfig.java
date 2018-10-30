@@ -15,10 +15,7 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;

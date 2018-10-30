@@ -3,10 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -14,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests;
 
@@ -45,7 +46,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         PersistentTasksCustomMetaData tasks = PersistentTasksCustomMetaData.builder().build();
         DatafeedConfig datafeedConfig1 = DatafeedManagerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder(mlMetadata1)
-                .putDatafeed(datafeedConfig1, null)
+                .putDatafeed(datafeedConfig1, Collections.emptyMap())
                 .build();
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> TransportStartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks));
@@ -62,7 +63,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         DatafeedConfig datafeedConfig1 = DatafeedManagerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder(mlMetadata1)
-                .putDatafeed(datafeedConfig1, null)
+                .putDatafeed(datafeedConfig1, Collections.emptyMap())
                 .build();
 
         TransportStartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks);
@@ -78,7 +79,7 @@ public class TransportStartDatafeedActionTests extends ESTestCase {
         PersistentTasksCustomMetaData tasks = tasksBuilder.build();
         DatafeedConfig datafeedConfig1 = DatafeedManagerTests.createDatafeedConfig("foo-datafeed", "job_id").build();
         MlMetadata mlMetadata2 = new MlMetadata.Builder(mlMetadata1)
-                .putDatafeed(datafeedConfig1, null)
+                .putDatafeed(datafeedConfig1, Collections.emptyMap())
                 .build();
 
         TransportStartDatafeedAction.validate("foo-datafeed", mlMetadata2, tasks);

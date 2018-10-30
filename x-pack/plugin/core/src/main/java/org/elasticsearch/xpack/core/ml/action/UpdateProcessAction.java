@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class UpdateProcessAction extends Action<UpdateProcessAction.Request, UpdateProcessAction.Response> {
+public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
 
     public static final UpdateProcessAction INSTANCE = new UpdateProcessAction();
     public static final String NAME = "cluster:internal/xpack/ml/job/update/process";

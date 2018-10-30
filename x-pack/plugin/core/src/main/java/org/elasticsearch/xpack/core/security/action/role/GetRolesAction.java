@@ -10,7 +10,7 @@ import org.elasticsearch.action.Action;
 /**
  * Action to retrieve a role from the security index
  */
-public class GetRolesAction extends Action<GetRolesRequest, GetRolesResponse> {
+public class GetRolesAction extends Action<GetRolesResponse> {
 
     public static final GetRolesAction INSTANCE = new GetRolesAction();
     public static final String NAME = "cluster:admin/xpack/security/role/get";

@@ -46,8 +46,8 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -99,7 +99,6 @@ import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -140,10 +139,11 @@ public class ClusterStateChanges extends AbstractComponent {
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Environment environment = TestEnvironment.newEnvironment(settings);
-        Transport transport = null; // it's not used
+        Transport transport = mock(Transport.class); // it's not used
 
         // mocks
         clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         IndicesService indicesService = mock(IndicesService.class);
         // MetaDataCreateIndexService creates indices using its IndicesService instance to check mappings -> fake it here
         try {
@@ -184,7 +184,7 @@ public class ClusterStateChanges extends AbstractComponent {
             allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, threadPool);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(settings, clusterService, indicesService,
             allocationService, new AliasValidator(settings), environment,
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry);
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry, true);
 
         transportCloseIndexAction = new TransportCloseIndexAction(settings, transportService, clusterService, threadPool,
             indexStateService, clusterSettings, actionFilters, indexNameExpressionResolver, destructiveOperations);

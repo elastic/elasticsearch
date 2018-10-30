@@ -49,6 +49,22 @@ public class SysTablesTests extends ESTestCase {
     private final IndexInfo index = new IndexInfo("test", IndexType.INDEX);
     private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
 
+    public void testSysTablesEnumerateCatalog() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE '%'", r -> {
+            assertEquals(1, r.size());
+            assertEquals(CLUSTER_NAME, r.column(0));
+        });
+    }
+
+    public void testSysTablesEnumerateTypes() throws Exception {
+        executeCommand("SYS TABLES TYPE '%'", r -> {
+            assertEquals(2, r.size());
+            assertEquals("ALIAS", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("BASE TABLE", r.column(3));
+        });
+    }
+
     public void testSysTablesDifferentCatalog() throws Exception {
         executeCommand("SYS TABLES CATALOG LIKE 'foo'", r -> {
             assertEquals(0, r.size());
@@ -58,10 +74,10 @@ public class SysTablesTests extends ESTestCase {
 
     public void testSysTablesNoTypes() throws Exception {
         executeCommand("SYS TABLES", r -> {
-            assertEquals("alias", r.column(2));
-            assertTrue(r.advanceRow());
             assertEquals(2, r.size());
-            assertEquals("test", r.column(2));
+            assertEquals("ALIAS", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("BASE TABLE", r.column(3));
         }, index, alias);
     }
 
@@ -208,22 +224,7 @@ public class SysTablesTests extends ESTestCase {
 
     public void testSysTablesTypesEnumerationWoString() throws Exception {
         executeCommand("SYS TABLES CATALOG LIKE '' LIKE '' ", r -> {
-            assertEquals(2, r.size());
-
-            Iterator<IndexType> it = IndexType.VALID.stream().sorted(Comparator.comparing(IndexType::toSql)).iterator();
-
-            for (int t = 0; t < r.size(); t++) {
-                assertEquals(it.next().toSql(), r.column(3));
-
-                // everything else should be null
-                for (int i = 0; i < 10; i++) {
-                    if (i != 3) {
-                        assertNull(r.column(i));
-                    }
-                }
-
-                r.advanceRow();
-            }
+            assertEquals(0, r.size());
         }, new IndexInfo[0]);
     }
 

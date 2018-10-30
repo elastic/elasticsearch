@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.jdbc.net.client;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.sql.client.HttpClient;
-import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoResponse;
@@ -23,7 +23,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.sql.client.shared.StringUtils.EMPTY;
+import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
 /**
  * JDBC specific HTTP client.

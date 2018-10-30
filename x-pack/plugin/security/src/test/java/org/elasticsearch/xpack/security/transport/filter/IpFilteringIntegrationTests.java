@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.transport.filter;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;

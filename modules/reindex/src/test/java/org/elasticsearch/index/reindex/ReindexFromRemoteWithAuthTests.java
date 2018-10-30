@@ -104,8 +104,9 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
      * Build a {@link RemoteInfo}, defaulting values that we don't care about in this test to values that don't hurt anything.
      */
     private RemoteInfo newRemoteInfo(String username, String password, Map<String, String> headers) {
-        return new RemoteInfo("http", address.getAddress(), address.getPort(), new BytesArray("{\"match_all\":{}}"), username, password,
-                headers, RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+        return new RemoteInfo("http", address.getAddress(), address.getPort(), null,
+            new BytesArray("{\"match_all\":{}}"), username, password, headers,
+            RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
     }
 
     public void testReindexFromRemoteWithAuthentication() throws Exception {

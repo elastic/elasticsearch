@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchReques
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
-import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;

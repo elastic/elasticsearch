@@ -29,7 +29,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetCalendarsAction extends Action<GetCalendarsAction.Request, GetCalendarsAction.Response> {
+public class GetCalendarsAction extends Action<GetCalendarsAction.Response> {
 
     public static final GetCalendarsAction INSTANCE = new GetCalendarsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/calendars/get";

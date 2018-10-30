@@ -29,7 +29,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_RE
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 

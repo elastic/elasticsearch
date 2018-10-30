@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugins.DiscoveryPlugin;
@@ -99,7 +99,7 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     private DiscoveryModule newModule(Settings settings, List<DiscoveryPlugin> plugins) {
         return new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry, null, masterService,
-            clusterApplier, clusterSettings, plugins, null);
+            clusterApplier, clusterSettings, plugins, null, createTempDir().toAbsolutePath());
     }
 
     public void testDefaults() {
@@ -137,11 +137,10 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     public void testHostsProvider() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "custom").build();
-        final UnicastHostsProvider provider = Collections::emptyList;
         AtomicBoolean created = new AtomicBoolean(false);
         DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
             created.set(true);
-            return Collections::emptyList;
+            return hostsResolver -> Collections.emptyList();
         });
         newModule(settings, Collections.singletonList(plugin));
         assertTrue(created.get());
@@ -151,7 +150,7 @@ public class DiscoveryModuleTests extends ESTestCase {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "dne").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(settings, Collections.emptyList()));
-        assertEquals("Unknown zen hosts provider [dne]", e.getMessage());
+        assertEquals("Unknown zen hosts providers [dne]", e.getMessage());
     }
 
     public void testDuplicateHostsProvider() {
@@ -160,6 +159,37 @@ public class DiscoveryModuleTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             newModule(Settings.EMPTY, Arrays.asList(plugin1, plugin2)));
         assertEquals("Cannot register zen hosts provider [dup] twice", e.getMessage());
+    }
+
+    public void testSettingsHostsProvider() {
+        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("settings", () -> null);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            newModule(Settings.EMPTY, Arrays.asList(plugin)));
+        assertEquals("Cannot register zen hosts provider [settings] twice", e.getMessage());
+    }
+
+    public void testMultiHostsProvider() {
+        AtomicBoolean created1 = new AtomicBoolean(false);
+        DummyHostsProviderPlugin plugin1 = () -> Collections.singletonMap("provider1", () -> {
+            created1.set(true);
+            return hostsResolver -> Collections.emptyList();
+        });
+        AtomicBoolean created2 = new AtomicBoolean(false);
+        DummyHostsProviderPlugin plugin2 = () -> Collections.singletonMap("provider2", () -> {
+            created2.set(true);
+            return hostsResolver -> Collections.emptyList();
+        });
+        AtomicBoolean created3 = new AtomicBoolean(false);
+        DummyHostsProviderPlugin plugin3 = () -> Collections.singletonMap("provider3", () -> {
+            created3.set(true);
+            return hostsResolver -> Collections.emptyList();
+        });
+        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(),
+            "provider1", "provider3").build();
+        newModule(settings, Arrays.asList(plugin1, plugin2, plugin3));
+        assertTrue(created1.get());
+        assertFalse(created2.get());
+        assertTrue(created3.get());
     }
 
     public void testLazyConstructionHostsProvider() {

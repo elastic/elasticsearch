@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.session;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.sql.plugin.AbstractSqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.util.TimeZone;

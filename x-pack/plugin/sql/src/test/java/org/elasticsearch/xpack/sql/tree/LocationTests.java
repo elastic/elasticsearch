@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.tree;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 
 import java.util.Arrays;
 import java.util.List;

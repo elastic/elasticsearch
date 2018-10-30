@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateCalendarJobAction extends Action<UpdateCalendarJobAction.Request, PutCalendarAction.Response> {
+public class UpdateCalendarJobAction extends Action<PutCalendarAction.Response> {
     public static final UpdateCalendarJobAction INSTANCE = new UpdateCalendarJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/jobs/update";
 

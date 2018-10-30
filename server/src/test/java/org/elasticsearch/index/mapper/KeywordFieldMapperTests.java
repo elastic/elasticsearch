@@ -51,9 +51,11 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
+import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
     /**
@@ -319,11 +321,16 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testEnableNorms() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "keyword").field("norms", true).endObject().endObject()
-                .endObject().endObject());
+            .startObject("properties")
+                .startObject("field")
+                    .field("type", "keyword")
+                    .field("doc_values", false)
+                    .field("norms", true)
+                .endObject()
+            .endObject()
+        .endObject().endObject());
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
         assertEquals(mapping, mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(SourceToParse.source("test", "type", "1", BytesReference
@@ -334,8 +341,11 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 XContentType.JSON));
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(2, fields.length);
+        assertEquals(1, fields.length);
         assertFalse(fields[0].fieldType().omitNorms());
+
+        IndexableField[] fieldNamesFields = doc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
+        assertEquals(0, fieldNamesFields.length);
     }
 
     public void testNormalizer() throws IOException {
@@ -410,5 +420,60 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
+    }
+
+    public void testSplitQueriesOnWhitespace() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "keyword")
+                    .endObject()
+                    .startObject("field_with_normalizer")
+                        .field("type", "keyword")
+                        .field("normalizer", "my_lowercase")
+                        .field("split_queries_on_whitespace", true)
+                    .endObject()
+                .endObject()
+            .endObject().endObject());
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        MappedFieldType fieldType = indexService.mapperService().fullName("field");
+        assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
+        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"Hello World"});
+
+        fieldType = indexService.mapperService().fullName("field_with_normalizer");
+        assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
+        assertThat(ft.searchAnalyzer().name(), equalTo("my_lowercase"));
+        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"hello", "world"});
+
+        mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "keyword")
+                        .field("split_queries_on_whitespace", true)
+                    .endObject()
+                    .startObject("field_with_normalizer")
+                        .field("type", "keyword")
+                        .field("normalizer", "my_lowercase")
+                        .field("split_queries_on_whitespace", false)
+                    .endObject()
+                .endObject()
+            .endObject().endObject());
+        indexService.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
+
+        fieldType = indexService.mapperService().fullName("field");
+        assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
+        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"Hello", "World"});
+
+        fieldType = indexService.mapperService().fullName("field_with_normalizer");
+        assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
+        assertThat(ft.searchAnalyzer().name(), equalTo("my_lowercase"));
+        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"hello world"});
     }
 }

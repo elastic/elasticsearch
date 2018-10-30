@@ -20,36 +20,48 @@
 package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.lucene.search.Scorer;
+import java.util.Collections;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 public class ScriptValuesTests extends ESTestCase {
 
-    private static class FakeSearchScript extends SearchScript {
+    private static class FakeAggregationScript extends AggregationScript {
 
         private final Object[][] values;
         int index;
 
-        FakeSearchScript(Object[][] values) {
-            super(null, null, null);
+        FakeAggregationScript(Object[][] values) {
+            super(Collections.emptyMap(), new SearchLookup(null, null, Strings.EMPTY_ARRAY) {
+
+                @Override
+                public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
+                    LeafSearchLookup leafSearchLookup = mock(LeafSearchLookup.class);
+                    when(leafSearchLookup.asMap()).thenReturn(Collections.emptyMap());
+                    return leafSearchLookup;
+                }
+            }, null);
             this.values = values;
             index = -1;
         }
 
         @Override
-        public void setNextVar(String name, Object value) {
-        }
-
-        @Override
-        public Object run() {
+        public Object execute() {
             // Script values are supposed to support null, single values, arrays and collections
             final Object[] values = this.values[index];
             if (values.length <= 1 && randomBoolean()) {
@@ -59,7 +71,7 @@ public class ScriptValuesTests extends ESTestCase {
         }
 
         @Override
-        public void setScorer(Scorer scorer) {
+        public void setScorer(Scorable scorer) {
         }
 
         @Override
@@ -89,7 +101,7 @@ public class ScriptValuesTests extends ESTestCase {
             Arrays.sort(longs);
             values[i] = longs;
         }
-        FakeSearchScript script = new FakeSearchScript(values);
+        FakeAggregationScript script = new FakeAggregationScript(values);
         ScriptLongValues scriptValues = new ScriptLongValues(script);
         for (int i = 0; i < values.length; ++i) {
             assertEquals(values[i].length > 0, scriptValues.advanceExact(i));
@@ -112,7 +124,7 @@ public class ScriptValuesTests extends ESTestCase {
             Arrays.sort(booleans);
             values[i] = booleans;
         }
-        FakeSearchScript script = new FakeSearchScript(values);
+        FakeAggregationScript script = new FakeAggregationScript(values);
         ScriptLongValues scriptValues = new ScriptLongValues(script);
         for (int i = 0; i < values.length; ++i) {
             assertEquals(values[i].length > 0, scriptValues.advanceExact(i));
@@ -135,7 +147,7 @@ public class ScriptValuesTests extends ESTestCase {
             Arrays.sort(doubles);
             values[i] = doubles;
         }
-        FakeSearchScript script = new FakeSearchScript(values);
+        FakeAggregationScript script = new FakeAggregationScript(values);
         ScriptDoubleValues scriptValues = new ScriptDoubleValues(script);
         for (int i = 0; i < values.length; ++i) {
             assertEquals(values[i].length > 0, scriptValues.advanceExact(i));
@@ -158,7 +170,7 @@ public class ScriptValuesTests extends ESTestCase {
             Arrays.sort(strings);
             values[i] = strings;
         }
-        FakeSearchScript script = new FakeSearchScript(values);
+        FakeAggregationScript script = new FakeAggregationScript(values);
         ScriptBytesValues scriptValues = new ScriptBytesValues(script);
         for (int i = 0; i < values.length; ++i) {
             assertEquals(values[i].length > 0, scriptValues.advanceExact(i));

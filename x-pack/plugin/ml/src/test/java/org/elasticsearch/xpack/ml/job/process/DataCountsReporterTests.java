@@ -31,8 +31,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 public class DataCountsReporterTests extends ESTestCase {
-    private static final int MAX_PERCENT_DATE_PARSE_ERRORS = 40;
-    private static final int MAX_PERCENT_OUT_OF_ORDER_ERRORS = 30;
 
     private Job job;
     private JobDataCountsPersister jobDataCountsPersister;
@@ -42,8 +40,6 @@ public class DataCountsReporterTests extends ESTestCase {
     @Before
     public void setUpMocks() {
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(DataCountsReporter.ACCEPTABLE_PERCENTAGE_DATE_PARSE_ERRORS_SETTING.getKey(), MAX_PERCENT_DATE_PARSE_ERRORS)
-                .put(DataCountsReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING.getKey(), MAX_PERCENT_OUT_OF_ORDER_ERRORS)
                 .build();
 
         AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
@@ -51,19 +47,13 @@ public class DataCountsReporterTests extends ESTestCase {
         acBuilder.setLatency(TimeValue.ZERO);
         acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
 
+
         Job.Builder builder = new Job.Builder("sr");
         builder.setAnalysisConfig(acBuilder);
         builder.setDataDescription(new DataDescription.Builder());
         job = builder.build(new Date());
 
         jobDataCountsPersister = Mockito.mock(JobDataCountsPersister.class);
-    }
-
-    public void testSettingAcceptablePercentages() throws IOException {
-        DataCountsReporter dataCountsReporter = new DataCountsReporter(settings, job, new DataCounts(job.getId()),
-                jobDataCountsPersister);
-        assertEquals(dataCountsReporter.getAcceptablePercentDateParseErrors(), MAX_PERCENT_DATE_PARSE_ERRORS);
-        assertEquals(dataCountsReporter.getAcceptablePercentOutOfOrderErrors(), MAX_PERCENT_OUT_OF_ORDER_ERRORS);
     }
 
     public void testSimpleConstructor() throws Exception {

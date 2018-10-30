@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.Action;
 
-public class GetFieldMappingsAction extends Action<GetFieldMappingsRequest, GetFieldMappingsResponse> {
+public class GetFieldMappingsAction extends Action<GetFieldMappingsResponse> {
 
     public static final GetFieldMappingsAction INSTANCE = new GetFieldMappingsAction();
     public static final String NAME = "indices:admin/mappings/fields/get";

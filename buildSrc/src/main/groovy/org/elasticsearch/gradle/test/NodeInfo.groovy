@@ -177,18 +177,13 @@ class NodeInfo {
             javaVersion = 8
         } else if (nodeVersion.onOrAfter("6.2.0") && nodeVersion.before("6.3.0")) {
             javaVersion = 9
+        } else if (nodeVersion.onOrAfter("6.3.0") && nodeVersion.before("6.5.0")) {
+            javaVersion = 10
         }
 
         args.addAll("-E", "node.portsfile=true")
-        String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
-        String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
-        if (Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))) {
-            // put the enable assertions options before other options to allow
-            // flexibility to disable assertions for specific packages or classes
-            // in the cluster-specific options
-            esJavaOpts = String.join(" ", "-ea", "-esa", esJavaOpts)
-        }
-        env = ['ES_JAVA_OPTS': esJavaOpts]
+        env = [:]
+        env.putAll(config.environmentVariables)
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.key.startsWith('tests.es.')) {
                 args.add("-E")
@@ -338,7 +333,7 @@ class NodeInfo {
             case 'deb':
                 return new File(baseDir, "${distro}-extracted/etc/elasticsearch")
             default:
-                throw new InvalidUserDataException("Unkown distribution: ${distro}")
+                throw new InvalidUserDataException("Unknown distribution: ${distro}")
         }
     }
 }

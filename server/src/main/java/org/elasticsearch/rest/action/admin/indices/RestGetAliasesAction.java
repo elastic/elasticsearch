@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -61,6 +60,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     public RestGetAliasesAction(final Settings settings, final RestController controller) {
         super(settings);
+        controller.registerHandler(GET, "/_alias", this);
+        controller.registerHandler(GET, "/_aliases", this);
         controller.registerHandler(GET, "/_alias/{name}", this);
         controller.registerHandler(HEAD, "/_alias/{name}", this);
         controller.registerHandler(GET, "/{index}/_alias", this);
@@ -76,6 +77,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        // The TransportGetAliasesAction was improved do the same post processing as is happening here.
+        // We can't remove this logic yet to support mixed clusters. We should be able to remove this logic here
+        // in when 8.0 becomes the new version in the master branch.
+
         final boolean namesProvided = request.hasParam("name");
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
@@ -84,6 +89,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));
 
+        //we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will
+        //not always be available there (they may get replaced so retrieving request.aliases is not quite the same).
         return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
@@ -127,9 +134,11 @@ public class RestGetAliasesAction extends BaseRestHandler {
                         status = RestStatus.NOT_FOUND;
                         final String message;
                         if (difference.size() == 1) {
-                            message = String.format(Locale.ROOT, "alias [%s] missing", toNamesString(difference.iterator().next()));
+                            message = String.format(Locale.ROOT, "alias [%s] missing",
+                                    Strings.collectionToCommaDelimitedString(difference));
                         } else {
-                            message = String.format(Locale.ROOT, "aliases [%s] missing", toNamesString(difference.toArray(new String[0])));
+                            message = String.format(Locale.ROOT, "aliases [%s] missing",
+                                    Strings.collectionToCommaDelimitedString(difference));
                         }
                         builder.field("error", message);
                         builder.field("status", status.getStatus());
@@ -156,16 +165,6 @@ public class RestGetAliasesAction extends BaseRestHandler {
             }
 
         });
-    }
-
-    private static String toNamesString(final String... names) {
-        if (names == null || names.length == 0) {
-            return "";
-        } else if (names.length == 1) {
-            return names[0];
-        } else {
-            return Arrays.stream(names).collect(Collectors.joining(","));
-        }
     }
 
 }

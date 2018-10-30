@@ -42,7 +42,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask
 import java.io.IOException;
 import java.util.Objects;
 
-public class RemovePersistentTaskAction extends Action<RemovePersistentTaskAction.Request, PersistentTaskResponse> {
+public class RemovePersistentTaskAction extends Action<PersistentTaskResponse> {
 
     public static final RemovePersistentTaskAction INSTANCE = new RemovePersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/remove";

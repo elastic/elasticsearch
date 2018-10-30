@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -20,7 +19,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -30,12 +29,10 @@ import java.io.IOException;
 public class TransportPersistJobAction extends TransportJobTaskAction<PersistJobAction.Request, PersistJobAction.Response> {
 
     @Inject
-    public TransportPersistJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                   ClusterService clusterService, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                   AutodetectProcessManager processManager) {
-        super(settings, PersistJobAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                PersistJobAction.Request::new, PersistJobAction.Response::new, ThreadPool.Names.SAME, processManager);
+    public TransportPersistJobAction(Settings settings, TransportService transportService,
+                                   ClusterService clusterService, ActionFilters actionFilters, AutodetectProcessManager processManager) {
+        super(settings, PersistJobAction.NAME, clusterService, transportService, actionFilters,
+            PersistJobAction.Request::new, PersistJobAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }
 
@@ -64,7 +61,7 @@ public class TransportPersistJobAction extends TransportJobTaskAction<PersistJob
         // TODO Remove this overridden method in 7.0.0
         DiscoveryNodes nodes = clusterService.state().nodes();
         PersistentTasksCustomMetaData tasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlMetadata.getJobTask(request.getJobId(), tasks);
+        PersistentTasksCustomMetaData.PersistentTask<?> jobTask = MlTasks.getJobTask(request.getJobId(), tasks);
         if (jobTask == null || jobTask.getExecutorNode() == null) {
             logger.debug("[{}] Cannot persist the job because the job is not open", request.getJobId());
             listener.onResponse(new PersistJobAction.Response(false));

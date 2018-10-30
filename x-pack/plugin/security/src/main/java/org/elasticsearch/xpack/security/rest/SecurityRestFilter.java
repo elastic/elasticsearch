@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.security.rest;
 
-import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.netty4.Netty4HttpRequest;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -22,13 +21,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.transport.ServerTransportFilter;
+import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.io.IOException;
 
 public class SecurityRestFilter implements RestHandler {
 
-    private static final Logger logger = ESLoggerFactory.getLogger(SecurityRestFilter.class);
+    private static final Logger logger = LogManager.getLogger(SecurityRestFilter.class);
 
     private final RestHandler restHandler;
     private final AuthenticationService service;
@@ -47,13 +46,11 @@ public class SecurityRestFilter implements RestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed() && request.method() != Method.OPTIONS) {
+        if (licenseState.isAuthAllowed() && request.method() != Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
             if (extractClientCertificate) {
-                Netty4HttpRequest nettyHttpRequest = (Netty4HttpRequest) request;
-                SslHandler handler = nettyHttpRequest.getChannel().pipeline().get(SslHandler.class);
-                assert handler != null;
-                ServerTransportFilter.extractClientCertificates(logger, threadContext, handler.engine(), nettyHttpRequest.getChannel());
+                HttpChannel httpChannel = request.getHttpChannel();
+                SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
             }
             service.authenticate(maybeWrapRestRequest(request), ActionListener.wrap(
                 authentication -> {

@@ -20,8 +20,9 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class IndicesAliasesAction extends Action<IndicesAliasesRequest, IndicesAliasesResponse> {
+public class IndicesAliasesAction extends Action<AcknowledgedResponse> {
 
     public static final IndicesAliasesAction INSTANCE = new IndicesAliasesAction();
     public static final String NAME = "indices:admin/aliases";
@@ -31,7 +32,7 @@ public class IndicesAliasesAction extends Action<IndicesAliasesRequest, IndicesA
     }
 
     @Override
-    public IndicesAliasesResponse newResponse() {
-        return new IndicesAliasesResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

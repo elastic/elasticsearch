@@ -13,21 +13,25 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.RestrictedTrustManager;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.net.SocketException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
@@ -35,6 +39,8 @@ import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -46,12 +52,6 @@ import static org.hamcrest.Matchers.is;
 @TestLogging("org.elasticsearch.xpack.ssl.RestrictedTrustManager:DEBUG")
 public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
-    /**
-     * Use a small keysize for performance, since the keys are only used in this test, but a large enough keysize
-     * to get past the SSL algorithm checker
-     */
-
-    private static final int RESOURCE_RELOAD_MILLIS = 3;
     private static final TimeValue MAX_WAIT_RELOAD = TimeValue.timeValueSeconds(1);
 
     private static Path configPath;
@@ -61,6 +61,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     private static CertificateInfo trustedCert;
     private static CertificateInfo untrustedCert;
     private static Path restrictionsPath;
+    private static Path restrictionsTmpPath;
 
     @Override
     protected int maxNumberOfNodes() {
@@ -72,6 +73,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
     @BeforeClass
     public static void setupCertificates() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, custom TrustManager implementations cannot be used.", inFipsJvm());
         configPath = createTempDir();
         Path caCertPath = PathUtils.get(SSLTrustRestrictionsTests.class.getResource
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt").toURI());
@@ -124,19 +126,26 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
                 .put(nodeSSL);
 
         restrictionsPath = configPath.resolve("trust_restrictions.yml");
+        restrictionsTmpPath = configPath.resolve("trust_restrictions.tmp");
+
         writeRestrictions("*.trusted");
         builder.put("xpack.ssl.trust_restrictions.path", restrictionsPath);
-        builder.put("resource.reload.interval.high", RESOURCE_RELOAD_MILLIS + "ms");
 
         return builder.build();
     }
 
     private void writeRestrictions(String trustedPattern) {
         try {
-            Files.write(restrictionsPath, Collections.singleton("trust.subject_name: \"" + trustedPattern + "\""));
+            Files.write(restrictionsTmpPath, Collections.singleton("trust.subject_name: \"" + trustedPattern + "\""));
+            try {
+                Files.move(restrictionsTmpPath, restrictionsPath, REPLACE_EXISTING, ATOMIC_MOVE);
+            } catch (final AtomicMoveNotSupportedException e) {
+                Files.move(restrictionsTmpPath, restrictionsPath, REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             throw new ElasticsearchException("failed to write restrictions", e);
         }
+        runResourceWatcher();
     }
 
     @Override
@@ -157,7 +166,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         writeRestrictions("*.trusted");
         try {
             tryConnect(trustedCert);
-        } catch (SSLHandshakeException | SocketException ex) {
+        } catch (SSLException | SocketException ex) {
             logger.warn(new ParameterizedMessage("unexpected handshake failure with certificate [{}] [{}]",
                     trustedCert.certificate.getSubjectDN(), trustedCert.certificate.getSubjectAlternativeNames()), ex);
             fail("handshake should have been successful, but failed with " + ex);
@@ -169,7 +178,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         try {
             tryConnect(untrustedCert);
             fail("handshake should have failed, but was successful");
-        } catch (SSLHandshakeException | SocketException ex) {
+        } catch (SSLException | SocketException ex) {
             // expected
         }
     }
@@ -179,7 +188,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             try {
                 tryConnect(untrustedCert);
-            } catch (SSLHandshakeException | SocketException ex) {
+            } catch (SSLException | SocketException ex) {
                 fail("handshake should have been successful, but failed with " + ex);
             }
         }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);
@@ -189,10 +198,27 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             try {
                 tryConnect(untrustedCert);
                 fail("handshake should have failed, but was successful");
-            } catch (SSLHandshakeException | SocketException ex) {
+            } catch (SSLException | SocketException ex) {
                 // expected
             }
         }, MAX_WAIT_RELOAD.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Force the file watch to be updated.
+     * Ideally we'd just left the service do its thing, but that means waiting for 5sec
+     * We can drop the 5s down, but then we run into resource contention issues.
+     * This method just tells the {@link ResourceWatcherService} to run its check at a time that suits the tests. In all other respects
+     * it works just like normal - the usual file checks apply for detecting it as "changed", and only the previously configured files
+     * are checked.
+     */
+    private void runResourceWatcher() {
+        final InternalTestCluster cluster = internalCluster();
+        if (cluster.size() > 0) {
+            final ResourceWatcherService service = cluster.getInstance(ResourceWatcherService.class);
+            logger.info("Triggering a reload of watched resources");
+            service.notifyNow(ResourceWatcherService.Frequency.HIGH);
+        }
     }
 
     private void tryConnect(CertificateInfo certificate) throws Exception {
@@ -206,7 +232,8 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
-        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(settings);
+        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
             assertThat(socket.isConnected(), is(true));

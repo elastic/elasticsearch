@@ -551,7 +551,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(Map source) {
+    public UpdateRequest doc(Map<String, Object> source) {
         safeDoc().source(source);
         return this;
     }
@@ -559,7 +559,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest doc(Map source, XContentType contentType) {
+    public UpdateRequest doc(Map<String, Object> source, XContentType contentType) {
         safeDoc().source(source, contentType);
         return this;
     }
@@ -637,7 +637,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(Map source) {
+    public UpdateRequest upsert(Map<String, Object> source) {
         safeUpsertRequest().source(source);
         return this;
     }
@@ -645,7 +645,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest upsert(Map source, XContentType contentType) {
+    public UpdateRequest upsert(Map<String, Object> source, XContentType contentType) {
         safeUpsertRequest().source(source, contentType);
         return this;
     }

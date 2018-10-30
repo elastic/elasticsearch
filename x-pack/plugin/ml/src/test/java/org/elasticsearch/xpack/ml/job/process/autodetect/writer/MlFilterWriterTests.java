@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -28,8 +27,8 @@ public class MlFilterWriterTests extends ESTestCase {
 
     public void testWrite() throws IOException {
         List<MlFilter> filters = new ArrayList<>();
-        filters.add(new MlFilter("filter_1", Arrays.asList("a", "b")));
-        filters.add(new MlFilter("filter_2", Arrays.asList("c", "d")));
+        filters.add(MlFilter.builder("filter_1").setItems("a", "b").build());
+        filters.add(MlFilter.builder("filter_2").setItems("c", "d").build());
 
         StringBuilder buffer = new StringBuilder();
         new MlFilterWriter(filters, buffer).write();

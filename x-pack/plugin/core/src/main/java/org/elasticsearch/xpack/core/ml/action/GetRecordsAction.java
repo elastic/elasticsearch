@@ -23,13 +23,12 @@ import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecordsAction.Response> {
+public class GetRecordsAction extends Action<GetRecordsAction.Response> {
 
     public static final GetRecordsAction INSTANCE = new GetRecordsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/records/get";
@@ -79,7 +78,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         private boolean excludeInterim = false;
         private PageParams pageParams = new PageParams();
         private double recordScoreFilter = 0.0;
-        private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
+        private String sort = RECORD_SCORE_FILTER.getPreferredName();
         private boolean descending = true;
 
         public Request() {

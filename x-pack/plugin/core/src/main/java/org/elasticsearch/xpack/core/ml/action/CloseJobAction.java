@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobAction.Response> {
+public class CloseJobAction extends Action<CloseJobAction.Response> {
 
     public static final CloseJobAction INSTANCE = new CloseJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/close";

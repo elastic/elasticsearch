@@ -110,7 +110,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir);
              IndexReader reader = w.getReader();
-             Engine.Searcher searcher = new Engine.Searcher("test", new IndexSearcher(reader))) {
+             Engine.Searcher searcher = new Engine.Searcher("test", new IndexSearcher(reader), reader::close)) {
 
             DefaultSearchContext context1 = new DefaultSearchContext(1L, shardSearchRequest, null, searcher, null, indexService,
                 indexShard, bigArrays, null, timeout, null, null, Version.CURRENT);

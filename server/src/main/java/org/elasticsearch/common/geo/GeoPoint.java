@@ -22,7 +22,6 @@ package org.elasticsearch.common.geo;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;

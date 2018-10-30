@@ -19,23 +19,22 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.common.geo.GeoShapeType;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.elasticsearch.common.geo.parsers.GeoWKTParser;
-import org.locationtech.spatial4j.shape.Shape;
-
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.common.geo.parsers.GeoWKTParser;
+import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class GeometryCollectionBuilder extends ShapeBuilder {
+public class GeometryCollectionBuilder extends ShapeBuilder<Shape, GeometryCollectionBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 

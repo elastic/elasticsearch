@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 
@@ -31,7 +33,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     /** Creates a license state with the given license type and active state, and checks the given method returns expected. */
     void assertAllowed(OperationMode mode, boolean active, Predicate<XPackLicenseState> predicate, boolean expected) {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(mode, active);
+        licenseState.update(mode, active, null);
         assertEquals(expected, predicate.test(licenseState));
     }
 
@@ -79,7 +81,8 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
 
-        licenseState = new XPackLicenseState(Settings.EMPTY);
+        licenseState =
+            new XPackLicenseState(Settings.builder().put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), true).build());
         assertThat(licenseState.isAuthAllowed(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
         assertThat(licenseState.isAuditingAllowed(), is(true));
@@ -87,12 +90,21 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
         assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
+
+        licenseState = new XPackLicenseState(Settings.EMPTY);
+        assertThat(licenseState.isAuthAllowed(), is(false));
+        assertThat(licenseState.isIpFilteringAllowed(), is(false));
+        assertThat(licenseState.isAuditingAllowed(), is(false));
+        assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
+        assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
+        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NONE));
+        assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
     }
 
     public void testSecurityBasic() {
         XPackLicenseState licenseState = new XPackLicenseState(randomFrom(Settings.EMPTY,
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
-        licenseState.update(BASIC, true);
+        licenseState.update(BASIC, true, null);
 
         assertThat(licenseState.isAuthAllowed(), is(false));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
@@ -106,7 +118,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityBasicExpired() {
         XPackLicenseState licenseState = new XPackLicenseState(randomFrom(Settings.EMPTY,
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
-        licenseState.update(BASIC, false);
+        licenseState.update(BASIC, false, null);
 
         assertThat(licenseState.isAuthAllowed(), is(false));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
@@ -120,7 +132,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityStandard() {
         XPackLicenseState licenseState = new XPackLicenseState(randomFrom(Settings.EMPTY,
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
-        licenseState.update(STANDARD, true);
+        licenseState.update(STANDARD, true, null);
 
         assertThat(licenseState.isAuthAllowed(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
@@ -134,7 +146,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityStandardExpired() {
         XPackLicenseState licenseState = new XPackLicenseState(randomFrom(Settings.EMPTY,
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
-        licenseState.update(STANDARD, false);
+        licenseState.update(STANDARD, false, null);
 
         assertThat(licenseState.isAuthAllowed(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
@@ -148,7 +160,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityGold() {
         XPackLicenseState licenseState = new XPackLicenseState(randomFrom(Settings.EMPTY,
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
-        licenseState.update(GOLD, true);
+        licenseState.update(GOLD, true, null);
 
         assertThat(licenseState.isAuthAllowed(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
@@ -162,7 +174,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityGoldExpired() {
         XPackLicenseState licenseState = new XPackLicenseState(randomFrom(Settings.EMPTY,
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
-        licenseState.update(GOLD, false);
+        licenseState.update(GOLD, false, null);
 
         assertThat(licenseState.isAuthAllowed(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
@@ -176,7 +188,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityPlatinum() {
         XPackLicenseState licenseState = new XPackLicenseState(randomFrom(Settings.EMPTY,
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
-        licenseState.update(PLATINUM, true);
+        licenseState.update(PLATINUM, true, null);
 
         assertThat(licenseState.isAuthAllowed(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
@@ -190,7 +202,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testSecurityPlatinumExpired() {
         XPackLicenseState licenseState = new XPackLicenseState(randomFrom(Settings.EMPTY,
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
-        licenseState.update(PLATINUM, false);
+        licenseState.update(PLATINUM, false, null);
 
         assertThat(licenseState.isAuthAllowed(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
@@ -199,6 +211,34 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
         assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
+    }
+
+    public void testNewTrialDefaultsSecurityOff() {
+        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
+        licenseState.update(TRIAL, true, VersionUtils.randomVersionBetween(random(), Version.V_6_3_0, Version.CURRENT));
+
+        assertThat(licenseState.isSecurityDisabledByTrialLicense(), is(true));
+        assertThat(licenseState.isAuthAllowed(), is(false));
+        assertThat(licenseState.isIpFilteringAllowed(), is(false));
+        assertThat(licenseState.isAuditingAllowed(), is(false));
+        assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
+        assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
+        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NONE));
+        assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
+    }
+
+    public void testOldTrialDefaultsSecurityOn() {
+        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
+        licenseState.update(TRIAL, true, rarely() ? null : VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_2_4));
+
+        assertThat(licenseState.isSecurityDisabledByTrialLicense(), is(false));
+        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isIpFilteringAllowed(), is(true));
+        assertThat(licenseState.isAuditingAllowed(), is(true));
+        assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
+        assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
+        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
+        assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
     }
 
     public void testSecurityAckBasicToNotGoldOrStandard() {
@@ -344,7 +384,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSqlBasic() {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(BASIC, true);
+        licenseState.update(BASIC, true, null);
 
         assertThat(licenseState.isSqlAllowed(), is(true));
         assertThat(licenseState.isJdbcAllowed(), is(false));
@@ -352,7 +392,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSqlBasicExpired() {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(BASIC, false);
+        licenseState.update(BASIC, false, null);
 
         assertThat(licenseState.isSqlAllowed(), is(false));
         assertThat(licenseState.isJdbcAllowed(), is(false));
@@ -360,7 +400,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSqlStandard() {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(STANDARD, true);
+        licenseState.update(STANDARD, true, null);
 
         assertThat(licenseState.isSqlAllowed(), is(true));
         assertThat(licenseState.isJdbcAllowed(), is(false));
@@ -368,7 +408,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSqlStandardExpired() {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(STANDARD, false);
+        licenseState.update(STANDARD, false, null);
 
         assertThat(licenseState.isSqlAllowed(), is(false));
         assertThat(licenseState.isJdbcAllowed(), is(false));
@@ -376,7 +416,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSqlGold() {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(GOLD, true);
+        licenseState.update(GOLD, true, null);
 
         assertThat(licenseState.isSqlAllowed(), is(true));
         assertThat(licenseState.isJdbcAllowed(), is(false));
@@ -384,7 +424,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSqlGoldExpired() {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(GOLD, false);
+        licenseState.update(GOLD, false, null);
 
         assertThat(licenseState.isSqlAllowed(), is(false));
         assertThat(licenseState.isJdbcAllowed(), is(false));
@@ -392,7 +432,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSqlPlatinum() {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(PLATINUM, true);
+        licenseState.update(PLATINUM, true, null);
 
         assertThat(licenseState.isSqlAllowed(), is(true));
         assertThat(licenseState.isJdbcAllowed(), is(true));
@@ -400,7 +440,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSqlPlatinumExpired() {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(PLATINUM, false);
+        licenseState.update(PLATINUM, false, null);
 
         assertThat(licenseState.isSqlAllowed(), is(false));
         assertThat(licenseState.isJdbcAllowed(), is(false));

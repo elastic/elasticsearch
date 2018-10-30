@@ -79,7 +79,9 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         final int size = reusableBuffer.getInt() + 4;
         final long maxSize = sizeInBytes() - position;
         if (size < 0 || size > maxSize) {
-            throw new TranslogCorruptedException("operation size is corrupted must be [0.." + maxSize + "] but was: " + size);
+            throw new TranslogCorruptedException(
+                    path.toString(),
+                    "operation size is corrupted must be [0.." + maxSize + "] but was: " + size);
         }
         return size;
     }
@@ -103,14 +105,16 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         buffer.limit(opSize);
         readBytes(buffer, position);
         buffer.flip();
-        return new BufferedChecksumStreamInput(new ByteBufferStreamInput(buffer), reuse);
+        return new BufferedChecksumStreamInput(new ByteBufferStreamInput(buffer), path.toString(), reuse);
     }
 
     protected Translog.Operation read(BufferedChecksumStreamInput inStream) throws IOException {
         final Translog.Operation op = Translog.readOperation(inStream);
         if (op.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != TranslogHeader.UNKNOWN_PRIMARY_TERM) {
-            throw new TranslogCorruptedException("Operation's term is newer than translog header term; " +
-                "operation term[" + op.primaryTerm() + "], translog header term [" + getPrimaryTerm() + "]");
+            throw new TranslogCorruptedException(
+                    path.toString(),
+                    "operation's term is newer than translog header term; " +
+                    "operation term[" + op.primaryTerm() + "], translog header term [" + getPrimaryTerm() + "]");
         }
         return op;
     }

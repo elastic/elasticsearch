@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
@@ -26,13 +26,13 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
 
     private long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN.getMillis();
 
-    private JobProvider jobProvider;
+    private JobResultsProvider jobResultsProvider;
     private JobResultsPersister jobResultsPersister;
 
     @Before
     public void createComponents() {
         Settings settings = nodeSettings(0);
-        jobProvider = new JobProvider(client(), settings);
+        jobResultsProvider = new JobResultsProvider(client(), settings);
         jobResultsPersister = new JobResultsPersister(settings, client());
     }
 
@@ -251,7 +251,7 @@ public class EstablishedMemUsageIT extends BaseMlIntegTestCase {
         CountDownLatch latch = new CountDownLatch(1);
 
         Date latestBucketTimestamp = (bucketNum != null) ? new Date(bucketSpan * bucketNum) : null;
-        jobProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, latestModelSizeStats, memUse -> {
+        jobResultsProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, latestModelSizeStats, memUse -> {
                     establishedModelMemoryUsage.set(memUse);
                     latch.countDown();
                 }, e -> {

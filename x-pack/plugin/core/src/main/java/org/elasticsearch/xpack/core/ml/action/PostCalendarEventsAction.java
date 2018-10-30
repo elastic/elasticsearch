@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Request, PostCalendarEventsAction.Response> {
+public class PostCalendarEventsAction extends Action<PostCalendarEventsAction.Response> {
     public static final PostCalendarEventsAction INSTANCE = new PostCalendarEventsAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/events/post";
 

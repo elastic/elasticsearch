@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestDocument.MetaData;
 import org.elasticsearch.ingest.Processor;

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.util;
 
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -56,6 +56,33 @@ public abstract class StringUtils {
             sb.append(ch);
         }
         return sb.toString().toUpperCase(Locale.ROOT);
+    }
+    
+    //CAMEL_CASE to camelCase
+    public static String underscoreToLowerCamelCase(String string) {
+        if (!Strings.hasText(string)) {
+            return EMPTY;
+        }
+        StringBuilder sb = new StringBuilder();
+        String s = string.trim().toLowerCase(Locale.ROOT);
+
+        boolean previousCharWasUnderscore = false;
+        for (int i = 0; i < s.length(); i++) {
+            char ch = s.charAt(i);
+            if (ch == '_') {
+                previousCharWasUnderscore = true;
+            }
+            else {
+                if (previousCharWasUnderscore) {
+                    sb.append(Character.toUpperCase(ch));
+                    previousCharWasUnderscore = false;
+                }
+                else {
+                    sb.append(ch);
+                }
+            }
+        }
+        return sb.toString();
     }
 
     public static String nullAsEmpty(String string) {
@@ -221,7 +248,7 @@ public abstract class StringUtils {
     }
 
     public static List<String> findSimilar(String match, Iterable<String> potentialMatches) {
-        LevensteinDistance ld = new LevensteinDistance();
+        LevenshteinDistance ld = new LevenshteinDistance();
         List<Tuple<Float, String>> scoredMatches = new ArrayList<>();
         for (String potentialMatch : potentialMatches) {
             float distance = ld.getDistance(match, potentialMatch);

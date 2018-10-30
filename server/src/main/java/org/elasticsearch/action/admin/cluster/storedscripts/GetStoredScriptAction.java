@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.Action;
 
-public class GetStoredScriptAction extends Action<GetStoredScriptRequest, GetStoredScriptResponse> {
+public class GetStoredScriptAction extends Action<GetStoredScriptResponse> {
 
     public static final GetStoredScriptAction INSTANCE = new GetStoredScriptAction();
     public static final String NAME = "cluster:admin/script/get";

@@ -61,14 +61,18 @@ public class CronEvalTool extends LoggingAwareCommand {
 
         Cron cron = new Cron(expression);
         long time = date.getMillis();
+
         for (int i = 0; i < count; i++) {
             long prevTime = time;
             time = cron.getNextValidTimeAfter(time);
             if (time < 0) {
-                throw new UserException(ExitCodes.OK, (i + 1) + ".\t Could not compute future times since ["
-                    + formatter.print(prevTime) + "] " + "(perhaps the cron expression only points to times in the past?)");
+                if (i == 0) {
+                    throw new UserException(ExitCodes.OK, "Could not compute future times since ["
+                            + formatter.print(prevTime) + "] " + "(perhaps the cron expression only points to times in the past?)");
+                }
+                break;
             }
-            terminal.println((i+1) + ".\t" + formatter.print(time));
+            terminal.println((i + 1) + ".\t" + formatter.print(time));
         }
     }
 }

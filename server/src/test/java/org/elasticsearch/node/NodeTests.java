@@ -25,7 +25,6 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
@@ -37,13 +36,10 @@ import org.elasticsearch.test.MockHttpTransport;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -51,22 +47,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
-
-    public void testNodeName() throws IOException {
-        final String name = randomBoolean() ? randomAlphaOfLength(10) : null;
-        Settings.Builder settings = baseSettings();
-        if (name != null) {
-            settings.put(Node.NODE_NAME_SETTING.getKey(), name);
-        }
-        try (Node node = new MockNode(settings.build(), basePlugins())) {
-            final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
-            if (name == null) {
-                assertThat(Node.NODE_NAME_SETTING.get(nodeSettings), equalTo(node.getNodeEnvironment().nodeId().substring(0, 7)));
-            } else {
-                assertThat(Node.NODE_NAME_SETTING.get(nodeSettings), equalTo(name));
-            }
-        }
-    }
 
     public static class CheckPlugin extends Plugin {
         public static final BootstrapCheck CHECK = context -> BootstrapCheck.BootstrapCheckResult.success();
@@ -156,6 +136,25 @@ public class NodeTests extends ESTestCase {
             fail("should not allow a node attribute with trailing whitespace");
         } catch (IllegalArgumentException e) {
             assertEquals("node.attr.test_attr cannot have leading or trailing whitespace [trailing ]", e.getMessage());
+        }
+    }
+
+    public void testServerNameNodeAttribute() throws IOException {
+        String attr = "valid-hostname";
+        Settings.Builder settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "server_name", attr);
+        int i = 0;
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
+            final Settings nodeSettings = randomBoolean() ? node.settings() : node.getEnvironment().settings();
+            assertEquals(attr, Node.NODE_ATTRIBUTES.getAsMap(nodeSettings).get("server_name"));
+        }
+
+        // non-LDH hostname not allowed
+        attr = "invalid_hostname";
+        settings = baseSettings().put(Node.NODE_ATTRIBUTES.getKey() + "server_name", attr);
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
+            fail("should not allow a server_name attribute with an underscore");
+        } catch (IllegalArgumentException e) {
+            assertEquals("invalid node.attr.server_name [invalid_hostname]", e.getMessage());
         }
     }
 

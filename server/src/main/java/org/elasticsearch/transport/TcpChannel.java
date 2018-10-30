@@ -21,17 +21,13 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -43,29 +39,12 @@ import java.util.concurrent.TimeoutException;
  * abstraction used by the {@link TcpTransport} and {@link TransportService}. All tcp transport
  * implementations must return channels that adhere to the required method contracts.
  */
-public interface TcpChannel extends Releasable {
-
-    /**
-     * Closes the channel. This might be an asynchronous process. There is no guarantee that the channel
-     * will be closed when this method returns. Use the {@link #addCloseListener(ActionListener)} method
-     * to implement logic that depends on knowing when the channel is closed.
-     */
-    void close();
+public interface TcpChannel extends CloseableChannel {
 
     /**
      * This returns the profile for this channel.
      */
     String getProfile();
-
-    /**
-     * Adds a listener that will be executed when the channel is closed. If the channel is still open when
-     * this listener is added, the listener will be executed by the thread that eventually closes the
-     * channel. If the channel is already closed when the listener is added the listener will immediately be
-     * executed by the thread that is attempting to add the listener.
-     *
-     * @param listener to be executed
-     */
-    void addCloseListener(ActionListener<Void> listener);
 
 
     /**
@@ -76,13 +55,6 @@ public interface TcpChannel extends Releasable {
      */
     void setSoLinger(int value) throws IOException;
 
-
-    /**
-     * Indicates whether a channel is currently open
-     *
-     * @return boolean indicating if channel is open
-     */
-    boolean isOpen();
 
     /**
      * Returns the local address for this channel.
@@ -106,48 +78,6 @@ public interface TcpChannel extends Releasable {
      * @param listener to execute upon send completion
      */
     void sendMessage(BytesReference reference, ActionListener<Void> listener);
-
-    /**
-     * Closes the channel without blocking.
-     *
-     * @param channel to close
-     */
-    static <C extends TcpChannel> void closeChannel(C channel) {
-        closeChannel(channel, false);
-    }
-
-    /**
-     * Closes the channel.
-     *
-     * @param channel to close
-     * @param blocking indicates if we should block on channel close
-     */
-    static <C extends TcpChannel> void closeChannel(C channel, boolean blocking) {
-        closeChannels(Collections.singletonList(channel), blocking);
-    }
-
-    /**
-     * Closes the channels.
-     *
-     * @param channels to close
-     * @param blocking indicates if we should block on channel close
-     */
-    static <C extends TcpChannel> void closeChannels(List<C> channels, boolean blocking) {
-        if (blocking) {
-            ArrayList<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
-            for (final C channel : channels) {
-                if (channel.isOpen()) {
-                    PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
-                    channel.addCloseListener(closeFuture);
-                    channel.close();
-                    futures.add(closeFuture);
-                }
-            }
-            blockOnFutures(futures);
-        } else {
-            Releasables.close(channels);
-        }
-    }
 
     /**
      * Awaits for all of the pending connections to complete. Will throw an exception if at least one of the
@@ -188,17 +118,4 @@ public interface TcpChannel extends Releasable {
         }
     }
 
-    static void blockOnFutures(List<ActionFuture<Void>> futures) {
-        for (ActionFuture<Void> future : futures) {
-            try {
-                future.get();
-            } catch (ExecutionException e) {
-                // Ignore as we are only interested in waiting for the close process to complete. Logging
-                // close exceptions happens elsewhere.
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("Future got interrupted", e);
-            }
-        }
-    }
 }

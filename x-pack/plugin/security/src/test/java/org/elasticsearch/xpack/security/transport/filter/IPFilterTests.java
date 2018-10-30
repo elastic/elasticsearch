@@ -53,7 +53,6 @@ public class IPFilterTests extends ESTestCase {
     public void init() {
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isIpFilteringAllowed()).thenReturn(true);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         auditTrail = mock(AuditTrailService.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(
                 IPFilter.HTTP_FILTER_ALLOW_SETTING,

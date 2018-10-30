@@ -10,7 +10,7 @@ import org.elasticsearch.action.Action;
 /**
  * This Action gets the stats for the watcher plugin
  */
-public class WatcherStatsAction extends Action<WatcherStatsRequest, WatcherStatsResponse> {
+public class WatcherStatsAction extends Action<WatcherStatsResponse> {
 
     public static final WatcherStatsAction INSTANCE = new WatcherStatsAction();
     public static final String NAME = "cluster:monitor/xpack/watcher/stats/dist";

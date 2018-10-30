@@ -292,38 +292,6 @@ public enum FieldData {
     }
 
     /**
-     * Returns whether the provided values *might* be multi-valued. There is no
-     * guarantee that this method will return {@code false} in the single-valued case.
-     */
-    public static boolean isMultiValued(SortedNumericDocValues values) {
-        return DocValues.unwrapSingleton(values) == null;
-    }
-
-    /**
-     * Returns whether the provided values *might* be multi-valued. There is no
-     * guarantee that this method will return {@code false} in the single-valued case.
-     */
-    public static boolean isMultiValued(SortedNumericDoubleValues values) {
-        return unwrapSingleton(values) == null;
-    }
-
-    /**
-     * Returns whether the provided values *might* be multi-valued. There is no
-     * guarantee that this method will return {@code false} in the single-valued case.
-     */
-    public static boolean isMultiValued(SortedBinaryDocValues values) {
-        return unwrapSingleton(values) != null;
-    }
-
-    /**
-     * Returns whether the provided values *might* be multi-valued. There is no
-     * guarantee that this method will return {@code false} in the single-valued case.
-     */
-    public static boolean isMultiValued(MultiGeoPointValues values) {
-        return unwrapSingleton(values) == null;
-    }
-
-    /**
      * Return a {@link String} representation of the provided values. That is
      * typically used for scripts or for the `map` execution mode of terms aggs.
      * NOTE: this is very slow!
@@ -554,5 +522,64 @@ public enum FieldData {
             return (long) values.nextValue();
         }
 
+    }
+
+    /**
+     * Return a {@link NumericDocValues} instance that has a value for every
+     * document, returns the same value as {@code values} if there is a value
+     * for the current document and {@code missing} otherwise.
+     */
+    public static NumericDocValues replaceMissing(NumericDocValues values, long missing) {
+        return new AbstractNumericDocValues() {
+
+            private long value;
+
+            @Override
+            public int docID() {
+                return values.docID();
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                if (values.advanceExact(target)) {
+                    value = values.longValue();
+                } else {
+                    value = missing;
+                }
+                return true;
+            }
+
+            @Override
+            public long longValue() throws IOException {
+                return value;
+            }
+        };
+    }
+
+    /**
+     * Return a {@link NumericDoubleValues} instance that has a value for every
+     * document, returns the same value as {@code values} if there is a value
+     * for the current document and {@code missing} otherwise.
+     */
+    public static NumericDoubleValues replaceMissing(NumericDoubleValues values, double missing) {
+        return new NumericDoubleValues() {
+
+            private double value;
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                if (values.advanceExact(target)) {
+                    value = values.doubleValue();
+                } else {
+                    value = missing;
+                }
+                return true;
+            }
+
+            @Override
+            public double doubleValue() throws IOException {
+                return value;
+            }
+        };
     }
 }

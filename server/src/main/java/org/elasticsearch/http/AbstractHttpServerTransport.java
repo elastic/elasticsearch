@@ -21,15 +21,23 @@ package org.elasticsearch.http;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,9 +46,15 @@ import org.elasticsearch.transport.BindTransportException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.channels.CancelledKeyException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH;
@@ -48,24 +62,34 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_PORT;
 
-public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements org.elasticsearch.http.HttpServerTransport {
+public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
+    public final HttpHandlingSettings handlingSettings;
     protected final NetworkService networkService;
+    protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
+    private final NamedXContentRegistry xContentRegistry;
 
-    protected final String[] bindHosts;
-    protected final String[] publishHosts;
     protected final PortsRange port;
     protected final ByteSizeValue maxContentLength;
+    private final String[] bindHosts;
+    private final String[] publishHosts;
 
-    protected volatile BoundTransportAddress boundAddress;
+    private volatile BoundTransportAddress boundAddress;
+    private final AtomicLong totalChannelsAccepted = new AtomicLong();
+    private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, ThreadPool threadPool, Dispatcher dispatcher) {
+    protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
+                                          NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
         super(settings);
         this.networkService = networkService;
+        this.bigArrays = bigArrays;
         this.threadPool = threadPool;
+        this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
+        this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
@@ -95,7 +119,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return new HttpInfo(boundTransportAddress, maxContentLength.getBytes());
     }
 
-    protected BoundTransportAddress createBoundHttpAddress() {
+    @Override
+    public HttpStats stats() {
+        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
+    }
+
+    protected void bindServer() {
         // Bind and start to accept incoming connections.
         InetAddress hostAddresses[];
         try {
@@ -117,11 +146,71 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
 
         final int publishPort = resolvePublishPort(settings, boundAddresses, publishInetAddress);
-        final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);
-        return new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), new TransportAddress(publishAddress));
+        TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
+        this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[0]), publishAddress);
+        logger.info("{}", boundAddress);
     }
 
-    protected abstract TransportAddress bindAddress(InetAddress hostAddress);
+    private TransportAddress bindAddress(final InetAddress hostAddress) {
+        final AtomicReference<Exception> lastException = new AtomicReference<>();
+        final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
+        boolean success = port.iterate(portNumber -> {
+            try {
+                synchronized (httpServerChannels) {
+                    HttpServerChannel httpServerChannel = bind(new InetSocketAddress(hostAddress, portNumber));
+                    httpServerChannels.add(httpServerChannel);
+                    boundSocket.set(httpServerChannel.getLocalAddress());
+                }
+            } catch (Exception e) {
+                lastException.set(e);
+                return false;
+            }
+            return true;
+        });
+        if (!success) {
+            throw new BindHttpException("Failed to bind to [" + port.getPortRangeString() + "]", lastException.get());
+        }
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("Bound http to address {{}}", NetworkAddress.format(boundSocket.get()));
+        }
+        return new TransportAddress(boundSocket.get());
+    }
+
+    protected abstract HttpServerChannel bind(InetSocketAddress hostAddress) throws Exception;
+
+    @Override
+    protected void doStop() {
+        synchronized (httpServerChannels) {
+            if (httpServerChannels.isEmpty() == false) {
+                try {
+                    CloseableChannel.closeChannels(new ArrayList<>(httpServerChannels), true);
+                } catch (Exception e) {
+                    logger.warn("exception while closing channels", e);
+                } finally {
+                    httpServerChannels.clear();
+                }
+            }
+        }
+
+        try {
+            CloseableChannel.closeChannels(new ArrayList<>(httpChannels), true);
+        } catch (Exception e) {
+            logger.warn("unexpected exception while closing http channels", e);
+        }
+        httpChannels.clear();
+
+        stopInternal();
+    }
+
+    @Override
+    protected void doClose() {
+    }
+
+    /**
+     * Called to tear down internal resources
+     */
+    protected abstract void stopInternal();
 
     // package private for tests
     static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {
@@ -156,17 +245,141 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         return publishPort;
     }
 
-    public void dispatchRequest(final RestRequest request, final RestChannel channel) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            dispatcher.dispatchRequest(request, channel, threadContext);
+    protected void onException(HttpChannel channel, Exception e) {
+        if (lifecycle.started() == false) {
+            // just close and ignore - we are already stopped and just need to make sure we release all resources
+            CloseableChannel.closeChannel(channel);
+            return;
+        }
+        if (NetworkExceptionHelper.isCloseConnectionException(e)) {
+            logger.trace(() -> new ParameterizedMessage(
+                "close connection exception caught while handling client http traffic, closing connection {}", channel), e);
+            CloseableChannel.closeChannel(channel);
+        } else if (NetworkExceptionHelper.isConnectException(e)) {
+            logger.trace(() -> new ParameterizedMessage(
+                "connect exception caught while handling client http traffic, closing connection {}", channel), e);
+            CloseableChannel.closeChannel(channel);
+        } else if (e instanceof CancelledKeyException) {
+            logger.trace(() -> new ParameterizedMessage(
+                "cancelled key exception caught while handling client http traffic, closing connection {}", channel), e);
+            CloseableChannel.closeChannel(channel);
+        } else {
+            logger.warn(() -> new ParameterizedMessage(
+                "caught exception while handling client http traffic, closing connection {}", channel), e);
+            CloseableChannel.closeChannel(channel);
         }
     }
 
-    public void dispatchBadRequest(final RestRequest request, final RestChannel channel, final Throwable cause) {
+    protected void onServerException(HttpServerChannel channel, Exception e) {
+        logger.error(new ParameterizedMessage("exception from http server channel caught on transport layer [channel={}]", channel), e);
+    }
+
+    /**
+     * Exception handler for exceptions that are not associated with a specific channel.
+     *
+     * @param exception the exception
+     */
+    protected void onNonChannelException(Exception exception) {
+        String threadName = Thread.currentThread().getName();
+        logger.warn(new ParameterizedMessage("exception caught on transport layer [thread={}]", threadName), exception);
+    }
+
+    protected void serverAcceptedChannel(HttpChannel httpChannel) {
+        boolean addedOnThisCall = httpChannels.add(httpChannel);
+        assert addedOnThisCall : "Channel should only be added to http channel set once";
+        totalChannelsAccepted.incrementAndGet();
+        httpChannel.addCloseListener(ActionListener.wrap(() -> httpChannels.remove(httpChannel)));
+        logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
+    }
+
+    /**
+     * This method handles an incoming http request.
+     *
+     * @param httpRequest that is incoming
+     * @param httpChannel that received the http request
+     */
+    public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
+        handleIncomingRequest(httpRequest, httpChannel, null);
+    }
+
+    /**
+     * This method handles an incoming http request that has encountered an error.
+     *
+     * @param httpRequest that is incoming
+     * @param httpChannel that received the http request
+     * @param exception   that was encountered
+     */
+    public void incomingRequestError(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
+        handleIncomingRequest(httpRequest, httpChannel, exception);
+    }
+
+    // Visible for testing
+    void dispatchRequest(final RestRequest restRequest, final RestChannel channel, final Throwable badRequestCause) {
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            dispatcher.dispatchBadRequest(request, channel, threadContext, cause);
+            if (badRequestCause != null) {
+                dispatcher.dispatchBadRequest(restRequest, channel, threadContext, badRequestCause);
+            } else {
+                dispatcher.dispatchRequest(restRequest, channel, threadContext);
+            }
+        }
+    }
+
+    private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
+        Exception badRequestCause = exception;
+
+        /*
+         * We want to create a REST request from the incoming request from Netty. However, creating this request could fail if there
+         * are incorrectly encoded parameters, or the Content-Type header is invalid. If one of these specific failures occurs, we
+         * attempt to create a REST request again without the input that caused the exception (e.g., we remove the Content-Type header,
+         * or skip decoding the parameters). Once we have a request in hand, we then dispatch the request as a bad request with the
+         * underlying exception that caused us to treat the request as bad.
+         */
+        final RestRequest restRequest;
+        {
+            RestRequest innerRestRequest;
+            try {
+                innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
+            } catch (final RestRequest.ContentTypeHeaderException e) {
+                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
+                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
+            } catch (final RestRequest.BadParameterException e) {
+                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
+                innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+            }
+            restRequest = innerRestRequest;
+        }
+
+        /*
+         * We now want to create a channel used to send the response on. However, creating this channel can fail if there are invalid
+         * parameter values for any of the filter_path, human, or pretty parameters. We detect these specific failures via an
+         * IllegalArgumentException from the channel constructor and then attempt to create a new channel that bypasses parsing of these
+         * parameter values.
+         */
+        final RestChannel channel;
+        {
+            RestChannel innerChannel;
+            ThreadContext threadContext = threadPool.getThreadContext();
+            try {
+                innerChannel = new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext);
+            } catch (final IllegalArgumentException e) {
+                badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
+                final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
+                innerChannel = new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext);
+            }
+            channel = innerChannel;
+        }
+
+        dispatchRequest(restRequest, channel, badRequestCause);
+    }
+
+    private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause) {
+        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
+        try {
+            return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+        } catch (final RestRequest.BadParameterException e) {
+            badRequestCause.addSuppressed(e);
+            return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
         }
     }
 }

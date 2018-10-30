@@ -27,14 +27,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.Collections;
 
 public class GatewayServiceTests extends ESTestCase {
 
     private GatewayService createService(Settings.Builder settings) {
         ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null, Collections.emptyMap());
+                null);
         return new GatewayService(settings.build(),
                 null, clusterService, null, null, null, null);
     }
@@ -59,7 +58,8 @@ public class GatewayServiceTests extends ESTestCase {
         // ensure settings override default
         TimeValue timeValue = TimeValue.timeValueHours(3);
         // ensure default is set when setting expected_nodes
-        service = createService(Settings.builder().put("gateway.expected_nodes", 1).put("gateway.recover_after_time", timeValue.toString()));
+        service = createService(Settings.builder().put("gateway.expected_nodes", 1).put("gateway.recover_after_time",
+            timeValue.toString()));
         assertThat(service.recoverAfterTime().millis(), Matchers.equalTo(timeValue.millis()));
     }
 }

@@ -87,7 +87,8 @@ class DerParser {
      * Decode the length of the field. Can only support length
      * encoding up to 4 octets.
      * <p>
-     * <p/>In BER/DER encoding, length can be encoded in 2 forms,
+     *          In BER/DER encoding, length can be encoded in 2 forms:
+     * </p>
      * <ul>
      * <li>Short form. One octet. Bit 8 has value "0" and bits 7-1
      * give the length.
@@ -100,7 +101,6 @@ class DerParser {
      * </ul>
      *
      * @return The length as integer
-     * @throws IOException
      */
     private int getLength() throws IOException {
 
@@ -145,7 +145,8 @@ class DerParser {
          * Construct a ASN.1 TLV. The TLV could be either a
          * constructed or primitive entity.
          * <p>
-         * <p/>The first byte in DER encoding is made of following fields,
+         *     The first byte in DER encoding is made of following fields:
+         * </p>
          * <pre>
          * -------------------------------------------------
          * |Bit 8|Bit 7|Bit 6|Bit 5|Bit 4|Bit 3|Bit 2|Bit 1|
@@ -192,7 +193,6 @@ class DerParser {
          * For constructed field, return a parser for its content.
          *
          * @return A parser for the construct.
-         * @throws IOException
          */
         public DerParser getParser() throws IOException {
             if (!isConstructed())
@@ -205,7 +205,6 @@ class DerParser {
          * Get the value as integer
          *
          * @return BigInteger
-         * @throws IOException
          */
         public BigInteger getInteger() throws IOException {
             if (type != DerParser.INTEGER)

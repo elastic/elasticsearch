@@ -85,13 +85,6 @@ public enum VersionType implements Writeable {
             // not allowing Versions.NOT_FOUND as it is not a valid input value.
             return version > 0L || version == Versions.MATCH_ANY;
         }
-
-        @Override
-        public VersionType versionTypeForReplicationAndRecovery() {
-            // replicas get the version from the primary after increment. The same version is stored in
-            // the transaction log. -> the should use the external semantics.
-            return EXTERNAL;
-        }
     },
     EXTERNAL((byte) 1) {
         @Override
@@ -332,14 +325,6 @@ public enum VersionType implements Writeable {
      * @return true if valid, false o.w
      */
     public abstract boolean validateVersionForReads(long version);
-
-    /**
-     * Some version types require different semantics for primary and replicas. This version allows
-     * the type to override the default behavior.
-     */
-    public VersionType versionTypeForReplicationAndRecovery() {
-        return this;
-    }
 
     public static VersionType fromString(String versionType) {
         if ("internal".equals(versionType)) {

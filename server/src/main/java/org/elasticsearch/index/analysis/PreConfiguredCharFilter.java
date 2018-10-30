@@ -41,7 +41,7 @@ public class PreConfiguredCharFilter extends PreConfiguredAnalysisComponent<Char
     }
 
     /**
-     * Create a pre-configured char filter that may not vary at all, provide access to the elasticsearch verison
+     * Create a pre-configured char filter that may not vary at all, provide access to the elasticsearch version
      */
     public static PreConfiguredCharFilter singletonWithVersion(String name, boolean useFilterForMultitermQueries,
             BiFunction<Reader, org.elasticsearch.Version, Reader> create) {

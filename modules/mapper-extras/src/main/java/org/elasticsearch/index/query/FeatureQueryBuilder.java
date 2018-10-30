@@ -28,6 +28,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.FeatureFieldMapper.FeatureFieldType;
+import org.elasticsearch.index.mapper.FeatureMetaFieldMapper;
+import org.elasticsearch.index.mapper.FeatureVectorFieldMapper.FeatureVectorFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -48,7 +50,7 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
 
         abstract void writeTo(StreamOutput out) throws IOException;
 
-        abstract Query toQuery(String feature, boolean positiveScoreImpact) throws IOException;
+        abstract Query toQuery(String field, String feature, boolean positiveScoreImpact) throws IOException;
 
         abstract void doXContent(XContentBuilder builder) throws IOException;
 
@@ -102,12 +104,12 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
             }
 
             @Override
-            Query toQuery(String feature, boolean positiveScoreImpact) throws IOException {
+            Query toQuery(String field, String feature, boolean positiveScoreImpact) throws IOException {
                 if (positiveScoreImpact == false) {
                     throw new IllegalArgumentException("Cannot use the [log] function with a field that has a negative score impact as " +
                             "it would trigger negative scores");
                 }
-                return FeatureField.newLogQuery("_feature", feature, DEFAULT_BOOST, scalingFactor);
+                return FeatureField.newLogQuery(field, feature, DEFAULT_BOOST, scalingFactor);
             }
         }
 
@@ -173,11 +175,11 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
             }
 
             @Override
-            Query toQuery(String feature, boolean positiveScoreImpact) throws IOException {
+            Query toQuery(String field, String feature, boolean positiveScoreImpact) throws IOException {
                 if (pivot == null) {
-                    return FeatureField.newSaturationQuery("_feature", feature);
+                    return FeatureField.newSaturationQuery(field, feature);
                 } else {
-                    return FeatureField.newSaturationQuery("_feature", feature, DEFAULT_BOOST, pivot);
+                    return FeatureField.newSaturationQuery(field, feature, DEFAULT_BOOST, pivot);
                 }
             }
         }
@@ -238,8 +240,8 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
             }
 
             @Override
-            Query toQuery(String feature, boolean positiveScoreImpact) throws IOException {
-                return FeatureField.newSigmoidQuery("_feature", feature, DEFAULT_BOOST, pivot, exp);
+            Query toQuery(String field, String feature, boolean positiveScoreImpact) throws IOException {
+                return FeatureField.newSigmoidQuery(field, feature, DEFAULT_BOOST, pivot, exp);
             }
         }
     }
@@ -331,14 +333,24 @@ public final class FeatureQueryBuilder extends AbstractQueryBuilder<FeatureQuery
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         final MappedFieldType ft = context.fieldMapper(field);
-        if (ft == null) {
-            return new MatchNoDocsQuery();
+
+        if (ft instanceof FeatureFieldType) {
+            final FeatureFieldType fft = (FeatureFieldType) ft;
+            return scoreFunction.toQuery(FeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
+        } else if (ft == null) {
+            final int lastDotIndex = field.lastIndexOf('.');
+            if (lastDotIndex != -1) {
+                final String parentField = field.substring(0, lastDotIndex);
+                final MappedFieldType parentFt = context.fieldMapper(parentField);
+                if (parentFt instanceof FeatureVectorFieldType) {
+                    return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
+                }
+            }
+            return new MatchNoDocsQuery(); // unmapped field
+        } else {
+            throw new IllegalArgumentException("[feature] query only works on [feature] fields and features of [feature_vector] fields, " +
+                    "not [" + ft.typeName() + "]");
         }
-        if (ft instanceof FeatureFieldType == false) {
-            throw new IllegalArgumentException("[feature] query only works on [feature] fields, not [" + ft.typeName() + "]");
-        }
-        final FeatureFieldType fft = (FeatureFieldType) ft;
-        return scoreFunction.toQuery(field, fft.positiveScoreImpact());
     }
 
     @Override

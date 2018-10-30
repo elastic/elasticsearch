@@ -87,6 +87,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         out.writeOptionalString(rewrite);
     }
 
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

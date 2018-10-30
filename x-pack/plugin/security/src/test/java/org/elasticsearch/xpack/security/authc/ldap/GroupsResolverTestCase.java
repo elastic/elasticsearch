@@ -34,8 +34,8 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
 
     @Before
     public void setUpLdapConnection() throws Exception {
-        Path truststore = getDataPath(trustPath());
-        this.ldapConnection = LdapTestUtils.openConnection(ldapUrl(), bindDN(), bindPassword(), truststore);
+        Path trustPath = getDataPath(trustPath());
+        this.ldapConnection = LdapTestUtils.openConnection(ldapUrl(), bindDN(), bindPassword(), trustPath);
     }
 
     @After

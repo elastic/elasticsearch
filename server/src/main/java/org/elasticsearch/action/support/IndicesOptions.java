@@ -22,12 +22,16 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -38,7 +42,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * Controls how to deal with unavailable concrete indices (closed or missing), how wildcard expressions are expanded
  * to actual indices (all, closed or open indices) and how to deal with wildcard expressions that resolve to no indices.
  */
-public class IndicesOptions {
+public class IndicesOptions implements ToXContentFragment {
 
     public enum WildcardStates {
         OPEN,
@@ -259,12 +263,15 @@ public class IndicesOptions {
         }
     }
 
-    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices) {
+    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
+                                             boolean expandToClosedIndices) {
         return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, true, false, false);
     }
 
-    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices, IndicesOptions defaultOptions) {
-        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, defaultOptions.allowAliasesToMultipleIndices(), defaultOptions.forbidClosedIndices(), defaultOptions.ignoreAliases());
+    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
+                                             boolean expandToClosedIndices, IndicesOptions defaultOptions) {
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices,
+            defaultOptions.allowAliasesToMultipleIndices(), defaultOptions.forbidClosedIndices(), defaultOptions.ignoreAliases());
     }
 
     public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
@@ -323,7 +330,8 @@ public class IndicesOptions {
                 "allow_no_indices".equals(name) || "allowNoIndices".equals(name);
     }
 
-    public static IndicesOptions fromParameters(Object wildcardsString, Object ignoreUnavailableString, Object allowNoIndicesString, IndicesOptions defaultSettings) {
+    public static IndicesOptions fromParameters(Object wildcardsString, Object ignoreUnavailableString, Object allowNoIndicesString,
+                                                IndicesOptions defaultSettings) {
         if (wildcardsString == null && ignoreUnavailableString == null && allowNoIndicesString == null) {
             return defaultSettings;
         }
@@ -340,6 +348,18 @@ public class IndicesOptions {
                 defaultSettings.forbidClosedIndices(),
                 defaultSettings.ignoreAliases()
         );
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startArray("expand_wildcards");
+        for (WildcardStates expandWildcard : expandWildcards) {
+            builder.value(expandWildcard.toString().toLowerCase(Locale.ROOT));
+        }
+        builder.endArray();
+        builder.field("ignore_unavailable", ignoreUnavailable());
+        builder.field("allow_no_indices", allowNoIndices());
+        return builder;
     }
 
     /**

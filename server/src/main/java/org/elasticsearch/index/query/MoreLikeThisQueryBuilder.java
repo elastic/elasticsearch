@@ -26,7 +26,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -47,7 +46,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -220,11 +218,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             type = in.readOptionalString();
             if (in.readBoolean()) {
                 doc = (BytesReference) in.readGenericValue();
-                if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    xContentType = in.readEnum(XContentType.class);
-                } else {
-                    xContentType = XContentHelper.xContentType(doc);
-                }
+                xContentType = in.readEnum(XContentType.class);
             } else {
                 id = in.readString();
             }
@@ -242,9 +236,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
-                if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                    out.writeEnum(xContentType);
-                }
+                out.writeEnum(xContentType);
             } else {
                 out.writeString(id);
             }

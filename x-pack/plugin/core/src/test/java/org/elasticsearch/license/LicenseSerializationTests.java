@@ -111,7 +111,7 @@ public class LicenseSerializationTests extends ESTestCase {
                 .issueDate(now)
                 .type("basic")
                 .expiryDate(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
-        License license = SelfGeneratedLicense.create(specBuilder);
+        License license = SelfGeneratedLicense.create(specBuilder, License.VERSION_CURRENT);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         license.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap(License.REST_VIEW_MODE, "true")));
         builder.flush();

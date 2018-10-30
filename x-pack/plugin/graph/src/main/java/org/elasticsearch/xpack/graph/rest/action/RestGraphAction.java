@@ -5,21 +5,24 @@
  */
 package org.elasticsearch.xpack.graph.rest.action;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
+import org.elasticsearch.protocol.xpack.graph.Hop;
+import org.elasticsearch.protocol.xpack.graph.VertexRequest;
+import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest;
-import org.elasticsearch.xpack.core.graph.action.GraphExploreRequest.TermBoost;
-import org.elasticsearch.xpack.core.graph.action.Hop;
-import org.elasticsearch.xpack.core.graph.action.VertexRequest;
 import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
@@ -31,10 +34,14 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTANCE;
+
 /**
  * @see GraphExploreRequest
  */
 public class RestGraphAction extends XPackRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestGraphAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");
     public static final ParseField RETURN_DETAILED_INFO = new ParseField("return_detailed_stats");

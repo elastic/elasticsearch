@@ -21,7 +21,7 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.Action;
 
-public class SimulatePipelineAction extends Action<SimulatePipelineRequest, SimulatePipelineResponse> {
+public class SimulatePipelineAction extends Action<SimulatePipelineResponse> {
 
     public static final SimulatePipelineAction INSTANCE = new SimulatePipelineAction();
     public static final String NAME = "cluster:admin/ingest/pipeline/simulate";

@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -57,7 +55,7 @@ dependencies {
 forbiddenApisMain {
     // x-content does not depend on server
     // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
-    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+    replaceSignatureFiles 'jdk-signatures'
 }
 
 if (isEclipse) {

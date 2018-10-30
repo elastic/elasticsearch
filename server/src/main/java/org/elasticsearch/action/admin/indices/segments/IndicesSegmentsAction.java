@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.segments;
 
 import org.elasticsearch.action.Action;
 
-public class IndicesSegmentsAction extends Action<IndicesSegmentsRequest, IndicesSegmentResponse> {
+public class IndicesSegmentsAction extends Action<IndicesSegmentResponse> {
 
     public static final IndicesSegmentsAction INSTANCE = new IndicesSegmentsAction();
     public static final String NAME = "indices:monitor/segments";

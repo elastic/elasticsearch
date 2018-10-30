@@ -4,7 +4,7 @@
 # or more contributor license agreements. Licensed under the Elastic License;
 # you may not use this file except in compliance with the Elastic License.
 
-ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
+ES_MAIN_CLASS=org.elasticsearch.xpack.security.authc.saml.SamlMetadataCommand \
+  ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
   "`dirname "$0"`"/elasticsearch-cli \
-  org.elasticsearch.xpack.security.authc.saml.SamlMetadataCommand \
   "$@"

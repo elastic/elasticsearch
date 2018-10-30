@@ -45,9 +45,10 @@ public class TestProcessor implements Processor {
     }
 
     @Override
-    public void execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         invokedCounter.incrementAndGet();
         ingestDocumentConsumer.accept(ingestDocument);
+        return ingestDocument;
     }
 
     @Override

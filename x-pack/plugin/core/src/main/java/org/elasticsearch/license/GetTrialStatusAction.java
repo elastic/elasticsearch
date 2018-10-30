@@ -7,7 +7,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.Action;
 
-public class GetTrialStatusAction extends Action<GetTrialStatusRequest, GetTrialStatusResponse> {
+public class GetTrialStatusAction extends Action<GetTrialStatusResponse> {
 
     public static final GetTrialStatusAction INSTANCE = new GetTrialStatusAction();
     public static final String NAME = "cluster:admin/xpack/license/trial_status";

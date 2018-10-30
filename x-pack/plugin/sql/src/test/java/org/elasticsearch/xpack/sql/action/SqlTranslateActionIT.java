@@ -11,9 +11,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.xpack.sql.plugin.SqlTranslateAction;
-import org.elasticsearch.xpack.sql.plugin.SqlTranslateRequestBuilder;
-import org.elasticsearch.xpack.sql.plugin.SqlTranslateResponse;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;

@@ -8,10 +8,9 @@ package org.elasticsearch.xpack.security.action.token;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
@@ -25,16 +24,14 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
     private final TokenService tokenService;
 
     @Inject
-    public TransportRefreshTokenAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       TokenService tokenService) {
-        super(settings, RefreshTokenAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                CreateTokenRequest::new);
+    public TransportRefreshTokenAction(Settings settings, TransportService transportService,
+                                       ActionFilters actionFilters, TokenService tokenService) {
+        super(settings, RefreshTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
         this.tokenService = tokenService;
     }
 
     @Override
-    protected void doExecute(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
+    protected void doExecute(Task task, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
         tokenService.refreshToken(request.getRefreshToken(), ActionListener.wrap(tuple -> {
             final String tokenStr = tokenService.getUserTokenString(tuple.v1());
             final String scope = getResponseScopeValue(request.getScope());

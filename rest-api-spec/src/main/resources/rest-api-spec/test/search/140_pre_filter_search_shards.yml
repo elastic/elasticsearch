@@ -128,7 +128,6 @@ setup:
   - match: { hits.total: 2 }
   - match: { aggregations.some_agg.doc_count: 3 }
 
-
   - do:
       search:
         pre_filter_shard_size: 1

@@ -33,7 +33,7 @@ public abstract class AbstractIndexComponent implements IndexComponent {
      * Constructs a new index component, with the index name and its settings.
      */
     protected AbstractIndexComponent(IndexSettings indexSettings) {
-        this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings(), indexSettings.getIndex());
+        this.logger = Loggers.getLogger(getClass(), indexSettings.getIndex());
         this.deprecationLogger = new DeprecationLogger(logger);
         this.indexSettings = indexSettings;
     }

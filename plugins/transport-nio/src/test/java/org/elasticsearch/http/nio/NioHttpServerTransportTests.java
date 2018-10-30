@@ -32,10 +32,12 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -45,6 +47,7 @@ import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
+import org.elasticsearch.http.nio.cors.NioCorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -58,9 +61,20 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.PatternSyntaxException;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.containsString;
@@ -76,12 +90,14 @@ public class NioHttpServerTransportTests extends ESTestCase {
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockBigArrays bigArrays;
+    private MockPageCacheRecycler pageRecycler;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        pageRecycler = new MockPageCacheRecycler(Settings.EMPTY);
+        bigArrays = new MockBigArrays(pageRecycler, new NoneCircuitBreakerService());
     }
 
     @After
@@ -94,36 +110,47 @@ public class NioHttpServerTransportTests extends ESTestCase {
         bigArrays = null;
     }
 
-//    public void testCorsConfig() {
-//        final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
-//        final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
-//        final String prefix = randomBoolean() ? " " : ""; // sometimes have a leading whitespace between comma delimited elements
-//        final Settings settings = Settings.builder()
-//            .put(SETTING_CORS_ENABLED.getKey(), true)
-//            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
-//            .put(SETTING_CORS_ALLOW_METHODS.getKey(), collectionToDelimitedString(methods, ",", prefix, ""))
-//            .put(SETTING_CORS_ALLOW_HEADERS.getKey(), collectionToDelimitedString(headers, ",", prefix, ""))
-//            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
-//            .build();
-//        final Netty4CorsConfig corsConfig = Netty4HttpServerTransport.buildCorsConfig(settings);
-//        assertTrue(corsConfig.isAnyOriginSupported());
-//        assertEquals(headers, corsConfig.allowedRequestHeaders());
-//        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
-//    }
+    public void testCorsConfig() {
+        final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
+        final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
+        final String prefix = randomBoolean() ? " " : ""; // sometimes have a leading whitespace between comma delimited elements
+        final Settings settings = Settings.builder()
+            .put(SETTING_CORS_ENABLED.getKey(), true)
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
+            .put(SETTING_CORS_ALLOW_METHODS.getKey(), Strings.collectionToDelimitedString(methods, ",", prefix, ""))
+            .put(SETTING_CORS_ALLOW_HEADERS.getKey(), Strings.collectionToDelimitedString(headers, ",", prefix, ""))
+            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+            .build();
+        final NioCorsConfig corsConfig = NioHttpServerTransport.buildCorsConfig(settings);
+        assertTrue(corsConfig.isAnyOriginSupported());
+        assertEquals(headers, corsConfig.allowedRequestHeaders());
+        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
+    }
 
-//    public void testCorsConfigWithDefaults() {
-//        final Set<String> methods = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY));
-//        final Set<String> headers = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_HEADERS.getDefault(Settings.EMPTY));
-//        final long maxAge = SETTING_CORS_MAX_AGE.getDefault(Settings.EMPTY);
-//        final Settings settings = Settings.builder().put(SETTING_CORS_ENABLED.getKey(), true).build();
-//        final Netty4CorsConfig corsConfig = Netty4HttpServerTransport.buildCorsConfig(settings);
-//        assertFalse(corsConfig.isAnyOriginSupported());
-//        assertEquals(Collections.emptySet(), corsConfig.origins().get());
-//        assertEquals(headers, corsConfig.allowedRequestHeaders());
-//        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
-//        assertEquals(maxAge, corsConfig.maxAge());
-//        assertFalse(corsConfig.isCredentialsAllowed());
-//    }
+    public void testCorsConfigWithDefaults() {
+        final Set<String> methods = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY));
+        final Set<String> headers = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_HEADERS.getDefault(Settings.EMPTY));
+        final long maxAge = SETTING_CORS_MAX_AGE.getDefault(Settings.EMPTY);
+        final Settings settings = Settings.builder().put(SETTING_CORS_ENABLED.getKey(), true).build();
+        final NioCorsConfig corsConfig = NioHttpServerTransport.buildCorsConfig(settings);
+        assertFalse(corsConfig.isAnyOriginSupported());
+        assertEquals(Collections.emptySet(), corsConfig.origins().get());
+        assertEquals(headers, corsConfig.allowedRequestHeaders());
+        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
+        assertEquals(maxAge, corsConfig.maxAge());
+        assertFalse(corsConfig.isCredentialsAllowed());
+    }
+
+    public void testCorsConfigWithBadRegex() {
+        final Settings settings = Settings.builder()
+            .put(SETTING_CORS_ENABLED.getKey(), true)
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "/[*/")
+            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+            .build();
+        SettingsException e = expectThrows(SettingsException.class, () -> NioHttpServerTransport.buildCorsConfig(settings));
+        assertThat(e.getMessage(), containsString("Bad regex in [http.cors.allow-origin]: [/[*/]"));
+        assertThat(e.getCause(), instanceOf(PatternSyntaxException.class));
+    }
 
     /**
      * Test that {@link NioHttpServerTransport} supports the "Expect: 100-continue" HTTP header
@@ -174,37 +201,46 @@ public class NioHttpServerTransportTests extends ESTestCase {
                 throw new AssertionError();
             }
         };
-        try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, threadPool,
+        try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler, threadPool,
             xContentRegistry(), dispatcher)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
-            try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (NioHttpClient client = new NioHttpClient()) {
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
                 request.headers().set(HttpHeaderNames.EXPECT, expectation);
                 HttpUtil.setContentLength(request, contentLength);
 
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), equalTo(expectedStatus));
-                if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
-                    final FullHttpRequest continuationRequest =
-                        new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
-                    final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
-
-                    assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
-                    assertThat(new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done"));
+                try {
+                    assertThat(response.status(), equalTo(expectedStatus));
+                    if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
+                        final FullHttpRequest continuationRequest =
+                            new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
+                        final FullHttpResponse continuationResponse = client.post(remoteAddress.address(), continuationRequest);
+                        try {
+                            assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
+                            assertThat(
+                                new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done")
+                            );
+                        } finally {
+                            continuationResponse.release();
+                        }
+                    }
+                } finally {
+                    response.release();
                 }
             }
         }
     }
 
     public void testBindUnavailableAddress() {
-        try (NioHttpServerTransport transport = new NioHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
-            xContentRegistry(), new NullDispatcher())) {
+        try (NioHttpServerTransport transport = new NioHttpServerTransport(Settings.EMPTY, networkService, bigArrays, pageRecycler,
+            threadPool, xContentRegistry(), new NullDispatcher())) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
-            try (NioHttpServerTransport otherTransport = new NioHttpServerTransport(settings, networkService, bigArrays, threadPool,
-                xContentRegistry(), new NullDispatcher())) {
+            try (NioHttpServerTransport otherTransport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
+                threadPool, xContentRegistry(), new NullDispatcher())) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
                 assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
             }
@@ -247,59 +283,29 @@ public class NioHttpServerTransportTests extends ESTestCase {
             settings = Settings.builder().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
         }
 
-        try (NioHttpServerTransport transport =
-                 new NioHttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
+        try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
+            threadPool, xContentRegistry(), dispatcher)) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
-            try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (NioHttpClient client = new NioHttpClient()) {
                 final String url = "/" + new String(new byte[maxInitialLineLength], Charset.forName("UTF-8"));
                 final FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, url);
 
                 final FullHttpResponse response = client.post(remoteAddress.address(), request);
-                assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
-                assertThat(
-                    new String(response.content().array(), Charset.forName("UTF-8")),
-                    containsString("you sent a bad request and you should feel bad"));
+                try {
+                    assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
+                    assertThat(
+                        new String(response.content().array(), Charset.forName("UTF-8")),
+                        containsString("you sent a bad request and you should feel bad"));
+                } finally {
+                    response.release();
+                }
             }
         }
 
         assertNotNull(causeReference.get());
         assertThat(causeReference.get(), instanceOf(TooLongFrameException.class));
-    }
-
-    public void testDispatchDoesNotModifyThreadContext() throws InterruptedException {
-        final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
-
-            @Override
-            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
-                threadContext.putHeader("foo", "bar");
-                threadContext.putTransient("bar", "baz");
-            }
-
-            @Override
-            public void dispatchBadRequest(final RestRequest request,
-                                           final RestChannel channel,
-                                           final ThreadContext threadContext,
-                                           final Throwable cause) {
-                threadContext.putHeader("foo_bad", "bar");
-                threadContext.putTransient("bar_bad", "baz");
-            }
-
-        };
-
-        try (NioHttpServerTransport transport =
-                 new NioHttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool, xContentRegistry(), dispatcher)) {
-            transport.start();
-
-            transport.dispatchRequest(null, null);
-            assertNull(threadPool.getThreadContext().getHeader("foo"));
-            assertNull(threadPool.getThreadContext().getTransient("bar"));
-
-            transport.dispatchBadRequest(null, null, null);
-            assertNull(threadPool.getThreadContext().getHeader("foo_bad"));
-            assertNull(threadPool.getThreadContext().getTransient("bar_bad"));
-        }
     }
 
 //    public void testReadTimeout() throws Exception {

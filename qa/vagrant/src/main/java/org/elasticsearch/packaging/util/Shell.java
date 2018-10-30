@@ -58,58 +58,50 @@ public class Shell {
         this.workingDirectory = workingDirectory;
     }
 
-    /**
-     * Runs a script in a bash shell, throwing an exception if its exit code is nonzero
-     */
-    public Result bash(String script) {
-        return run(bashCommand(script));
+    public Map<String, String> getEnv() {
+        return env;
     }
 
     /**
-     * Runs a script in a bash shell
+     * Run the provided string as a shell script. On Linux the {@code bash -c [script]} syntax will be used, and on Windows
+     * the {@code powershell.exe -Command [script]} syntax will be used. Throws an exception if the exit code of the script is nonzero
      */
-    public Result bashIgnoreExitCode(String script) {
-        return runIgnoreExitCode(bashCommand(script));
+    public Result run(String script) {
+        return runScript(getScriptCommand(script));
+    }
+
+    /**
+     * Same as {@link #run(String)}, but does not throw an exception if the exit code of the script is nonzero
+     */
+    public Result runIgnoreExitCode(String script) {
+        return runScriptIgnoreExitCode(getScriptCommand(script));
+    }
+
+    private String[] getScriptCommand(String script) {
+        if (Platforms.WINDOWS) {
+            return powershellCommand(script);
+        } else {
+            return bashCommand(script);
+        }
     }
 
     private static String[] bashCommand(String script) {
         return Stream.concat(Stream.of("bash", "-c"), Stream.of(script)).toArray(String[]::new);
     }
 
-    /**
-     * Runs a script in a powershell shell, throwing an exception if its exit code is nonzero
-     */
-    public Result powershell(String script) {
-        return run(powershellCommand(script));
-    }
-
-    /**
-     * Runs a script in a powershell shell
-     */
-    public Result powershellIgnoreExitCode(String script) {
-        return runIgnoreExitCode(powershellCommand(script));
-    }
-
     private static String[] powershellCommand(String script) {
         return Stream.concat(Stream.of("powershell.exe", "-Command"), Stream.of(script)).toArray(String[]::new);
     }
 
-    /**
-     * Runs an executable file, passing all elements of {@code command} after the first as arguments. Throws an exception if the process'
-     * exit code is nonzero
-     */
-    private Result run(String[] command) {
-        Result result = runIgnoreExitCode(command);
+    private Result runScript(String[] command) {
+        Result result = runScriptIgnoreExitCode(command);
         if (result.isSuccess() == false) {
             throw new RuntimeException("Command was not successful: [" + String.join(" ", command) + "] result: " + result.toString());
         }
         return result;
     }
 
-    /**
-     * Runs an executable file, passing all elements of {@code command} after the first as arguments
-     */
-    private Result runIgnoreExitCode(String[] command) {
+    private Result runScriptIgnoreExitCode(String[] command) {
         ProcessBuilder builder = new ProcessBuilder();
         builder.command(command);
 

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbcx;
 
-import org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration;
+import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConnection;
-import org.elasticsearch.xpack.sql.client.shared.Version;
+import org.elasticsearch.xpack.sql.client.Version;
 
 import java.io.PrintWriter;
 import java.sql.Connection;
@@ -17,12 +17,10 @@ import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Wrapper;
 import java.util.Properties;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import javax.sql.DataSource;
 
-import static org.elasticsearch.xpack.sql.client.shared.ConnectionConfiguration.CONNECT_TIMEOUT;
 
 public class JdbcDataSource implements DataSource, Wrapper {
 

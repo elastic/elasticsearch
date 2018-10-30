@@ -52,5 +52,5 @@
           "metric" : { "precision": { "ignore_unlabeled" : true }}
         }
 
-  - match: { quality_level: 1 }
+  - match: { metric_score: 1 }
 

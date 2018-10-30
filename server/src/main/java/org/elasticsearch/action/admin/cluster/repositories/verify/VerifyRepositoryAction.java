@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Unregister repository action
  */
-public class VerifyRepositoryAction extends Action<VerifyRepositoryRequest, VerifyRepositoryResponse> {
+public class VerifyRepositoryAction extends Action<VerifyRepositoryResponse> {
 
     public static final VerifyRepositoryAction INSTANCE = new VerifyRepositoryAction();
     public static final String NAME = "cluster:admin/repository/verify";

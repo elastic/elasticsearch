@@ -131,7 +131,7 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
                         5000);
 
         int threads = randomIntBetween(1, 5);
-        int measureWindow = randomIntBetween(10, 100);;
+        int measureWindow = randomIntBetween(10, 100);
         int min = randomIntBetween(4981, 4999);
         logger.info("--> auto-queue with a measurement window of {} tasks", measureWindow);
         QueueResizingEsThreadPoolExecutor executor =

@@ -54,10 +54,10 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
     private final IndicesService indicesService;
 
     @Inject
-    public TransportRecoveryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportRecoveryAction(Settings settings, ClusterService clusterService,
                                    TransportService transportService, IndicesService indicesService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(settings, RecoveryAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 RecoveryRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
@@ -69,7 +69,9 @@ public class TransportRecoveryAction extends TransportBroadcastByNodeAction<Reco
 
 
     @Override
-    protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards, List<RecoveryState> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
+    protected RecoveryResponse newResponse(RecoveryRequest request, int totalShards, int successfulShards, int failedShards,
+                                           List<RecoveryState> responses, List<DefaultShardOperationFailedException> shardFailures,
+                                           ClusterState clusterState) {
         Map<String, List<RecoveryState>> shardResponses = new HashMap<>();
         for (RecoveryState recoveryState : responses) {
             if (recoveryState == null) {

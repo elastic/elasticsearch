@@ -23,7 +23,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.BCPGOutputStream;
 import org.bouncycastle.bcpg.HashAlgorithmTags;
@@ -62,6 +61,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PosixPermissionsResetter;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
@@ -116,7 +116,6 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 
 @LuceneTestCase.SuppressFileSystems("*")
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30900")
 public class InstallPluginCommandTests extends ESTestCase {
 
     private InstallPluginCommand skipJarHellCommand;
@@ -139,6 +138,11 @@ public class InstallPluginCommandTests extends ESTestCase {
         PathUtilsForTesting.installMock(fs);
         javaIoTmpdir = System.getProperty("java.io.tmpdir");
         System.setProperty("java.io.tmpdir", temp.apply("tmpdir").toString());
+    }
+
+    @BeforeClass
+    public static void testIfFipsMode() {
+        assumeFalse("Can't run in a FIPS JVM because this depends on BouncyCastle (non-fips)", inFipsJvm());
     }
 
     @Override

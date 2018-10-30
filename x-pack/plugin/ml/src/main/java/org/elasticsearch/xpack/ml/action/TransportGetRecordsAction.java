@@ -9,35 +9,36 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction;
-import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
+import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
+
+import java.util.function.Supplier;
 
 public class TransportGetRecordsAction extends HandledTransportAction<GetRecordsAction.Request, GetRecordsAction.Response> {
 
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
     private final Client client;
 
     @Inject
-    public TransportGetRecordsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                     JobProvider jobProvider, JobManager jobManager, Client client) {
-        super(settings, GetRecordsAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
-                GetRecordsAction.Request::new);
-        this.jobProvider = jobProvider;
+    public TransportGetRecordsAction(Settings settings, TransportService transportService,
+                                     ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
+                                     JobManager jobManager, Client client) {
+        super(settings, GetRecordsAction.NAME, transportService, actionFilters,
+            (Supplier<GetRecordsAction.Request>) GetRecordsAction.Request::new);
+        this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(GetRecordsAction.Request request, ActionListener<GetRecordsAction.Response> listener) {
+    protected void doExecute(Task task, GetRecordsAction.Request request, ActionListener<GetRecordsAction.Response> listener) {
 
         jobManager.getJobOrThrowIfUnknown(request.getJobId());
 
@@ -50,7 +51,7 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
                 .recordScore(request.getRecordScoreFilter())
                 .sortField(request.getSort())
                 .sortDescending(request.isDescending());
-        jobProvider.records(request.getJobId(), query, page ->
+        jobResultsProvider.records(request.getJobId(), query, page ->
                         listener.onResponse(new GetRecordsAction.Response(page)), listener::onFailure, client);
     }
 }

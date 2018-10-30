@@ -25,15 +25,27 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 
 public class TranslogCorruptedException extends ElasticsearchException {
-    public TranslogCorruptedException(String msg) {
-        super(msg);
+    public TranslogCorruptedException(String source, String details) {
+        super(corruptedMessage(source, details));
     }
 
-    public TranslogCorruptedException(String msg, Throwable cause) {
-        super(msg, cause);
+    public TranslogCorruptedException(String source, Throwable cause) {
+        this(source, null, cause);
     }
 
-    public TranslogCorruptedException(StreamInput in) throws IOException{
+    public TranslogCorruptedException(String source, String details, Throwable cause) {
+        super(corruptedMessage(source, details), cause);
+    }
+
+    private static String corruptedMessage(String source, String details) {
+        String msg = "translog from source [" + source + "] is corrupted";
+        if (details != null) {
+            msg += ", " + details;
+        }
+        return msg;
+    }
+
+    public TranslogCorruptedException(StreamInput in) throws IOException {
         super(in);
     }
 }

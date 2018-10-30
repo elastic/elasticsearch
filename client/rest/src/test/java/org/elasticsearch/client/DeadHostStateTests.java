@@ -21,17 +21,22 @@ package org.elasticsearch.client;
 
 import java.util.concurrent.TimeUnit;
 
+import org.elasticsearch.client.DeadHostState.TimeSupplier;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class DeadHostStateTests extends RestClientTestCase {
 
     private static long[] EXPECTED_TIMEOUTS_SECONDS = new long[]{60, 84, 120, 169, 240, 339, 480, 678, 960, 1357, 1800};
 
     public void testInitialDeadHostStateDefaultTimeSupplier() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/33747", System.getProperty("os.name").startsWith("Windows"));
         DeadHostState deadHostState = new DeadHostState(DeadHostState.TimeSupplier.DEFAULT);
         long currentTime = System.nanoTime();
         assertThat(deadHostState.getDeadUntilNanos(), greaterThan(currentTime));
@@ -42,7 +47,7 @@ public class DeadHostStateTests extends RestClientTestCase {
         DeadHostState previous = new DeadHostState(DeadHostState.TimeSupplier.DEFAULT);
         int iters = randomIntBetween(5, 30);
         for (int i = 0; i < iters; i++) {
-            DeadHostState deadHostState = new DeadHostState(previous, DeadHostState.TimeSupplier.DEFAULT);
+            DeadHostState deadHostState = new DeadHostState(previous);
             assertThat(deadHostState.getDeadUntilNanos(), greaterThan(previous.getDeadUntilNanos()));
             assertThat(deadHostState.getFailedAttempts(), equalTo(previous.getFailedAttempts() + 1));
             previous = deadHostState;
@@ -50,18 +55,30 @@ public class DeadHostStateTests extends RestClientTestCase {
     }
 
     public void testCompareToDefaultTimeSupplier() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/33747", System.getProperty("os.name").startsWith("Windows"));
         int numObjects = randomIntBetween(EXPECTED_TIMEOUTS_SECONDS.length, 30);
         DeadHostState[] deadHostStates = new DeadHostState[numObjects];
         for (int i = 0; i < numObjects; i++) {
             if (i == 0) {
                 deadHostStates[i] = new DeadHostState(DeadHostState.TimeSupplier.DEFAULT);
             } else {
-                deadHostStates[i] = new DeadHostState(deadHostStates[i - 1], DeadHostState.TimeSupplier.DEFAULT);
+                deadHostStates[i] = new DeadHostState(deadHostStates[i - 1]);
             }
         }
         for (int k = 1; k < deadHostStates.length; k++) {
             assertThat(deadHostStates[k - 1].getDeadUntilNanos(), lessThan(deadHostStates[k].getDeadUntilNanos()));
             assertThat(deadHostStates[k - 1], lessThan(deadHostStates[k]));
+        }
+    }
+
+    public void testCompareToDifferingTimeSupplier() {
+        try {
+            new DeadHostState(TimeSupplier.DEFAULT).compareTo(
+                    new DeadHostState(new ConfigurableTimeSupplier()));
+            fail("expected failure");
+        } catch (IllegalArgumentException e) {
+            assertEquals("can't compare DeadHostStates with different clocks [nanoTime != configured[0]]",
+                    e.getMessage());
         }
     }
 
@@ -74,7 +91,7 @@ public class DeadHostStateTests extends RestClientTestCase {
             if (i == 0) {
                 deadHostState = new DeadHostState(timeSupplier);
             } else {
-                deadHostState = new DeadHostState(deadHostState, timeSupplier);
+                deadHostState = new DeadHostState(deadHostState);
             }
             for (int j = 0; j < expectedTimeoutSecond; j++) {
                 timeSupplier.nanoTime += TimeUnit.SECONDS.toNanos(1);
@@ -94,25 +111,29 @@ public class DeadHostStateTests extends RestClientTestCase {
         DeadHostState previous = new DeadHostState(zeroTimeSupplier);
         for (long expectedTimeoutsSecond : EXPECTED_TIMEOUTS_SECONDS) {
             assertThat(TimeUnit.NANOSECONDS.toSeconds(previous.getDeadUntilNanos()), equalTo(expectedTimeoutsSecond));
-            previous = new DeadHostState(previous, zeroTimeSupplier);
+            previous = new DeadHostState(previous);
         }
         //check that from here on the timeout does not increase
         int iters = randomIntBetween(5, 30);
         for (int i = 0; i < iters; i++) {
-            DeadHostState deadHostState = new DeadHostState(previous, zeroTimeSupplier);
+            DeadHostState deadHostState = new DeadHostState(previous);
             assertThat(TimeUnit.NANOSECONDS.toSeconds(deadHostState.getDeadUntilNanos()),
                     equalTo(EXPECTED_TIMEOUTS_SECONDS[EXPECTED_TIMEOUTS_SECONDS.length - 1]));
             previous = deadHostState;
         }
     }
 
-    private static class ConfigurableTimeSupplier implements DeadHostState.TimeSupplier {
-
+    static class ConfigurableTimeSupplier implements DeadHostState.TimeSupplier {
         long nanoTime;
 
         @Override
         public long nanoTime() {
             return nanoTime;
+        }
+
+        @Override
+        public String toString() {
+            return "configured[" + nanoTime + "]";
         }
     }
 }

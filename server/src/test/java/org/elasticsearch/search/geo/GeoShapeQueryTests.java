@@ -19,7 +19,12 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
@@ -27,20 +32,17 @@ import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.locationtech.spatial4j.shape.Rectangle;
-import org.locationtech.jts.geom.Coordinate;
-
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.spatial4j.shape.Rectangle;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -502,5 +504,103 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
             .execute().actionGet();
 
         assertEquals(2, response.getHits().getTotalHits());
+    }
+
+    public void testFieldAlias() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("location")
+                        .field("type", "geo_shape")
+                        .field("tree", randomBoolean() ? "quadtree" : "geohash")
+                    .endObject()
+                    .startObject("alias")
+                        .field("type", "alias")
+                        .field("path", "location")
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+
+        createIndex("test", Settings.EMPTY, "type", mapping);
+
+        ShapeBuilder shape = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.MULTIPOINT);
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject().field("location", shape).endObject())
+            .setRefreshPolicy(IMMEDIATE).get();
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(geoShapeQuery("alias", shape))
+            .execute().actionGet();
+        assertEquals(1, response.getHits().getTotalHits());
+    }
+
+    // Test for issue #34418
+    public void testEnvelopeSpanningDateline() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("doc")
+                .startObject("properties")
+                    .startObject("geo").field("type", "geo_shape").endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+
+        createIndex("test", Settings.builder().put("index.number_of_shards", 1).build(), "doc", mapping);
+
+        String doc1 = "{\"geo\": {\r\n" + "\"coordinates\": [\r\n" + "-33.918711,\r\n" + "18.847685\r\n" + "],\r\n" +
+                "\"type\": \"Point\"\r\n" + "}}";
+        client().index(new IndexRequest("test", "doc", "1").source(doc1, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        String doc2 = "{\"geo\": {\r\n" + "\"coordinates\": [\r\n" + "-49.0,\r\n" + "18.847685\r\n" + "],\r\n" +
+            "\"type\": \"Point\"\r\n" + "}}";
+        client().index(new IndexRequest("test", "doc", "2").source(doc2, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        String doc3 = "{\"geo\": {\r\n" + "\"coordinates\": [\r\n" + "49.0,\r\n" + "18.847685\r\n" + "],\r\n" +
+            "\"type\": \"Point\"\r\n" + "}}";
+        client().index(new IndexRequest("test", "doc", "3").source(doc3, XContentType.JSON).setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        @SuppressWarnings("unchecked") CheckedSupplier<GeoShapeQueryBuilder, IOException> querySupplier = randomFrom(
+            () -> QueryBuilders.geoShapeQuery(
+                "geo",
+                new EnvelopeBuilder(new Coordinate(-21, 44), new Coordinate(-39, 9))
+            ).relation(ShapeRelation.WITHIN),
+            () -> {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                    .startObject("geo")
+                    .startObject("shape")
+                    .field("type", "envelope")
+                    .startArray("coordinates")
+                    .startArray().value(-21).value(44).endArray()
+                    .startArray().value(-39).value(9).endArray()
+                    .endArray()
+                    .endObject()
+                    .field("relation", "within")
+                    .endObject()
+                    .endObject();
+                try (XContentParser parser = createParser(builder)){
+                    parser.nextToken();
+                    return GeoShapeQueryBuilder.fromXContent(parser);
+                }
+            },
+            () -> {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                    .startObject("geo")
+                    .field("shape", "BBOX (-21, -39, 44, 9)")
+                    .field("relation", "within")
+                    .endObject()
+                    .endObject();
+                try (XContentParser parser = createParser(builder)){
+                    parser.nextToken();
+                    return GeoShapeQueryBuilder.fromXContent(parser);
+                }
+            }
+        );
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(querySupplier.get())
+            .execute().actionGet();
+        assertEquals(2, response.getHits().getTotalHits());
+        assertNotEquals("1", response.getHits().getAt(0).getId());
+        assertNotEquals("1", response.getHits().getAt(1).getId());
     }
 }

@@ -22,9 +22,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockKeywordPlugin;
@@ -122,54 +119,6 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.getTokens().get(0).getStartOffset(), equalTo(3));
         assertThat(analyzeResponse.getTokens().get(0).getEndOffset(), equalTo(9));
         assertThat(analyzeResponse.getTokens().get(0).getPositionLength(), equalTo(1));
-    }
-
-    public void testAnalyzeWithNonDefaultPostionLength() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-            .setSettings(Settings.builder().put(indexSettings())
-                .put("index.analysis.filter.syns.type", "synonym")
-                .putList("index.analysis.filter.syns.synonyms", "wtf, what the fudge")
-                .put("index.analysis.analyzer.custom_syns.tokenizer", "standard")
-                .putList("index.analysis.analyzer.custom_syns.filter", "lowercase", "syns")));
-        ensureGreen();
-
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("say what the fudge").setIndex("test").setAnalyzer("custom_syns").get();
-        assertThat(analyzeResponse.getTokens().size(), equalTo(5));
-
-        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
-        assertThat(token.getTerm(), equalTo("say"));
-        assertThat(token.getPosition(), equalTo(0));
-        assertThat(token.getStartOffset(), equalTo(0));
-        assertThat(token.getEndOffset(), equalTo(3));
-        assertThat(token.getPositionLength(), equalTo(1));
-
-        token = analyzeResponse.getTokens().get(1);
-        assertThat(token.getTerm(), equalTo("what"));
-        assertThat(token.getPosition(), equalTo(1));
-        assertThat(token.getStartOffset(), equalTo(4));
-        assertThat(token.getEndOffset(), equalTo(8));
-        assertThat(token.getPositionLength(), equalTo(1));
-
-        token = analyzeResponse.getTokens().get(2);
-        assertThat(token.getTerm(), equalTo("wtf"));
-        assertThat(token.getPosition(), equalTo(1));
-        assertThat(token.getStartOffset(), equalTo(4));
-        assertThat(token.getEndOffset(), equalTo(18));
-        assertThat(token.getPositionLength(), equalTo(3));
-
-        token = analyzeResponse.getTokens().get(3);
-        assertThat(token.getTerm(), equalTo("the"));
-        assertThat(token.getPosition(), equalTo(2));
-        assertThat(token.getStartOffset(), equalTo(9));
-        assertThat(token.getEndOffset(), equalTo(12));
-        assertThat(token.getPositionLength(), equalTo(1));
-
-        token = analyzeResponse.getTokens().get(4);
-        assertThat(token.getTerm(), equalTo("fudge"));
-        assertThat(token.getPosition(), equalTo(3));
-        assertThat(token.getStartOffset(), equalTo(13));
-        assertThat(token.getEndOffset(), equalTo(18));
-        assertThat(token.getPositionLength(), equalTo(1));
     }
 
     public void testAnalyzerWithFieldOrTypeTests() throws Exception {

@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.node.usage;
 
 import org.elasticsearch.action.Action;
 
-public class NodesUsageAction extends Action<NodesUsageRequest, NodesUsageResponse> {
+public class NodesUsageAction extends Action<NodesUsageResponse> {
 
     public static final NodesUsageAction INSTANCE = new NodesUsageAction();
     public static final String NAME = "cluster:monitor/nodes/usage";

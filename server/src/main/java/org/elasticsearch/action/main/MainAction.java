@@ -21,7 +21,7 @@ package org.elasticsearch.action.main;
 
 import org.elasticsearch.action.Action;
 
-public class MainAction extends Action<MainRequest, MainResponse> {
+public class MainAction extends Action<MainResponse> {
 
     public static final String NAME = "cluster:monitor/main";
     public static final MainAction INSTANCE = new MainAction();

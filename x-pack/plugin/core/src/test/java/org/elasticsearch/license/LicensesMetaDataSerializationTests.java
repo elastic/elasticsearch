@@ -95,7 +95,7 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
                 .issueDate(issueDate)
                 .type(randomBoolean() ? "trial" : "basic")
                 .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
-        final License trialLicense = SelfGeneratedLicense.create(specBuilder);
+        final License trialLicense = SelfGeneratedLicense.create(specBuilder, License.VERSION_CURRENT);
         LicensesMetaData licensesMetaData = new LicensesMetaData(trialLicense, Version.CURRENT);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();

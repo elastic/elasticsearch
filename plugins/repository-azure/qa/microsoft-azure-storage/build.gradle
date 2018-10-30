@@ -23,18 +23,8 @@ import org.elasticsearch.gradle.test.AntFixture
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-dependencies {
-    testCompile project(path: ':plugins:repository-azure', configuration: 'runtime')
-}
-
 integTestCluster {
     plugin ':plugins:repository-azure'
-}
-
-forbiddenApisTest {
-    // we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-    bundledSignatures -= 'jdk-non-portable'
-    bundledSignatures += 'jdk-internal'
 }
 
 boolean useFixture = false
@@ -54,7 +44,7 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath) {
 
 /** A task to start the fixture which emulates an Azure Storage service **/
 task azureStorageFixture(type: AntFixture) {
-    dependsOn compileTestJava
+    dependsOn testClasses
     env 'CLASSPATH', "${ -> project.sourceSets.test.runtimeClasspath.asPath }"
     executable = new File(project.runtimeJavaHome, 'bin/java')
     args 'org.elasticsearch.repositories.azure.AzureStorageFixture', baseDir, azureContainer
@@ -64,6 +54,7 @@ Map<String, Object> expansions = [
         'container': azureContainer,
         'base_path': azureBasePath
 ]
+
 processTestResources {
     inputs.properties(expansions)
     MavenFilteringHack.filter(it, expansions)

@@ -23,7 +23,6 @@ import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Task
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.OutputFile
-
 /**
  * Creates a plugin descriptor.
  */

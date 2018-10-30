@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.Action;
 
-public class ClusterRerouteAction extends Action<ClusterRerouteRequest, ClusterRerouteResponse> {
+public class ClusterRerouteAction extends Action<ClusterRerouteResponse> {
 
     public static final ClusterRerouteAction INSTANCE = new ClusterRerouteAction();
     public static final String NAME = "cluster:admin/reroute";

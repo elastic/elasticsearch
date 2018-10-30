@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Action for retrieving a list of currently running tasks
  */
-public class ListTasksAction extends Action<ListTasksRequest, ListTasksResponse> {
+public class ListTasksAction extends Action<ListTasksResponse> {
 
     public static final ListTasksAction INSTANCE = new ListTasksAction();
     public static final String NAME = "cluster:monitor/tasks/lists";

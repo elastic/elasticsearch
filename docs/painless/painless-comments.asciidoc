@@ -6,9 +6,10 @@ anywhere on a line to specify a single-line comment. All characters from the
 `//` token to the end of the line are ignored. Use an opening `/*` token and a
 closing `*/` token to specify a multi-line comment. Multi-line comments can
 start anywhere on a line, and all characters in between the `/*` token and `*/`
-token are ignored. Comments can be included anywhere within a script.
+token are ignored. A comment is included anywhere within a script.
 
 *Grammar*
+
 [source,ANTLR4]
 ----
 SINGLE_LINE_COMMENT: '//' .*? [\n\r];

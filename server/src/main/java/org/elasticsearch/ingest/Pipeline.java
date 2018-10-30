@@ -26,6 +26,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
+
+import org.elasticsearch.script.ScriptService;
 
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
@@ -43,19 +47,61 @@ public final class Pipeline {
     @Nullable
     private final Integer version;
     private final CompoundProcessor compoundProcessor;
+    private final IngestMetric metrics;
+    private final LongSupplier relativeTimeProvider;
 
     public Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor) {
+        this(id, description, version, compoundProcessor, System::nanoTime);
+    }
+
+    //package private for testing
+    Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor,
+             LongSupplier relativeTimeProvider) {
         this.id = id;
         this.description = description;
         this.compoundProcessor = compoundProcessor;
         this.version = version;
+        this.metrics = new IngestMetric();
+        this.relativeTimeProvider = relativeTimeProvider;
+    }
+
+    public static Pipeline create(String id, Map<String, Object> config,
+        Map<String, Processor.Factory> processorFactories, ScriptService scriptService) throws Exception {
+        String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
+        Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
+        List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
+        List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, scriptService, processorFactories);
+        List<Map<String, Object>> onFailureProcessorConfigs =
+                ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
+        List<Processor> onFailureProcessors =
+            ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, scriptService, processorFactories);
+        if (config.isEmpty() == false) {
+            throw new ElasticsearchParseException("pipeline [" + id +
+                    "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
+        }
+        if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
+            throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
+        }
+        CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
+                Collections.unmodifiableList(onFailureProcessors));
+        return new Pipeline(id, description, version, compoundProcessor);
     }
 
     /**
      * Modifies the data of a document to be indexed based on the processor this pipeline holds
      */
-    public void execute(IngestDocument ingestDocument) throws Exception {
-        compoundProcessor.execute(ingestDocument);
+    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+        long startTimeInNanos = relativeTimeProvider.getAsLong();
+        try {
+            metrics.preIngest();
+            return compoundProcessor.execute(ingestDocument);
+        } catch (Exception e) {
+            metrics.ingestFailed();
+            throw e;
+        } finally {
+            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
+            metrics.postIngest(ingestTimeInMillis);
+        }
     }
 
     /**
@@ -113,27 +159,10 @@ public final class Pipeline {
         return compoundProcessor.flattenProcessors();
     }
 
-    public static final class Factory {
-
-        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorFactories) throws Exception {
-            String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
-            Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
-            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
-            List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorFactories);
-            List<Map<String, Object>> onFailureProcessorConfigs =
-                    ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
-            List<Processor> onFailureProcessors = ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
-            if (config.isEmpty() == false) {
-                throw new ElasticsearchParseException("pipeline [" + id +
-                        "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
-            }
-            if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
-                throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
-            }
-            CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
-                    Collections.unmodifiableList(onFailureProcessors));
-            return new Pipeline(id, description, version, compoundProcessor);
-        }
-
+    /**
+     * The metrics associated with this pipeline.
+     */
+    public IngestMetric getMetrics() {
+        return metrics;
     }
 }

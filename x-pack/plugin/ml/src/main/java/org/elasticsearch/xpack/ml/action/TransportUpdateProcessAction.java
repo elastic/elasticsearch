@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,12 +22,10 @@ import java.io.IOException;
 public class TransportUpdateProcessAction extends TransportJobTaskAction<UpdateProcessAction.Request, UpdateProcessAction.Response> {
 
     @Inject
-    public TransportUpdateProcessAction(Settings settings, TransportService transportService, ThreadPool threadPool,
-                                        ClusterService clusterService, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver,
-                                        AutodetectProcessManager processManager) {
-        super(settings, UpdateProcessAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                UpdateProcessAction.Request::new, UpdateProcessAction.Response::new, ThreadPool.Names.SAME, processManager);
+    public TransportUpdateProcessAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                        ActionFilters actionFilters, AutodetectProcessManager processManager) {
+        super(settings, UpdateProcessAction.NAME, clusterService, transportService, actionFilters,
+            UpdateProcessAction.Request::new, UpdateProcessAction.Response::new, ThreadPool.Names.SAME, processManager);
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
     }
 

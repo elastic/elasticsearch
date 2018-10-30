@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.Action;
 
-public class MultiSearchAction extends Action<MultiSearchRequest, MultiSearchResponse> {
+public class MultiSearchAction extends Action<MultiSearchResponse> {
 
     public static final MultiSearchAction INSTANCE = new MultiSearchAction();
     public static final String NAME = "indices:data/read/msearch";

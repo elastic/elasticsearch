@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.indices.get;
 
 import org.elasticsearch.action.Action;
 
-public class GetIndexAction extends Action<GetIndexRequest, GetIndexResponse> {
+public class GetIndexAction extends Action<GetIndexResponse> {
 
     public static final GetIndexAction INSTANCE = new GetIndexAction();
     public static final String NAME = "indices:admin/get";

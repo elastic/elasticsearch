@@ -14,13 +14,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
@@ -28,7 +27,7 @@ import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,23 +40,22 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
         PostCalendarEventsAction.Response> {
 
     private final Client client;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
 
     @Inject
-    public TransportPostCalendarEventsAction(Settings settings, ThreadPool threadPool,
-                                             TransportService transportService, ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Client client, JobProvider jobProvider, JobManager jobManager) {
-        super(settings, PostCalendarEventsAction.NAME, threadPool, transportService, actionFilters,
-                indexNameExpressionResolver, PostCalendarEventsAction.Request::new);
+    public TransportPostCalendarEventsAction(Settings settings, TransportService transportService,
+                                             ActionFilters actionFilters, Client client,
+                                             JobResultsProvider jobResultsProvider, JobManager jobManager) {
+        super(settings, PostCalendarEventsAction.NAME, transportService, actionFilters,
+            PostCalendarEventsAction.Request::new);
         this.client = client;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
     }
 
     @Override
-    protected void doExecute(PostCalendarEventsAction.Request request,
+    protected void doExecute(Task task, PostCalendarEventsAction.Request request,
                              ActionListener<PostCalendarEventsAction.Response> listener) {
         List<ScheduledEvent> events = request.getScheduledEvents();
 
@@ -95,6 +93,6 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<Po
                 },
                 listener::onFailure);
 
-        jobProvider.calendar(request.getCalendarId(), calendarListener);
+        jobResultsProvider.calendar(request.getCalendarId(), calendarListener);
     }
 }

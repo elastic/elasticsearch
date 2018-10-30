@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -32,7 +31,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * This test ensures, that the plugin template upgrader can add and remove
  * templates when started within security, as this requires certain
- * system priviliges
+ * system privileges
  */
 @ClusterScope(maxNumDataNodes = 1, scope = Scope.SUITE, numClientNodes = 0)
 public class TemplateUpgraderTests extends SecurityIntegTestCase {
@@ -49,7 +48,7 @@ public class TemplateUpgraderTests extends SecurityIntegTestCase {
             return map;
         };
 
-        PutIndexTemplateResponse putIndexTemplateResponse = client().admin().indices().preparePutTemplate("removed-template")
+        AcknowledgedResponse putIndexTemplateResponse = client().admin().indices().preparePutTemplate("removed-template")
                 .setOrder(1)
                 .setPatterns(Collections.singletonList(randomAlphaOfLength(10)))
                 .get();

@@ -233,6 +233,11 @@ public interface Client extends ElasticsearchClient, Releasable {
     BulkRequestBuilder prepareBulk();
 
     /**
+     * Executes a bulk of index / delete operations with default index and/or type
+     */
+    BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType);
+
+    /**
      * Gets the document that was indexed from an index with a type and id.
      *
      * @param request The get request
@@ -455,7 +460,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Builder for the field capabilities request.
      */
-    FieldCapabilitiesRequestBuilder prepareFieldCaps();
+    FieldCapabilitiesRequestBuilder prepareFieldCaps(String... indices);
 
     /**
      * An action that returns the field capabilities from the provided request

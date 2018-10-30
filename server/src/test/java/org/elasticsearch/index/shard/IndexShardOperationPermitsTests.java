@@ -71,7 +71,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     public static void setupThreadPool() {
         int writeThreadPoolSize = randomIntBetween(1, 2);
         int writeThreadPoolQueueSize = randomIntBetween(1, 2);
-        threadPool = new TestThreadPool("IndexShardOperationsLockTests",
+        threadPool = new TestThreadPool("IndexShardOperationPermitsTests",
             Settings.builder()
                 .put("thread_pool." + ThreadPool.Names.WRITE + ".size", writeThreadPoolSize)
                 .put("thread_pool." + ThreadPool.Names.WRITE + ".queue_size", writeThreadPoolQueueSize)
@@ -100,7 +100,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
     }
 
-    public void testAllOperationsInvoked() throws InterruptedException, TimeoutException, ExecutionException {
+    public void testAllOperationsInvoked() throws InterruptedException, TimeoutException {
         int numThreads = 10;
 
         class DummyException extends RuntimeException {}
@@ -187,7 +187,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         future.get().close();
     }
 
-    public void testOperationsIfClosed() throws ExecutionException, InterruptedException {
+    public void testOperationsIfClosed() {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
         permits.close();
         permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
@@ -195,10 +195,12 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         assertThat(exception.getCause(), instanceOf(IndexShardClosedException.class));
     }
 
-    public void testBlockIfClosed() throws ExecutionException, InterruptedException {
+    public void testBlockIfClosed() {
         permits.close();
         expectThrows(IndexShardClosedException.class, () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES,
             () -> { throw new IllegalArgumentException("fake error"); }));
+        expectThrows(IndexShardClosedException.class, () -> permits.asyncBlockOperations(randomInt(10), TimeUnit.MINUTES,
+            () -> { throw new IllegalArgumentException("fake error"); }, e -> { throw new AssertionError(e); }));
     }
 
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
@@ -207,6 +209,36 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
             assertFalse(future.isDone());
         }
+        future.get(1, TimeUnit.HOURS).close();
+    }
+
+    public void testGetBlockWhenBlocked() throws ExecutionException, InterruptedException, TimeoutException {
+        PlainActionFuture<Releasable> future = new PlainActionFuture<>();
+        final CountDownLatch blockAcquired = new CountDownLatch(1);
+        final CountDownLatch releaseBlock = new CountDownLatch(1);
+        final AtomicBoolean blocked = new AtomicBoolean();
+        try (Releasable ignored = blockAndWait()) {
+            permits.acquire(future, ThreadPool.Names.GENERIC, true, "");
+
+            permits.asyncBlockOperations(
+                30,
+                TimeUnit.MINUTES,
+                () -> {
+                    blocked.set(true);
+                    blockAcquired.countDown();
+                    releaseBlock.await();
+                },
+                e -> {
+                    throw new RuntimeException(e);
+                });
+            assertFalse(blocked.get());
+            assertFalse(future.isDone());
+        }
+        blockAcquired.await();
+        assertTrue(blocked.get());
+        assertFalse(future.isDone());
+        releaseBlock.countDown();
+
         future.get(1, TimeUnit.HOURS).close();
     }
 

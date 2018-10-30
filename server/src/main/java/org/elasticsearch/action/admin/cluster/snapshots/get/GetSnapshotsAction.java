@@ -24,7 +24,7 @@ import org.elasticsearch.action.Action;
 /**
  * Get snapshots action
  */
-public class GetSnapshotsAction extends Action<GetSnapshotsRequest, GetSnapshotsResponse> {
+public class GetSnapshotsAction extends Action<GetSnapshotsResponse> {
 
     public static final GetSnapshotsAction INSTANCE = new GetSnapshotsAction();
     public static final String NAME = "cluster:admin/snapshot/get";

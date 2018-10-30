@@ -21,7 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.Action;
 
-public class ClearScrollAction extends Action<ClearScrollRequest, ClearScrollResponse> {
+public class ClearScrollAction extends Action<ClearScrollResponse> {
 
     public static final ClearScrollAction INSTANCE = new ClearScrollAction();
     public static final String NAME = "indices:data/read/scroll/clear";

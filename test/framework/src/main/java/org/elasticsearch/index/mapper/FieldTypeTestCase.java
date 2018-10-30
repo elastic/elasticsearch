@@ -21,9 +21,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -36,8 +33,6 @@ import java.util.List;
 
 /** Base test case for subclasses of MappedFieldType */
 public abstract class FieldTypeTestCase extends ESTestCase {
-
-    private static final Settings INDEX_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
     /** Abstraction for mutating a property of a MappedFieldType */
     public abstract static class Modifier {
@@ -83,6 +78,17 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             @Override
             public void modify(MappedFieldType ft) {
                 ft.setIndexAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            }
+            @Override
+            public void normalizeOther(MappedFieldType other) {
+                other.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            }
+        },
+        // check that we can update if the analyzer is unchanged
+        new Modifier("analyzer", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ft.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
             @Override
             public void normalizeOther(MappedFieldType other) {
@@ -135,6 +141,17 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             @Override
             public void normalizeOther(MappedFieldType other) {
                 other.setSimilarity(new SimilarityProvider("bar", new BM25Similarity()));
+            }
+        },
+        // check that we can update if the similarity is unchanged
+        new Modifier("similarity", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ft.setSimilarity(new SimilarityProvider("foo", new BM25Similarity()));
+            }
+            @Override
+            public void normalizeOther(MappedFieldType other) {
+                other.setSimilarity(new SimilarityProvider("foo", new BM25Similarity()));
             }
         },
         new Modifier("eager_global_ordinals", true) {

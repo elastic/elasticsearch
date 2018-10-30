@@ -81,9 +81,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             if (tokenFilter == null) {
                 throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name [" + tokenFilterName + "]");
             }
-            // no need offsetGap for tokenize synonyms
-            tokenFilter = checkAndApplySynonymFilter(tokenFilter, tokenizerName, tokenizer, tokenFilterList, charFiltersList,
-                this.environment);
+            tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(tokenizer, charFiltersList, tokenFilterList, tokenFilters::get);
             tokenFilterList.add(tokenFilter);
         }
 
@@ -93,33 +91,6 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
                 positionIncrementGap,
                 offsetGap
         );
-    }
-
-    public static TokenFilterFactory checkAndApplySynonymFilter(TokenFilterFactory tokenFilter, String tokenizerName, TokenizerFactory tokenizer,
-                                                                List<TokenFilterFactory> tokenFilterList,
-                                                                List<CharFilterFactory> charFiltersList, Environment env) {
-        if (tokenFilter instanceof SynonymGraphTokenFilterFactory) {
-            List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
-
-            try (CustomAnalyzer analyzer = new CustomAnalyzer(tokenizerName, tokenizer,
-                    charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
-                    tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
-                    TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
-                    -1)){
-                tokenFilter = ((SynonymGraphTokenFilterFactory) tokenFilter).createPerAnalyzerSynonymGraphFactory(analyzer, env);
-            }
-
-        } else if (tokenFilter instanceof SynonymTokenFilterFactory) {
-            List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
-            try (CustomAnalyzer analyzer = new CustomAnalyzer(tokenizerName, tokenizer,
-                    charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
-                    tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
-                    TextFieldMapper.Defaults.POSITION_INCREMENT_GAP,
-                    -1)) {
-                tokenFilter = ((SynonymTokenFilterFactory) tokenFilter).createPerAnalyzerSynonymFactory(analyzer, env);
-            }
-        }
-        return tokenFilter;
     }
 
     @Override

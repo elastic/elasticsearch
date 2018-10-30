@@ -36,10 +36,23 @@ import java.util.Locale;
 public interface DocWriteRequest<T> extends IndicesRequest {
 
     /**
+     * Set the index for this request
+     * @return the Request
+     */
+    T index(String index);
+
+    /**
      * Get the index that this request operates on
      * @return the index
      */
     String index();
+
+
+    /**
+     * Set the type for this request
+     * @return the Request
+     */
+    T type(String type);
 
     /**
      * Get the type that this request operates on
@@ -57,6 +70,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
      * Get the options for this request
      * @return the indices options
      */
+    @Override
     IndicesOptions indicesOptions();
 
     /**
@@ -157,9 +171,9 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     }
 
     /** read a document write (index/delete/update) request */
-    static DocWriteRequest readDocumentRequest(StreamInput in) throws IOException {
+    static DocWriteRequest<?> readDocumentRequest(StreamInput in) throws IOException {
         byte type = in.readByte();
-        DocWriteRequest docWriteRequest;
+        DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.readFrom(in);
@@ -179,7 +193,7 @@ public interface DocWriteRequest<T> extends IndicesRequest {
     }
 
     /** write a document write (index/delete/update) request*/
-    static void writeDocumentRequest(StreamOutput out, DocWriteRequest request)  throws IOException {
+    static void writeDocumentRequest(StreamOutput out, DocWriteRequest<?> request)  throws IOException {
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
             ((IndexRequest) request).writeTo(out);

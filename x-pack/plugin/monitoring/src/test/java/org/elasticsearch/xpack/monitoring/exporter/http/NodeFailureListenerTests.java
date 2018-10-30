@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.SetOnce.AlreadySetException;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,7 +22,7 @@ public class NodeFailureListenerTests extends ESTestCase {
 
     private final Sniffer sniffer = mock(Sniffer.class);
     private final HttpResource resource = new MockHttpResource(getTestName(), false);
-    private final HttpHost host = new HttpHost("localhost", 9200);
+    private final Node node = new Node(new HttpHost("localhost", 9200));
 
     private final NodeFailureListener listener = new NodeFailureListener();
 
@@ -44,7 +45,7 @@ public class NodeFailureListenerTests extends ESTestCase {
     public void testSnifferNotifiedOnFailure() {
         listener.setSniffer(sniffer);
 
-        listener.onFailure(host);
+        listener.onFailure(node);
 
         verify(sniffer).sniffOnFailure();
     }
@@ -52,7 +53,7 @@ public class NodeFailureListenerTests extends ESTestCase {
     public void testResourceNotifiedOnFailure() {
         listener.setResource(resource);
 
-        listener.onFailure(host);
+        listener.onFailure(node);
 
         assertTrue(resource.isDirty());
     }
@@ -64,7 +65,7 @@ public class NodeFailureListenerTests extends ESTestCase {
         listener.setResource(optionalResource);
         listener.setSniffer(optionalSniffer);
 
-        listener.onFailure(host);
+        listener.onFailure(node);
 
         if (optionalResource != null) {
             assertTrue(resource.isDirty());

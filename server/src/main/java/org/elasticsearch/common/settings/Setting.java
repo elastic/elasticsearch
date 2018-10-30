@@ -830,7 +830,7 @@ public class Setting<T> implements ToXContentObject {
         void validate(T value);
 
         /**
-         * The validation routine for this validator.
+         * Validate this setting against its dependencies, specified by {@link #settings()}.
          *
          * @param value    the value of this setting
          * @param settings a map from the settings specified by {@link #settings()}} to their values

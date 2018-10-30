@@ -486,6 +486,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (false == Strings.isEmpty(searchRouting)) {
                 builder.field(SEARCH_ROUTING.getPreferredName(), searchRouting);
             }
+            if (null != writeIndex) {
+                builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
+            }
             builder.endObject();
             builder.endObject();
             return builder;

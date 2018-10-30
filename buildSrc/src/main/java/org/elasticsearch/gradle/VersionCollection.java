@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.min;
 import static java.util.Collections.unmodifiableList;
 
 /**
@@ -40,7 +39,7 @@ import static java.util.Collections.unmodifiableList;
  * Parse the Java source file containing the versions declarations and use the known rules to figure out which are all
  * the version the current one is wire and index compatible with.
  * On top of this, figure out which of these are unreleased and provide the branch they can be built from.
- * 
+ *
  * Note that in this context, currentVersion is the unreleased version this build operates on.
  * At any point in time there will surely be four such unreleased versions being worked on,
  * thus currentVersion will be one of these.

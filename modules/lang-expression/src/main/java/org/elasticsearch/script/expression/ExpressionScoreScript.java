@@ -53,7 +53,7 @@ class ExpressionScoreScript implements ScoreScript.LeafFactory {
 
     @Override
     public ScoreScript newInstance(final LeafReaderContext leaf) throws IOException {
-        return new ScoreScript(null, null, null) {
+        return new ScoreScript() {
             // Fake the scorer until setScorer is called.
             DoubleValues values = source.getValues(leaf, new DoubleValues() {
                 @Override

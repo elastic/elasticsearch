@@ -64,12 +64,16 @@ public abstract class ScoreScript {
 
     public ScoreScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         // null check needed b/c of expression engine subclass
-        this.leafLookup = lookup == null ? null : lookup.getLeafSearchLookup(leafContext);
+        this.leafLookup = lookup.getLeafSearchLookup(leafContext);
         params = new HashMap<>(params);
-        if (leafLookup != null) {
-            params.putAll(leafLookup.asMap());
-        }
+        params.putAll(leafLookup.asMap());
         this.params = new ParameterMap(params, DEPRECATIONS);
+    }
+
+    // this constructor is special for expressions, which only wants to override execute
+    public ScoreScript() {
+        this.params = null;
+        this.leafLookup = null;
     }
 
     public abstract double execute();

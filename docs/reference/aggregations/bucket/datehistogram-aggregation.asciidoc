@@ -83,13 +83,13 @@ and the same day of the week and time of the following week in the specified
 timezone.
 * Multiple weeks (__n__w) are not supported.
 
-months (m) ::
+months (M) ::
 
-* One month (1m) is the interval between the start day of the month and time of
+* One month (1M) is the interval between the start day of the month and time of
 day and the same day of the month and time of the following month in the specified
 timezone, so that the day of the month and time of day are the same at the start
 and end.
-* Multiple months (__n__m) are not supported.
+* Multiple months (__n__M) are not supported.
 
 quarters (q) ::
 

@@ -145,9 +145,9 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
-        final Coordinator coordinator = new Coordinator(Settings.EMPTY, clusterSettings, transportService,
+        final Coordinator coordinator = new Coordinator("local", Settings.EMPTY, clusterSettings, transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
-            new MasterService(Settings.EMPTY, threadPool),
+            new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, state), r -> emptyList(),
             new NoOpClusterApplier(), random());
         coordinator.start();
@@ -186,9 +186,9 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
-        final Coordinator coordinator = new Coordinator(Settings.EMPTY, clusterSettings, transportService,
+        final Coordinator coordinator = new Coordinator("local", Settings.EMPTY, clusterSettings, transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
-            new MasterService(Settings.EMPTY, threadPool),
+            new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, state), r -> emptyList(),
             new NoOpClusterApplier(), random());
         coordinator.start();

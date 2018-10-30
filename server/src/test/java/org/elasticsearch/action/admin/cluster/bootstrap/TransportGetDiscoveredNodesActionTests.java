@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,6 +55,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.HandshakeResponse;
 
+import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyList;
@@ -156,9 +158,9 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
-        final Coordinator coordinator = new Coordinator(Settings.EMPTY, clusterSettings, transportService,
+        final Coordinator coordinator = new Coordinator("local", Settings.EMPTY, clusterSettings, transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
-            new MasterService(Settings.EMPTY, threadPool),
+            new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, state), r -> emptyList(),
             new NoOpClusterApplier(), random());
         coordinator.start();
@@ -197,9 +199,9 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
-        final Coordinator coordinator = new Coordinator(Settings.EMPTY, clusterSettings, transportService,
+        final Coordinator coordinator = new Coordinator("local", Settings.EMPTY, clusterSettings, transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
-            new MasterService(Settings.EMPTY, threadPool),
+            new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, state), r -> emptyList(),
             new NoOpClusterApplier(), random());
         coordinator.start();
@@ -252,9 +254,9 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final ClusterState state = ClusterState.builder(new ClusterName(clusterName)).build();
-        final Coordinator coordinator = new Coordinator(Settings.EMPTY, clusterSettings, transportService,
+        final Coordinator coordinator = new Coordinator("local", Settings.EMPTY, clusterSettings, transportService,
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
-            new MasterService(Settings.EMPTY, threadPool),
+            new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, state), r -> emptyList(),
             new NoOpClusterApplier(), random());
         coordinator.start();
@@ -268,6 +270,11 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         threadPool.generic().execute(() ->
             transportService.sendRequest(localNode, REQUEST_PEERS_ACTION_NAME, new PeersRequest(otherNode, emptyList()),
                 new TransportResponseHandler<PeersResponse>() {
+                    @Override
+                    public PeersResponse read(StreamInput in) throws IOException {
+                        return new PeersResponse(in);
+                    }
+
                     @Override
                     public void handleResponse(PeersResponse response) {
                     }

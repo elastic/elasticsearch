@@ -39,7 +39,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
      * existing definition when the policy is changed for that index, and that
      * after completing the current phase the new policy will be used for
      * subsequent phases.
-     * 
+     *
      * The test creates two policies, one with a hot phase requiring 1 document
      * to rollover and a warm phase with an impossible allocation action. The
      * second policy has a rollover action requiring 1000 document and a warm
@@ -69,13 +69,13 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         XContentBuilder builder1 = jsonBuilder();
         lifecyclePolicy1.toXContent(builder1, null);
         final StringEntity entity1 = new StringEntity("{ \"policy\":" + Strings.toString(builder1) + "}", ContentType.APPLICATION_JSON);
-        Request request1 = new Request("PUT", "_ilm/" + "policy_1");
+        Request request1 = new Request("PUT", "_ilm/policy/" + "policy_1");
         request1.setEntity(entity1);
         assertOK(client().performRequest(request1));
         XContentBuilder builder2 = jsonBuilder();
         lifecyclePolicy2.toXContent(builder2, null);
         final StringEntity entity2 = new StringEntity("{ \"policy\":" + Strings.toString(builder2) + "}", ContentType.APPLICATION_JSON);
-        Request request2 = new Request("PUT", "_ilm/" + "policy_2");
+        Request request2 = new Request("PUT", "_ilm/policy/" + "policy_2");
         request2.setEntity(entity2);
         assertOK(client().performRequest(request2));
 

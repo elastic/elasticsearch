@@ -44,7 +44,7 @@ The following example removes a policy `my_policy` from an index `my_index`.
 
 [source,js]
 --------------------------------------------------
-PUT _ilm/my_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {

@@ -124,9 +124,8 @@ public class In extends NamedExpression implements ScriptWeaver {
     public ScriptTemplate asScript() {
         ScriptTemplate leftScript = asScript(value);
         // remove duplicates
-        // TODO: Don't exclude nulls, painless script should handle them
         List<Object> values = new ArrayList<>(
-            list.stream().map(Expression::fold).filter(Objects::nonNull).collect(Collectors.toCollection(LinkedHashSet::new)));
+            list.stream().map(Expression::fold).collect(Collectors.toCollection(LinkedHashSet::new)));
 
         return new ScriptTemplate(String.format(Locale.ROOT, formatTemplate("{sql}.in(%s, {})"), leftScript.template(), "%s"),
             paramsBuilder()

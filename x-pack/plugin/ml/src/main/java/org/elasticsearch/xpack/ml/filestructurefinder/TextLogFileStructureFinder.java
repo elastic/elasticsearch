@@ -89,6 +89,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         mappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "date"));
 
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
+        fieldStats.put("message", FileStructureUtils.calculateFieldStats(sampleMessages, timeoutChecker));
 
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, fieldStats, timeoutChecker);
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove

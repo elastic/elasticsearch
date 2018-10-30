@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -79,7 +78,7 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
     }
 
     public List<ExecutableSection> getExecutableSections() {
-        return Collections.unmodifiableList(executableSections);
+        return executableSections;
     }
 
     @Override

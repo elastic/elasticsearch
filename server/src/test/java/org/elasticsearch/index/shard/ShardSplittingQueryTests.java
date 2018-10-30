@@ -29,6 +29,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
@@ -260,9 +261,8 @@ public class ShardSplittingQueryTests extends ESTestCase {
         try (IndexReader reader = DirectoryReader.open(dir)) {
             IndexSearcher searcher = new IndexSearcher(reader);
             searcher.setQueryCache(null);
-            final boolean needsScores = false;
-            final Weight splitWeight = searcher.createNormalizedWeight(new ShardSplittingQuery(metaData, targetShardId, hasNested),
-                needsScores);
+            final Weight splitWeight = searcher.createWeight(searcher.rewrite(new ShardSplittingQuery(metaData, targetShardId, hasNested)),
+                ScoreMode.COMPLETE_NO_SCORES, 1f);
             final List<LeafReaderContext> leaves = reader.leaves();
             for (final LeafReaderContext ctx : leaves) {
                 Scorer scorer = splitWeight.scorer(ctx);

@@ -14,16 +14,13 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.time.DateTimeFormatterTimestampConverter;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
-import java.util.EnumMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -126,24 +123,20 @@ public class DataDescription implements ToXContentObject, Writeable {
     private final Character quoteCharacter;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ObjectParser<Builder, Void> METADATA_PARSER =
-            new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), true, Builder::new);
-    public static final ObjectParser<Builder, Void> CONFIG_PARSER =
-            new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), false, Builder::new);
-    public static final Map<MlParserType, ObjectParser<Builder, Void>> PARSERS = new EnumMap<>(MlParserType.class);
+    public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
+    public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ObjectParser<Builder, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareString(Builder::setFormat, FORMAT_FIELD);
-            parser.declareString(Builder::setTimeField, TIME_FIELD_NAME_FIELD);
-            parser.declareString(Builder::setTimeFormat, TIME_FORMAT_FIELD);
-            parser.declareField(Builder::setFieldDelimiter, DataDescription::extractChar, FIELD_DELIMITER_FIELD, ValueType.STRING);
-            parser.declareField(Builder::setQuoteCharacter, DataDescription::extractChar, QUOTE_CHARACTER_FIELD, ValueType.STRING);
-        }
+    private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<Builder, Void> parser =
+            new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), ignoreUnknownFields, Builder::new);
+
+        parser.declareString(Builder::setFormat, FORMAT_FIELD);
+        parser.declareString(Builder::setTimeField, TIME_FIELD_NAME_FIELD);
+        parser.declareString(Builder::setTimeFormat, TIME_FORMAT_FIELD);
+        parser.declareField(Builder::setFieldDelimiter, DataDescription::extractChar, FIELD_DELIMITER_FIELD, ValueType.STRING);
+        parser.declareField(Builder::setQuoteCharacter, DataDescription::extractChar, QUOTE_CHARACTER_FIELD, ValueType.STRING);
+
+        return parser;
     }
 
     public DataDescription(DataFormat dataFormat, String timeFieldName, String timeFormat, Character fieldDelimiter,

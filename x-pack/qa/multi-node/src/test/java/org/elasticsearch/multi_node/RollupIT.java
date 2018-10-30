@@ -5,27 +5,24 @@
  */
 package org.elasticsearch.multi_node;
 
-import org.apache.http.HttpStatus;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
-import org.junit.After;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -33,8 +30,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isOneOf;
@@ -64,15 +61,33 @@ public class RollupIT extends ESRestTestCase {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 
-    @After
-    public void clearRollupMetadata() throws Exception {
-        deleteAllJobs();
-        waitForPendingTasks();
-        // indices will be deleted by the ESRestTestCase class
-    }
-
     public void testBigRollup() throws Exception {
         final int numDocs = 200;
+        String dateFormat = "strict_date_optional_time";
+
+        // create the test-index index
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("mappings").startObject("_doc")
+                    .startObject("properties")
+                    .startObject("timestamp")
+                    .field("type", "date")
+                    .field("format", dateFormat)
+                    .endObject()
+                    .startObject("value")
+                    .field("type", "integer")
+                    .endObject()
+                    .endObject()
+                    .endObject().endObject();
+            }
+            builder.endObject();
+            final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
+            Request req = new Request("PUT", "rollup-docs");
+            req.setEntity(entity);
+            client().performRequest(req);
+        }
+
 
         // index documents for the rollup job
         final StringBuilder bulk = new StringBuilder();
@@ -88,13 +103,15 @@ public class RollupIT extends ESRestTestCase {
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
+
         // create the rollup job
         final Request createRollupJobRequest = new Request("PUT", "/_xpack/rollup/job/rollup-job-test");
+        int pageSize = randomIntBetween(2, 50);
         createRollupJobRequest.setJsonEntity("{"
             + "\"index_pattern\":\"rollup-*\","
             + "\"rollup_index\":\"results-rollup\","
-            + "\"cron\":\"*/1 * * * * ?\","             // fast cron and big page size so test runs quickly
-            + "\"page_size\":20,"
+            + "\"cron\":\"*/1 * * * * ?\","             // fast cron so test runs quickly
+            + "\"page_size\":" + pageSize + ","
             + "\"groups\":{"
             + "    \"date_histogram\":{"
             + "        \"field\":\"timestamp\","
@@ -142,7 +159,8 @@ public class RollupIT extends ESRestTestCase {
             "    \"date_histo\": {\n" +
             "      \"date_histogram\": {\n" +
             "        \"field\": \"timestamp\",\n" +
-            "        \"interval\": \"1h\"\n" +
+            "        \"interval\": \"60m\",\n" +
+            "        \"format\": \"date_time\"\n" +
             "      },\n" +
             "      \"aggs\": {\n" +
             "        \"the_max\": {\n" +
@@ -226,7 +244,7 @@ public class RollupIT extends ESRestTestCase {
 
     }
 
-    private void waitForRollUpJob(final String rollupJob,String[] expectedStates) throws Exception {
+    private void waitForRollUpJob(final String rollupJob, String[] expectedStates) throws Exception {
         assertBusy(() -> {
             final Request getRollupJobRequest = new Request("GET", "_xpack/rollup/job/" + rollupJob);
             Response getRollupJobResponse = client().performRequest(getRollupJobRequest);
@@ -260,67 +278,5 @@ public class RollupIT extends ESRestTestCase {
             }
         }
         return null;
-    }
-
-    private void waitForPendingTasks() throws Exception {
-        ESTestCase.assertBusy(() -> {
-            try {
-                Request request = new Request("GET", "/_cat/tasks");
-                request.addParameter("detailed", "true");
-                Response response = adminClient().performRequest(request);
-                if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                    try (BufferedReader responseReader = new BufferedReader(
-                        new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
-                        int activeTasks = 0;
-                        String line;
-                        StringBuilder tasksListString = new StringBuilder();
-                        while ((line = responseReader.readLine()) != null) {
-
-                            // We only care about Rollup jobs, otherwise this fails too easily due to unrelated tasks
-                            if (line.startsWith(RollupJob.NAME) == true) {
-                                activeTasks++;
-                                tasksListString.append(line);
-                                tasksListString.append('\n');
-                            }
-                        }
-                        assertEquals(activeTasks + " active tasks found:\n" + tasksListString, 0, activeTasks);
-                    }
-                }
-            } catch (IOException e) {
-                throw new AssertionError("Error getting active tasks list", e);
-            }
-        });
-    }
-
-    @SuppressWarnings("unchecked")
-    private void deleteAllJobs() throws Exception {
-        Request request = new Request("GET", "/_xpack/rollup/job/_all");
-        Response response = adminClient().performRequest(request);
-        Map<String, Object> jobs = ESRestTestCase.entityAsMap(response);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> jobConfigs =
-            (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
-
-        if (jobConfigs == null) {
-            return;
-        }
-
-        for (Map<String, Object> jobConfig : jobConfigs) {
-            logger.debug(jobConfig);
-            String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            logger.debug("Deleting job " + jobId);
-            try {
-                request = new Request("DELETE", "/_xpack/rollup/job/" + jobId);
-                adminClient().performRequest(request);
-            } catch (Exception e) {
-                // ok
-            }
-        }
-    }
-
-    private static String responseEntityToString(Response response) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
-            return reader.lines().collect(Collectors.joining("\n"));
-        }
     }
 }

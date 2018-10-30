@@ -50,8 +50,8 @@ subprojects {
 
   apply plugin: 'distribution'
   // Not published so no need to assemble
-  tasks.remove(assemble)
-  build.dependsOn.remove('assemble')
+  assemble.enabled = false
+  assemble.dependsOn.remove('buildBwcVersion')
 
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
@@ -149,24 +149,38 @@ subprojects {
 
   task buildBwcVersion(type: Exec) {
     dependsOn checkoutBwcBranch, writeBuildMetadata
-    // send RUNTIME_JAVA_HOME so the build doesn't fails on newer version the branch doesn't know about
-    environment('RUNTIME_JAVA_HOME', getJavaHome(it, rootProject.ext.minimumRuntimeVersion.getMajorVersion() as int))
     workingDir = checkoutDir
-    // we are building branches that are officially built with JDK 8, push JAVA8_HOME to JAVA_HOME for these builds
-    if (["5.6", "6.0", "6.1"].contains(bwcBranch)) {
-      environment('JAVA_HOME', getJavaHome(it, 8))
-    } else if ("6.2".equals(bwcBranch)) {
-      environment('JAVA_HOME', getJavaHome(it, 9))
-    } else if (["6.3", "6.x"].contains(bwcBranch)) {
-      environment('JAVA_HOME', getJavaHome(it, 10))
-    } else {
-      environment('JAVA_HOME', project.compilerJavaHome)
+    doFirst {
+      // Execution time so that the checkouts are available  
+      List<String> lines = file("$checkoutDir/.ci/java-versions.properties").readLines()
+      environment(
+              'JAVA_HOME',
+              getJavaHome(it, Integer.parseInt(
+                      lines
+                              .findAll({ it.startsWith("ES_BUILD_JAVA=java") })
+                              .collect({ it.replace("ES_BUILD_JAVA=java", "").trim() })
+                              .join("!!")
+              ))
+      )
+      environment(
+              'RUNTIME_JAVA_HOME',
+              getJavaHome(it, Integer.parseInt(
+                      lines
+                              .findAll({ it.startsWith("ES_RUNTIME_JAVA=java") })
+                              .collect({ it.replace("ES_RUNTIME_JAVA=java", "").trim() })
+                              .join("!!")
+              ))
+      )
     }
+
     if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       executable 'cmd'
       args '/C', 'call', new File(checkoutDir, 'gradlew').toString()
     } else {
       executable new File(checkoutDir, 'gradlew').toString()
+    }
+    if (gradle.startParameter.isOffline()) {
+      args "--offline"
     }
     for (String dir : projectDirs) {
       args ":${dir.replace('/', ':')}:assemble"
@@ -196,11 +210,19 @@ subprojects {
     }
   }
 
-  artifacts {
-    for (File artifactFile : artifactFiles) {
-      String artifactName = artifactFile.name.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
-      String suffix = artifactFile.toString()[-3..-1]
-      'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
+  if (gradle.startParameter.taskNames == ["assemble"]) {
+    // Gradle needs the `artifacts` declaration, including `builtBy` bellow to make projects dependencies on this
+    // project work, but it will also trigger the build of these for the `assemble` task.
+    // Since these are only used for testing, we don't want to assemble them if `assemble` is the single command being
+    // ran.
+    logger.info("Skipping BWC builds since `assemble` is the only task name provided on the command line")
+  } else {
+    artifacts {
+      for (File artifactFile : artifactFiles) {
+        String artifactName = artifactFile.name.contains('oss') ? 'elasticsearch-oss' : 'elasticsearch'
+        String suffix = artifactFile.toString()[-3..-1]
+        'default' file: artifactFile, name: artifactName, type: suffix, builtBy: buildBwcVersion
+      }
     }
   }
 }

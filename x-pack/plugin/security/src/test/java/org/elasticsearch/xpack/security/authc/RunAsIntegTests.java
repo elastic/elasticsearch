@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.client.Response;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.SecureString;
@@ -126,11 +126,13 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     public void testUserImpersonationUsingHttp() throws Exception {
         // use the transport client user and try to run as
         try {
-            getRestClient().performRequest("GET", "/_nodes",
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER,
-                                    TEST_PASSWORD_SECURE_STRING)),
-                    new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME));
+            Request request = new Request("GET", "/_nodes");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(TRANSPORT_CLIENT_USER, TEST_PASSWORD_SECURE_STRING));
+            options.addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME);
+            request.setOptions(options);
+            getRestClient().performRequest(request);
             fail("request should have failed");
         } catch(ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
@@ -139,10 +141,11 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         if (runAsHasSuperUserRole == false) {
             try {
                 //the run as user shouldn't have access to the nodes api
-                getRestClient().performRequest("GET", "/_nodes",
-                        new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                                UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                                        TEST_PASSWORD_SECURE_STRING)));
+                Request request = new Request("GET", "/_nodes");
+                RequestOptions.Builder options = request.getOptions().toBuilder();
+                options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING));
+                request.setOptions(options);
+                getRestClient().performRequest(request);
                 fail("request should have failed");
             } catch (ResponseException e) {
                 assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
@@ -150,12 +153,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         }
 
         // but when running as a different user it should work
-        Response response = getRestClient().performRequest("GET", "/_nodes",
-                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                                TEST_PASSWORD_SECURE_STRING)),
-                new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME));
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        getRestClient().performRequest(requestForUserRunAsUser(SecuritySettingsSource.TEST_USER_NAME));
     }
 
     public void testEmptyUserImpersonationHeader() throws Exception {
@@ -183,11 +181,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
     public void testEmptyHeaderUsingHttp() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/_nodes",
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                                    TEST_PASSWORD_SECURE_STRING)),
-                    new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, ""));
+            getRestClient().performRequest(requestForUserRunAsUser(""));
             fail("request should have failed");
         } catch(ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
@@ -219,15 +213,20 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
     public void testNonExistentRunAsUserUsingHttp() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/_nodes",
-                    new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
-                                    TEST_PASSWORD_SECURE_STRING)),
-                    new BasicHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, "idontexist"));
+            getRestClient().performRequest(requestForUserRunAsUser("idontexist"));
             fail("request should have failed");
         } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
         }
+    }
+
+    private static Request requestForUserRunAsUser(String user) {
+        Request request = new Request("GET", "/_nodes");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING));
+        options.addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, user);
+        request.setOptions(options);
+        return request;
     }
 
     // build our own here to better mimic an actual client...

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 

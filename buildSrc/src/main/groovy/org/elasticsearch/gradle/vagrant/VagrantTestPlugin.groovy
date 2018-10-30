@@ -31,7 +31,8 @@ class VagrantTestPlugin implements Plugin<Project> {
             'opensuse-42',
             'sles-12',
             'ubuntu-1404',
-            'ubuntu-1604'
+            'ubuntu-1604',
+            'ubuntu-1804'
     ])
 
     /** All Windows boxes that we test, which may or may not be supplied **/
@@ -526,7 +527,11 @@ class VagrantTestPlugin implements Plugin<Project> {
                     project.gradle.removeListener(batsPackagingReproListener)
                 }
                 if (project.extensions.esvagrant.boxes.contains(box)) {
-                    packagingTest.dependsOn(batsPackagingTest)
+                    // these tests are temporarily disabled for suse boxes while we debug an issue
+                    // https://github.com/elastic/elasticsearch/issues/30295
+                    if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
+                        packagingTest.dependsOn(batsPackagingTest)
+                    }
                 }
             }
 
@@ -565,7 +570,11 @@ class VagrantTestPlugin implements Plugin<Project> {
                 project.gradle.removeListener(javaPackagingReproListener)
             }
             if (project.extensions.esvagrant.boxes.contains(box)) {
-                packagingTest.dependsOn(javaPackagingTest)
+                // these tests are temporarily disabled for suse boxes while we debug an issue
+                // https://github.com/elastic/elasticsearch/issues/30295
+                if (box.equals("opensuse-42") == false && box.equals("sles-12") == false) {
+                    packagingTest.dependsOn(javaPackagingTest)
+                }
             }
 
             /*

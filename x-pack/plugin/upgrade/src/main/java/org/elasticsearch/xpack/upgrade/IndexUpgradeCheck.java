@@ -13,11 +13,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.protocol.xpack.migration.UpgradeActionRequired;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.upgrade.IndexUpgradeCheckVersion;
-import org.elasticsearch.xpack.core.upgrade.UpgradeActionRequired;
 
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;

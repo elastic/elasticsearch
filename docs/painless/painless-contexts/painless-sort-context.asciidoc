@@ -2,7 +2,7 @@
 === Sort context
 
 Use a Painless script to
-{es_version}/search-request-sort.html[sort] the documents in a query.
+{ref}/search-request-sort.html[sort] the documents in a query.
 
 *Variables*
 

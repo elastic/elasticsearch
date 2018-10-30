@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.regex.Like;
-import org.elasticsearch.xpack.sql.expression.regex.LikePattern;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -39,7 +39,7 @@ public class LikeEscapingParsingTests extends ESTestCase {
         }
         assertThat(exp, instanceOf(Like.class));
         Like l = (Like) exp;
-        return l.right();
+        return l.pattern();
     }
 
     public void testNoEscaping() {

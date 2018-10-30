@@ -1,16 +1,22 @@
-[[java-rest-high-cluster-get-settings]]
+--
+:api: get-settings
+:request: ClusterGetSettingsRequest
+:response: ClusterGetSettingsResponse
+--
+
+[id="{upid}-{api}"]
 === Cluster Get Settings API
 
 The Cluster Get Settings API allows to get the cluster wide settings.
 
-[[java-rest-high-cluster-get-settings-request]]
+[id="{upid}-{api}-request"]
 ==== Cluster Get Settings Request
 
-A `ClusterGetSettingsRequest`:
+A +{request}+:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[get-settings-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 
 ==== Optional arguments
@@ -18,75 +24,40 @@ The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[get-settings-request-includeDefaults]
+include-tagged::{doc-tests-file}[{api}-request-includeDefaults]
 --------------------------------------------------
 <1> By default only those settings that were explicitly set are returned. Setting this to true also returns
 the default settings.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[get-settings-request-local]
+include-tagged::{doc-tests-file}[{api}-request-local]
 --------------------------------------------------
 <1> By default the request goes to the master of the cluster to get the latest results. If local is specified it gets
 the results from whichever node the request goes to.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[get-settings-request-masterTimeout]
+include-tagged::{doc-tests-file}[{api}-request-masterTimeout]
 --------------------------------------------------
 <1> Timeout to connect to the master node as a `TimeValue`
 <2> Timeout to connect to the master node as a `String`
 
-[[java-rest-high-cluster-get-settings-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[get-settings-execute]
---------------------------------------------------
-<1> Execute the request and get back the response in a `ClusterGetSettingsResponse` object.
-
-[[java-rest-high-cluster-get-settings-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a cluster get settings requires both the
-`ClusterGetSettingsRequest` instance and an `ActionListener` instance to be
-passed to the asynchronous method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[get-settings-execute-async]
---------------------------------------------------
-<1> The `ClusterGetSettingsRequest` to execute and the `ActionListener`
-to use when the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `ClusterGetSettingsResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[get-settings-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of a failure. The raised exception is provided as an argument
-
-[[java-rest-high-cluster-get-settings-response]]
+[id="{upid}-{api}-response"]
 ==== Cluster Get Settings Response
 
-The returned `ClusterGetSettingsResponse` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/ClusterClientDocumentationIT.java[get-settings-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Get the persistent settings.
 <2> Get the transient settings.
 <3> Get the default settings (returns empty settings if `includeDefaults` was not set to `true`).
 <4> Get the value as a `String` for a particular setting. The order of searching is first in `persistentSettings` then in
 `transientSettings` and finally, if not found in either, in `defaultSettings`.
+

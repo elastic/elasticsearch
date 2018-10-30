@@ -19,14 +19,15 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -34,8 +35,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestPath;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
@@ -58,7 +58,7 @@ import java.util.stream.Collectors;
  * REST calls.
  */
 public class ClientYamlTestClient implements Closeable {
-    private static final Logger logger = Loggers.getLogger(ClientYamlTestClient.class);
+    private static final Logger logger = LogManager.getLogger(ClientYamlTestClient.class);
 
     private static final ContentType YAML_CONTENT_TYPE = ContentType.create("application/yaml");
 
@@ -66,7 +66,7 @@ public class ClientYamlTestClient implements Closeable {
     private final Map<NodeSelector, RestClient> restClients = new HashMap<>();
     private final Version esVersion;
     private final Version masterVersion;
-    private final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer;
+    private final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes;
 
     ClientYamlTestClient(
             final ClientYamlSuiteRestSpec restSpec,
@@ -74,13 +74,13 @@ public class ClientYamlTestClient implements Closeable {
             final List<HttpHost> hosts,
             final Version esVersion,
             final Version masterVersion,
-            final CheckedConsumer<RestClientBuilder, IOException> clientBuilderConsumer) {
+            final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes) {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClients.put(NodeSelector.ANY, restClient);
         this.esVersion = esVersion;
         this.masterVersion = masterVersion;
-        this.clientBuilderConsumer = clientBuilderConsumer;
+        this.clientBuilderWithSniffedNodes = clientBuilderWithSniffedNodes;
     }
 
     public Version getEsVersion() {
@@ -199,10 +199,9 @@ public class ClientYamlTestClient implements Closeable {
     protected RestClient getRestClient(NodeSelector nodeSelector) {
         //lazily build a new client in case we need to point to some specific node
         return restClients.computeIfAbsent(nodeSelector, selector -> {
-            RestClient anyClient = restClients.get(NodeSelector.ANY);
-            RestClientBuilder builder = RestClient.builder(anyClient.getNodes().toArray(new Node[0]));
+            RestClientBuilder builder;
             try {
-                clientBuilderConsumer.accept(builder);
+                builder = clientBuilderWithSniffedNodes.get();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

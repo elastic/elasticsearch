@@ -22,10 +22,9 @@ body\n
 may be preceded by a carriage return `\r`. When sending requests to this endpoint the
 `Content-Type` header should be set to `application/x-ndjson`.
 
-The header part includes which index / indices to search on, optional
-(mapping) types to search on, the `search_type`, `preference`, and
-`routing`. The body includes the typical search body request (including
-the `query`, `aggregations`, `from`, `size`, and so on). Here is an example:
+The header part includes which index / indices to search on, the `search_type`, `preference`,
+and `routing`. The body includes the typical search body request (including the `query`,
+`aggregations`, `from`, `size`, and so on). Here is an example:
 
 [source,js]
 --------------------------------------------------
@@ -58,9 +57,9 @@ the original multi search request. If there was a complete failure for that
 specific search request, an object with `error` message and corresponding
 status code will be returned in place of the actual search response.
 
-The endpoint allows to also search against an index/indices and
-type/types in the URI itself, in which case it will be used as the
-default unless explicitly defined otherwise in the header. For example:
+The endpoint allows to also search against an index/indices in the URI itself,
+in which case it will be used as the default unless explicitly defined otherwise
+in the header. For example:
 
 [source,js]
 --------------------------------------------------
@@ -85,6 +84,16 @@ all search requests.
 The msearch's `max_concurrent_searches` request parameter can be used to control
 the maximum number of concurrent searches the multi search api will execute.
 This default is based on the number of data nodes and the default search thread pool size.
+
+The request parameter `max_concurrent_shard_requests` can be used to control the
+maximum number of concurrent shard requests the each sub search request will execute.
+This parameter should be used to protect a single request from overloading a cluster
+(e.g., a default request will hit all indices in a cluster which could cause shard request rejections
+if the number of shards per node is high). This default is based on the number of
+data nodes in the cluster but at most `256`.In certain scenarios parallelism isn't achieved through
+concurrent request such that this protection will result in poor performance. For
+instance in an environment where only a very low number of concurrent search requests are expected
+it might help to increase this value to a higher number.
 
 [float]
 [[msearch-security]]

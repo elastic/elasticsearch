@@ -23,7 +23,7 @@ public class DayOfYear extends DateTimeFunction {
     }
 
     @Override
-    protected NodeCtor2<Expression, TimeZone, DateTimeFunction> ctorForInfo() {
+    protected NodeCtor2<Expression, TimeZone, BaseDateTimeFunction> ctorForInfo() {
         return DayOfYear::new;
     }
 

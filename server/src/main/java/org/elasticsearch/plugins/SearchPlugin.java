@@ -42,12 +42,13 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.MovAvgModel;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.rescore.Rescorer;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 
@@ -149,31 +150,61 @@ public interface SearchPlugin {
      * Specification for a {@link Suggester}.
      */
     class SuggesterSpec<T extends SuggestionBuilder<T>> extends SearchExtensionSpec<T, CheckedFunction<XContentParser, T, IOException>> {
+
+        private Writeable.Reader<? extends Suggest.Suggestion> suggestionReader;
+
         /**
          * Specification of custom {@link Suggester}.
          *
          * @param name holds the names by which this suggester might be parsed. The {@link ParseField#getPreferredName()} is special as it
-         *        is the name by under which the reader is registered. So it is the name that the query should use as its
-         *        {@link NamedWriteable#getWriteableName()} too.
-         * @param reader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
+         *        is the name by under which the request builder and Suggestion response readers are registered. So it is the name that the
+         *        query and Suggestion response should use as their {@link NamedWriteable#getWriteableName()} return values too.
+         * @param builderReader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
          *        {@link StreamInput}
-         * @param parser the parser the reads the query suggester from xcontent
+         * @param builderParser a parser that reads the suggester's builder from xcontent
+         * @param suggestionReader the reader registered for this suggester's Suggestion response. Typically a reference to a constructor
+         *        that takes a {@link StreamInput}
          */
-        public SuggesterSpec(ParseField name, Writeable.Reader<T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
-            super(name, reader, parser);
+        public SuggesterSpec(
+                ParseField name,
+                Writeable.Reader<T> builderReader,
+                CheckedFunction<XContentParser, T, IOException> builderParser,
+                Writeable.Reader<? extends Suggest.Suggestion> suggestionReader) {
+
+            super(name, builderReader, builderParser);
+            setSuggestionReader(suggestionReader);
         }
 
         /**
          * Specification of custom {@link Suggester}.
          *
-         * @param name the name by which this suggester might be parsed or deserialized. Make sure that the query builder returns this name
-         *        for {@link NamedWriteable#getWriteableName()}.
-         * @param reader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
+         * @param name the name by which this suggester might be parsed or deserialized. Make sure that the query builder and Suggestion
+         *        response reader return this name for {@link NamedWriteable#getWriteableName()}.
+         * @param builderReader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
          *        {@link StreamInput}
-         * @param parser the parser the reads the suggester builder from xcontent
+         * @param builderParser a parser that reads the suggester's builder from xcontent
+         * @param suggestionReader the reader registered for this suggester's Suggestion response. Typically a reference to a constructor
+         *        that takes a {@link StreamInput}
          */
-        public SuggesterSpec(String name, Writeable.Reader<T> reader, CheckedFunction<XContentParser, T, IOException> parser) {
-            super(name, reader, parser);
+        public SuggesterSpec(
+                String name,
+                Writeable.Reader<T> builderReader,
+                CheckedFunction<XContentParser, T, IOException> builderParser,
+                Writeable.Reader<? extends Suggest.Suggestion> suggestionReader) {
+
+            super(name, builderReader, builderParser);
+            setSuggestionReader(suggestionReader);
+        }
+
+        private void setSuggestionReader(Writeable.Reader<? extends Suggest.Suggestion> reader) {
+            this.suggestionReader = reader;
+        }
+
+        /**
+         * Returns the reader used to read the {@link Suggest.Suggestion} generated by this suggester
+         */
+        public Writeable.Reader<? extends Suggest.Suggestion> getSuggestionReader() {
+            return this.suggestionReader;
         }
     }
 

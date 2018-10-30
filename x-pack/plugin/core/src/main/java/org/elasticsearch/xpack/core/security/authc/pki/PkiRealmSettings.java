@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.security.authc.pki;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.CompositeRoleMapperSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
@@ -43,6 +44,7 @@ public final class PkiRealmSettings {
         settings.add(SSL_SETTINGS.truststoreAlgorithm);
         settings.add(SSL_SETTINGS.caPaths);
 
+        settings.addAll(DelegatedAuthorizationSettings.getSettings());
         settings.addAll(CompositeRoleMapperSettings.getSettings());
 
         return settings;

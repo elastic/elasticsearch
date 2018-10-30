@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 
 import java.util.Collections;
@@ -31,15 +31,16 @@ import java.util.function.Supplier;
 public class TransportGetCalendarEventsAction extends HandledTransportAction<GetCalendarEventsAction.Request,
         GetCalendarEventsAction.Response> {
 
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final ClusterService clusterService;
 
     @Inject
     public TransportGetCalendarEventsAction(Settings settings, TransportService transportService,
-                                            ActionFilters actionFilters, ClusterService clusterService, JobProvider jobProvider) {
+                                            ActionFilters actionFilters, ClusterService clusterService,
+                                            JobResultsProvider jobResultsProvider) {
         super(settings, GetCalendarEventsAction.NAME, transportService, actionFilters,
             (Supplier<GetCalendarEventsAction.Request>) GetCalendarEventsAction.Request::new);
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.clusterService = clusterService;
     }
 
@@ -85,9 +86,9 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
                             jobGroups = job.getGroups();
                         }
 
-                        jobProvider.scheduledEventsForJob(requestId, jobGroups, query, eventsListener);
+                        jobResultsProvider.scheduledEventsForJob(requestId, jobGroups, query, eventsListener);
                     } else {
-                        jobProvider.scheduledEvents(query, eventsListener);
+                        jobResultsProvider.scheduledEvents(query, eventsListener);
                     }
                 },
                 listener::onFailure);
@@ -101,7 +102,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<Get
             return;
         }
 
-        jobProvider.calendar(calendarId, ActionListener.wrap(
+        jobResultsProvider.calendar(calendarId, ActionListener.wrap(
                 c -> listener.onResponse(true),
                 listener::onFailure
         ));

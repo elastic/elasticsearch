@@ -169,9 +169,9 @@ aggregation and the Slack action:
                                     more information, see
                                     <<slack-dynamic-attachment, Using Attachments to Format Slack Messages>>.
 
-| `proxy.host`      | no        | -       | The proxy host to use (only in combination with `proxy.port`)
+| `proxy.host`      | no        | The proxy host to use (only in combination with `proxy.port`)
 
-| `proxy.port`      | no        | -       | The proxy port to use (only in combination with `proxy.host`)
+| `proxy.port`      | no        | The proxy port to use (only in combination with `proxy.host`)
 |======
 
 [[configuring-slack]]

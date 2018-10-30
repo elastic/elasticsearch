@@ -19,6 +19,11 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -26,14 +31,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 
 /**
  * Manages building {@link ScriptService}.
@@ -43,15 +40,18 @@ public class ScriptModule {
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {
         CORE_CONTEXTS = Stream.of(
-            SearchScript.CONTEXT,
-            SearchScript.AGGS_CONTEXT,
+            FieldScript.CONTEXT,
+            AggregationScript.CONTEXT,
             ScoreScript.CONTEXT,
-            SearchScript.SCRIPT_SORT_CONTEXT,
-            SearchScript.TERMS_SET_QUERY_CONTEXT,
-            ExecutableScript.CONTEXT,
-            ExecutableScript.AGGS_CONTEXT,
-            ExecutableScript.UPDATE_CONTEXT,
+            NumberSortScript.CONTEXT,
+            StringSortScript.CONTEXT,
+            TermsSetQueryScript.CONTEXT,
+            UpdateScript.CONTEXT,
+            BucketAggregationScript.CONTEXT,
+            BucketAggregationSelectorScript.CONTEXT,
+            SignificantTermsHeuristicScoreScript.CONTEXT,
             IngestScript.CONTEXT,
+            IngestConditionalScript.CONTEXT,
             FilterScript.CONTEXT,
             SimilarityScript.CONTEXT,
             SimilarityWeightScript.CONTEXT,
@@ -64,19 +64,14 @@ public class ScriptModule {
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 
-    public static final boolean EXCEPTION_FOR_MISSING_VALUE =
-        Booleans.parseBoolean(System.getProperty("es.scripting.exception_for_missing_value", "false"));
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ScriptModule.class));
-
     private final ScriptService scriptService;
 
     public ScriptModule(Settings settings, List<ScriptPlugin> scriptPlugins) {
         Map<String, ScriptEngine> engines = new HashMap<>();
         Map<String, ScriptContext<?>> contexts = new HashMap<>(CORE_CONTEXTS);
         for (ScriptPlugin plugin : scriptPlugins) {
-            for (ScriptContext context : plugin.getContexts()) {
-                ScriptContext oldContext = contexts.put(context.name, context);
+            for (ScriptContext<?> context : plugin.getContexts()) {
+                ScriptContext<?> oldContext = contexts.put(context.name, context);
                 if (oldContext != null) {
                     throw new IllegalArgumentException("Context name [" + context.name + "] defined twice");
                 }
@@ -92,10 +87,6 @@ public class ScriptModule {
                 }
             }
         }
-        if (EXCEPTION_FOR_MISSING_VALUE == false)
-            DEPRECATION_LOGGER.deprecated("Script: returning default values for missing document values is deprecated. " +
-                    "Set system property '-Des.scripting.exception_for_missing_value=true' " +
-                    "to make behaviour compatible with future major versions.");
         scriptService = new ScriptService(settings, Collections.unmodifiableMap(engines), Collections.unmodifiableMap(contexts));
     }
 

@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.writer.RecordWriter;
+import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -182,7 +182,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
     @Override
     protected Detector doParseInstance(XContentParser parser) {
-        return Detector.CONFIG_PARSER.apply(parser, null).build();
+        return Detector.STRICT_PARSER.apply(parser, null).build();
     }
 
     public void testVerifyFieldNames_givenInvalidChars() {
@@ -541,7 +541,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
-        assertThat(e.getMessage(), equalTo("Invalid detector rule: function lat_long does not support rules with conditions"));
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function lat_long only supports conditions that apply to time"));
     }
 
     public void testVerify_GivenRulesAndFunctionIsMetric() {
@@ -551,7 +551,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
-        assertThat(e.getMessage(), equalTo("Invalid detector rule: function metric does not support rules with conditions"));
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function metric only supports conditions that apply to time"));
     }
 
     public void testVerify_GivenRulesAndFunctionIsRare() {
@@ -562,7 +562,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
-        assertThat(e.getMessage(), equalTo("Invalid detector rule: function rare does not support rules with conditions"));
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function rare only supports conditions that apply to time"));
     }
 
     public void testVerify_GivenRulesAndFunctionIsFreqRare() {
@@ -574,7 +574,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
         ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, detector::build);
 
-        assertThat(e.getMessage(), equalTo("Invalid detector rule: function freq_rare does not support rules with conditions"));
+        assertThat(e.getMessage(), equalTo("Invalid detector rule: function freq_rare only supports conditions that apply to time"));
     }
 
     public void testVerify_GivenTimeConditionRuleAndFunctionIsLatLong() {

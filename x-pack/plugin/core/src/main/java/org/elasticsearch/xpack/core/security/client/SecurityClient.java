@@ -10,6 +10,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequestBuilder;
@@ -68,6 +74,10 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
@@ -100,7 +110,6 @@ public class SecurityClient {
      * Clears the realm caches. It's possible to clear all user entries from all realms in the cluster or alternatively
      * select the realms (by their unique names) and/or users (by their usernames) that should be evicted.
      */
-    @SuppressWarnings("unchecked")
     public ClearRealmCacheRequestBuilder prepareClearRealmCache() {
         return new ClearRealmCacheRequestBuilder(client);
     }
@@ -109,7 +118,6 @@ public class SecurityClient {
      * Clears the realm caches. It's possible to clear all user entries from all realms in the cluster or alternatively
      * select the realms (by their unique names) and/or users (by their usernames) that should be evicted.
      */
-    @SuppressWarnings("unchecked")
     public void clearRealmCache(ClearRealmCacheRequest request, ActionListener<ClearRealmCacheResponse> listener) {
         client.execute(ClearRealmCacheAction.INSTANCE, request, listener);
     }
@@ -118,7 +126,6 @@ public class SecurityClient {
      * Clears the realm caches. It's possible to clear all user entries from all realms in the cluster or alternatively
      * select the realms (by their unique names) and/or users (by their usernames) that should be evicted.
      */
-    @SuppressWarnings("unchecked")
     public ActionFuture<ClearRealmCacheResponse> clearRealmCache(ClearRealmCacheRequest request) {
         return client.execute(ClearRealmCacheAction.INSTANCE, request);
     }
@@ -170,7 +177,17 @@ public class SecurityClient {
         client.execute(HasPrivilegesAction.INSTANCE, request, listener);
     }
 
-    /** User Management */
+    public GetUserPrivilegesRequestBuilder prepareGetUserPrivileges(String username) {
+        return new GetUserPrivilegesRequestBuilder(client).username(username);
+    }
+
+    public void listUserPrivileges(GetUserPrivilegesRequest request, ActionListener<GetUserPrivilegesResponse> listener) {
+        client.execute(GetUserPrivilegesAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * User Management
+     */
 
     public GetUsersRequestBuilder prepareGetUsers(String... usernames) {
         return new GetUsersRequestBuilder(client).usernames(usernames);
@@ -226,7 +243,9 @@ public class SecurityClient {
         client.execute(SetEnabledAction.INSTANCE, request, listener);
     }
 
-    /** Role Management */
+    /**
+     * Role Management
+     */
 
     public GetRolesRequestBuilder prepareGetRoles(String... names) {
         return new GetRolesRequestBuilder(client).names(names);
@@ -256,7 +275,9 @@ public class SecurityClient {
         client.execute(PutRoleAction.INSTANCE, request, listener);
     }
 
-    /** Role Mappings */
+    /**
+     * Role Mappings
+     */
 
     public GetRoleMappingsRequestBuilder prepareGetRoleMappings(String... names) {
         return new GetRoleMappingsRequestBuilder(client, GetRoleMappingsAction.INSTANCE)
@@ -276,6 +297,21 @@ public class SecurityClient {
     public DeleteRoleMappingRequestBuilder prepareDeleteRoleMapping(String name) {
         return new DeleteRoleMappingRequestBuilder(client, DeleteRoleMappingAction.INSTANCE)
                 .name(name);
+    }
+
+    /* -- Application Privileges -- */
+    public GetPrivilegesRequestBuilder prepareGetPrivileges(String applicationName, String[] privileges) {
+        return new GetPrivilegesRequestBuilder(client, GetPrivilegesAction.INSTANCE).application(applicationName).privileges(privileges);
+    }
+
+    public PutPrivilegesRequestBuilder preparePutPrivileges(BytesReference bytesReference, XContentType xContentType) throws IOException {
+        return new PutPrivilegesRequestBuilder(client, PutPrivilegesAction.INSTANCE).source(bytesReference, xContentType);
+    }
+
+    public DeletePrivilegesRequestBuilder prepareDeletePrivileges(String applicationName, String[] privileges) {
+        return new DeletePrivilegesRequestBuilder(client, DeletePrivilegesAction.INSTANCE)
+            .application(applicationName)
+            .privileges(privileges);
     }
 
     public CreateTokenRequestBuilder prepareCreateToken() {
@@ -301,7 +337,7 @@ public class SecurityClient {
         return builder;
     }
 
-    public void samlAuthenticate(SamlAuthenticateRequest request, ActionListener< SamlAuthenticateResponse> listener) {
+    public void samlAuthenticate(SamlAuthenticateRequest request, ActionListener<SamlAuthenticateResponse> listener) {
         client.execute(SamlAuthenticateAction.INSTANCE, request, listener);
     }
 

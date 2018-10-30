@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.fetch;
 
-
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -30,7 +30,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.termvectors.TermVectorsService;
@@ -146,7 +145,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 }
                 hitField.getValues().add(tv);
             } catch (IOException e) {
-                ESLoggerFactory.getLogger(FetchSubPhasePluginIT.class.getName()).info("Swallowed exception", e);
+                LogManager.getLogger(FetchSubPhasePluginIT.class).info("Swallowed exception", e);
             }
         }
     }

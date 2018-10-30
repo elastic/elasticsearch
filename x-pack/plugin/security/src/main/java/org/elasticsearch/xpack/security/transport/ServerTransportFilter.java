@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -13,7 +14,6 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
@@ -25,7 +25,6 @@ import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
@@ -54,11 +53,11 @@ public interface ServerTransportFilter {
             throws IOException;
 
     /**
-     * The server trasnport filter that should be used in nodes as it ensures that an incoming
+     * The server transport filter that should be used in nodes as it ensures that an incoming
      * request is properly authenticated and authorized
      */
     class NodeProfile implements ServerTransportFilter {
-        private static final Logger logger = Loggers.getLogger(NodeProfile.class);
+        private static final Logger logger = LogManager.getLogger(NodeProfile.class);
 
         private final AuthenticationService authcService;
         private final AuthorizationService authzService;
@@ -116,50 +115,28 @@ public interface ServerTransportFilter {
                 }
             }
 
-            final Version version = transportChannel.getVersion().equals(Version.V_5_4_0) ? Version.CURRENT : transportChannel.getVersion();
+            final Version version = transportChannel.getVersion();
             authcService.authenticate(securityAction, request, (User)null, ActionListener.wrap((authentication) -> {
-                    if (reservedRealmEnabled && authentication.getVersion().before(Version.V_5_2_0) &&
-                        KibanaUser.NAME.equals(authentication.getUser().authenticatedUser().principal())) {
-                        executeAsCurrentVersionKibanaUser(securityAction, request, transportChannel, listener, authentication);
-                    } else if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
-                               SystemUser.is(authentication.getUser()) == false) {
-                        securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
-                            final Authentication replaced = Authentication.getAuthentication(threadContext);
-                            final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                                    new AuthorizationUtils.AsyncAuthorizer(replaced, listener, (userRoles, runAsRoles) -> {
-                                        authzService.authorize(replaced, securityAction, request, userRoles, runAsRoles);
-                                        listener.onResponse(null);
-                                    });
-                            asyncAuthorizer.authorize(authzService);
-                        }, version);
-                    } else {
+                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
+                    SystemUser.is(authentication.getUser()) == false) {
+                    securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
+                        final Authentication replaced = Authentication.getAuthentication(threadContext);
                         final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                                new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
-                                    authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                                    listener.onResponse(null);
-                                });
+                            new AuthorizationUtils.AsyncAuthorizer(replaced, listener, (userRoles, runAsRoles) -> {
+                                authzService.authorize(replaced, securityAction, request, userRoles, runAsRoles);
+                                listener.onResponse(null);
+                            });
                         asyncAuthorizer.authorize(authzService);
-                    }
-                }, listener::onFailure));
-        }
-
-        private void executeAsCurrentVersionKibanaUser(String securityAction, TransportRequest request, TransportChannel transportChannel,
-                                                       ActionListener<Void> listener, Authentication authentication) {
-            // the authentication came from an older node - so let's replace the user with our version
-            final User kibanaUser = new KibanaUser(authentication.getUser().enabled());
-            if (kibanaUser.enabled()) {
-                securityContext.executeAsUser(kibanaUser, (original) -> {
-                    final Authentication replacedUserAuth = securityContext.getAuthentication();
+                    }, version);
+                } else {
                     final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                        new AuthorizationUtils.AsyncAuthorizer(replacedUserAuth, listener, (userRoles, runAsRoles) -> {
-                            authzService.authorize(replacedUserAuth, securityAction, request, userRoles, runAsRoles);
+                        new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
+                            authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
                             listener.onResponse(null);
                         });
                     asyncAuthorizer.authorize(authzService);
-                }, transportChannel.getVersion());
-            } else {
-                throw new IllegalStateException("a disabled user should never be sent. " + kibanaUser);
-            }
+                }
+            }, listener::onFailure));
         }
     }
 

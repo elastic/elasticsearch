@@ -185,7 +185,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testParseFile_Empty() throws Exception {
         Path empty = createTempFile();
-        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG, null);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(empty, logger, Settings.EMPTY);
         assertThat(users.isEmpty(), is(true));
         List<String> events = CapturingLogger.output(logger.getName(), Level.DEBUG);
@@ -195,7 +195,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
         Path file = createTempDir().resolve(randomAlphaOfLength(10));
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(file, logger, Settings.EMPTY);
         assertThat(users, nullValue());
         users = FileUserPasswdStore.parseFileLenient(file, logger, Settings.EMPTY);
@@ -207,7 +207,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         try {
             FileUserPasswdStore.parseFile(file, logger, Settings.EMPTY);
             fail("expected a parse failure");
@@ -228,7 +228,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         Map<String, char[]> users = FileUserPasswdStore.parseFileLenient(file, logger, Settings.EMPTY);
         assertThat(users, notNullValue());
         assertThat(users.isEmpty(), is(true));

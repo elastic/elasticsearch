@@ -59,11 +59,9 @@ public final class SDeclaration extends AStatement {
 
     @Override
     void analyze(Locals locals) {
-        Class<?> clazz;
+        Class<?> clazz = locals.getPainlessLookup().canonicalTypeNameToType(this.type);
 
-        try {
-            clazz = locals.getPainlessLookup().getJavaClassFromPainlessType(this.type);
-        } catch (IllegalArgumentException exception) {
+        if (clazz == null) {
             throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 

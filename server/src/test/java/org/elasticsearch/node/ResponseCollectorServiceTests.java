@@ -34,7 +34,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -53,7 +52,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
         threadpool = new TestThreadPool("response_collector_tests");
         clusterService = new ClusterService(Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadpool, Collections.emptyMap());
+                threadpool);
         collector = new ResponseCollectorService(Settings.EMPTY, clusterService);
     }
 

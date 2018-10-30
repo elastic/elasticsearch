@@ -59,7 +59,7 @@ import java.util.Set;
  */
 public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionBuilder> {
 
-    private static final String SUGGESTION_NAME = "phrase";
+    public static final String SUGGESTION_NAME = "phrase";
 
     protected static final ParseField MAXERRORS_FIELD = new ParseField("max_errors");
     protected static final ParseField RWE_LIKELIHOOD_FIELD = new ParseField("real_word_error_likelihood");

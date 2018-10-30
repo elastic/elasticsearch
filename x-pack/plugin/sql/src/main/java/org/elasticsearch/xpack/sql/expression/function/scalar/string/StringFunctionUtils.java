@@ -8,6 +8,28 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 abstract class StringFunctionUtils {
 
     /**
+     * Extract a substring from the given string, using start index and length of the extracted substring.
+     *
+     * @param s       the original String
+     * @param start   starting position for the substring within the original string. 0-based index position
+     * @param length  length in characters of the subtracted substring
+     * @return the resulting String
+     */
+    static String substring(String s, int start, int length) {
+        if (!hasLength(s)) {
+            return s;
+        }
+        
+        if (start < 0)
+            start = 0;
+        
+        if (start + 1 > s.length() || length < 0)
+            return "";
+        
+        return (start + length > s.length()) ? s.substring(start) : s.substring(start, start + length);
+    }
+
+    /**
      * Trims the trailing whitespace characters from the given String. Uses {@link Character#isWhitespace(char)}
      * to determine if a character is whitespace or not.
      *
@@ -48,4 +70,6 @@ abstract class StringFunctionUtils {
     private static boolean hasLength(String s) {
         return (s != null && s.length() > 0);
     }
+    
+
 }

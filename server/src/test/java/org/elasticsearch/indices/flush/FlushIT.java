@@ -18,6 +18,16 @@
  */
 package org.elasticsearch.indices.flush;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
 import org.apache.lucene.index.Term;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -46,16 +56,6 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -239,7 +239,8 @@ public class FlushIT extends ESIntegTestCase {
 
     private void indexDoc(Engine engine, String id) throws IOException {
         final ParsedDocument doc = InternalEngineTests.createParsedDoc(id, null);
-        final Engine.IndexResult indexResult = engine.index(new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), 1L, doc));
+        final Engine.IndexResult indexResult = engine.index(new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), doc,
+            engine.getLocalCheckpoint() + 1, 1L, 1L, null, Engine.Operation.Origin.REPLICA, randomLong(), -1L, false));
         assertThat(indexResult.getFailure(), nullValue());
     }
 
@@ -274,8 +275,11 @@ public class FlushIT extends ESIntegTestCase {
             "out of sync replica; num docs on replica [" + (numDocs + extraDocs) + "]; num docs on primary [" + numDocs + "]"));
         // Index extra documents to all shards - synced-flush should be ok.
         for (IndexShard indexShard : indexShards) {
-            for (int i = 0; i < extraDocs; i++) {
-                indexDoc(IndexShardTestCase.getEngine(indexShard), "extra_" + i);
+            // Do reindex documents to the out of sync replica to avoid trigger merges
+            if (indexShard != outOfSyncReplica) {
+                for (int i = 0; i < extraDocs; i++) {
+                    indexDoc(IndexShardTestCase.getEngine(indexShard), "extra_" + i);
+                }
             }
         }
         final ShardsSyncedFlushResult fullResult = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
@@ -307,7 +311,7 @@ public class FlushIT extends ESIntegTestCase {
         // Shards were updated, renew synced flush.
         final int moreDocs = between(1, 10);
         for (int i = 0; i < moreDocs; i++) {
-            index("test", "doc", Integer.toString(i));
+            index("test", "doc", "more-" + i);
         }
         final ShardsSyncedFlushResult thirdSeal = SyncedFlushUtil.attemptSyncedFlush(logger, internalCluster(), shardId);
         assertThat(thirdSeal.successfulShards(), equalTo(numberOfReplicas + 1));

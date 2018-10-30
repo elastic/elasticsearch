@@ -214,6 +214,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         private final AliasActions.Type type;
         private String[] indices;
         private String[] aliases = Strings.EMPTY_ARRAY;
+        private String[] originalAliases = Strings.EMPTY_ARRAY;
         private String filter;
         private String routing;
         private String indexRouting;
@@ -238,6 +239,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
                 writeIndex = in.readOptionalBoolean();
             }
+            if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                originalAliases = in.readStringArray();
+            }
         }
 
         @Override
@@ -251,6 +255,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalString(indexRouting);
             if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
                 out.writeOptionalBoolean(writeIndex);
+            }
+            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+                out.writeStringArray(originalAliases);
             }
         }
 
@@ -315,6 +322,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 }
             }
             this.aliases = aliases;
+            this.originalAliases = aliases;
             return this;
         }
 
@@ -329,6 +337,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 throw new IllegalArgumentException("[alias] can't be empty string");
             }
             this.aliases = new String[] {alias};
+            this.originalAliases = aliases;
             return this;
         }
 
@@ -430,6 +439,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         @Override
         public void replaceAliases(String... aliases) {
             this.aliases = aliases;
+        }
+
+        @Override
+        public String[] getOriginalAliases() {
+            return originalAliases;
         }
 
         @Override
@@ -579,7 +593,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }, AliasActions.PARSER, new ParseField("actions"));
     }
 
-    public static IndicesAliasesRequest fromXContent(XContentParser parser) throws IOException {
+    public static IndicesAliasesRequest fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

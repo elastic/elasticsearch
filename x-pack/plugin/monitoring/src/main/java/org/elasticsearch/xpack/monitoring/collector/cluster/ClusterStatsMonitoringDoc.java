@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.monitoring.collector.cluster;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.License;
@@ -45,6 +47,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                                 ClusterState.Metric.NODES));
 
     public static final String TYPE = "cluster_stats";
+    protected static final String SETTING_CLUSTER_METADATA = "cluster.metadata";
 
     private final String clusterName;
     private final String version;
@@ -118,6 +121,14 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         return clusterNeedsTLSEnabled;
     }
 
+    Settings getClusterMetaDataSettings() {
+        MetaData metaData = this.clusterState.getMetaData();
+        if (metaData == null) {
+            return Settings.EMPTY;
+        }
+        return metaData.settings().getAsSettings(SETTING_CLUSTER_METADATA);
+    }
+
     @Override
     protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("cluster_name", clusterName);
@@ -152,6 +163,25 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                 builder.field("nodes_hash", nodesHash(clusterState.nodes()));
                 builder.field("status", status.name().toLowerCase(Locale.ROOT));
                 clusterState.toXContent(builder, CLUSTER_STATS_PARAMS);
+            }
+            builder.endObject();
+        }
+
+        Settings clusterMetaDataSettings = getClusterMetaDataSettings();
+        if (clusterMetaDataSettings != null) {
+            builder.startObject("cluster_settings");
+            {
+                if (clusterMetaDataSettings.size() > 0) {
+                    builder.startObject("cluster");
+                    {
+                        builder.startObject("metadata");
+                        {
+                            clusterMetaDataSettings.toXContent(builder, params);
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
             }
             builder.endObject();
         }

@@ -19,13 +19,14 @@
 
 package org.elasticsearch.discovery;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.single.SingleNodeDiscovery;
+import org.elasticsearch.discovery.zen.FileBasedUnicastHostsProvider;
 import org.elasticsearch.discovery.zen.SettingsBasedHostsProvider;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -40,6 +42,7 @@ import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -58,6 +61,7 @@ import java.util.stream.Collectors;
  * A module for loading classes for node discovery.
  */
 public class DiscoveryModule {
+    private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
         new Setting<>("discovery.type", "zen", Function.identity(), Property.NodeScope);
@@ -69,10 +73,11 @@ public class DiscoveryModule {
     public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService,
                            NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
                            ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
-                           AllocationService allocationService) {
+                           AllocationService allocationService, Path configFile) {
         final Collection<BiConsumer<DiscoveryNode,ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedHostsProvider(settings, transportService));
+        hostProviders.put("file", () -> new FileBasedUnicastHostsProvider(settings, configFile));
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getZenHostsProviders(transportService, networkService).entrySet().forEach(entry -> {
                 if (hostProviders.put(entry.getKey(), entry.getValue()) != null) {
@@ -128,7 +133,7 @@ public class DiscoveryModule {
         if (discoverySupplier == null) {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
-        Loggers.getLogger(getClass(), settings).info("using discovery type [{}]", discoveryType);
+        logger.info("using discovery type [{}] and host providers {}", discoveryType, hostsProviderNames);
         discovery = Objects.requireNonNull(discoverySupplier.get());
     }
 

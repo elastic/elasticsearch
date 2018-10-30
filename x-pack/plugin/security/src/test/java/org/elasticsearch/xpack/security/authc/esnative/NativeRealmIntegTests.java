@@ -13,7 +13,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureString;
@@ -22,6 +21,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageRequestBuilder;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
@@ -66,6 +66,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for the NativeUsersStore and NativeRolesStore
@@ -358,10 +359,11 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 assertThat(e.status(), is(RestStatus.FORBIDDEN));
             }
         } else {
+            final TransportRequest request = mock(TransportRequest.class);
             GetRolesResponse getRolesResponse = c.prepareGetRoles().names("test_role").get();
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue("any cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/foo"));
+                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/foo", request));
 
             c.preparePutRole("test_role")
                     .cluster("none")
@@ -372,7 +374,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
 
             assertFalse("no cluster permission should be authorized",
-                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/bar"));
+                    Role.builder(getRolesResponse.roles()[0], null).build().cluster().check("cluster:admin/bar", request));
         }
     }
 
@@ -489,14 +491,14 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             client.preparePutUser("joe", randomAlphaOfLengthBetween(0, 5).toCharArray(), hasher,
                 "admin_role").get();
             fail("cannot create a user without a password < 6 characters");
-        } catch (ValidationException v) {
+        } catch (IllegalArgumentException v) {
             assertThat(v.getMessage().contains("password"), is(true));
         }
     }
 
     public void testCannotCreateUserWithInvalidCharactersInName() throws Exception {
         SecurityClient client = securityClient();
-        ValidationException v = expectThrows(ValidationException.class,
+        IllegalArgumentException v = expectThrows(IllegalArgumentException.class,
             () -> client.preparePutUser("fóóbár", "my-am@zing-password".toCharArray(), hasher,
                 "admin_role").get()
         );
@@ -530,7 +532,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> securityClient().preparePutUser(username, randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()
                     : null, hasher, "admin").get());
-        assertThat(exception.getMessage(), containsString("Username [" + username + "] is reserved"));
+        assertThat(exception.getMessage(), containsString("user [" + username + "] is reserved"));
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> securityClient().prepareDeleteUser(username).get());
@@ -548,7 +550,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         exception = expectThrows(IllegalArgumentException.class,
             () -> securityClient().preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar".toCharArray(),
                 hasher).get());
-        assertThat(exception.getMessage(), containsString("Username [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is reserved"));
+        assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
         exception = expectThrows(IllegalArgumentException.class,
             () -> securityClient().preparePutUser(SystemUser.NAME, "foobar".toCharArray(), hasher).get());

@@ -6,16 +6,21 @@
 .Synopsis
 [source, sql]
 ----
-DESCRIBE table
+DESCRIBE [table identifier<1> | [LIKE pattern<2>]]
 ----
+
+<1> single table identifier or double quoted es multi index
+<2> SQL LIKE pattern
 
 or 
 
 [source, sql]
 ----
-DESC table
+DESC [table identifier<1>|[LIKE pattern<2>]]
 ----
 
+<1> single table identifier or double quoted es multi index
+<2> SQL LIKE pattern
 
 .Description
 

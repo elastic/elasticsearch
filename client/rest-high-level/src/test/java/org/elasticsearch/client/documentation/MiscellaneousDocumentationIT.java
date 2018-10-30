@@ -30,20 +30,22 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.protocol.xpack.XPackInfoRequest;
-import org.elasticsearch.protocol.xpack.XPackInfoResponse;
-import org.elasticsearch.protocol.xpack.XPackInfoResponse.BuildInfo;
-import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
-import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
-import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.protocol.xpack.XPackUsageResponse;
+import org.elasticsearch.client.xpack.XPackInfoRequest;
+import org.elasticsearch.client.xpack.XPackInfoResponse;
+import org.elasticsearch.client.xpack.XPackInfoResponse.BuildInfo;
+import org.elasticsearch.client.xpack.XPackInfoResponse.FeatureSetsInfo;
+import org.elasticsearch.client.xpack.XPackInfoResponse.LicenseInfo;
+import org.elasticsearch.client.xpack.XPackUsageRequest;
+import org.elasticsearch.client.xpack.XPackUsageResponse;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -97,8 +99,7 @@ public class MiscellaneousDocumentationIT extends ESRestHighLevelClientTestCase 
             //tag::x-pack-info-response
             BuildInfo build = response.getBuildInfo();                 // <1>
             LicenseInfo license = response.getLicenseInfo();           // <2>
-            assertEquals(XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS,
-                    license.getExpiryDate());                          // <3>
+            assertThat(license.getExpiryDate(), is(greaterThan(Instant.now().toEpochMilli())));  // <3>
             FeatureSetsInfo features = response.getFeatureSetsInfo();  // <4>
             //end::x-pack-info-response
 

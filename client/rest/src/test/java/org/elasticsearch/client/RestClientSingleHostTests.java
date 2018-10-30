@@ -59,7 +59,7 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -69,13 +69,14 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClientTestUtil.getAllErrorStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.getOkStatusCodes;
-import static org.elasticsearch.client.RestClientTestUtil.randomHttpMethod;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
 import static org.elasticsearch.client.SyncResponseListenerTests.assertExceptionStackContainsCallingMethod;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -98,6 +99,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     private Node node;
     private CloseableHttpAsyncClient httpClient;
     private HostsTrackingFailureListener failureListener;
+    private boolean strictDeprecationMode;
 
     @Before
     @SuppressWarnings("unchecked")
@@ -149,8 +151,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
         node = new Node(new HttpHost("localhost", 9200));
         failureListener = new HostsTrackingFailureListener();
+        strictDeprecationMode = randomBoolean();
         restClient = new RestClient(httpClient, 10000, defaultHeaders,
-                singletonList(node), null, failureListener, NodeSelector.ANY);
+                singletonList(node), null, failureListener, NodeSelector.ANY, strictDeprecationMode);
     }
 
     /**
@@ -192,7 +195,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     public void testOkStatusCodes() throws IOException {
         for (String method : getHttpMethods()) {
             for (int okStatusCode : getOkStatusCodes()) {
-                Response response = performRequest(method, "/" + okStatusCode);
+                Response response = restClient.performRequest(new Request(method, "/" + okStatusCode));
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(okStatusCode));
             }
         }
@@ -223,13 +226,11 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             //error status codes should cause an exception to be thrown
             for (int errorStatusCode : getAllErrorStatusCodes()) {
                 try {
-                    Map<String, String> params;
-                    if (ignoreParam.isEmpty()) {
-                        params = Collections.emptyMap();
-                    } else {
-                        params = Collections.singletonMap("ignore", ignoreParam);
+                    Request request = new Request(method, "/" + errorStatusCode);
+                    if (false == ignoreParam.isEmpty()) {
+                        request.addParameter("ignore", ignoreParam);
                     }
-                    Response response = performRequest(method, "/" + errorStatusCode, params);
+                    Response response = restClient.performRequest(request);
                     if (expectedIgnores.contains(errorStatusCode)) {
                         //no exception gets thrown although we got an error status code, as it was configured to be ignored
                         assertEquals(errorStatusCode, response.getStatusLine().getStatusCode());
@@ -256,14 +257,14 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         for (String method : getHttpMethods()) {
             //IOExceptions should be let bubble up
             try {
-                performRequest(method, "/coe");
+                restClient.performRequest(new Request(method, "/coe"));
                 fail("request should have failed");
             } catch(IOException e) {
                 assertThat(e, instanceOf(ConnectTimeoutException.class));
             }
             failureListener.assertCalled(singletonList(node));
             try {
-                performRequest(method, "/soe");
+                restClient.performRequest(new Request(method, "/soe"));
                 fail("request should have failed");
             } catch(IOException e) {
                 assertThat(e, instanceOf(SocketTimeoutException.class));
@@ -314,48 +315,6 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests}.
-     */
-    @Deprecated
-    public void tesPerformRequestOldStyleNullHeaders() throws IOException {
-        String method = randomHttpMethod(getRandom());
-        int statusCode = randomStatusCode(getRandom());
-        try {
-            performRequest(method, "/" + statusCode, (Header[])null);
-            fail("request should have failed");
-        } catch(NullPointerException e) {
-            assertEquals("request headers must not be null", e.getMessage());
-        }
-        try {
-            performRequest(method, "/" + statusCode, (Header)null);
-            fail("request should have failed");
-        } catch(NullPointerException e) {
-            assertEquals("request header must not be null", e.getMessage());
-        }
-    }
-
-    /**
-     * @deprecated will remove method in 7.0 but needs tests until then. Replaced by {@link RequestTests#testAddParameters()}.
-     */
-    @Deprecated
-    public void testPerformRequestOldStyleWithNullParams() throws IOException {
-        String method = randomHttpMethod(getRandom());
-        int statusCode = randomStatusCode(getRandom());
-        try {
-            restClient.performRequest(method, "/" + statusCode, (Map<String, String>)null);
-            fail("request should have failed");
-        } catch(NullPointerException e) {
-            assertEquals("parameters cannot be null", e.getMessage());
-        }
-        try {
-            restClient.performRequest(method, "/" + statusCode, null, (HttpEntity)null);
-            fail("request should have failed");
-        } catch(NullPointerException e) {
-            assertEquals("parameters cannot be null", e.getMessage());
-        }
-    }
-
-    /**
      * End to end test for request and response headers. Exercises the mock http client ability to send back
      * whatever headers it has received.
      */
@@ -377,7 +336,52 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             }
             assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
             assertHeaders(defaultHeaders, requestHeaders, esResponse.getHeaders(), Collections.<String>emptySet());
+            assertFalse(esResponse.hasWarnings());
         }
+    }
+
+    public void testDeprecationWarnings() throws IOException {
+        String chars = randomAsciiAlphanumOfLength(5);
+        assertDeprecationWarnings(singletonList("poorly formatted " + chars), singletonList("poorly formatted " + chars));
+        assertDeprecationWarnings(singletonList(formatWarning(chars)), singletonList(chars));
+        assertDeprecationWarnings(
+                Arrays.asList(formatWarning(chars), "another one", "and another"),
+                Arrays.asList(chars,                "another one", "and another"));
+
+    }
+
+    private void assertDeprecationWarnings(List<String> warningHeaderTexts, List<String> warningBodyTexts) throws IOException {
+        String method = randomFrom(getHttpMethods());
+        Request request = new Request(method, "/200");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        for (String warningHeaderText : warningHeaderTexts) {
+            options.addHeader("Warning", warningHeaderText);
+        }
+        request.setOptions(options);
+
+        Response response;
+        if (strictDeprecationMode) {
+            try {
+                restClient.performRequest(request);
+                fail("expected ResponseException because strict deprecation mode is enabled");
+                return;
+            } catch (ResponseException e) {
+                assertThat(e.getMessage(), containsString("\nWarnings: " + warningBodyTexts));
+                response = e.getResponse();
+            }
+        } else {
+            response = restClient.performRequest(request);
+        }
+        assertTrue(response.hasWarnings());
+        assertEquals(warningBodyTexts, response.getWarnings());
+    }
+
+    /**
+     * Emulates Elasticsearch's DeprecationLogger.formatWarning in simple
+     * cases. We don't have that available because we're testing against 1.7.
+     */
+    private static String formatWarning(String warningBody) {
+        return "299 Elasticsearch-1.2.2-SNAPSHOT-eeeeeee \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
     }
 
     private HttpUriRequest performRandomRequest(String method) throws Exception {
@@ -463,36 +467,5 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             //all good
         }
         return expectedRequest;
-    }
-
-    /**
-     * @deprecated prefer {@link RestClient#performRequest(Request)}.
-     */
-    @Deprecated
-    private Response performRequest(String method, String endpoint, Header... headers) throws IOException {
-        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), headers);
-    }
-
-    /**
-     * @deprecated prefer {@link RestClient#performRequest(Request)}.
-     */
-    @Deprecated
-    private Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
-        int methodSelector;
-        if (params.isEmpty()) {
-            methodSelector = randomIntBetween(0, 2);
-        } else {
-            methodSelector = randomIntBetween(1, 2);
-        }
-        switch(methodSelector) {
-            case 0:
-                return restClient.performRequest(method, endpoint, headers);
-            case 1:
-                return restClient.performRequest(method, endpoint, params, headers);
-            case 2:
-                return restClient.performRequest(method, endpoint, params, (HttpEntity)null, headers);
-            default:
-                throw new UnsupportedOperationException();
-        }
     }
 }

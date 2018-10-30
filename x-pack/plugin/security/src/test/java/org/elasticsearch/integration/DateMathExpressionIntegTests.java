@@ -7,12 +7,12 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
@@ -111,7 +111,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         assertEquals(expectedIndexName, multiGetResponse.getResponses()[0].getResponse().getIndex());
 
 
-        DeleteIndexResponse deleteIndexResponse = client.admin().indices().prepareDelete(expression).get();
+        AcknowledgedResponse deleteIndexResponse = client.admin().indices().prepareDelete(expression).get();
         assertThat(deleteIndexResponse.isAcknowledged(), is(true));
     }
 

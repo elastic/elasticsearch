@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
@@ -77,12 +77,16 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
@@ -101,6 +105,7 @@ import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
@@ -112,13 +117,14 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -135,6 +141,9 @@ import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.ResizeRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.SearchRequestInterceptor;
 import org.elasticsearch.xpack.security.action.interceptor.UpdateRequestInterceptor;
+import org.elasticsearch.xpack.security.action.privilege.TransportDeletePrivilegesAction;
+import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
+import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
 import org.elasticsearch.xpack.security.action.realm.TransportClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportDeleteRoleAction;
@@ -153,6 +162,7 @@ import org.elasticsearch.xpack.security.action.token.TransportRefreshTokenAction
 import org.elasticsearch.xpack.security.action.user.TransportAuthenticateAction;
 import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.TransportDeleteUserAction;
+import org.elasticsearch.xpack.security.action.user.TransportGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportGetUsersAction;
 import org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
@@ -174,13 +184,16 @@ import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
+import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.ingest.HashProcessor;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
+import org.elasticsearch.xpack.security.rest.action.privilege.RestDeletePrivilegesAction;
+import org.elasticsearch.xpack.security.rest.action.privilege.RestGetPrivilegesAction;
+import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestDeleteRoleAction;
@@ -195,6 +208,7 @@ import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
+import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
@@ -205,7 +219,6 @@ import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterce
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTransport;
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 import org.joda.time.DateTime;
@@ -243,13 +256,15 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
-    private static final Logger logger = Loggers.getLogger(Security.class);
+    private static final Logger logger = LogManager.getLogger(Security.class);
 
     static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(SecurityField.setting("audit.outputs"),
-            s -> s.keySet().contains(SecurityField.setting("audit.outputs")) ?
-                Collections.emptyList() : Collections.singletonList(LoggingAuditTrail.NAME),
-            Function.identity(), Property.NodeScope);
+                Function.identity(),
+                s -> s.keySet().contains(SecurityField.setting("audit.outputs"))
+                        ? Collections.emptyList()
+                        : Collections.singletonList(LoggingAuditTrail.NAME),
+                Property.NodeScope);
 
     private final Settings settings;
     private final Environment env;
@@ -282,9 +297,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled && transportClientMode == false) {
             validateAutoCreateIndex(settings);
-        }
-
-        if (enabled) {
             // we load them all here otherwise we can't access secure settings since they are closed once the checks are
             // fetched
             final List<BootstrapCheck> checks = new ArrayList<>();
@@ -292,9 +304,13 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new TokenSSLBootstrapCheck(),
                 new PkiRealmBootstrapCheck(getSslService()),
                 new TLSLicenseBootstrapCheck(),
-                new PasswordHashingAlgorithmBootstrapCheck()));
+                new FIPS140SecureSettingsBootstrapCheck(settings, env),
+                new FIPS140JKSKeystoreBootstrapCheck(),
+                new FIPS140PasswordHashingAlgorithmBootstrapCheck(),
+                new FIPS140LicenseBootstrapCheck()));
             checks.addAll(InternalRealms.getBootstrapChecks(settings, env));
             this.bootstrapChecks = Collections.unmodifiableList(checks);
+            Automatons.updateConfiguration(settings);
         } else {
             this.bootstrapChecks = Collections.emptyList();
         }
@@ -403,7 +419,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
-        securityIndex.set(new SecurityIndexManager(settings, client, SecurityIndexManager.SECURITY_INDEX_NAME, clusterService));
+        securityIndex.set(new SecurityIndexManager(client, SecurityIndexManager.SECURITY_INDEX_NAME, clusterService));
 
         final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService);
         this.tokenService.set(tokenService);
@@ -433,37 +449,24 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityIndex.get().addIndexStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
 
-        AuthenticationFailureHandler failureHandler = null;
-        String extensionName = null;
-        for (SecurityExtension extension : securityExtensions) {
-            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
-            if (extensionFailureHandler != null && failureHandler != null) {
-                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] " +
-                    "both set an authentication failure handler");
-            }
-            failureHandler = extensionFailureHandler;
-            extensionName = extension.toString();
-        }
-        if (failureHandler == null) {
-            logger.debug("Using default authentication failure handler");
-            failureHandler = new DefaultAuthenticationFailureHandler();
-        } else {
-            logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
-        }
+        final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
 
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
                 anonymousUser, tokenService));
         components.add(authcService.get());
 
+        final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(settings, client, securityIndex.get());
+        components.add(privilegeStore);
+
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, getLicenseState());
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
-        List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>> rolesProviders = new ArrayList<>();
+        List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> rolesProviders = new ArrayList<>();
         for (SecurityExtension extension : securityExtensions) {
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore,
-            reservedRolesStore, rolesProviders, threadPool.getThreadContext(), getLicenseState());
+            reservedRolesStore, privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState());
         securityIndex.get().addIndexStateListener(allRolesStore::onSecurityIndexStateChange);
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
@@ -497,6 +500,45 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
 
         return components;
+    }
+
+    private AuthenticationFailureHandler createAuthenticationFailureHandler(final Realms realms) {
+        AuthenticationFailureHandler failureHandler = null;
+        String extensionName = null;
+        for (SecurityExtension extension : securityExtensions) {
+            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
+            if (extensionFailureHandler != null && failureHandler != null) {
+                throw new IllegalStateException("Extensions [" + extensionName + "] and [" + extension.toString() + "] "
+                        + "both set an authentication failure handler");
+            }
+            failureHandler = extensionFailureHandler;
+            extensionName = extension.toString();
+        }
+        if (failureHandler == null) {
+            logger.debug("Using default authentication failure handler");
+            final Map<String, List<String>> defaultFailureResponseHeaders = new HashMap<>();
+            realms.asList().stream().forEach((realm) -> {
+                Map<String, List<String>> realmFailureHeaders = realm.getAuthenticationFailureHeaders();
+                realmFailureHeaders.entrySet().stream().forEach((e) -> {
+                    String key = e.getKey();
+                    e.getValue().stream()
+                            .filter(v -> defaultFailureResponseHeaders.computeIfAbsent(key, x -> new ArrayList<>()).contains(v) == false)
+                            .forEach(v -> defaultFailureResponseHeaders.get(key).add(v));
+                });
+            });
+
+            if (TokenService.isTokenServiceEnabled(settings)) {
+                String bearerScheme = "Bearer realm=\"" + XPackField.SECURITY + "\"";
+                if (defaultFailureResponseHeaders.computeIfAbsent("WWW-Authenticate", x -> new ArrayList<>())
+                        .contains(bearerScheme) == false) {
+                    defaultFailureResponseHeaders.get("WWW-Authenticate").add(bearerScheme);
+                }
+            }
+            failureHandler = new DefaultAuthenticationFailureHandler(defaultFailureResponseHeaders);
+        } else {
+            logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
+        }
+        return failureHandler;
     }
 
     @Override
@@ -553,6 +595,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
 
         // The following just apply in node mode
+        settingsList.add(XPackSettings.FIPS_MODE_ENABLED);
 
         // IP Filter settings
         IPFilter.addSettings(settingsList);
@@ -562,14 +605,15 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         LoggingAuditTrail.registerSettings(settingsList);
         IndexAuditTrail.registerSettings(settingsList);
 
-        // authentication settings
+        // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
         RealmSettings.addSettings(settingsList, securityExtensions);
         NativeRolesStore.addSettings(settingsList);
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
-        settingsList.add(CompositeRolesStore.CACHE_SIZE_SETTING);
+        Automatons.addSettings(settingsList);
+        settingsList.addAll(CompositeRolesStore.getSettings());
         settingsList.add(FieldPermissionsCache.CACHE_SIZE_SETTING);
         settingsList.add(TokenService.TOKEN_EXPIRATION);
         settingsList.add(TokenService.DELETE_INTERVAL);
@@ -580,10 +624,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // hide settings
         settingsList.add(Setting.listSetting(SecurityField.setting("hide_settings"), Collections.emptyList(), Function.identity(),
                 Property.NodeScope, Property.Filtered));
-
-        // ingest processor settings
-        settingsList.add(HashProcessor.HMAC_KEY_SETTING);
-
         return settingsList;
     }
 
@@ -621,7 +661,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             assert getLicenseState() != null;
             if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
                 module.setSearcherWrapper(indexService ->
-                        new SecurityIndexSearcherWrapper(indexService.getIndexSettings(),
+                        new SecurityIndexSearcherWrapper(
                                 shardId -> indexService.newQueryShardContext(shardId.id(),
                                 // we pass a null index reader, which is legal and will disable rewrite optimizations
                                 // based on index statistics, which is probably safer...
@@ -637,7 +677,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 *  This impl. disabled the query cache if field level security is used for a particular request. If we wouldn't do
                 *  forcefully overwrite the query cache implementation then we leave the system vulnerable to leakages of data to
                 *  unauthorized users. */
-                module.forceQueryCacheProvider((settings, cache) -> new OptOutQueryCache(settings, cache, threadContext.get()));
+                module.forceQueryCacheProvider(
+                        (settings, cache) -> new OptOutQueryCache(settings, cache, threadContext.get(), getLicenseState()));
             }
 
             // in order to prevent scroll ids from being maliciously crafted and/or guessed, a listener is added that
@@ -666,6 +707,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ActionHandler<>(AuthenticateAction.INSTANCE, TransportAuthenticateAction.class),
                 new ActionHandler<>(SetEnabledAction.INSTANCE, TransportSetEnabledAction.class),
                 new ActionHandler<>(HasPrivilegesAction.INSTANCE, TransportHasPrivilegesAction.class),
+                new ActionHandler<>(GetUserPrivilegesAction.INSTANCE, TransportGetUserPrivilegesAction.class),
                 new ActionHandler<>(GetRoleMappingsAction.INSTANCE, TransportGetRoleMappingsAction.class),
                 new ActionHandler<>(PutRoleMappingAction.INSTANCE, TransportPutRoleMappingAction.class),
                 new ActionHandler<>(DeleteRoleMappingAction.INSTANCE, TransportDeleteRoleMappingAction.class),
@@ -676,7 +718,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new ActionHandler<>(SamlPrepareAuthenticationAction.INSTANCE, TransportSamlPrepareAuthenticationAction.class),
                 new ActionHandler<>(SamlAuthenticateAction.INSTANCE, TransportSamlAuthenticateAction.class),
                 new ActionHandler<>(SamlLogoutAction.INSTANCE, TransportSamlLogoutAction.class),
-                new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class)
+                new ActionHandler<>(SamlInvalidateSessionAction.INSTANCE, TransportSamlInvalidateSessionAction.class),
+                new ActionHandler<>(GetPrivilegesAction.INSTANCE, TransportGetPrivilegesAction.class),
+                new ActionHandler<>(PutPrivilegesAction.INSTANCE, TransportPutPrivilegesAction.class),
+                new ActionHandler<>(DeletePrivilegesAction.INSTANCE, TransportDeletePrivilegesAction.class)
         );
     }
 
@@ -712,6 +757,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestChangePasswordAction(settings, restController, securityContext.get(), getLicenseState()),
                 new RestSetEnabledAction(settings, restController, getLicenseState()),
                 new RestHasPrivilegesAction(settings, restController, securityContext.get(), getLicenseState()),
+                new RestGetUserPrivilegesAction(settings, restController, securityContext.get(), getLicenseState()),
                 new RestGetRoleMappingsAction(settings, restController, getLicenseState()),
                 new RestPutRoleMappingAction(settings, restController, getLicenseState()),
                 new RestDeleteRoleMappingAction(settings, restController, getLicenseState()),
@@ -721,16 +767,16 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 new RestSamlPrepareAuthenticationAction(settings, restController, getLicenseState()),
                 new RestSamlAuthenticateAction(settings, restController, getLicenseState()),
                 new RestSamlLogoutAction(settings, restController, getLicenseState()),
-                new RestSamlInvalidateSessionAction(settings, restController, getLicenseState())
+                new RestSamlInvalidateSessionAction(settings, restController, getLicenseState()),
+                new RestGetPrivilegesAction(settings, restController, getLicenseState()),
+                new RestPutPrivilegesAction(settings, restController, getLicenseState()),
+                new RestDeletePrivilegesAction(settings, restController, getLicenseState())
         );
     }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        Map<String, Processor.Factory> processors = new HashMap<>();
-        processors.put(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(parameters.threadContext));
-        processors.put(HashProcessor.TYPE, new HashProcessor.Factory(parameters.env.settings()));
-        return processors;
+        return Collections.singletonMap(SetSecurityUserProcessor.TYPE, new SetSecurityUserProcessor.Factory(parameters.threadContext));
     }
 
 
@@ -930,7 +976,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public Function<String, Predicate<String>> getFieldFilter() {
         if (enabled) {
             return index -> {
-                if (getLicenseState().isSecurityEnabled() == false || getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
+                if (getLicenseState().isDocumentAndFieldLevelSecurityAllowed() == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(
@@ -958,7 +1004,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
                     DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
                 .andThen(new ValidateUpgradedSecurityIndex())
-                .andThen(new ValidateLicenseCanBeDeserialized());
+                .andThen(new ValidateLicenseCanBeDeserialized())
+                .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
         }
         return null;
     }
@@ -1002,6 +1049,27 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             if (license != null && license.version() >= License.VERSION_CRYPTO_ALGORITHMS && node.getVersion().before(Version.V_6_4_0)) {
                 throw new IllegalStateException("node " + node + " is on version [" + node.getVersion() +
                     "] that cannot deserialize the license format [" + license.version() + "], upgrade node to at least 6.4.0");
+            }
+        }
+    }
+
+    static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {
+        private final boolean inFipsMode;
+
+        ValidateLicenseForFIPS(boolean inFipsMode) {
+            this.inFipsMode = inFipsMode;
+        }
+
+        @Override
+        public void accept(DiscoveryNode node, ClusterState state) {
+            if (inFipsMode) {
+                License license = LicenseService.getLicense(state.metaData());
+                if (license != null &&
+                    FIPS140LicenseBootstrapCheck.ALLOWED_LICENSE_OPERATION_MODES.contains(license.operationMode()) == false) {
+                    throw new IllegalStateException("FIPS mode cannot be used with a [" + license.operationMode() +
+                        "] license. It is only allowed with a Platinum or Trial license.");
+
+                }
             }
         }
     }

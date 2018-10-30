@@ -56,14 +56,14 @@ final class PSubCallInvoke extends AExpression {
         for (int argument = 0; argument < arguments.size(); ++argument) {
             AExpression expression = arguments.get(argument);
 
-            expression.expected = method.arguments.get(argument);
+            expression.expected = method.typeParameters.get(argument);
             expression.internal = true;
             expression.analyze(locals);
             arguments.set(argument, expression.cast(locals));
         }
 
         statement = true;
-        actual = method.rtn;
+        actual = method.returnType;
     }
 
     @Override
@@ -78,11 +78,11 @@ final class PSubCallInvoke extends AExpression {
             argument.write(writer, globals);
         }
 
-        method.write(writer);
+        writer.invokeMethodCall(method);
     }
 
     @Override
     public String toString() {
-        return singleLineToStringWithOptionalArgs(arguments, prefix, method.name);
+        return singleLineToStringWithOptionalArgs(arguments, prefix, method.javaMethod.getName());
     }
 }

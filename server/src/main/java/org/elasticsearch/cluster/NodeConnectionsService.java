@@ -101,7 +101,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                     }
 
                     @Override
-                    protected void doRun() throws Exception {
+                    protected void doRun() {
                         try (Releasable ignored = nodeLocks.acquire(node)) {
                             validateAndConnectIfNeeded(node);
                         }

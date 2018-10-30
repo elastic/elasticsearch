@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.instanceOf;
 public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTestCase<CompletionSuggestionBuilder> {
 
     private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[] { CompletionSuggestionBuilder.CONTEXTS_FIELD.getPreferredName() };
-    private static final Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
     private static String categoryContextName;
     private static String geoQueryContextName;
     private static List<ContextMapping<?>> contextMappings = new ArrayList<>();
@@ -164,8 +163,9 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     }
 
     @Override
-    protected MappedFieldType mockFieldType() {
+    protected MappedFieldType mockFieldType(String fieldName) {
         CompletionFieldType completionFieldType = new CompletionFieldType();
+        completionFieldType.setName(fieldName);
         completionFieldType.setContextMappings(new ContextMappings(contextMappings));
         return completionFieldType;
     }

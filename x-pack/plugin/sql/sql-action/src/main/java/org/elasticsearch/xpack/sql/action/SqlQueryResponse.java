@@ -167,7 +167,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
     public static XContentBuilder value(XContentBuilder builder, Mode mode, Object value) throws IOException {
-        if (mode == Mode.JDBC && value instanceof ReadableDateTime) {
+        if (Mode.isDriver(mode) && value instanceof ReadableDateTime) {
             // JDBC cannot parse dates in string format
             builder.value(((ReadableDateTime) value).getMillis());
         } else {
@@ -183,6 +183,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         JDBCType jdbcType;
         int displaySize;
         if (in.readBoolean()) {
+            // FIXME: this needs changing to allow custom types
             jdbcType = JDBCType.valueOf(in.readVInt());
             displaySize = in.readVInt();
         } else {
@@ -207,8 +208,12 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SqlQueryResponse that = (SqlQueryResponse) o;
         return Objects.equals(cursor, that.cursor) &&
                 Objects.equals(columns, that.columns) &&

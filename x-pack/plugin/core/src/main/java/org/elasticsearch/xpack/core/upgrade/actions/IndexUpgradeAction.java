@@ -76,7 +76,6 @@ public class IndexUpgradeAction extends Action<BulkByScrollResponse> {
         /**
          * Sets the index.
          */
-        @SuppressWarnings("unchecked")
         public final Request index(String index) {
             this.index = index;
             return this;

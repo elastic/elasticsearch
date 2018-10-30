@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
@@ -34,8 +33,6 @@ import org.objectweb.asm.Type;
 
 import java.util.Objects;
 import java.util.Set;
-
-import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 /**
  * Represents a capturing function reference.
@@ -69,30 +66,15 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
                 defPointer = "D" + variable + "." + call + ",1";
             } else {
                 // typed implementation
-                defPointer = "S" + PainlessLookupUtility.anyTypeToPainlessTypeName(captured.clazz) + "." + call + ",1";
+                defPointer = "S" + PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz) + "." + call + ",1";
             }
             actual = String.class;
         } else {
             defPointer = null;
             // static case
             if (captured.clazz != def.class) {
-                try {
-                    ref = new FunctionRef(
-                            locals.getPainlessLookup(), expected, PainlessLookupUtility.anyTypeToPainlessTypeName(captured.clazz), call, 1);
-
-                    // check casts between the interface method and the delegate method are legal
-                    for (int i = 0; i < ref.interfaceMethod.arguments.size(); ++i) {
-                        Class<?> from = ref.interfaceMethod.arguments.get(i);
-                        Class<?> to = ref.delegateMethod.arguments.get(i);
-                        AnalyzerCaster.getLegalCast(location, from, to, false, true);
-                    }
-
-                    if (ref.interfaceMethod.rtn != void.class) {
-                        AnalyzerCaster.getLegalCast(location, ref.delegateMethod.rtn, ref.interfaceMethod.rtn, false, true);
-                    }
-                } catch (IllegalArgumentException e) {
-                    throw createError(e);
-                }
+                ref = FunctionRef.create(locals.getPainlessLookup(), locals.getMethods(), location,
+                        expected, PainlessLookupUtility.typeToCanonicalTypeName(captured.clazz), call, 1);
             }
             actual = expected;
         }
@@ -110,21 +92,11 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
             // typed interface, dynamic implementation
             writer.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
             Type methodType = Type.getMethodType(MethodWriter.getType(expected), MethodWriter.getType(captured.clazz));
-            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, PainlessLookupUtility.anyTypeToPainlessTypeName(expected));
+            writer.invokeDefCall(call, methodType, DefBootstrap.REFERENCE, PainlessLookupUtility.typeToCanonicalTypeName(expected));
         } else {
             // typed interface, typed implementation
             writer.visitVarInsn(MethodWriter.getType(captured.clazz).getOpcode(Opcodes.ILOAD), captured.getSlot());
-            writer.invokeDynamic(
-                ref.interfaceMethodName,
-                ref.factoryDescriptor,
-                LAMBDA_BOOTSTRAP_HANDLE,
-                ref.interfaceType,
-                ref.delegateClassName,
-                ref.delegateInvokeType,
-                ref.delegateMethodName,
-                ref.delegateType,
-                ref.isDelegateInterface ? 1 : 0
-            );
+            writer.invokeLambdaCall(ref);
         }
     }
 

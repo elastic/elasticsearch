@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
@@ -117,13 +116,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-            return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readEnum(XContentType.class));
-        } else {
-            final String id = in.readString();
-            final BytesReference config = in.readBytesReference();
-            return new PipelineConfiguration(id, config, XContentHelper.xContentType(config));
-        }
+        return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readEnum(XContentType.class));
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
@@ -134,9 +127,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-            out.writeEnum(xContentType);
-        }
+        out.writeEnum(xContentType);
     }
 
     @Override

@@ -9,8 +9,8 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -26,7 +26,6 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -360,12 +359,19 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
      * Creates a new Logger that is detached from the ROOT logger and only has an appender that will output log messages to the terminal
      */
     static Logger getTerminalLogger(final Terminal terminal) {
-        final Logger logger = ESLoggerFactory.getLogger(ESNativeRealmMigrateTool.class);
+        final Logger logger = LogManager.getLogger(ESNativeRealmMigrateTool.class);
         Loggers.setLevel(logger, Level.ALL);
+
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
 
         // create appender
         final Appender appender = new AbstractAppender(ESNativeRealmMigrateTool.class.getName(), null,
-                PatternLayout.newBuilder().withPattern("%m").build()) {
+                PatternLayout.newBuilder()
+                    // Specify the configuration so log4j doesn't re-initialize
+                    .withConfiguration(config)
+                    .withPattern("%m")
+                    .build()) {
             @Override
             public void append(LogEvent event) {
                 switch (event.getLevel().getStandardLevel()) {
@@ -384,8 +390,6 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
         appender.start();
 
         // get the config, detach from parent, remove appenders, add custom appender
-        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
-        final Configuration config = ctx.getConfiguration();
         final LoggerConfig loggerConfig = config.getLoggerConfig(ESNativeRealmMigrateTool.class.getName());
         loggerConfig.setParent(null);
         loggerConfig.getAppenders().forEach((s, a) -> Loggers.removeAppender(logger, a));

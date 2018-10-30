@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -30,6 +28,7 @@ dependencies {
   compile "junit:junit:${versions.junit}"
   compile "org.hamcrest:hamcrest-core:${versions.hamcrest}"
   compile "org.hamcrest:hamcrest-library:${versions.hamcrest}"
+  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
 
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -68,9 +67,7 @@ esvagrant {
 }
 
 forbiddenApisMain {
-  signaturesURLs = [
-    PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')
-  ]
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 // we don't have additional tests for the tests themselves
@@ -81,7 +78,7 @@ tasks.dependencyLicenses.enabled = false
 tasks.dependenciesInfo.enabled = false
 
 tasks.thirdPartyAudit.excludes = [
-        //commons-logging optional dependencies
+        // commons-logging optional dependencies
         'org.apache.avalon.framework.logger.Logger',
         'org.apache.log.Hierarchy',
         'org.apache.log.Logger',
@@ -89,7 +86,7 @@ tasks.thirdPartyAudit.excludes = [
         'org.apache.log4j.Level',
         'org.apache.log4j.Logger',
         'org.apache.log4j.Priority',
-        //commons-logging provided dependencies
+        // commons-logging provided dependencies
         'javax.servlet.ServletContextEvent',
         'javax.servlet.ServletContextListener'
 ]

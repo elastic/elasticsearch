@@ -19,6 +19,7 @@ public class NormalizerResultTests extends AbstractSerializingTestCase<Normalize
         assertNull(msg.getPartitionFieldName());
         assertNull(msg.getPartitionFieldValue());
         assertNull(msg.getPersonFieldName());
+        assertNull(msg.getPersonFieldValue());
         assertNull(msg.getFunctionName());
         assertNull(msg.getValueFieldName());
         assertEquals(0.0, msg.getProbability(), EPSILON);
@@ -32,6 +33,7 @@ public class NormalizerResultTests extends AbstractSerializingTestCase<Normalize
         msg.setPartitionFieldName("part");
         msg.setPartitionFieldValue("something");
         msg.setPersonFieldName("person");
+        msg.setPersonFieldValue("fred");
         msg.setFunctionName("mean");
         msg.setValueFieldName("value");
         msg.setProbability(0.005);

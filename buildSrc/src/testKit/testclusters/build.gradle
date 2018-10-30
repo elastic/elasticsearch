@@ -1,0 +1,41 @@
+plugins {
+    id 'elasticsearch.testclusters'
+}
+
+testClusters {
+    myTestCluster {
+       distribution = 'ZIP'
+    }
+}
+
+task user1 {
+    useCluster testClusters.myTestCluster
+    doLast {
+        println "user1 executing"
+    }
+}
+
+task user2 {
+    useCluster testClusters.myTestCluster
+    doLast {
+        println "user2 executing"
+    }
+}
+
+task upToDate1 {
+    useCluster testClusters.myTestCluster
+}
+
+task upToDate2 {
+    useCluster testClusters.myTestCluster
+}
+
+task skipped1 {
+    enabled = false
+    useCluster testClusters.myTestCluster
+}
+
+task skipped2 {
+    enabled = false
+    useCluster testClusters.myTestCluster
+}

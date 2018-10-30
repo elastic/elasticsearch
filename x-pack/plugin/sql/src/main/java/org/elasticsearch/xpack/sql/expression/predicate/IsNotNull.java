@@ -6,21 +6,23 @@
 package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.UnaryExpression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-public class IsNotNull extends UnaryExpression {
+public class IsNotNull extends UnaryScalarFunction {
 
-    public IsNotNull(Location location, Expression child) {
-        super(location, child);
+    public IsNotNull(Location location, Expression field) {
+        super(location, field);
     }
 
     @Override
     protected NodeInfo<IsNotNull> info() {
-        return NodeInfo.create(this, IsNotNull::new, child());
+        return NodeInfo.create(this, IsNotNull::new, field());
     }
 
     @Override
@@ -28,8 +30,19 @@ public class IsNotNull extends UnaryExpression {
         return new IsNotNull(location(), newChild);
     }
 
+    @Override
     public Object fold() {
-        return child().fold() != null && !DataTypes.isNull(child().dataType());
+        return field().fold() != null && !DataTypes.isNull(field().dataType());
+    }
+
+    @Override
+    protected Processor makeProcessor() {
+        return IsNotNullProcessor.INSTANCE;
+    }
+
+    @Override
+    public String processScript(String script) {
+        return Scripts.formatTemplate(Scripts.SQL_SCRIPTS + ".notNull(" + script + ")");
     }
 
     @Override
@@ -40,10 +53,5 @@ public class IsNotNull extends UnaryExpression {
     @Override
     public DataType dataType() {
         return DataType.BOOLEAN;
-    }
-
-    @Override
-    public String toString() {
-        return child().toString() + " IS NOT NULL";
     }
 }

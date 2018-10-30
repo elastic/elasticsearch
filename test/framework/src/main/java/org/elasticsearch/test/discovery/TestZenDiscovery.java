@@ -19,13 +19,10 @@
 
 package org.elasticsearch.test.discovery;
 
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +36,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +55,6 @@ public class TestZenDiscovery extends ZenDiscovery {
     /** A plugin which installs mock discovery and configures it to be used. */
     public static class TestPlugin extends Plugin implements DiscoveryPlugin {
         protected final Settings settings;
-        private final SetOnce<MockUncasedHostProvider> unicastHostProvider = new SetOnce<>();
         public TestPlugin(Settings settings) {
             this.settings = settings;
         }
@@ -79,26 +74,6 @@ public class TestZenDiscovery extends ZenDiscovery {
         }
 
         @Override
-        public Map<String, Supplier<UnicastHostsProvider>> getZenHostsProviders(TransportService transportService,
-                                                                                NetworkService networkService) {
-            final Supplier<UnicastHostsProvider> supplier;
-            if (USE_MOCK_PINGS.get(settings)) {
-                // we have to return something in order for the unicast host provider setting to resolve to something. It will never be used
-                supplier = () -> hostsResolver -> {
-                    throw new UnsupportedOperationException();
-                };
-            } else {
-                supplier = () -> {
-                    unicastHostProvider.set(
-                        new MockUncasedHostProvider(transportService::getLocalNode, ClusterName.CLUSTER_NAME_SETTING.get(settings))
-                    );
-                    return unicastHostProvider.get();
-                };
-            }
-            return Collections.singletonMap("test-zen", supplier);
-        }
-
-        @Override
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(USE_MOCK_PINGS);
         }
@@ -107,17 +82,8 @@ public class TestZenDiscovery extends ZenDiscovery {
         public Settings additionalSettings() {
             return Settings.builder()
                 .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
-                .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "test-zen")
                 .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey())
                 .build();
-        }
-
-        @Override
-        public void close() throws IOException {
-            super.close();
-            if (unicastHostProvider.get() != null) {
-                unicastHostProvider.get().close();
-            }
         }
     }
 

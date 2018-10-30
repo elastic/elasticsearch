@@ -195,4 +195,4 @@ setup:
               "password": "s3krit",
               "roles" : [ ]
             }
-  - match: { user: { created: false } }
+  - match: { created: false }

@@ -46,6 +46,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.apache.lucene.geo.GeoUtils.orient;
+
 /**
  * The {@link PolygonBuilder} implements the groundwork to create polygons. This contains
  * Methods to wrap polygons at the dateline and building shapes from the data held by the
@@ -642,14 +644,8 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
      */
     private static Edge[] ring(int component, boolean direction, boolean handedness,
                                  Coordinate[] points, int offset, Edge[] edges, int toffset, int length, final AtomicBoolean translated) {
-        // calculate the direction of the points:
-        // find the point a the top of the set and check its
-        // neighbors orientation. So direction is equivalent
-        // to clockwise/counterclockwise
-        final int top = top(points, offset, length);
-        final int prev = (offset + ((top + length - 1) % length));
-        final int next = (offset + ((top + 1) % length));
-        boolean orientation = points[offset + prev].x > points[offset + next].x;
+
+        boolean orientation = getOrientation(points, offset, length);
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
@@ -678,6 +674,35 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, PolygonBuilder> {
         return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
     }
 
+    /**
+     * @return whether the points are clockwise (true) or anticlockwise (false)
+     */
+    private static boolean getOrientation(Coordinate[] points, int offset, int length) {
+        // calculate the direction of the points: find the southernmost point
+        // and check its neighbors orientation.
+
+        final int top = top(points, offset, length);
+        final int prev = (top + length - 1) % length;
+        final int next = (top + 1) % length;
+
+        final int determinantSign = orient(
+            points[offset + prev].x, points[offset + prev].y,
+            points[offset + top].x, points[offset + top].y,
+            points[offset + next].x, points[offset + next].y);
+
+        if (determinantSign == 0) {
+            // Points are collinear, but `top` is not in the middle if so, so the edges either side of `top` are intersecting.
+            throw new InvalidShapeException("Cannot determine orientation: edges adjacent to ("
+                + points[offset + top].x + "," + points[offset +top].y + ") coincide");
+        }
+
+        return determinantSign < 0;
+    }
+
+    /**
+     * @return the (offset) index of the point that is furthest west amongst
+     * those points that are the furthest south in the set.
+     */
     private static int top(Coordinate[] points, int offset, int length) {
         int top = 0; // we start at 1 here since top points to 0
         for (int i = 1; i < length; i++) {

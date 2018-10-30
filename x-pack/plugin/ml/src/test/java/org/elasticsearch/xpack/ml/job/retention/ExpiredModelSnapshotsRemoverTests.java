@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -24,7 +25,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -212,7 +212,7 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
         MlMetadata mlMetadata = mock(MlMetadata.class);
         when(mlMetadata.getJobs()).thenReturn(jobsMap);
         MetaData metadata = mock(MetaData.class);
-        when(metadata.custom(MLMetadataField.TYPE)).thenReturn(mlMetadata);
+        when(metadata.custom(MlMetadata.TYPE)).thenReturn(mlMetadata);
         when(clusterState.getMetaData()).thenReturn(metadata);
     }
 
@@ -271,8 +271,8 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) {
                 capturedDeleteModelSnapshotRequests.add((DeleteModelSnapshotAction.Request) invocationOnMock.getArguments()[1]);
-                ActionListener<DeleteModelSnapshotAction.Response> listener =
-                        (ActionListener<DeleteModelSnapshotAction.Response>) invocationOnMock.getArguments()[2];
+                ActionListener<AcknowledgedResponse> listener =
+                        (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
                 if (shouldDeleteSnapshotRequestsSucceed) {
                     listener.onResponse(null);
                 } else {

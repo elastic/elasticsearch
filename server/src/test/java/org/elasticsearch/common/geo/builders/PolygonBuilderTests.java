@@ -143,4 +143,22 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
 
         assertEquals("Hole lies outside shell at or near point (4.0, 3.0, NaN)", e.getMessage());
     }
+
+    public void testWidePolygonWithConfusingOrientation() {
+        // A valid polygon that is oriented correctly (anticlockwise) but which
+        // confounds a naive algorithm for determining its orientation leading
+        // ES to believe that it crosses the dateline and "fixing" it in a way
+        // that self-intersects.
+
+        PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(10, -20).coordinate(100, 0).coordinate(-100, 0).coordinate(20, -45).coordinate(40, -60).close());
+        pb.build(); // Should not throw an exception
+    }
+
+    public void testPolygonWithUndefinedOrientationDueToCollinearPoints() {
+        PolygonBuilder pb = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(0.0, 0.0).coordinate(1.0, 1.0).coordinate(-1.0, -1.0).close());
+        InvalidShapeException e = expectThrows(InvalidShapeException.class, pb::build);
+        assertEquals("Cannot determine orientation: edges adjacent to (-1.0,-1.0) coincide", e.getMessage());
+    }
 }

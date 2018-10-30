@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -52,7 +53,7 @@ public class SetupPasswordToolIT extends ESRestTestCase {
         final Path configPath = PathUtils.get(testConfigDir);
         setSystemPropsForTool(configPath);
 
-        Response nodesResponse = client().performRequest("GET", "/_nodes/http");
+        Response nodesResponse = client().performRequest(new Request("GET", "/_nodes/http"));
         Map<String, Object> nodesMap = entityAsMap(nodesResponse);
 
         Map<String,Object> nodes = (Map<String,Object>) nodesMap.get("nodes");
@@ -97,15 +98,16 @@ public class SetupPasswordToolIT extends ESRestTestCase {
             }
         });
 
-        assertEquals(4, userPasswordMap.size());
+        assertEquals(6, userPasswordMap.size());
         userPasswordMap.entrySet().forEach(entry -> {
             final String basicHeader = "Basic " +
                     Base64.getEncoder().encodeToString((entry.getKey() + ":" + entry.getValue()).getBytes(StandardCharsets.UTF_8));
             try {
-                Response authenticateResponse = client().performRequest("GET", "/_xpack/security/_authenticate",
-                        new BasicHeader("Authorization", basicHeader));
-                assertEquals(200, authenticateResponse.getStatusLine().getStatusCode());
-                Map<String, Object> userInfoMap = entityAsMap(authenticateResponse);
+                Request request = new Request("GET", "/_xpack/security/_authenticate");
+                RequestOptions.Builder options = request.getOptions().toBuilder();
+                options.addHeader("Authorization", basicHeader);
+                request.setOptions(options);
+                Map<String, Object> userInfoMap = entityAsMap(client().performRequest(request));
                 assertEquals(entry.getKey(), userInfoMap.get("username"));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

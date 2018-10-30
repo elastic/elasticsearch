@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.license;
 
-import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
@@ -39,7 +41,8 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
+import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
@@ -51,8 +54,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -189,31 +195,36 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testRestAuthenticationByLicenseType() throws Exception {
-        Response response = getRestClient().performRequest("GET", "/");
+        Response unauthorizedRootResponse = getRestClient().performRequest(new Request("GET", "/"));
         // the default of the licensing tests is basic
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(unauthorizedRootResponse.getStatusLine().getStatusCode(), is(200));
         ResponseException e = expectThrows(ResponseException.class,
-                () -> getRestClient().performRequest("GET", "/_xpack/security/_authenticate"));
+                () -> getRestClient().performRequest(new Request("GET", "/_xpack/security/_authenticate")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
 
         // generate a new license with a mode that enables auth
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
                 License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
         enableLicensing(mode);
-        e = expectThrows(ResponseException.class, () -> getRestClient().performRequest("GET", "/"));
+        e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(new Request("GET", "/")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
         e = expectThrows(ResponseException.class,
-            () -> getRestClient().performRequest("GET", "/_xpack/security/_authenticate"));
+            () -> getRestClient().performRequest(new Request("GET", "/_xpack/security/_authenticate")));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
 
-        final String basicAuthValue = UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()));
-        response = getRestClient().performRequest("GET", "/", new BasicHeader("Authorization", basicAuthValue));
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
-        response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate",
-                    new BasicHeader("Authorization", basicAuthValue));
-        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
+        optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        RequestOptions options = optionsBuilder.build();
 
+        Request rootRequest = new Request("GET", "/");
+        rootRequest.setOptions(options);
+        Response authorizedRootResponse = getRestClient().performRequest(rootRequest);
+        assertThat(authorizedRootResponse.getStatusLine().getStatusCode(), is(200));
+        Request authenticateRequest = new Request("GET", "/_xpack/security/_authenticate");
+        authenticateRequest.setOptions(options);
+        Response authorizedAuthenticateResponse = getRestClient().performRequest(authenticateRequest);
+        assertThat(authorizedAuthenticateResponse.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testSecurityActionsByLicenseType() throws Exception {
@@ -221,7 +232,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         Settings settings = internalCluster().transportClient().settings();
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            new SecurityClient(client).prepareGetUsers().get();
+            new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
             fail("security actions should not be enabled!");
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.status(), is(RestStatus.FORBIDDEN));
@@ -232,10 +243,10 @@ public class LicensingTests extends SecurityIntegTestCase {
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
                 License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
         enableLicensing(mode);
-        // security actions should not work!
+        // security actions should work!
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
-            GetUsersResponse response = new SecurityClient(client).prepareGetUsers().get();
+            PutUserResponse response = new SecurityClient(client).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
             assertNotNull(response);
         }
     }
@@ -272,6 +283,10 @@ public class LicensingTests extends SecurityIntegTestCase {
         enableLicensing(mode);
         ensureGreen();
 
+        final List<String> unicastHostsList = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
+            .getNodes().stream().map(n -> n.getTransport().getAddress().publishAddress().toString()).distinct()
+            .collect(Collectors.toList());
+
         Path home = createTempDir();
         Path conf = home.resolve("config");
         Files.createDirectories(conf);
@@ -285,7 +300,8 @@ public class LicensingTests extends SecurityIntegTestCase {
             .put("path.home", home)
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "test-zen")
-            .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "test-zen")
+            .putList(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey())
+            .putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), unicastHostsList)
             .build();
         Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(LocalStateSecurity.class, TestZenDiscovery.TestPlugin.class,
             MockHttpTransport.TestPlugin.class);
@@ -307,7 +323,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     public static void disableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, false);
+            licenseState.update(operationMode, false, null);
         }
     }
 
@@ -317,7 +333,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     public static void enableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, true);
+            licenseState.update(operationMode, true, null);
         }
     }
 }

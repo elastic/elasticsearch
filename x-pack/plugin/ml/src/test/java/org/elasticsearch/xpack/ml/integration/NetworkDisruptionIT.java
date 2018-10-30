@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -52,6 +54,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         return plugins;
     }
 
+    @TestLogging("org.elasticsearch.discovery.zen:TRACE")
     public void testJobRelocation() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(5);
         ensureStableCluster(5);
@@ -62,7 +65,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         ensureGreen();
 
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
-        OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
+        AcknowledgedResponse openJobResponse = client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
         assertTrue(openJobResponse.isAcknowledged());
 
         // Record which node the job starts off on

@@ -101,6 +101,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     protected abstract QB doCreateTestQueryBuilder();
 
+    public void testNegativeBoosts() {
+        QB testQuery = createTestQueryBuilder();
+        IllegalArgumentException exc =
+            expectThrows(IllegalArgumentException.class, () -> testQuery.boost(-0.5f));
+        assertThat(exc.getMessage(), containsString("negative [boost]"));
+    }
+
     /**
      * Generic test that creates new query from the test query and checks both for equality
      * and asserts equality on the two queries.
@@ -406,6 +413,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Test creates the {@link Query} from the {@link QueryBuilder} under test and delegates the
      * assertions being made on the result to the implementing subclass.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34188")
     public void testToQuery() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QueryShardContext context = createShardContext();
@@ -413,7 +421,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
-            SearchContext searchContext = getSearchContext(randomTypes, context);
+            SearchContext searchContext = getSearchContext(context);
             /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
              * We do it this way in SearchService where
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
@@ -443,7 +451,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
                         + randomAlphaOfLengthBetween(1, 10));
             }
-            searchContext = getSearchContext(randomTypes, context);
+            searchContext = getSearchContext(context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertNotNull("toQuery should not return null", secondLuceneQuery);
             assertLuceneQuery(secondQuery, secondLuceneQuery, searchContext);
@@ -522,7 +530,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException;
 
-    protected static void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
+    protected void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
         if (fieldBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
             assertThat(query, instanceOf(BoostQuery.class));
             BoostQuery boostQuery = (BoostQuery) query;
@@ -532,10 +540,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertTermQuery(query, field, value);
     }
 
-    protected static void assertTermQuery(Query query, String field, String value) {
+    protected void assertTermQuery(Query query, String field, String value) {
         assertThat(query, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) query;
-        assertThat(termQuery.getTerm().field(), equalTo(field));
+
+        String expectedFieldName = expectedFieldName(field);
+        assertThat(termQuery.getTerm().field(), equalTo(expectedFieldName));
         assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(value.toLowerCase(Locale.ROOT)));
     }
 
@@ -625,6 +635,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Object value;
         switch (fieldName) {
             case STRING_FIELD_NAME:
+            case STRING_ALIAS_FIELD_NAME:
                 if (rarely()) {
                     // unicode in 10% cases
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
@@ -665,10 +676,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      */
     protected static String getRandomFieldName() {
         // if no type is set then return a random field name
-        if (getCurrentTypes().length == 0 || randomBoolean()) {
+        if (randomBoolean()) {
             return randomAlphaOfLengthBetween(1, 10);
+        } else {
+            return randomFrom(MAPPED_LEAF_FIELD_NAMES);
         }
-        return randomFrom(MAPPED_LEAF_FIELD_NAMES);
     }
 
     /**
@@ -782,5 +794,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(builder, context, future);
         return future.actionGet();
+    }
+
+    public boolean isTextField(String fieldName) {
+        return fieldName.equals(STRING_FIELD_NAME) || fieldName.equals(STRING_ALIAS_FIELD_NAME);
     }
 }

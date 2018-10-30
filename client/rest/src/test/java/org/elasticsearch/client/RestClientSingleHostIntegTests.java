@@ -45,7 +45,6 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -215,9 +214,15 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             }
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
+            Request request = new Request(method, "/" + statusCode);
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            for (Header header : requestHeaders) {
+                options.addHeader(header.getName(), header.getValue());
+            }
+            request.setOptions(options);
             Response esResponse;
             try {
-                esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), requestHeaders);
+                esResponse = restClient.performRequest(request);
             } catch (ResponseException e) {
                 esResponse = e.getResponse();
             }

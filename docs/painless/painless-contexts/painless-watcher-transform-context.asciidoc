@@ -1,7 +1,7 @@
 [[painless-watcher-transform-context]]
 === Watcher transform context
 
-Use a Painless script to {xp_version}/transform-script.html[transform] watch
+Use a Painless script to {xpack-ref}/transform-script.html[transform] watch
 data into a new payload for use in a response to a condition.
 
 *Variables*
@@ -26,7 +26,7 @@ data into a new payload for use in a response to a condition.
 
 `ctx['payload']` (`Map`, read-only)::
         The accessible watch data based upon the
-        {xp_version}/input.html[watch input].
+        {xpack-ref}/input.html[watch input].
 
 
 *Return*

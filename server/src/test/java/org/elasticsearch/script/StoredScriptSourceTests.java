@@ -35,7 +35,6 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
 
     @Override
     protected StoredScriptSource createTestInstance() {
-        String lang = randomAlphaOfLengthBetween(1, 20);
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.YAML);
         try {
             XContentBuilder template = XContentBuilder.builder(xContentType.xContent());

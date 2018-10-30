@@ -40,8 +40,10 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
     @Inject
     public TransportGetAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest::new, indexNameExpressionResolver);
+                                     ThreadPool threadPool, ActionFilters actionFilters,
+                                     IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, GetAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, GetAliasesRequest::new,
+            indexNameExpressionResolver);
     }
 
     @Override
@@ -52,7 +54,8 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
     @Override
     protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ,
+            indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
@@ -63,7 +66,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     @Override
     protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        ImmutableOpenMap<String, List<AliasMetaData>> aliases = state.metaData().findAliases(request.aliases(), concreteIndices);
+        ImmutableOpenMap<String, List<AliasMetaData>> aliases = state.metaData().findAliases(request, concreteIndices);
         listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases)));
     }
 

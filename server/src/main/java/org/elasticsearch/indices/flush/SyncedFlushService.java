@@ -313,8 +313,10 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             transportService.sendRequest(primaryNode, IN_FLIGHT_OPS_ACTION_NAME, new InFlightOpsRequest(shardId),
                     new TransportResponseHandler<InFlightOpsResponse>() {
                         @Override
-                        public InFlightOpsResponse newInstance() {
-                            return new InFlightOpsResponse();
+                        public InFlightOpsResponse read(StreamInput in) throws IOException {
+                            InFlightOpsResponse response = new InFlightOpsResponse();
+                            response.readFrom(in);
+                            return response;
                         }
 
                         @Override
@@ -383,8 +385,10 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             transportService.sendRequest(node, SYNCED_FLUSH_ACTION_NAME, new ShardSyncedFlushRequest(shard.shardId(), syncId, preSyncedResponse.commitId),
                     new TransportResponseHandler<ShardSyncedFlushResponse>() {
                         @Override
-                        public ShardSyncedFlushResponse newInstance() {
-                            return new ShardSyncedFlushResponse();
+                        public ShardSyncedFlushResponse read(StreamInput in) throws IOException {
+                            ShardSyncedFlushResponse response = new ShardSyncedFlushResponse();
+                            response.readFrom(in);
+                            return response;
                         }
 
                         @Override
@@ -437,8 +441,10 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
             }
             transportService.sendRequest(node, PRE_SYNCED_FLUSH_ACTION_NAME, new PreShardSyncedFlushRequest(shard.shardId()), new TransportResponseHandler<PreSyncedFlushResponse>() {
                 @Override
-                public PreSyncedFlushResponse newInstance() {
-                    return new PreSyncedFlushResponse();
+                public PreSyncedFlushResponse read(StreamInput in) throws IOException {
+                    PreSyncedFlushResponse response = new PreSyncedFlushResponse();
+                    response.readFrom(in);
+                    return response;
                 }
 
                 @Override
@@ -560,9 +566,6 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
         }
 
         boolean includeNumDocs(Version version) {
-            if (version.major == Version.V_5_6_8.major) {
-                return version.onOrAfter(Version.V_5_6_8);
-            }
             return version.onOrAfter(Version.V_6_2_2);
         }
 

@@ -14,12 +14,9 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.MlParserType;
 
 import java.io.IOException;
-import java.util.EnumMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 public class RuleCondition implements ToXContentObject, Writeable {
@@ -30,35 +27,28 @@ public class RuleCondition implements ToXContentObject, Writeable {
     public static final ParseField VALUE_FIELD = new ParseField("value");
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ConstructingObjectParser<RuleCondition, Void> METADATA_PARSER =
-            new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(), true,
-                    a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2]));
-    public static final ConstructingObjectParser<RuleCondition, Void> CONFIG_PARSER =
-            new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(), false,
-                    a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2]));
-    public static final Map<MlParserType, ConstructingObjectParser<RuleCondition, Void>> PARSERS =
-            new EnumMap<>(MlParserType.class);
+    public static final ConstructingObjectParser<RuleCondition, Void> LENIENT_PARSER = createParser(true);
+    public static final ConstructingObjectParser<RuleCondition, Void> STRICT_PARSER = createParser(false);
 
-    static {
-        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
-        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
-        for (MlParserType parserType : MlParserType.values()) {
-            ConstructingObjectParser<RuleCondition, Void> parser = PARSERS.get(parserType);
-            assert parser != null;
-            parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return AppliesTo.fromString(p.text());
-                }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            }, APPLIES_TO_FIELD, ValueType.STRING);
-            parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return Operator.fromString(p.text());
-                }
-                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-            }, Operator.OPERATOR_FIELD, ValueType.STRING);
-            parser.declareDouble(ConstructingObjectParser.constructorArg(), VALUE_FIELD);
-        }
+    private static ConstructingObjectParser<RuleCondition, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<RuleCondition, Void> parser = new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(),
+            ignoreUnknownFields, a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2]));
+
+        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return AppliesTo.fromString(p.text());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, APPLIES_TO_FIELD, ValueType.STRING);
+        parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return Operator.fromString(p.text());
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        }, Operator.OPERATOR_FIELD, ValueType.STRING);
+        parser.declareDouble(ConstructingObjectParser.constructorArg(), VALUE_FIELD);
+
+        return parser;
     }
 
     private final AppliesTo appliesTo;

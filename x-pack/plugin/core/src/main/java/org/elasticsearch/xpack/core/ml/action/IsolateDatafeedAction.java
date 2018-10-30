@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -84,11 +84,8 @@ public class IsolateDatafeedAction extends Action<IsolateDatafeedAction.Response
 
         @Override
         public boolean match(Task task) {
-            String expectedDescription = MLMetadataField.datafeedTaskId(datafeedId);
-            if (task instanceof StartDatafeedAction.DatafeedTaskMatcher && expectedDescription.equals(task.getDescription())){
-                return true;
-            }
-            return false;
+            String expectedDescription = MlTasks.datafeedTaskId(datafeedId);
+            return task instanceof StartDatafeedAction.DatafeedTaskMatcher && expectedDescription.equals(task.getDescription());
         }
 
         @Override

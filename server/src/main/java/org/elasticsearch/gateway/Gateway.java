@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -136,20 +137,25 @@ public class Gateway extends AbstractComponent {
                 }
             }
         }
+        final ClusterState.Builder builder = upgradeAndArchiveUnknownOrInvalidSettings(metaDataBuilder);
+        listener.onSuccess(builder.build());
+    }
+
+    ClusterState.Builder upgradeAndArchiveUnknownOrInvalidSettings(MetaData.Builder metaDataBuilder) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         metaDataBuilder.persistentSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                metaDataBuilder.persistentSettings(),
+                clusterSettings.upgradeSettings(metaDataBuilder.persistentSettings()),
                 e -> logUnknownSetting("persistent", e),
                 (e, ex) -> logInvalidSetting("persistent", e, ex)));
         metaDataBuilder.transientSettings(
             clusterSettings.archiveUnknownOrInvalidSettings(
-                metaDataBuilder.transientSettings(),
+                clusterSettings.upgradeSettings(metaDataBuilder.transientSettings()),
                 e -> logUnknownSetting("transient", e),
                 (e, ex) -> logInvalidSetting("transient", e, ex)));
-        ClusterState.Builder builder = clusterService.newClusterStateBuilder();
+        ClusterState.Builder builder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings));
         builder.metaData(metaDataBuilder);
-        listener.onSuccess(builder.build());
+        return builder;
     }
 
     private void logUnknownSetting(String settingType, Map.Entry<String, String> e) {

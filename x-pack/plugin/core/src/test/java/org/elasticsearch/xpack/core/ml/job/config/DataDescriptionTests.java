@@ -53,11 +53,6 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         description.setTimeFormat("epoch");
         description.setTimeFormat("epoch_ms");
         description.setTimeFormat("yyyy-MM-dd HH");
-    }
-
-    @AwaitsFix(bugUrl = "https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8206980")
-    public void testVerify_GivenValidFormat_Java11Bug() {
-        DataDescription.Builder description = new DataDescription.Builder();
         description.setTimeFormat("yyyy.MM.dd G 'at' HH:mm:ss z");
     }
 
@@ -212,7 +207,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         XContentParser parser = JsonXContent.jsonXContent
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
         XContentParseException ex = expectThrows(XContentParseException.class,
-                () -> DataDescription.CONFIG_PARSER.apply(parser, null));
+                () -> DataDescription.STRICT_PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [format]"));
         Throwable cause = ex.getCause();
         assertNotNull(cause);
@@ -226,7 +221,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         XContentParser parser = JsonXContent.jsonXContent
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
         XContentParseException ex = expectThrows(XContentParseException.class,
-                () -> DataDescription.CONFIG_PARSER.apply(parser, null));
+                () -> DataDescription.STRICT_PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [field_delimiter]"));
         Throwable cause = ex.getCause();
         assertNotNull(cause);
@@ -240,7 +235,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         XContentParser parser = JsonXContent.jsonXContent
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
         XContentParseException ex = expectThrows(XContentParseException.class,
-                () -> DataDescription.CONFIG_PARSER.apply(parser, null));
+                () -> DataDescription.STRICT_PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [quote_character]"));
         Throwable cause = ex.getCause();
         assertNotNull(cause);
@@ -284,7 +279,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
 
     @Override
     protected DataDescription doParseInstance(XContentParser parser) {
-        return DataDescription.CONFIG_PARSER.apply(parser, null).build();
+        return DataDescription.STRICT_PARSER.apply(parser, null).build();
     }
 
     protected DataDescription mutateInstance(DataDescription instance) throws java.io.IOException {

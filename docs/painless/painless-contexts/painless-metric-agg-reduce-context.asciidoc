@@ -2,7 +2,7 @@
 === Metric aggregation reduce context
 
 Use a Painless script to
-{es_version}/search-aggregations-metrics-scripted-metric-aggregation.html[reduce]
+{ref}/search-aggregations-metrics-scripted-metric-aggregation.html[reduce]
 values to produce the result of a scripted metric aggregation. A reduce script
 is run once on the coordinating node following a
 <<painless-metric-agg-combine-context, combine script>> (or a
@@ -14,7 +14,7 @@ specified) and is optional as part of a full metric aggregation.
 `params` (`Map`, read-only)::
         User-defined parameters passed in as part of the query.
 
-`params['_aggs']` (`Map`)::
+`states` (`Map`)::
         `Map` with values available from the prior combine script (or a map
         script if no combine script is specified).
 

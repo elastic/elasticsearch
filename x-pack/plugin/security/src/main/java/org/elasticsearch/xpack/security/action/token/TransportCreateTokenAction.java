@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
+import java.io.IOException;
 import java.util.Collections;
 
 /**
@@ -48,29 +49,52 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
 
     @Override
     protected void doExecute(Task task, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
+        CreateTokenRequest.GrantType type = CreateTokenRequest.GrantType.fromString(request.getGrantType());
+        assert type != null : "type should have been validated in the action";
+        switch (type) {
+            case PASSWORD:
+                authenticateAndCreateToken(request, listener);
+                break;
+            case CLIENT_CREDENTIALS:
+                Authentication authentication = Authentication.getAuthentication(threadPool.getThreadContext());
+                createToken(request, authentication, authentication, false, listener);
+                break;
+            default:
+                listener.onFailure(new IllegalStateException("grant_type [" + request.getGrantType() +
+                    "] is not supported by the create token action"));
+                break;
+        }
+    }
+
+    private void authenticateAndCreateToken(CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
         Authentication originatingAuthentication = Authentication.getAuthentication(threadPool.getThreadContext());
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             final UsernamePasswordToken authToken = new UsernamePasswordToken(request.getUsername(), request.getPassword());
             authenticationService.authenticate(CreateTokenAction.NAME, request, authToken,
-                    ActionListener.wrap(authentication -> {
-                            request.getPassword().close();
-                            tokenService.createUserToken(authentication, originatingAuthentication, ActionListener.wrap(tuple -> {
-                                final String tokenStr = tokenService.getUserTokenString(tuple.v1());
-                                final String scope = getResponseScopeValue(request.getScope());
+                ActionListener.wrap(authentication -> {
+                    request.getPassword().close();
+                    createToken(request, authentication, originatingAuthentication, true, listener);
+                }, e -> {
+                    // clear the request password
+                    request.getPassword().close();
+                    listener.onFailure(e);
+                }));
+        }
+    }
 
-                                final CreateTokenResponse response =
-                                        new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope, tuple.v2());
-                                listener.onResponse(response);
-                            }, e -> {
-                                // clear the request password
-                                request.getPassword().close();
-                                listener.onFailure(e);
-                            }), Collections.emptyMap());
-                    }, e -> {
-                        // clear the request password
-                        request.getPassword().close();
-                        listener.onFailure(e);
-                    }));
+    private void createToken(CreateTokenRequest request, Authentication authentication, Authentication originatingAuth,
+                             boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
+        try {
+            tokenService.createUserToken(authentication, originatingAuth, ActionListener.wrap(tuple -> {
+                final String tokenStr = tokenService.getUserTokenString(tuple.v1());
+                final String scope = getResponseScopeValue(request.getScope());
+
+                final CreateTokenResponse response =
+                    new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope, tuple.v2());
+                listener.onResponse(response);
+            }, listener::onFailure), Collections.emptyMap(), includeRefreshToken);
+        } catch (IOException e) {
+            listener.onFailure(e);
         }
     }
 

@@ -10,7 +10,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.OverallBucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -71,7 +71,7 @@ public class OverallBucketsProvider {
     static class TopNScores extends PriorityQueue<Double> {
 
         TopNScores(int n) {
-            super(n, false);
+            super(n);
         }
 
         @Override

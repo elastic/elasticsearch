@@ -16,22 +16,23 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.function.Supplier;
 
 public class TransportGetInfluencersAction extends HandledTransportAction<GetInfluencersAction.Request, GetInfluencersAction.Response> {
 
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final Client client;
     private final JobManager jobManager;
 
     @Inject
     public TransportGetInfluencersAction(Settings settings, TransportService transportService,
-                                         ActionFilters actionFilters, JobProvider jobProvider, Client client, JobManager jobManager) {
+                                         ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
+                                         Client client, JobManager jobManager) {
         super(settings, GetInfluencersAction.NAME, transportService, actionFilters,
             (Supplier<GetInfluencersAction.Request>) GetInfluencersAction.Request::new);
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.client = client;
         this.jobManager = jobManager;
     }
@@ -49,7 +50,7 @@ public class TransportGetInfluencersAction extends HandledTransportAction<GetInf
                 .influencerScoreThreshold(request.getInfluencerScore())
                 .sortField(request.getSort())
                 .sortDescending(request.isDescending()).build();
-        jobProvider.influencers(request.getJobId(), query,
+        jobResultsProvider.influencers(request.getJobId(), query,
                 page -> listener.onResponse(new GetInfluencersAction.Response(page)), listener::onFailure, client);
     }
 }

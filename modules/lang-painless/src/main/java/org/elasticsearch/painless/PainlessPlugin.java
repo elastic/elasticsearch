@@ -40,7 +40,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.search.aggregations.pipeline.movfn.MovingFunctionScript;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -105,8 +105,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    public List<ScriptContext> getContexts() {
+    @Override
+    public List<ScriptContext<?>> getContexts() {
         return Collections.singletonList(PainlessExecuteAction.PainlessTestScript.CONTEXT);
     }
 

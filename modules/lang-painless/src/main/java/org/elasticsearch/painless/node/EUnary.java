@@ -94,7 +94,7 @@ public final class EUnary extends AExpression {
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply not [~] to type " +
-                    "[" + PainlessLookupUtility.anyTypeToPainlessTypeName(child.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(child.actual) + "]."));
         }
 
         child.expected = promote;
@@ -124,7 +124,7 @@ public final class EUnary extends AExpression {
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply positive [+] to type " +
-                    "[" + PainlessLookupUtility.painlessDefTypeToJavaObjectType(child.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToJavaType(child.actual) + "]."));
         }
 
         child.expected = promote;
@@ -158,7 +158,7 @@ public final class EUnary extends AExpression {
 
         if (promote == null) {
             throw createError(new ClassCastException("Cannot apply negative [-] to type " +
-                    "[" + PainlessLookupUtility.painlessDefTypeToJavaObjectType(child.actual) + "]."));
+                    "[" + PainlessLookupUtility.typeToJavaType(child.actual) + "]."));
         }
 
         child.expected = promote;

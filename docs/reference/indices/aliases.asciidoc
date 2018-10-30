@@ -145,7 +145,7 @@ exist in the mapping:
 PUT /test1
 {
   "mappings": {
-    "type1": {
+    "_doc": {
       "properties": {
         "user" : {
           "type": "keyword"
@@ -256,6 +256,9 @@ and there are multiple indices referenced by an alias, then writes will not be a
 
 It is possible to specify an index associated with an alias as a write index using both the aliases API
 and index creation API.
+
+Setting an index to be the write index with an alias also affects how the alias is manipulated during
+Rollover (see <<indices-rollover-index, Rollover With Write Index>>).
 
 [source,js]
 --------------------------------------------------
@@ -376,7 +379,7 @@ First create the index and add a mapping for the `user_id` field:
 PUT /users
 {
     "mappings" : {
-        "user" : {
+        "_doc" : {
             "properties" : {
                 "user_id" : {"type" : "integer"}
             }
@@ -416,7 +419,7 @@ Aliases can also be specified during <<create-index-aliases,index creation>>:
 PUT /logs_20162801
 {
     "mappings" : {
-        "type" : {
+        "_doc" : {
             "properties" : {
                 "year" : {"type" : "integer"}
             }

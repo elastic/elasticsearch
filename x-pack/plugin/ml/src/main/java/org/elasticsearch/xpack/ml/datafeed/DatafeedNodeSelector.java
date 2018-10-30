@@ -5,15 +5,17 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -24,7 +26,7 @@ import java.util.Objects;
 
 public class DatafeedNodeSelector {
 
-    private static final Logger LOGGER = Loggers.getLogger(DatafeedNodeSelector.class);
+    private static final Logger LOGGER = LogManager.getLogger(DatafeedNodeSelector.class);
 
     private final DatafeedConfig datafeed;
     private final PersistentTasksCustomMetaData.PersistentTask<?> jobTask;
@@ -35,7 +37,7 @@ public class DatafeedNodeSelector {
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         PersistentTasksCustomMetaData tasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         this.datafeed = mlMetadata.getDatafeed(datafeedId);
-        this.jobTask = MlMetadata.getJobTask(datafeed.getJobId(), tasks);
+        this.jobTask = MlTasks.getJobTask(datafeed.getJobId(), tasks);
         this.clusterState = Objects.requireNonNull(clusterState);
         this.resolver = Objects.requireNonNull(resolver);
     }
@@ -91,7 +93,7 @@ public class DatafeedNodeSelector {
         List<String> indices = datafeed.getIndices();
         for (String index : indices) {
 
-            if (MlRemoteLicenseChecker.isRemoteIndex(index)) {
+            if (RemoteClusterLicenseChecker.isRemoteIndex(index)) {
                 // We cannot verify remote indices
                 continue;
             }

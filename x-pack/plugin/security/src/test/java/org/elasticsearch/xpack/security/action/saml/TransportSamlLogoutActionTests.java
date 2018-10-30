@@ -178,6 +178,11 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
         }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        doAnswer(inv -> {
+            ((Runnable) inv.getArguments()[1]).run();
+            return null;
+        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        when(securityIndex.isAvailable()).thenReturn(true);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
@@ -222,7 +227,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
                 new SamlNameId(NameID.TRANSIENT, nameId, null, null, null), session);
 
         final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, future, tokenMetaData);
+        tokenService.createUserToken(authentication, authentication, future, tokenMetaData, true);
         final UserToken userToken = future.actionGet().v1();
         mockGetTokenFromId(userToken, client);
         final String tokenString = tokenService.getUserTokenString(userToken);

@@ -20,10 +20,11 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class DeleteStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<DeleteStoredScriptRequest,
-        DeleteStoredScriptResponse, DeleteStoredScriptRequestBuilder> {
+    AcknowledgedResponse, DeleteStoredScriptRequestBuilder> {
 
     public DeleteStoredScriptRequestBuilder(ElasticsearchClient client, DeleteStoredScriptAction action) {
         super(client, action, new DeleteStoredScriptRequest());

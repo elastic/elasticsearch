@@ -17,33 +17,16 @@
  * under the License.
  */
 
-buildscript {
-  repositories {
-    maven {
-      url 'https://plugins.gradle.org/m2/'
-    }
-  }
-  dependencies {
-    classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
-  }
-}
-
-
 apply plugin: 'elasticsearch.build'
-// build an uberjar with all benchmarks
-apply plugin: 'com.github.johnrengelman.shadow'
-// have the shadow plugin provide the runShadow task
 apply plugin: 'application'
 
 group = 'org.elasticsearch.client'
 
 // Not published so no need to assemble
-tasks.remove(assemble)
-build.dependsOn.remove('assemble')
+assemble.enabled = true
 
 archivesBaseName = 'client-benchmarks'
 mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'
-
 
 // never try to invoke tests on the benchmark project - there aren't any
 test.enabled = false

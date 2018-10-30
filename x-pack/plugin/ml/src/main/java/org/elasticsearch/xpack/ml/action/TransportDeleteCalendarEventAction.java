@@ -15,6 +15,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -26,33 +27,32 @@ import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportDeleteCalendarEventAction extends HandledTransportAction<DeleteCalendarEventAction.Request,
-        DeleteCalendarEventAction.Response> {
+public class TransportDeleteCalendarEventAction extends HandledTransportAction<DeleteCalendarEventAction.Request, AcknowledgedResponse> {
 
     private final Client client;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
 
     @Inject
     public TransportDeleteCalendarEventAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
-                                              Client client, JobProvider jobProvider, JobManager jobManager) {
+                                              Client client, JobResultsProvider jobResultsProvider, JobManager jobManager) {
         super(settings, DeleteCalendarEventAction.NAME, transportService, actionFilters,
               DeleteCalendarEventAction.Request::new);
         this.client = client;
-        this.jobProvider = jobProvider;
+        this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
     }
 
     @Override
     protected void doExecute(Task task, DeleteCalendarEventAction.Request request,
-                             ActionListener<DeleteCalendarEventAction.Response> listener) {
+                             ActionListener<AcknowledgedResponse> listener) {
         final String eventId = request.getEventId();
 
         ActionListener<Calendar> calendarListener = ActionListener.wrap(
@@ -87,10 +87,10 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                 }, listener::onFailure);
 
         // Get the calendar first so we check the calendar exists before checking the event exists
-        jobProvider.calendar(request.getCalendarId(), calendarListener);
+        jobResultsProvider.calendar(request.getCalendarId(), calendarListener);
     }
 
-    private void deleteEvent(String eventId, Calendar calendar, ActionListener<DeleteCalendarEventAction.Response> listener) {
+    private void deleteEvent(String eventId, Calendar calendar, ActionListener<AcknowledgedResponse> listener) {
         DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, MlMetaIndex.TYPE, eventId);
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -103,7 +103,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                             listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
                         } else {
                             jobManager.updateProcessOnCalendarChanged(calendar.getJobIds());
-                            listener.onResponse(new DeleteCalendarEventAction.Response(true));
+                            listener.onResponse(new AcknowledgedResponse(true));
                         }
                     }
 

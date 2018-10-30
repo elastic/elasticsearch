@@ -19,20 +19,23 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.English;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -339,98 +342,6 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         // try the same with multi match query
         searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the quick brown", "field1", "field2").cutoffFrequency(3).operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 3L);
-        assertFirstHit(searchResponse, hasId("3"));
-        assertSecondHit(searchResponse, hasId("1"));
-        assertThirdHit(searchResponse, hasId("2"));
-    }
-
-    public void testCommonTermsQueryStackedTokens() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder()
-                        .put(indexSettings())
-                        .put(SETTING_NUMBER_OF_SHARDS,1)
-                        .put("index.analysis.filter.syns.type","synonym")
-                        .putList("index.analysis.filter.syns.synonyms","quick,fast")
-                        .put("index.analysis.analyzer.syns.tokenizer","standard")
-                        .put("index.analysis.analyzer.syns.filter","syns")
-                        )
-                .addMapping("type1", "field1", "type=text,analyzer=syns", "field2", "type=text,analyzer=syns"));
-
-        indexRandom(true, client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
-                client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
-                client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree") );
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).get();
-        assertHitCount(searchResponse, 3L);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-        assertThirdHit(searchResponse, hasId("3"));
-
-        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast brown").cutoffFrequency(3).lowFreqOperator(Operator.AND)).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-
-        // Default
-        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast brown").cutoffFrequency(3)).get();
-        assertHitCount(searchResponse, 3L);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-        assertThirdHit(searchResponse, hasId("3"));
-
-
-        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast huge fox").lowFreqMinimumShouldMatch("3")).get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("2"));
-
-        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("5")).get();
-        assertHitCount(searchResponse, 2L);
-        assertFirstHit(searchResponse, hasId("2"));
-        assertSecondHit(searchResponse, hasId("1"));
-
-        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("6")).get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("2"));
-
-        // Default
-        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the fast lazy fox brown").cutoffFrequency(1)).get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("2"));
-
-        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).analyzer("stop")).get();
-        assertHitCount(searchResponse, 3L);
-        // stop drops "the" since its a stopword
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("3"));
-        assertThirdHit(searchResponse, hasId("2"));
-
-        // try the same with match query
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 2L);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(Operator.OR)).get();
-        assertHitCount(searchResponse, 3L);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-        assertThirdHit(searchResponse, hasId("3"));
-
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).operator(Operator.AND).analyzer("stop")).get();
-        assertHitCount(searchResponse, 3L);
-        // stop drops "the" since its a stopword
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("3"));
-        assertThirdHit(searchResponse, hasId("2"));
-
-        searchResponse = client().prepareSearch().setQuery(matchQuery("field1", "the fast brown").cutoffFrequency(3).minimumShouldMatch("3")).get();
-        assertHitCount(searchResponse, 2L);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-
-        // try the same with multi match query
-        searchResponse = client().prepareSearch().setQuery(multiMatchQuery("the fast brown", "field1", "field2").cutoffFrequency(3).operator(Operator.AND)).get();
         assertHitCount(searchResponse, 3L);
         assertFirstHit(searchResponse, hasId("3"));
         assertSecondHit(searchResponse, hasId("1"));
@@ -1531,69 +1442,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("field\\*:/value[01]/")).get(), 1);
     }
 
-    // see #3881 - for extensive description of the issue
-    public void testMatchQueryWithSynonyms() throws IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
-                .put(indexSettings())
-                .put("index.analysis.analyzer.index.type", "custom")
-                .put("index.analysis.analyzer.index.tokenizer", "standard")
-                .put("index.analysis.analyzer.index.filter", "lowercase")
-                .put("index.analysis.analyzer.search.type", "custom")
-                .put("index.analysis.analyzer.search.tokenizer", "standard")
-                .putList("index.analysis.analyzer.search.filter", "lowercase", "synonym")
-                .put("index.analysis.filter.synonym.type", "synonym")
-                .putList("index.analysis.filter.synonym.synonyms", "fast, quick"));
-        assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
-
-        client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
-        refresh();
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick").operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick brown").operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "fast").operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 1);
-
-        client().prepareIndex("test", "test", "2").setSource("text", "fast brown fox").get();
-        refresh();
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick").operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 2);
-        searchResponse = client().prepareSearch("test").setQuery(matchQuery("text", "quick brown").operator(Operator.AND)).get();
-        assertHitCount(searchResponse, 2);
-    }
-
-    public void testQueryStringWithSynonyms() throws IOException {
-        CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(Settings.builder()
-                .put(indexSettings())
-                .put("index.analysis.analyzer.index.type", "custom")
-                .put("index.analysis.analyzer.index.tokenizer", "standard")
-                .put("index.analysis.analyzer.index.filter", "lowercase")
-                .put("index.analysis.analyzer.search.type", "custom")
-                .put("index.analysis.analyzer.search.tokenizer", "standard")
-                .putList("index.analysis.analyzer.search.filter", "lowercase", "synonym")
-                .put("index.analysis.filter.synonym.type", "synonym")
-                .putList("index.analysis.filter.synonym.synonyms", "fast, quick"));
-        assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
-
-        client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick").defaultField("text").defaultOperator(Operator.AND)).get();
-        assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick brown").defaultField("text").defaultOperator(Operator.AND)).get();
-        assertHitCount(searchResponse, 1);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("fast").defaultField("text").defaultOperator(Operator.AND)).get();
-        assertHitCount(searchResponse, 1);
-
-        client().prepareIndex("test", "test", "2").setSource("text", "fast brown fox").get();
-        refresh();
-
-        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick").defaultField("text").defaultOperator(Operator.AND)).get();
-        assertHitCount(searchResponse, 2);
-        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("quick brown").defaultField("text").defaultOperator(Operator.AND)).get();
-        assertHitCount(searchResponse, 2);
-    }
-
     // see #3797
     public void testMultiMatchLenientIssue3797() {
         createIndex("test");
@@ -1740,7 +1588,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), is("3"));
 
         // When we use long values, it means we have ms since epoch UTC based so we don't apply any transformation
-        Exception e = expectThrows(SearchPhaseExecutionException.class, () ->
+        expectThrows(SearchPhaseExecutionException.class, () ->
             client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("date").from(1388534400000L).to(1388537940999L).timeZone("+01:00"))
                     .get());
@@ -1822,4 +1670,114 @@ public class SearchQueryIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
         assertHitCount(searchResponse, 1);
     }
+
+    public void testRangeQueryTypeField_31476() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("foo", "field", "type=keyword"));
+
+        client().prepareIndex("test", "foo", "1").setSource("field", "value").get();
+        refresh();
+
+        RangeQueryBuilder range = new RangeQueryBuilder("_type").from("ape").to("zebra");
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+
+        range = new RangeQueryBuilder("_type").from("monkey").to("zebra");
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("donkey");
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(false);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("ape").to("foo").includeUpper(true);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+
+        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(false);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 0);
+
+        range = new RangeQueryBuilder("_type").from("foo").to("zebra").includeLower(true);
+        searchResponse = client().prepareSearch("test").setQuery(range).get();
+        assertHitCount(searchResponse, 1);
+    }
+
+    public void testNestedQueryWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("section")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("distance")
+                                    .field("type", "long")
+                                .endObject()
+                                .startObject("route_length_miles")
+                                    .field("type", "alias")
+                                    .field("path", "section.distance")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("index").addMapping("_doc", mapping));
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startObject("section")
+                .field("distance", 42)
+            .endObject()
+        .endObject();
+
+        index("index", "_doc", "1", source);
+        refresh();
+
+        QueryBuilder nestedQuery = QueryBuilders.nestedQuery("section",
+            QueryBuilders.termQuery("section.route_length_miles", 42),
+            ScoreMode.Max);
+        SearchResponse searchResponse = client().prepareSearch("index").setQuery(nestedQuery).get();
+        assertHitCount(searchResponse, 1);
+    }
+
+   public void testFieldAliasesForMetaFields() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("id-alias")
+                            .field("type", "alias")
+                            .field("path", "_id")
+                        .endObject()
+                        .startObject("routing-alias")
+                            .field("type", "alias")
+                            .field("path", "_routing")
+                        .endObject()
+                    .endObject()
+            .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        IndexRequestBuilder indexRequest = client().prepareIndex("test", "type")
+            .setId("1")
+            .setRouting("custom")
+            .setSource("field", "value");
+        indexRandom(true, false, indexRequest);
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(termQuery("routing-alias", "custom"))
+            .addDocValueField("id-alias")
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        assertEquals(2, hit.getFields().size());
+        assertTrue(hit.getFields().containsKey("id-alias"));
+
+        DocumentField field = hit.getFields().get("id-alias");
+        assertThat(field.getValue().toString(), equalTo("1"));
+   }
 }

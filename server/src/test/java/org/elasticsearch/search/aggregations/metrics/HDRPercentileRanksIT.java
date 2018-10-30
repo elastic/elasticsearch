@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
@@ -30,9 +30,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesMethod;
 import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Arrays;
@@ -84,7 +81,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
             }
         }
         Arrays.sort(percents);
-        Loggers.getLogger(HDRPercentileRanksIT.class).info("Using values={}", Arrays.toString(percents));
+        LogManager.getLogger(HDRPercentileRanksIT.class).info("Using values={}", Arrays.toString(percents));
         return percents;
     }
 

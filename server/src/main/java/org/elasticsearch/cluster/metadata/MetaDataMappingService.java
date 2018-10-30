@@ -175,7 +175,8 @@ public class MetaDataMappingService extends AbstractComponent {
         try {
             List<String> updatedTypes = new ArrayList<>();
             MapperService mapperService = indexService.mapperService();
-            for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(), mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+            for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
+                                                       mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
                 if (mapper != null) {
                     final String type = mapper.type();
                     if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
@@ -188,7 +189,8 @@ public class MetaDataMappingService extends AbstractComponent {
             if (updatedTypes.isEmpty() == false) {
                 logger.warn("[{}] re-syncing mappings with cluster state because of types [{}]", index, updatedTypes);
                 dirty = true;
-                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(), mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
+                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
                     if (mapper != null) {
                         builder.putMapping(new MappingMetaData(mapper));
                     }
@@ -215,8 +217,8 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public ClusterTasksResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState,
-                                                                               List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+        public ClusterTasksResult<PutMappingClusterStateUpdateRequest>
+        execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             ClusterTasksResult.Builder<PutMappingClusterStateUpdateRequest> builder = ClusterTasksResult.builder();
             try {
@@ -287,6 +289,7 @@ public class MetaDataMappingService extends AbstractComponent {
             MetaData.Builder builder = MetaData.builder(metaData);
             boolean updated = false;
             for (IndexMetaData indexMetaData : updateList) {
+                boolean updatedMapping = false;
                 // do the actual merge here on the master, and update the mapping source
                 // we use the exact same indexService and metadata we used to validate above here to actually apply the update
                 final Index index = indexMetaData.getIndex();
@@ -303,7 +306,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     if (existingSource.equals(updatedSource)) {
                         // same source, no changes, ignore it
                     } else {
-                        updated = true;
+                        updatedMapping = true;
                         // use the merged mapping source
                         if (logger.isDebugEnabled()) {
                             logger.debug("{} update_mapping [{}] with source [{}]", index, mergedMapper.type(), updatedSource);
@@ -313,7 +316,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     }
                 } else {
-                    updated = true;
+                    updatedMapping = true;
                     if (logger.isDebugEnabled()) {
                         logger.debug("{} create_mapping [{}] with source [{}]", index, mappingType, updatedSource);
                     } else if (logger.isInfoEnabled()) {
@@ -324,12 +327,22 @@ public class MetaDataMappingService extends AbstractComponent {
                 IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(indexMetaData);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
-                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(), mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
+                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
                     if (mapper != null) {
                         indexMetaDataBuilder.putMapping(new MappingMetaData(mapper.mappingSource()));
                     }
                 }
+                if (updatedMapping) {
+                    indexMetaDataBuilder.mappingVersion(1 + indexMetaDataBuilder.mappingVersion());
+                }
+                /*
+                 * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have
+                 * already incremented the mapping version if necessary. Therefore, the mapping version increment must remain before this
+                 * statement.
+                 */
                 builder.put(indexMetaDataBuilder);
+                updated |= updatedMapping;
             }
             if (updated) {
                 return ClusterState.builder(currentState).metaData(builder).build();

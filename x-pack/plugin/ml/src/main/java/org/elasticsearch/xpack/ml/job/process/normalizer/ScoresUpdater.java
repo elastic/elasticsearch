@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.job.persistence.BatchedDocumentsIterator;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
 import java.util.ArrayList;
 import java.util.Deque;
@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  * with the renormalized scores
  */
 public class ScoresUpdater {
-    private static final Logger LOGGER = Loggers.getLogger(ScoresUpdater.class);
+    private static final Logger LOGGER = LogManager.getLogger(ScoresUpdater.class);
 
     /**
      * Target number of buckets to renormalize at a time
@@ -43,17 +43,17 @@ public class ScoresUpdater {
     private static final long MILLISECONDS_IN_SECOND = 1000;
 
     private final String jobId;
-    private final JobProvider jobProvider;
+    private final JobResultsProvider jobResultsProvider;
     private final JobRenormalizedResultsPersister updatesPersister;
     private final NormalizerFactory normalizerFactory;
     private int bucketSpan;
     private long normalizationWindow;
     private volatile boolean shutdown;
 
-    public ScoresUpdater(Job job, JobProvider jobProvider, JobRenormalizedResultsPersister jobRenormalizedResultsPersister,
+    public ScoresUpdater(Job job, JobResultsProvider jobResultsProvider, JobRenormalizedResultsPersister jobRenormalizedResultsPersister,
                          NormalizerFactory normalizerFactory) {
         jobId = job.getId();
-        this.jobProvider = Objects.requireNonNull(jobProvider);
+        this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         updatesPersister = Objects.requireNonNull(jobRenormalizedResultsPersister);
         this.normalizerFactory = Objects.requireNonNull(normalizerFactory);
         bucketSpan = ((Long) job.getAnalysisConfig().getBucketSpan().seconds()).intValue();
@@ -79,12 +79,12 @@ public class ScoresUpdater {
      * Update the anomaly score field on all previously persisted buckets
      * and all contained records
      */
-    public void update(String quantilesState, long endBucketEpochMs, long windowExtensionMs, boolean perPartitionNormalization) {
+    public void update(String quantilesState, long endBucketEpochMs, long windowExtensionMs) {
         Normalizer normalizer = normalizerFactory.create(jobId);
         int[] counts = {0, 0};
-        updateBuckets(normalizer, quantilesState, endBucketEpochMs, windowExtensionMs, counts, perPartitionNormalization);
-        updateRecords(normalizer, quantilesState, endBucketEpochMs, windowExtensionMs, counts, perPartitionNormalization);
-        updateInfluencers(normalizer, quantilesState, endBucketEpochMs, windowExtensionMs, counts, perPartitionNormalization);
+        updateBuckets(normalizer, quantilesState, endBucketEpochMs, windowExtensionMs, counts);
+        updateRecords(normalizer, quantilesState, endBucketEpochMs, windowExtensionMs, counts);
+        updateInfluencers(normalizer, quantilesState, endBucketEpochMs, windowExtensionMs, counts);
 
         // The updates will have been persisted in batches throughout the renormalization
         // process - this call just catches any leftovers
@@ -94,9 +94,9 @@ public class ScoresUpdater {
     }
 
     private void updateBuckets(Normalizer normalizer, String quantilesState, long endBucketEpochMs,
-                               long windowExtensionMs, int[] counts, boolean perPartitionNormalization) {
+                               long windowExtensionMs, int[] counts) {
         BatchedDocumentsIterator<Result<Bucket>> bucketsIterator =
-                jobProvider.newBatchedBucketsIterator(jobId)
+                jobResultsProvider.newBatchedBucketsIterator(jobId)
                         .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs)
                         .includeInterim(false);
 
@@ -114,14 +114,14 @@ public class ScoresUpdater {
                 if (current.result.isNormalizable()) {
                     bucketsToRenormalize.add(new BucketNormalizable(current.result, current.index));
                     if (bucketsToRenormalize.size() >= TARGET_BUCKETS_TO_RENORMALIZE) {
-                        normalizeBuckets(normalizer, bucketsToRenormalize, quantilesState, counts, perPartitionNormalization);
+                        normalizeBuckets(normalizer, bucketsToRenormalize, quantilesState, counts);
                         bucketsToRenormalize.clear();
                     }
                 }
             }
         }
         if (!bucketsToRenormalize.isEmpty()) {
-            normalizeBuckets(normalizer, bucketsToRenormalize, quantilesState, counts, perPartitionNormalization);
+            normalizeBuckets(normalizer, bucketsToRenormalize, quantilesState, counts);
         }
     }
 
@@ -130,8 +130,8 @@ public class ScoresUpdater {
     }
 
     private void normalizeBuckets(Normalizer normalizer, List<BucketNormalizable> normalizableBuckets,
-                                  String quantilesState, int[] counts, boolean perPartitionNormalization) {
-        normalizer.normalize(bucketSpan, perPartitionNormalization, normalizableBuckets, quantilesState);
+                                  String quantilesState, int[] counts) {
+        normalizer.normalize(bucketSpan, normalizableBuckets, quantilesState);
 
         for (BucketNormalizable bucketNormalizable : normalizableBuckets) {
             if (bucketNormalizable.hadBigNormalizedUpdate()) {
@@ -144,8 +144,8 @@ public class ScoresUpdater {
     }
 
     private void updateRecords(Normalizer normalizer, String quantilesState, long endBucketEpochMs,
-                               long windowExtensionMs, int[] counts, boolean perPartitionNormalization) {
-        BatchedDocumentsIterator<Result<AnomalyRecord>> recordsIterator = jobProvider.newBatchedRecordsIterator(jobId)
+                               long windowExtensionMs, int[] counts) {
+        BatchedDocumentsIterator<Result<AnomalyRecord>> recordsIterator = jobResultsProvider.newBatchedRecordsIterator(jobId)
                 .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs)
                 .includeInterim(false);
 
@@ -160,15 +160,15 @@ public class ScoresUpdater {
             List<Normalizable> asNormalizables = records.stream()
                     .map(recordResultIndex -> new RecordNormalizable(recordResultIndex.result, recordResultIndex.index))
                     .collect(Collectors.toList());
-            normalizer.normalize(bucketSpan, perPartitionNormalization, asNormalizables, quantilesState);
+            normalizer.normalize(bucketSpan, asNormalizables, quantilesState);
 
             persistChanged(counts, asNormalizables);
         }
     }
 
     private void updateInfluencers(Normalizer normalizer, String quantilesState, long endBucketEpochMs,
-                                   long windowExtensionMs, int[] counts, boolean perPartitionNormalization) {
-        BatchedDocumentsIterator<Result<Influencer>> influencersIterator = jobProvider.newBatchedInfluencersIterator(jobId)
+                                   long windowExtensionMs, int[] counts) {
+        BatchedDocumentsIterator<Result<Influencer>> influencersIterator = jobResultsProvider.newBatchedInfluencersIterator(jobId)
                 .timeRange(calcNormalizationWindowStart(endBucketEpochMs, windowExtensionMs), endBucketEpochMs)
                 .includeInterim(false);
 
@@ -183,7 +183,7 @@ public class ScoresUpdater {
             List<Normalizable> asNormalizables = influencers.stream()
                     .map(influencerResultIndex -> new InfluencerNormalizable(influencerResultIndex.result, influencerResultIndex.index))
                     .collect(Collectors.toList());
-            normalizer.normalize(bucketSpan, perPartitionNormalization, asNormalizables, quantilesState);
+            normalizer.normalize(bucketSpan, asNormalizables, quantilesState);
 
             persistChanged(counts, asNormalizables);
         }

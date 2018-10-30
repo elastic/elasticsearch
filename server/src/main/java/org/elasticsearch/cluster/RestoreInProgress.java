@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -165,7 +166,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
             if (o == null || getClass() != o.getClass()) {
                 return false;
             }
-            @SuppressWarnings("unchecked") Entry entry = (Entry) o;
+            Entry entry = (Entry) o;
             return snapshot.equals(entry.snapshot) &&
                        state == entry.state &&
                        indices.equals(entry.indices) &&
@@ -291,7 +292,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                 return false;
             }
 
-            @SuppressWarnings("unchecked") ShardRestoreStatus status = (ShardRestoreStatus) o;
+            ShardRestoreStatus status = (ShardRestoreStatus) o;
             return state == status.state &&
                        Objects.equals(nodeId, status.nodeId) &&
                        Objects.equals(reason, status.reason);

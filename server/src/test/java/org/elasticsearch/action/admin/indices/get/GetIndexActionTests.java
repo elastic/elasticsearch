@@ -40,8 +40,10 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 
 public class GetIndexActionTests extends ESSingleNodeTestCase {
 
@@ -58,14 +60,14 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        settingsFilter = new SettingsModule(Settings.EMPTY, Collections.emptyList(), Collections.emptyList()).getSettingsFilter();
+        settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet()).getSettingsFilter();
         threadPool = new TestThreadPool("GetIndexActionTests");
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);
         CapturingTransport capturingTransport = new CapturingTransport();
-        transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool,
+        transportService = capturingTransport.createCapturingTransportService(clusterService.getSettings(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> clusterService.localNode(), null, Collections.emptySet());
+            boundAddress -> clusterService.localNode(), null, emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
         getIndexAction = new GetIndexActionTests.TestTransportGetIndexAction();
@@ -81,12 +83,10 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     public void testIncludeDefaults() {
         GetIndexRequest defaultsRequest = new GetIndexRequest().indices(indexName).includeDefaults(true);
         getIndexAction.execute(null, defaultsRequest, ActionListener.wrap(
-            defaultsResponse -> {
-                assertNotNull(
-                    "index.refresh_interval should be set as we are including defaults",
-                    defaultsResponse.getSetting(indexName, "index.refresh_interval")
-                );
-            }, exception -> {
+            defaultsResponse -> assertNotNull(
+                "index.refresh_interval should be set as we are including defaults",
+                defaultsResponse.getSetting(indexName, "index.refresh_interval")
+            ), exception -> {
                 throw new AssertionError(exception);
             })
         );
@@ -95,12 +95,10 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     public void testDoNotIncludeDefaults() {
         GetIndexRequest noDefaultsRequest = new GetIndexRequest().indices(indexName);
         getIndexAction.execute(null, noDefaultsRequest, ActionListener.wrap(
-            noDefaultsResponse -> {
-                assertNull(
-                    "index.refresh_interval should be null as it was never set",
-                    noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
-                );
-            }, exception -> {
+            noDefaultsResponse -> assertNull(
+                "index.refresh_interval should be null as it was never set",
+                noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
+            ), exception -> {
                 throw new AssertionError(exception);
             })
         );
@@ -110,7 +108,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
 
         TestTransportGetIndexAction() {
             super(Settings.EMPTY, GetIndexActionTests.this.transportService, GetIndexActionTests.this.clusterService,
-                GetIndexActionTests.this.threadPool, settingsFilter, new ActionFilters(Collections.emptySet()),
+                GetIndexActionTests.this.threadPool, settingsFilter, new ActionFilters(emptySet()),
                 new GetIndexActionTests.Resolver(Settings.EMPTY), indicesService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS);
         }
 

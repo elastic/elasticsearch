@@ -93,10 +93,13 @@ public class SessionFactoryTests extends ESTestCase {
         options = SessionFactory.connectionOptions(realmConfig, sslService.apply(settings), logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
 
-        settings = Settings.builder().put("ssl.verification_mode", VerificationMode.NONE).build();
-        realmConfig = new RealmConfig(realmName, settings, environment.settings(), environment, threadContext);
-        options = SessionFactory.connectionOptions(realmConfig, sslService.apply(settings), logger);
-        assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
+        // Can't run in FIPS with verification_mode none, disable this check instead of duplicating the test case
+        if (inFipsJvm() == false) {
+            settings = Settings.builder().put("ssl.verification_mode", VerificationMode.NONE).build();
+            realmConfig = new RealmConfig(realmName, settings, environment.settings(), environment, threadContext);
+            options = SessionFactory.connectionOptions(realmConfig, sslService.apply(settings), logger);
+            assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));
+        }
 
         settings = Settings.builder().put("ssl.verification_mode", VerificationMode.FULL).build();
         realmConfig = new RealmConfig(realmName, settings, environment.settings(), environment, threadContext);

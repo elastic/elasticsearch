@@ -32,25 +32,25 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.TrustManagerFactory;
-
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.TrustManagerFactory;
+
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForPEMFiles;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class SslIntegrationTests extends SecurityIntegTestCase {
 
@@ -97,6 +97,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
 
     // no SSL exception as this is the exception is returned when connecting
     public void testThatTransportClientUsingSSLv3ProtocolIsRejected() {
+        assumeFalse("Can't run in a FIPS JVM as SSLv3 SSLContext not available", inFipsJvm());
         try (TransportClient transportClient = new TestXPackTransportClient(Settings.builder()
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
@@ -116,7 +117,11 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
 
     public void testThatConnectionToHTTPWorks() throws Exception {
         Settings.Builder builder = Settings.builder();
-        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");
+        addSSLSettingsForPEMFiles(
+            builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
+            "testclient",
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         SSLService service = new SSLService(builder.build(), null);
 
         CredentialsProvider provider = new BasicCredentialsProvider();
@@ -135,6 +140,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     }
 
     public void testThatHttpUsingSSLv3IsRejected() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM as we can't even get an instance of SSL SSL Context", inFipsJvm());
         SSLContext sslContext = SSLContext.getInstance("SSL");
         TrustManagerFactory factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         factory.init((KeyStore) null);
@@ -143,10 +149,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         SSLConnectionSocketFactory sf = new SSLConnectionSocketFactory(sslContext, new String[]{ "SSLv3" }, null,
                 NoopHostnameVerifier.INSTANCE);
         try (CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(sf).build()) {
-            CloseableHttpResponse result = SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl())));
-            fail("Expected a connection error due to SSLv3 not being supported by default");
-        } catch (Exception e) {
-            assertThat(e, is(instanceOf(SSLHandshakeException.class)));
+            expectThrows(SSLHandshakeException.class, () -> SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl()))));
         }
     }
 

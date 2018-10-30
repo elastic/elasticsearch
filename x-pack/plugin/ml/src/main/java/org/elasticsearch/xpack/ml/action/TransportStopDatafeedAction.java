@@ -25,8 +25,8 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.MLMetadataField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
@@ -79,7 +79,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
         Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds());
         for (String expandedDatafeedId : expandedDatafeedIds) {
             validateDatafeedTask(expandedDatafeedId, mlMetadata);
-            addDatafeedTaskIdAccordingToState(expandedDatafeedId, MlMetadata.getDatafeedState(expandedDatafeedId, tasks),
+            addDatafeedTaskIdAccordingToState(expandedDatafeedId, MlTasks.getDatafeedState(expandedDatafeedId, tasks),
                     startedDatafeedIds, stoppingDatafeedIds);
         }
     }
@@ -155,7 +155,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                                     List<String> startedDatafeeds, List<String> stoppingDatafeeds) {
         Set<String> executorNodes = new HashSet<>();
         for (String datafeedId : startedDatafeeds) {
-            PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(datafeedId, tasks);
+            PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             if (datafeedTask == null || datafeedTask.isAssigned() == false) {
                 String message = "Cannot stop datafeed [" + datafeedId + "] because the datafeed does not have an assigned node." +
                         " Use force stop to stop the datafeed";
@@ -171,8 +171,8 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
         // wait for started and stopping datafeeds
         // Map datafeedId -> datafeed task Id.
         List<String> allDataFeedsToWaitFor = Stream.concat(
-                startedDatafeeds.stream().map(id -> MLMetadataField.datafeedTaskId(id)),
-                stoppingDatafeeds.stream().map(id -> MLMetadataField.datafeedTaskId(id)))
+                startedDatafeeds.stream().map(MlTasks::datafeedTaskId),
+                stoppingDatafeeds.stream().map(MlTasks::datafeedTaskId))
                 .collect(Collectors.toList());
 
         ActionListener<StopDatafeedAction.Response> finalListener = ActionListener.wrap(
@@ -188,7 +188,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
         final AtomicArray<Exception> failures = new AtomicArray<>(startedDatafeeds.size());
 
         for (String datafeedId : startedDatafeeds) {
-            PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(datafeedId, tasks);
+            PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
             if (datafeedTask != null) {
                 persistentTasksService.sendRemoveRequest(datafeedTask.getId(),
                         new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {

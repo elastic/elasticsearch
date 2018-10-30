@@ -19,6 +19,7 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -35,19 +36,29 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
+import javax.security.cert.X509Certificate;
 import java.nio.file.Path;
 import java.security.AccessController;
+import java.security.Principal;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -72,6 +83,8 @@ public class SSLServiceTests extends ESTestCase {
     private Path testnodeStore;
     private String testnodeStoreType;
     private Path testclientStore;
+    private Path testnodeCert;
+    private Path testnodeKey;
     private Environment env;
 
     @Before
@@ -80,17 +93,20 @@ public class SSLServiceTests extends ESTestCase {
         if (randomBoolean()) {
             testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
             // The default is to use JKS. Randomly test with explicit and with the default value.
-            testnodeStoreType = randomBoolean() ? "jks" : null;
+            testnodeStoreType = "jks";
         } else {
             testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12");
             testnodeStoreType = randomBoolean() ? "PKCS12" : null;
         }
         logger.info("Using [{}] key/truststore [{}]", testnodeStoreType, testnodeStore);
+        testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         testclientStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks");
         env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
     }
 
     public void testThatCustomTruststoreCanBeSpecified() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path testClientStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
@@ -110,7 +126,7 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureCustomSettings)
                 .build();
 
-        SSLConfiguration configuration =  new SSLConfiguration(customTruststoreSettings, globalConfiguration(sslService));
+        SSLConfiguration configuration = new SSLConfiguration(customTruststoreSettings, globalConfiguration(sslService));
         SSLEngine sslEngineWithTruststore = sslService.createSSLEngine(configuration, null, -1);
         assertThat(sslEngineWithTruststore, is(not(nullValue())));
 
@@ -126,10 +142,10 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatSslContextCachingWorks() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", testnodeStore)
-                .put("xpack.ssl.keystore.type", testnodeStoreType)
+            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.ssl.key", testnodeKey)
                 .setSecureSettings(secureSettings)
                 .build();
         SSLService sslService = new SSLService(settings, env);
@@ -145,6 +161,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testThatKeyStoreAndKeyCanHaveDifferentPasswords() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path differentPasswordsStore =
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-different-passwords.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
@@ -160,6 +177,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testIncorrectKeyPasswordThrowsException() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path differentPasswordsStore =
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-different-passwords.jks");
         try {
@@ -180,12 +198,12 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatSSLv3IsNotEnabled() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", testnodeStore)
-                .put("xpack.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.ssl.key", testnodeKey)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
         SSLConfiguration configuration = globalConfiguration(sslService);
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
@@ -214,6 +232,7 @@ public class SSLServiceTests extends ESTestCase {
 
 
     public void testCreateWithKeystoreIsValidForServer() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
@@ -227,6 +246,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testValidForServerWithFallback() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
@@ -251,6 +271,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testGetVerificationMode() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = new SSLService(Settings.EMPTY, env);
         assertThat(globalConfiguration(sslService).verificationMode(), is(XPackSettings.VERIFICATION_MODE_DEFAULT));
 
@@ -273,7 +294,7 @@ public class SSLServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("xpack.ssl.client_authentication", "none")
                 .put("xpack.security.transport.ssl.client_authentication", "optional")
-                .put("transport.profiles.foo.port", "9400-9410")
+            .put("transport.profiles.foo.port", "9400-9410")
                 .build();
         sslService = new SSLService(settings, env);
         assertFalse(sslService.isSSLClientAuthEnabled(globalConfiguration(sslService)));
@@ -325,13 +346,12 @@ public class SSLServiceTests extends ESTestCase {
         ciphers.add("foo");
         ciphers.add("bar");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", testnodeStore)
-                .put("xpack.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .putList("xpack.ssl.ciphers", ciphers.toArray(new String[ciphers.size()]))
-                .build();
+            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.ssl.key", testnodeKey)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
         SSLConfiguration configuration = globalConfiguration(sslService);
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
@@ -342,14 +362,14 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testInvalidCiphersOnlyThrowsException() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
-
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", testnodeStore)
-                .put("xpack.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .putList("xpack.ssl.cipher_suites", new String[] { "foo", "bar" })
-                .build();
+            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.ssl.key", testnodeKey)
+            .putList("xpack.ssl.cipher_suites", new String[]{"foo", "bar"})
+            .setSecureSettings(secureSettings)
+            .build();
+
         IllegalArgumentException e =
                 expectThrows(IllegalArgumentException.class, () -> new SSLService(settings, env));
         assertThat(e.getMessage(), is("none of the ciphers [foo, bar] are supported by this JVM"));
@@ -357,12 +377,12 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatSSLEngineHasCipherSuitesOrderSet() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", testnodeStore)
-                .put("xpack.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.ssl.key", testnodeKey)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
         SSLConfiguration configuration = globalConfiguration(sslService);
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
@@ -372,12 +392,12 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatSSLSocketFactoryHasProperCiphersAndProtocols() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", testnodeStore)
-                .put("xpack.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.ssl.key", testnodeKey)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
         SSLConfiguration config = globalConfiguration(sslService);
         final SSLSocketFactory factory = sslService.sslSocketFactory(config);
@@ -397,12 +417,12 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatSSLEngineHasProperCiphersAndProtocols() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.path", testnodeStore)
-                .put("xpack.ssl.keystore.type", testnodeStoreType)
-                .setSecureSettings(secureSettings)
-                .build();
+            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.ssl.key", testnodeKey)
+            .setSecureSettings(secureSettings)
+            .build();
         SSLService sslService = new SSLService(settings, env);
         SSLConfiguration configuration = globalConfiguration(sslService);
         SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
@@ -457,13 +477,13 @@ public class SSLServiceTests extends ESTestCase {
     public void testEmptyTrustManager() throws Exception {
         Settings settings = Settings.builder().build();
         final SSLService sslService = new SSLService(settings, env);
-        SSLConfiguration sslConfig = new SSLConfiguration(settings);
-        X509ExtendedTrustManager trustManager = sslService.sslContextHolder(sslConfig).getEmptyTrustManager();
+        X509ExtendedTrustManager trustManager = sslService.sslContextHolder(sslService.getSSLConfiguration("xpack.ssl"))
+            .getEmptyTrustManager();
         assertThat(trustManager.getAcceptedIssuers(), emptyArray());
     }
 
-
     public void testGetConfigurationByContextName() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         final SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
         sslContext.init(null, null, null);
         final String[] cipherSuites = sslContext.getSupportedSSLParameters().getCipherSuites();
@@ -525,7 +545,8 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(mon3Config, sameInstance(global));
     }
 
-    public void testReadCertificateInformation () throws Exception {
+    public void testReadCertificateInformation() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
         final Path jksPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
         final Path p12Path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.p12");
         final Path pemPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt");
@@ -644,6 +665,57 @@ public class SSLServiceTests extends ESTestCase {
         assertFalse(iterator.hasNext());
     }
 
+    public void testSSLSessionInvalidationHandlesNullSessions() {
+        final int numEntries = randomIntBetween(1, 32);
+        final AtomicInteger invalidationCounter = new AtomicInteger();
+        int numNull = 0;
+        final Map<byte[], SSLSession> sessionMap = new HashMap<>();
+        for (int i = 0; i < numEntries; i++) {
+            final byte[] id = randomByteArrayOfLength(2);
+            final SSLSession sslSession;
+            if (rarely()) {
+                sslSession = null;
+                numNull++;
+            } else {
+                sslSession = new MockSSLSession(id, invalidationCounter::incrementAndGet);
+            }
+            sessionMap.put(id, sslSession);
+        }
+
+        SSLSessionContext sslSessionContext = new SSLSessionContext() {
+            @Override
+            public SSLSession getSession(byte[] sessionId) {
+                return sessionMap.get(sessionId);
+            }
+
+            @Override
+            public Enumeration<byte[]> getIds() {
+                return Collections.enumeration(sessionMap.keySet());
+            }
+
+            @Override
+            public void setSessionTimeout(int seconds) throws IllegalArgumentException {
+            }
+
+            @Override
+            public int getSessionTimeout() {
+                return 0;
+            }
+
+            @Override
+            public void setSessionCacheSize(int size) throws IllegalArgumentException {
+            }
+
+            @Override
+            public int getSessionCacheSize() {
+                return 0;
+            }
+        };
+
+        SSLService.invalidateSessions(sslSessionContext);
+        assertEquals(numEntries - numNull, invalidationCounter.get());
+    }
+
     @Network
     public void testThatSSLContextWithoutSettingsWorks() throws Exception {
         SSLService sslService = new SSLService(Settings.EMPTY, env);
@@ -751,4 +823,120 @@ public class SSLServiceTests extends ESTestCase {
         }
     }
 
+    private static final class MockSSLSession implements SSLSession {
+
+        private final byte[] id;
+        private final Runnable invalidation;
+
+        private MockSSLSession(byte[] id, Runnable invalidation) {
+            this.id = id;
+            this.invalidation = invalidation;
+        }
+
+        @Override
+        public byte[] getId() {
+            return id;
+        }
+
+        @Override
+        public SSLSessionContext getSessionContext() {
+            return null;
+        }
+
+        @Override
+        public long getCreationTime() {
+            return 0;
+        }
+
+        @Override
+        public long getLastAccessedTime() {
+            return 0;
+        }
+
+        @Override
+        public void invalidate() {
+            invalidation.run();
+        }
+
+        @Override
+        public boolean isValid() {
+            return false;
+        }
+
+        @Override
+        public void putValue(String name, Object value) {
+
+        }
+
+        @Override
+        public Object getValue(String name) {
+            return null;
+        }
+
+        @Override
+        public void removeValue(String name) {
+
+        }
+
+        @Override
+        public String[] getValueNames() {
+            return new String[0];
+        }
+
+        @Override
+        public Certificate[] getPeerCertificates() throws SSLPeerUnverifiedException {
+            return new Certificate[0];
+        }
+
+        @Override
+        public Certificate[] getLocalCertificates() {
+            return new Certificate[0];
+        }
+
+        @SuppressForbidden(reason = "need to reference deprecated class to implement JDK interface")
+        @Override
+        public X509Certificate[] getPeerCertificateChain() throws SSLPeerUnverifiedException {
+            return new X509Certificate[0];
+        }
+
+        @Override
+        public Principal getPeerPrincipal() throws SSLPeerUnverifiedException {
+            return null;
+        }
+
+        @Override
+        public Principal getLocalPrincipal() {
+            return null;
+        }
+
+        @Override
+        public String getCipherSuite() {
+            return null;
+        }
+
+        @Override
+        public String getProtocol() {
+            return null;
+        }
+
+        @Override
+        public String getPeerHost() {
+            return null;
+        }
+
+        @Override
+        public int getPeerPort() {
+            return 0;
+        }
+
+        @Override
+        public int getPacketBufferSize() {
+            return 0;
+        }
+
+        @Override
+        public int getApplicationBufferSize() {
+            return 0;
+        }
+    }
 }

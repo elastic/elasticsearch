@@ -11,6 +11,7 @@ import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -20,6 +21,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,10 +33,10 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_DOES_NOT_EXIST;
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_EXISTS;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 /**
  * Base test helper for any {@link PublishableHttpResource}.
@@ -87,7 +90,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final ResponseException responseException = responseException("GET", endpoint, failedCheckStatus());
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
 
-        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenThrow(e);
+        Request request = new Request("GET", endpoint);
+        addParameters(request, getParameters(resource.getParameters()));
+        when(client.performRequest(request)).thenThrow(e);
 
         assertThat(resource.doCheck(client), is(CheckResponse.ERROR));
     }
@@ -123,7 +128,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final ResponseException responseException = responseException("DELETE", endpoint, failedCheckStatus());
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
 
-        when(client.performRequest("DELETE", endpoint, deleteParameters(resource.getParameters()))).thenThrow(e);
+        Request request = new Request("DELETE", endpoint);
+        addParameters(request, deleteParameters(resource.getParameters()));
+        when(client.performRequest(request)).thenThrow(e);
 
         assertThat(resource.doCheck(client), is(CheckResponse.ERROR));
     }
@@ -173,9 +180,15 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"));
 
-        when(client.performRequest(eq("PUT"), eq(endpoint), eq(resource.getParameters()), any(bodyType))).thenThrow(e);
+        when(client.performRequest(Mockito.any(Request.class))).thenThrow(e);
 
         assertThat(resource.doPublish(client), is(false));
+        ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
+        verify(client).performRequest(request.capture());
+        assertThat(request.getValue().getMethod(), is("PUT"));
+        assertThat(request.getValue().getEndpoint(), is(endpoint));
+        assertThat(request.getValue().getParameters(), is(resource.getParameters()));
+        assertThat(request.getValue().getEntity(), instanceOf(bodyType));
     }
 
     protected void assertParameters(final PublishableHttpResource resource) {
@@ -244,7 +257,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
                                          final String endpoint, final CheckResponse expected,
                                          final Response response)
             throws IOException {
-        when(client.performRequest("GET", endpoint, expectedParameters)).thenReturn(response);
+        Request request = new Request("GET", endpoint);
+        addParameters(request, expectedParameters);
+        when(client.performRequest(request)).thenReturn(response);
 
         assertThat(resource.doCheck(client), is(expected));
     }
@@ -257,9 +272,14 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("GET", endpoint, status);
 
-        when(client.performRequest(eq("PUT"), eq(endpoint), eq(resource.getParameters()), any(bodyType))).thenReturn(response);
+        ArgumentCaptor<Request> request = ArgumentCaptor.forClass(Request.class);
+        when(client.performRequest(request.capture())).thenReturn(response);
 
         assertThat(resource.doPublish(client), is(expected));
+        assertThat(request.getValue().getMethod(), is("PUT"));
+        assertThat(request.getValue().getEndpoint(), is(endpoint));
+        assertThat(request.getValue().getParameters(), is(resource.getParameters()));
+        assertThat(request.getValue().getEntity(), instanceOf(bodyType));
     }
 
     protected void doCheckAsDeleteWithStatusCode(final PublishableHttpResource resource,
@@ -277,7 +297,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
                                                  final String endpoint, final CheckResponse expected,
                                                  final Response response)
             throws IOException {
-        when(client.performRequest("DELETE", endpoint, deleteParameters(resource.getParameters()))).thenReturn(response);
+        Request request = new Request("DELETE", endpoint);
+        addParameters(request, deleteParameters(resource.getParameters()));
+        when(client.performRequest(request)).thenReturn(response);
 
         assertThat(resource.doCheck(client), is(expected));
     }
@@ -427,4 +449,9 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         return entity;
     }
 
+    protected void addParameters(Request request, Map<String, String> parameters) {
+        for (Map.Entry<String, String> param : parameters.entrySet()) {
+            request.addParameter(param.getKey(), param.getValue());
+        }
+    }
 }

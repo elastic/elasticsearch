@@ -49,9 +49,9 @@ public final class EExplicit extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        try {
-            actual = locals.getPainlessLookup().getJavaClassFromPainlessType(type);
-        } catch (IllegalArgumentException exception) {
+        actual = locals.getPainlessLookup().canonicalTypeNameToType(type);
+
+        if (actual == null) {
             throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
         }
 

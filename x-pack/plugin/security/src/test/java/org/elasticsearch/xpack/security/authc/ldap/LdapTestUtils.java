@@ -67,6 +67,6 @@ public class LdapTestUtils {
             sslConfiguration = sslService.getSSLConfiguration("xpack.security.authc.realms.foo.ssl");
         }
         return LdapUtils.privilegedConnect(() -> new LDAPConnection(sslService.sslSocketFactory(sslConfiguration), options,
-                ldapurl.getHost(), ldapurl.getPort(), bindDN, bindPassword));
+            ldapurl.getHost(), ldapurl.getPort(), bindDN, bindPassword));
     }
 }

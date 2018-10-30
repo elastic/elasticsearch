@@ -30,14 +30,12 @@ import org.elasticsearch.client.Validatable;
 public final class AuthenticateRequest implements Validatable {
 
     public static final AuthenticateRequest INSTANCE = new AuthenticateRequest();
-    private final Request request;
 
     private AuthenticateRequest() {
-        request = new Request(HttpGet.METHOD_NAME, "/_xpack/security/_authenticate");
     }
 
     public Request getRequest() {
-        return request;
+        return new Request(HttpGet.METHOD_NAME, "/_xpack/security/_authenticate");
     }
 
 }

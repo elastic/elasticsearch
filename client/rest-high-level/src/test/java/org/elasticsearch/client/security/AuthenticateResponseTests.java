@@ -35,7 +35,7 @@ import java.util.Map;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 public class AuthenticateResponseTests extends ESTestCase {
-    
+
     public void testFromXContent() throws IOException {
         xContentTester(
                 this::createParser,
@@ -72,7 +72,7 @@ public class AuthenticateResponseTests extends ESTestCase {
         final boolean enabled = randomBoolean();
         return new AuthenticateResponse(new User(username, roles, metadata, fullName, email), enabled);
     }
-    
+
     private void toXContent(AuthenticateResponse response, XContentBuilder builder) throws IOException {
         final User user = response.getUser();
         final boolean enabled = response.enabled();
@@ -92,10 +92,11 @@ public class AuthenticateResponseTests extends ESTestCase {
 
     private AuthenticateResponse copy(AuthenticateResponse response) {
         final User originalUser = response.getUser();
-        final User copyUser = new User(originalUser.username(), originalUser.roles(), originalUser.metadata(), originalUser.fullName(), originalUser.email());
+        final User copyUser = new User(originalUser.username(), originalUser.roles(), originalUser.metadata(), originalUser.fullName(),
+                originalUser.email());
         return new AuthenticateResponse(copyUser, response.enabled());
     }
-    
+
     private AuthenticateResponse mutate(AuthenticateResponse response) {
         final User originalUser = response.getUser();
         switch (randomIntBetween(1, 6)) {

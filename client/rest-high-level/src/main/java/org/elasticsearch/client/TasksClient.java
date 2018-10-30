@@ -35,6 +35,7 @@ import static java.util.Collections.emptySet;
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/tasks.html">Task Management API on elastic.co</a>
  */
 public final class TasksClient {
+
     private final RestRequestActions restHighLevelClient;
 
     TasksClient(RestRequestActions requestActions) {

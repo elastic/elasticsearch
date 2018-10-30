@@ -33,6 +33,7 @@ import java.util.Collections;
  * X-Pack Migration APIs on elastic.co</a> for more information.
  */
 public final class MigrationClient {
+
     private final RestRequestActions restHighLevelClient;
 
     MigrationClient(RestRequestActions requestActions) {

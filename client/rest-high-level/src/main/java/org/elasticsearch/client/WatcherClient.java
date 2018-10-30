@@ -39,6 +39,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 
 public final class WatcherClient {
+
     private final RestRequestActions restHighLevelClient;
 
     WatcherClient(RestRequestActions requestActions) {

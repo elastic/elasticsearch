@@ -29,6 +29,7 @@ import static java.util.Collections.emptySet;
 
 
 public class GraphClient {
+
     private final RestRequestActions restHighLevelClient;
 
     GraphClient(RestRequestActions requestActions) {

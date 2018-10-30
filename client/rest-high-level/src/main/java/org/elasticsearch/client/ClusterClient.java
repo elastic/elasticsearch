@@ -39,6 +39,7 @@ import static java.util.Collections.singleton;
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/cluster.html">Cluster API on elastic.co</a>
  */
 public final class ClusterClient {
+
     private final RestRequestActions restHighLevelClient;
 
     ClusterClient(RestRequestActions requestActions) {

@@ -56,6 +56,7 @@ import static java.util.Collections.singleton;
  * X-Pack Licensing APIs on elastic.co</a> for more information.
  */
 public final class LicenseClient {
+
     private final RestRequestActions restHighLevelClient;
 
     LicenseClient(RestRequestActions requestActions) {

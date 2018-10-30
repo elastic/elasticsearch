@@ -39,6 +39,7 @@ import static java.util.Collections.emptySet;
  * X-Pack APIs on elastic.co</a> for more information.
  */
 public final class XPackClient {
+
     private final RestRequestActions restHighLevelClient;
 
     XPackClient(RestRequestActions requestActions) {

@@ -39,6 +39,7 @@ import static java.util.Collections.emptySet;
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
  */
 public final class IngestClient {
+
     private final RestRequestActions restHighLevelClient;
 
     IngestClient(RestRequestActions requestActions) {

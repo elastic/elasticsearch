@@ -82,6 +82,7 @@ import java.util.Collections;
  * X-Pack Machine Learning APIs </a> for additional information.
  */
 public final class MachineLearningClient {
+
     private final RestRequestActions restHighLevelClient;
 
     MachineLearningClient(RestRequestActions requestActions) {

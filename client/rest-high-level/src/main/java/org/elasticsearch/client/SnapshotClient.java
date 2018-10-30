@@ -47,6 +47,7 @@ import static java.util.Collections.emptySet;
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
  */
 public final class SnapshotClient {
+
     private final RestRequestActions restHighLevelClient;
 
     SnapshotClient(RestRequestActions requestActions) {

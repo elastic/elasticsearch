@@ -73,6 +73,7 @@ import static java.util.Collections.singleton;
  * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
  */
 public final class IndicesClient {
+
     private final RestRequestActions restHighLevelClient;
 
     IndicesClient(RestRequestActions requestActions) {

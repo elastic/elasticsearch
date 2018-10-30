@@ -64,6 +64,7 @@ public final class IndicesPrivileges implements ToXContentObject {
             });
 
     static {
+        @SuppressWarnings("unchecked")
         final ConstructingObjectParser<Tuple<Collection<String>, Collection<String>>, Void> fls_parser =
                 new ConstructingObjectParser<>( "field_level_parser", false, constructorObjects -> {
                         int i = 0;
@@ -98,18 +99,12 @@ public final class IndicesPrivileges implements ToXContentObject {
         if (null == privileges || privileges.isEmpty()) {
             throw new IllegalArgumentException("indices privileges must define at least one privilege");
         }
-        if (grantedFields == null) {
-            // all fields granted unless otherwise specified
-            grantedFields = Collections.singleton("*");
-        }
-        if (deniedFields == null) {
-            // no fields are denied unless otherwise specified
-            deniedFields = Collections.emptySet();
-        }
         this.indices = Collections.unmodifiableCollection(indices);
         this.privileges = Collections.unmodifiableCollection(privileges);
-        this.grantedFields = Collections.unmodifiableCollection(grantedFields);
-        this.deniedFields = Collections.unmodifiableCollection(deniedFields);
+        // all fields granted unless otherwise specified
+        this.grantedFields = grantedFields != null ? Collections.unmodifiableCollection(grantedFields) : Collections.singleton("*");
+        // no fields are denied unless otherwise specified
+        this.deniedFields = deniedFields != null ? Collections.unmodifiableCollection(deniedFields) : Collections.emptySet();
         this.query = query;
     }
 

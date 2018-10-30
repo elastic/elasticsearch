@@ -19,40 +19,50 @@
 
 package org.elasticsearch.client.security.user;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
 public class IndexPrivilege {
 
     private static final Pattern ALL_INDEX_PATTERN = Pattern.compile("^indices:|internal:transport/proxy/indices:");
+    private static final Map<String, IndexPrivilege> builtins = new HashMap<>();
 
-    public static final IndexPrivilege NONE = new IndexPrivilege("none");
-    public static final IndexPrivilege ALL = new IndexPrivilege("all");
-    public static final IndexPrivilege READ = new IndexPrivilege("read");
-    public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster");
-    public static final IndexPrivilege CREATE = new IndexPrivilege("create");
-    public static final IndexPrivilege INDEX = new IndexPrivilege("index");
-    public static final IndexPrivilege DELETE = new IndexPrivilege("delete");
-    public static final IndexPrivilege WRITE = new IndexPrivilege("write");
-    public static final IndexPrivilege MONITOR = new IndexPrivilege("monitor");
-    public static final IndexPrivilege MANAGE = new IndexPrivilege("manage");
-    public static final IndexPrivilege DELETE_INDEX = new IndexPrivilege("delete_index");
-    public static final IndexPrivilege CREATE_INDEX = new IndexPrivilege("create_index");
-    public static final IndexPrivilege VIEW_METADATA = new IndexPrivilege("view_index_metadata");
-    public static final IndexPrivilege MANAGE_FOLLOW_INDEX = new IndexPrivilege("manage_follow_index");
+    public static final IndexPrivilege NONE = new IndexPrivilege("none", true);
+    public static final IndexPrivilege ALL = new IndexPrivilege("all", true);
+    public static final IndexPrivilege READ = new IndexPrivilege("read", true);
+    public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", true);
+    public static final IndexPrivilege CREATE = new IndexPrivilege("create", true);
+    public static final IndexPrivilege INDEX = new IndexPrivilege("index", true);
+    public static final IndexPrivilege DELETE = new IndexPrivilege("delete", true);
+    public static final IndexPrivilege WRITE = new IndexPrivilege("write", true);
+    public static final IndexPrivilege MONITOR = new IndexPrivilege("monitor", true);
+    public static final IndexPrivilege MANAGE = new IndexPrivilege("manage", true);
+    public static final IndexPrivilege DELETE_INDEX = new IndexPrivilege("delete_index", true);
+    public static final IndexPrivilege CREATE_INDEX = new IndexPrivilege("create_index", true);
+    public static final IndexPrivilege VIEW_METADATA = new IndexPrivilege("view_index_metadata", true);
+    public static final IndexPrivilege MANAGE_FOLLOW_INDEX = new IndexPrivilege("manage_follow_index", true);
 
     private final String name;
 
-    private IndexPrivilege(String name) {
+    private IndexPrivilege(String name, boolean builtin) {
         this.name = name;
+        if (builtin) {
+            builtins.put(name, this);
+        }
     }
 
-    public static IndexPrivilege custom(String name) {
+    public static IndexPrivilege fromString(String name) {
         Objects.requireNonNull(name);
+        final IndexPrivilege builtin = builtins.get(name);
+        if (builtin != null) {
+            return builtin;
+        }
         if (false == ALL_INDEX_PATTERN.matcher(name).matches()) {
             throw new IllegalArgumentException("[" + name + "] is not an index action privilege.");
         }
-        return new IndexPrivilege(name);
+        return new IndexPrivilege(name, false);
     }
 
     @Override

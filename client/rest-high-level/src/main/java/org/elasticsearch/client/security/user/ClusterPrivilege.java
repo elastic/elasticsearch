@@ -19,44 +19,54 @@
 
 package org.elasticsearch.client.security.user;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
 public final class ClusterPrivilege {
 
     private static final Pattern ALL_CLUSTER_PATTERN = Pattern.compile("^cluster:|indices:admin/template/");
+    private static final Map<String, ClusterPrivilege> builtins = new HashMap<>();
 
-    public static final ClusterPrivilege NONE = new ClusterPrivilege("none");
-    public static final ClusterPrivilege ALL = new ClusterPrivilege("all");
-    public static final ClusterPrivilege MONITOR = new ClusterPrivilege("monitor");
-    public static final ClusterPrivilege MONITOR_ML = new ClusterPrivilege("monitor_ml");
-    public static final ClusterPrivilege MONITOR_WATCHER = new ClusterPrivilege("monitor_watcher");
-    public static final ClusterPrivilege MONITOR_ROLLUP = new ClusterPrivilege("monitor_rollup");
-    public static final ClusterPrivilege MANAGE = new ClusterPrivilege("manage");
-    public static final ClusterPrivilege MANAGE_ML = new ClusterPrivilege("manage_ml");
-    public static final ClusterPrivilege MANAGE_WATCHER = new ClusterPrivilege("manage_watcher");
-    public static final ClusterPrivilege MANAGE_ROLLUP = new ClusterPrivilege("manage_rollup");
-    public static final ClusterPrivilege MANAGE_IDX_TEMPLATES = new ClusterPrivilege("manage_index_templates");
-    public static final ClusterPrivilege MANAGE_INGEST_PIPELINES = new ClusterPrivilege("manage_ingest_pipelines");
-    public static final ClusterPrivilege TRANSPORT_CLIENT = new ClusterPrivilege("transport_client");
-    public static final ClusterPrivilege MANAGE_SECURITY = new ClusterPrivilege("manage_security");
-    public static final ClusterPrivilege MANAGE_SAML = new ClusterPrivilege("manage_saml");
-    public static final ClusterPrivilege MANAGE_PIPELINE = new ClusterPrivilege("manage_pipeline");
-    public static final ClusterPrivilege MANAGE_CCR = new ClusterPrivilege("manage_ccr");
-    public static final ClusterPrivilege READ_CCR = new ClusterPrivilege("read_ccr");
+    public static final ClusterPrivilege NONE = new ClusterPrivilege("none", true);
+    public static final ClusterPrivilege ALL = new ClusterPrivilege("all", true);
+    public static final ClusterPrivilege MONITOR = new ClusterPrivilege("monitor", true);
+    public static final ClusterPrivilege MONITOR_ML = new ClusterPrivilege("monitor_ml", true);
+    public static final ClusterPrivilege MONITOR_WATCHER = new ClusterPrivilege("monitor_watcher", true);
+    public static final ClusterPrivilege MONITOR_ROLLUP = new ClusterPrivilege("monitor_rollup", true);
+    public static final ClusterPrivilege MANAGE = new ClusterPrivilege("manage", true);
+    public static final ClusterPrivilege MANAGE_ML = new ClusterPrivilege("manage_ml", true);
+    public static final ClusterPrivilege MANAGE_WATCHER = new ClusterPrivilege("manage_watcher", true);
+    public static final ClusterPrivilege MANAGE_ROLLUP = new ClusterPrivilege("manage_rollup", true);
+    public static final ClusterPrivilege MANAGE_IDX_TEMPLATES = new ClusterPrivilege("manage_index_templates", true);
+    public static final ClusterPrivilege MANAGE_INGEST_PIPELINES = new ClusterPrivilege("manage_ingest_pipelines", true);
+    public static final ClusterPrivilege TRANSPORT_CLIENT = new ClusterPrivilege("transport_client", true);
+    public static final ClusterPrivilege MANAGE_SECURITY = new ClusterPrivilege("manage_security", true);
+    public static final ClusterPrivilege MANAGE_SAML = new ClusterPrivilege("manage_saml", true);
+    public static final ClusterPrivilege MANAGE_PIPELINE = new ClusterPrivilege("manage_pipeline", true);
+    public static final ClusterPrivilege MANAGE_CCR = new ClusterPrivilege("manage_ccr", true);
+    public static final ClusterPrivilege READ_CCR = new ClusterPrivilege("read_ccr", true);
 
     private final String name;
 
-    private ClusterPrivilege(String name) {
+    private ClusterPrivilege(String name, boolean builtin) {
         this.name = name;
+        if (builtin) {
+            builtins.put(name, this);
+        }
     }
 
-    public static ClusterPrivilege custom(String name) {
+    public static ClusterPrivilege fromString(String name) {
         Objects.requireNonNull(name);
+        final ClusterPrivilege builtin = builtins.get(name);
+        if (builtin != null) {
+            return builtin;
+        }
         if (false == ALL_CLUSTER_PATTERN.matcher(name).matches()) {
             throw new IllegalArgumentException("[" + name + "] is not a cluster action privilege.");
         }
-        return new ClusterPrivilege(name);
+        return new ClusterPrivilege(name, false);
     }
 
     @Override

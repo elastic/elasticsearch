@@ -379,7 +379,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
             DiscoveryNode otherSeedNode = otherSeedTransport.getLocalDiscoNode();
             knownNodes.add(seedNode);
-            knownNodes.add(otherSeedTransport.getLocalDiscoNode());
+            knownNodes.add(otherSeedNode);
             Collections.shuffle(knownNodes, random());
             Settings.Builder settingsBuilder = Settings.builder();
             if (randomBoolean()) {

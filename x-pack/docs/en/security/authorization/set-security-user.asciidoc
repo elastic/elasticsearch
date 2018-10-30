@@ -22,5 +22,5 @@ authenticated user to the current document by pre-processing the ingest. When
 you index data with an ingest pipeline, user details are automatically attached
 to the document.
 
-For more information see {ref}/ingest.html[ingest node] and {ref}/ingest-node-set-security-user-processor.html[Set Security User Processor].
+For more information see {ref}/ingest.html[Ingest node] and {ref}/ingest-node-set-security-user-processor.html[Set security user processor].
 

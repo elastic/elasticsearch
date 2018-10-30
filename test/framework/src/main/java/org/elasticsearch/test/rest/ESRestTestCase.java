@@ -526,10 +526,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         Map<String, Object> policies;
 
         try {
-            Response response = adminClient().performRequest(new Request("GET", "/_ilm"));
+            Response response = adminClient().performRequest(new Request("GET", "/_ilm/policy"));
             policies = entityAsMap(response);
         } catch (ResponseException e) {
-            if (RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
+            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
                 // If bad request returned, ILM is not enabled.
                 return;
             }
@@ -541,7 +541,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         for (String policyName : policies.keySet()) {
-            adminClient().performRequest(new Request("DELETE", "/_ilm/" + policyName));
+            adminClient().performRequest(new Request("DELETE", "/_ilm/policy/" + policyName));
         }
     }
 

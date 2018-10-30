@@ -10,7 +10,7 @@ Deletes an existing lifecycle policy
 
 ==== Request
 
-`DELETE _ilm/<policy>`
+`DELETE _ilm/policy/<policy>`
 
 ==== Description
 
@@ -43,7 +43,7 @@ The following example deletes an existing policy named `my_policy`:
 
 [source,js]
 --------------------------------------------------
-PUT _ilm/my_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {
@@ -72,7 +72,7 @@ PUT _ilm/my_policy
 
 [source,js]
 --------------------------------------------------
-DELETE _ilm/my_policy
+DELETE _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

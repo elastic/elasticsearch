@@ -21,8 +21,8 @@ public class RestGetLifecycleAction extends BaseRestHandler {
 
     public RestGetLifecycleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.GET, "/_ilm", this);
-        controller.registerHandler(RestRequest.Method.GET, "/_ilm/{name}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_ilm/policy", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_ilm/policy/{name}", this);
     }
 
     @Override

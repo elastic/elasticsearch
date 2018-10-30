@@ -94,7 +94,7 @@ public abstract class FieldScript {
         leafLookup.setDocument(docid);
     }
 
-    /** A factory to construct {@link SearchScript} instances. */
+    /** A factory to construct {@link FieldScript} instances. */
     public interface LeafFactory {
         FieldScript newInstance(LeafReaderContext ctx) throws IOException;
     }

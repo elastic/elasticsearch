@@ -19,6 +19,7 @@ public class FunctionDefinition {
     public interface Builder {
         Function build(UnresolvedFunction uf, boolean distinct, TimeZone tz);
     }
+
     private final String name;
     private final List<String> aliases;
     private final Class<? extends Function> clazz;

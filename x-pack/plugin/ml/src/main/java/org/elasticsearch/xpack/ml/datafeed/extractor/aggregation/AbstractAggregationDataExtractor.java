@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<SearchRequest, SearchResponse>>
     implements DataExtractor {
 
-    private static final Logger LOGGER = Loggers.getLogger(AbstractAggregationDataExtractor.class);
+    private static final Logger LOGGER = LogManager.getLogger(AbstractAggregationDataExtractor.class);
 
     /**
      * The number of key-value pairs written in each batch to process.

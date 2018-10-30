@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.session.RowSet;
@@ -30,7 +31,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.xpack.sql.proto.Mode.JDBC;
 
 public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse> {
     private final PlanExecutor planExecutor;
@@ -73,7 +73,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     static SqlQueryResponse createResponse(SqlQueryRequest request, SchemaRowSet rowSet) {
         List<ColumnInfo> columns = new ArrayList<>(rowSet.columnCount());
         for (Schema.Entry entry : rowSet.schema()) {
-            if (request.mode() == JDBC) {
+            if (Mode.isDriver(request.mode())) {
                 columns.add(new ColumnInfo("", entry.name(), entry.type().esType, entry.type().jdbcType,
                         entry.type().displaySize));
             } else {

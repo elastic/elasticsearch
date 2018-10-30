@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPr
 
 import java.util.Arrays;
 
+import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
 public class InProcessorTests extends AbstractWireSerializingTestCase<InProcessor> {
@@ -45,6 +46,16 @@ public class InProcessorTests extends AbstractWireSerializingTestCase<InProcesso
     public void testEq() {
         assertEquals(true, new In(EMPTY, TWO, Arrays.asList(ONE, TWO, THREE)).makePipe().asProcessor().process(null));
         assertEquals(false, new In(EMPTY, THREE, Arrays.asList(ONE, TWO)).makePipe().asProcessor().process(null));
+    }
+
+    public void testHandleNullOnLeftValue() {
+        assertNull(new In(EMPTY, NULL, Arrays.asList(ONE, TWO, THREE)).makePipe().asProcessor().process(null));
+        assertNull(new In(EMPTY, NULL, Arrays.asList(ONE, NULL, TWO)).makePipe().asProcessor().process(null));
+    }
+
+    public void testHandleNullOnRightValue() {
+        assertEquals(true, new In(EMPTY, THREE, Arrays.asList(ONE, NULL, THREE)).makePipe().asProcessor().process(null));
+        assertNull(new In(EMPTY, TWO, Arrays.asList(ONE, NULL, THREE)).makePipe().asProcessor().process(null));
     }
 
     private static Literal L(Object value) {

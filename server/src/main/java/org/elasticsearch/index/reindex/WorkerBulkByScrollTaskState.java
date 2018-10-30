@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -43,7 +43,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  */
 public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
-    private static final Logger logger = Loggers.getLogger(WorkerBulkByScrollTaskState.class);
+    private static final Logger logger = LogManager.getLogger(WorkerBulkByScrollTaskState.class);
 
     /**
      * Maximum wait time allowed for throttling.

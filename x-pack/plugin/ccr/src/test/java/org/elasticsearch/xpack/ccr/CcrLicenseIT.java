@@ -118,7 +118,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName("name");
-        request.setLeaderCluster("leader");
+        request.setRemoteCluster("leader");
         request.setLeaderIndexPatterns(Collections.singletonList("*"));
         client().execute(
                 PutAutoFollowPatternAction.INSTANCE,
@@ -148,7 +148,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 AutoFollowPattern autoFollowPattern = new AutoFollowPattern("test_alias", Collections.singletonList("logs-*"),
-                    null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null);
                 AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
                     Collections.singletonMap("test_alias", autoFollowPattern),
                     Collections.emptyMap(),

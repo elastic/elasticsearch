@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -53,6 +54,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         return plugins;
     }
 
+    @TestLogging("org.elasticsearch.discovery.zen:TRACE")
     public void testJobRelocation() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(5);
         ensureStableCluster(5);

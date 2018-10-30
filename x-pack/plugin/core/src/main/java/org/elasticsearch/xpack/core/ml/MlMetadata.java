@@ -410,14 +410,14 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             }
         }
 
-        private Builder putJobs(Collection<Job> jobs) {
+        public Builder putJobs(Collection<Job> jobs) {
             for (Job job : jobs) {
                 putJob(job, true);
             }
             return this;
         }
 
-        private Builder putDatafeeds(Collection<DatafeedConfig> datafeeds) {
+        public Builder putDatafeeds(Collection<DatafeedConfig> datafeeds) {
             for (DatafeedConfig datafeed : datafeeds) {
                 this.datafeeds.put(datafeed.getId(), datafeed);
             }

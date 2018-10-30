@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
@@ -89,6 +91,31 @@ public final class ConnectionProfile {
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Builds a default connection profile based on the provided settings.
+     *
+     * @param settings to build the connection profile from
+     * @return the connection profile
+     */
+    public static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
+        int connectionsPerNodeRecovery = TransportService.CONNECTIONS_PER_NODE_RECOVERY.get(settings);
+        int connectionsPerNodeBulk = TransportService.CONNECTIONS_PER_NODE_BULK.get(settings);
+        int connectionsPerNodeReg = TransportService.CONNECTIONS_PER_NODE_REG.get(settings);
+        int connectionsPerNodeState = TransportService.CONNECTIONS_PER_NODE_STATE.get(settings);
+        int connectionsPerNodePing = TransportService.CONNECTIONS_PER_NODE_PING.get(settings);
+        Builder builder = new Builder();
+        builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
+        builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
+        // if we are not master eligible we don't need a dedicated channel to publish the state
+        builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
+        // if we are not a data-node we don't need any dedicated channels for recovery
+        builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
+        builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
+        return builder.build();
     }
 
     /**

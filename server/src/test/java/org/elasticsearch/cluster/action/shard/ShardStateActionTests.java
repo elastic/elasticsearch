@@ -89,7 +89,8 @@ public class ShardStateActionTests extends ESTestCase {
     private ClusterService clusterService;
 
     private static class TestShardStateAction extends ShardStateAction {
-        TestShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService, AllocationService allocationService, RoutingService routingService) {
+        TestShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
+                             AllocationService allocationService, RoutingService routingService) {
             super(settings, clusterService, transportService, allocationService, routingService, THREAD_POOL);
         }
 
@@ -106,7 +107,8 @@ public class ShardStateActionTests extends ESTestCase {
         }
 
         @Override
-        protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, TransportRequest request, Listener listener, Predicate<ClusterState> changePredicate) {
+        protected void waitForNewMasterAndRetry(String actionName, ClusterStateObserver observer, TransportRequest request,
+                                                Listener listener, Predicate<ClusterState> changePredicate) {
             onBeforeWaitForNewMasterAndRetry.run();
             super.waitForNewMasterAndRetry(actionName, observer, request, listener, changePredicate);
             onAfterWaitForNewMasterAndRetry.run();
@@ -359,20 +361,21 @@ public class ShardStateActionTests extends ESTestCase {
 
         long primaryTerm = clusterService.state().metaData().index(index).primaryTerm(failedShard.id());
         assertThat(primaryTerm, greaterThanOrEqualTo(1L));
-        shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(), primaryTerm + 1, randomBoolean(), "test",
-            getSimulatedFailure(), new ShardStateAction.Listener() {
-            @Override
-            public void onSuccess() {
-                failure.set(null);
-                latch.countDown();
-            }
+        shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
+            primaryTerm + 1, randomBoolean(), "test", getSimulatedFailure(),
+            new ShardStateAction.Listener() {
+                @Override
+                public void onSuccess() {
+                    failure.set(null);
+                    latch.countDown();
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                failure.set(e);
-                latch.countDown();
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    failure.set(e);
+                    latch.countDown();
+                }
+            });
 
         ShardStateAction.NoLongerPrimaryShardException catastrophicError =
                 new ShardStateAction.NoLongerPrimaryShardException(failedShard.shardId(), "dummy failure");
@@ -445,7 +448,8 @@ public class ShardStateActionTests extends ESTestCase {
                 for (int i = 0; i < iterationsPerThread; i++) {
                     ShardRouting failedShard = randomFrom(failedShards);
                     shardStateAction.remoteShardFailed(failedShard.shardId(), failedShard.allocationId().getId(),
-                        randomLongBetween(1, Long.MAX_VALUE), randomBoolean(), "test", getSimulatedFailure(), new ShardStateAction.Listener() {
+                        randomLongBetween(1, Long.MAX_VALUE), randomBoolean(), "test", getSimulatedFailure(),
+                        new ShardStateAction.Listener() {
                             @Override
                             public void onSuccess() {
                                 notifiedResponses.incrementAndGet();
@@ -523,7 +527,8 @@ public class ShardStateActionTests extends ESTestCase {
             assertThat(failedShardEntry.failure, nullValue());
             assertThat(failedShardEntry.markAsStale, equalTo(true));
         }
-        try (StreamInput in = serialize(new FailedShardEntry(shardId, allocationId, 0L, reason, null, false), bwcVersion).streamInput()) {
+        try (StreamInput in = serialize(new FailedShardEntry(shardId, allocationId, 0L,
+                reason, null, false), bwcVersion).streamInput()) {
             in.setVersion(bwcVersion);
             final StartedShardEntry startedShardEntry = new StartedShardEntry(in);
             assertThat(startedShardEntry.shardId, equalTo(shardId));

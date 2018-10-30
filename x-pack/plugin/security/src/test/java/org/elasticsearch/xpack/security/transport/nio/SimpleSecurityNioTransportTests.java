@@ -40,7 +40,7 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleSecurityTrans
                 new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
 
             @Override
-            public void asyncHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException, InterruptedException {
+            public void asyncHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException {
                 if (doHandshake) {
                     super.asyncHandshake(node, channel, timeout, listener);
                 } else {

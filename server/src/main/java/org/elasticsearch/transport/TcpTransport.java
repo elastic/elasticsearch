@@ -277,14 +277,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
     }
 
-    private static class AsyncHandshakeResponseHandler implements TransportResponseHandler<VersionHandshakeResponse> {
+    private class AsyncHandshakeResponseHandler implements TransportResponseHandler<VersionHandshakeResponse> {
 
-        final TcpChannel channel;
+        private final TcpChannel channel;
         private final ActionListener<Version> listener;
+        private final Version currentVersion;
         private final AtomicBoolean isDone = new AtomicBoolean(false);
 
-        AsyncHandshakeResponseHandler(TcpChannel channel, ActionListener<Version> listener) {
+        private AsyncHandshakeResponseHandler(TcpChannel channel, Version currentVersion, ActionListener<Version> listener) {
             this.channel = channel;
+            this.currentVersion = currentVersion;
             this.listener = listener;
         }
 
@@ -296,14 +298,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void handleResponse(VersionHandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
-                listener.onResponse(response.version);
+                Version version = response.version;
+                if (currentVersion.isCompatible(version) == false) {
+                    listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + version
+                        + "] minimal compatible version is: [" + currentVersion.minimumCompatibilityVersion() + "]"));
+                } else {
+                    listener.onResponse(version);
+                }
             }
         }
 
         @Override
-        public void handleException(TransportException exp) {
+        public void handleException(TransportException e) {
             if (isDone.compareAndSet(false, true)) {
-                listener.onFailure(exp);
+                listener.onFailure(new IllegalStateException("handshake failed", e));
             }
         }
 
@@ -1536,22 +1544,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public void asyncHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException {
         numHandshakes.inc();
         final long requestId = responseHandlers.newRequestId();
-        final AsyncHandshakeResponseHandler handler = new AsyncHandshakeResponseHandler(channel, new ActionListener<Version>() {
-            @Override
-            public void onResponse(Version version) {
-                if (getCurrentVersion().isCompatible(version) == false) {
-                    listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + version
-                        + "] minimal compatible version is: [" + getCurrentVersion().minimumCompatibilityVersion() + "]"));
-                } else {
-                    listener.onResponse(version);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(new IllegalStateException("handshake failed", e));
-            }
-        });
+        final AsyncHandshakeResponseHandler handler = new AsyncHandshakeResponseHandler(channel, getCurrentVersion(), listener);
         pendingHandshakes.put(requestId, handler);
         boolean success = false;
         try {

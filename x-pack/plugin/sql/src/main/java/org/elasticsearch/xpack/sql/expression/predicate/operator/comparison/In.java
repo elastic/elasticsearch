@@ -127,7 +127,8 @@ public class In extends NamedExpression implements ScriptWeaver {
         List<Object> values = new ArrayList<>(
             list.stream().map(Expression::fold).collect(Collectors.toCollection(LinkedHashSet::new)));
 
-        return new ScriptTemplate(String.format(Locale.ROOT, formatTemplate("{sql}.in(%s, {})"), leftScript.template(), "%s"),
+        return new ScriptTemplate(
+            formatTemplate(String.format(Locale.ROOT, "{sql}.in(%s, {})", leftScript.template())),
             paramsBuilder()
                 .script(leftScript.params())
                 .variable(values)

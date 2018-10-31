@@ -515,7 +515,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         @SuppressWarnings("unchecked")
         Map<String, Object> filterScript = (Map<String, Object>) bucketSelector.get("script");
         assertEquals(3, filterScript.size());
-        assertEquals("InternalSqlScriptUtils.gt(params.a0,params.v0)", filterScript.get("source"));
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a0,params.v0))",
+            filterScript.get("source"));
         assertEquals("painless", filterScript.get("lang"));
         @SuppressWarnings("unchecked")
         Map<String, Object> filterScriptParams = (Map<String, Object>) filterScript.get("params");

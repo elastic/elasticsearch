@@ -60,12 +60,21 @@ public class RestGetSourceActionTests extends ESTestCase {
         assertThat(restResponse.content(), equalTo(new BytesArray("{\"foo\": \"bar\"}")));
     }
 
-    public void testRestGetSourceActionWithNullSource() {
+    public void testRestGetSourceActionWithMissingDocument() {
         final GetResponse getResponse = new GetResponse(new GetResult("index1", "_doc", "1", -1, false, null, emptyMap()));
 
         final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class,
             () -> listener.buildResponse(getResponse));
 
-        assertThat(exception.getMessage(), equalTo("Document or source not found [index1]/[_doc]/[1]"));
+        assertThat(exception.getMessage(), equalTo("Document not found [index1]/[_doc]/[1]"));
+    }
+
+    public void testRestGetSourceActionWithMissingDocumentSource() {
+        final GetResponse getResponse = new GetResponse(new GetResult("index1", "_doc", "1", -1, true, null, emptyMap()));
+
+        final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class,
+            () -> listener.buildResponse(getResponse));
+
+        assertThat(exception.getMessage(), equalTo("Source not found [index1]/[_doc]/[1]"));
     }
 }

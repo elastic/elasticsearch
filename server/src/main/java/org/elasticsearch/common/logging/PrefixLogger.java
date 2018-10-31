@@ -76,7 +76,9 @@ class PrefixLogger extends ExtendedLoggerWrapper {
     PrefixLogger(final Logger logger, final String prefix) {
         super((ExtendedLogger) logger, logger.getName(), null);
 
-        assert prefix != null && false == prefix.isEmpty() : "don't use a prefix logger without a prefix";
+        if (prefix == null || prefix.isEmpty()) {
+            throw new IllegalArgumentException("if you don't need a prefix then use a regular logger");
+        }
         final Marker actualMarker;
         // markers is not thread-safe, so we synchronize access
         synchronized (markers) {

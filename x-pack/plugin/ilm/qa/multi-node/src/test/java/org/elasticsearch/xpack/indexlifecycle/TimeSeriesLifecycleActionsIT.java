@@ -83,14 +83,23 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // index document {"foo": "bar"} to trigger rollover
         index(client(), originalIndex, "_id", "foo", "bar");
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
-        assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
         assertBusy(() -> {
             try {
                 StepKey key = getStepKeyForIndex(originalIndex);
                 logger.error("TRACE: ILM key [" + key + "]");
             } catch (Exception e) {
+                // do nothing
             }
             assertFalse(indexExists(originalIndex));
+        });
+        assertBusy(() -> {
+            try {
+                StepKey key = getStepKeyForIndex(originalIndex);
+                logger.error("TRACE: ILM key [" + key + "]");
+            } catch (Exception e) {
+                // do nothing
+            }
+            assertFalse(indexExists(shrunkenOriginalIndex));
         });
     }
 

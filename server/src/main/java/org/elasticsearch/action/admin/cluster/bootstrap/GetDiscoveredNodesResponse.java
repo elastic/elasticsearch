@@ -28,6 +28,9 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Response to {@link GetDiscoveredNodesRequest}, containing the set of nodes that were discovered.
+ */
 public class GetDiscoveredNodesResponse extends ActionResponse {
     private Set<DiscoveryNode> nodes;
 
@@ -38,10 +41,17 @@ public class GetDiscoveredNodesResponse extends ActionResponse {
         this.nodes = nodes;
     }
 
+    /**
+     * @return the set of nodes that were discovered.
+     */
     public Set<DiscoveryNode> getNodes() {
         return nodes;
     }
 
+    /**
+     * @return a bootstrap configuration constructed from the set of nodes that were discovered, in order to make a
+     *         {@link BootstrapClusterRequest}.
+     */
     public BootstrapConfiguration getBootstrapConfiguration() {
         return new BootstrapConfiguration(nodes.stream().map(NodeDescription::new).collect(Collectors.toList()));
     }

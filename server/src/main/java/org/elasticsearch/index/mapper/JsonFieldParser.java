@@ -40,15 +40,18 @@ public class JsonFieldParser {
     private final String rootFieldName;
     private final String keyedFieldName;
 
+    private final int depthLimit;
     private final int ignoreAbove;
     private final String nullValueAsString;
 
     JsonFieldParser(String rootFieldName,
                     String keyedFieldName,
+                    int depthLimit,
                     int ignoreAbove,
                     String nullValueAsString) {
         this.rootFieldName = rootFieldName;
         this.keyedFieldName = keyedFieldName;
+        this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
         this.nullValueAsString = nullValueAsString;
     }
@@ -104,6 +107,7 @@ public class JsonFieldParser {
                                  List<IndexableField> fields) throws IOException {
         if (token == XContentParser.Token.START_OBJECT) {
             path.add(currentName);
+            validateDepthLimit(path);
             parseObject(parser, path, fields);
             path.remove();
         } else if (token == XContentParser.Token.START_ARRAY) {
@@ -139,6 +143,13 @@ public class JsonFieldParser {
 
         fields.add(new StringField(rootFieldName, new BytesRef(value), Field.Store.NO));
         fields.add(new StringField(keyedFieldName, new BytesRef(keyedValue), Field.Store.NO));
+    }
+
+    private void validateDepthLimit(ContentPath path) {
+        if (path.length() + 1 > depthLimit) {
+            throw new IllegalArgumentException("The provided JSON field [" + rootFieldName + "] exceeds" +
+                " the maximum depth limit of [" + depthLimit + "].");
+        }
     }
 
     public static String createKeyedValue(String key, String value) {

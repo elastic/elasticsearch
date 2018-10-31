@@ -26,3 +26,64 @@ a customized value for each document in the results of a query.
 *API*
 
 The standard <<painless-api-reference, Painless API>> is available.
+
+
+*Example*
+
+To run this example, first follow the steps in
+<<painless-context-examples, context examples>>.
+
+We will use two scripts to create two additional fields for each search hit.
+These script fields will output computed custom information.
+
+The first script calculates the day of the week for the field `datetime`:
+
+[source,Painless]
+----
+doc['datetime'].value.getDayOfWeek();                               <1>
+----
+
+<1> Accesses a doc value for the `datetime` field, and uses the function
+    `getDayOfWeek` to calculate the day of the week for this date.
+
+
+
+The second script calculates the number of actors. Actors' names are stored
+as an array in the `actors` field:
+
+[source,Painless]
+----
+params['_source']['actors'].length;
+----
+
+<1> As `actors` field is of type `text`, by default, doc values are
+    not available for this field. We parse `_source` to extract
+    `actors` and calculate their number. Note how `params['_source']['actors']`
+    is a list.
+
+
+Submit the following request:
+
+[source,js]
+----
+GET seats/_search
+{
+    "query" : {
+        "match_all": {}
+    },
+    "script_fields" : {
+        "day-of-week" : {
+            "script" : {
+                "source": "doc['datetime'].value.getDayOfWeek()"
+            }
+        },
+        "number-of-actors" : {
+            "script" : {
+                "source": "params['_source']['actors'].length"
+            }
+        }
+    }
+}
+----
+// CONSOLE
+// TEST[skip: requires setup from other pages]

@@ -164,6 +164,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -302,7 +303,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet());
     }
 
-    public static void bootstrapNodes(boolean condition, Runnable startAction, List<Node> nodes, Logger logger) {
+    public static void bootstrapNodes(boolean condition, Runnable startAction, List<Node> nodes, Logger logger,
+                                      Function<Client, Client> clientWrapper) {
         final AtomicBoolean stopBootstrapThread = new AtomicBoolean();
         Thread bootstrapThread = null;
 
@@ -327,7 +329,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                         final Node node = randomFrom(bootstrapRandom, nodes);
                         final TransportService transportService = node.injector().getInstance(TransportService.class);
                         if (transportService.getLocalNode() != null) {
-                            final Client client = node.client();
+                            final Client client = clientWrapper.apply(node.client());
                             if (bootstrapConfiguration == null) {
                                 try {
                                     final GetDiscoveredNodesRequest discoveredNodesRequest = new GetDiscoveredNodesRequest();

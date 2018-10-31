@@ -69,13 +69,13 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.not;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.not;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -133,11 +133,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::put-role-mapping-execute
             final RoleMapperExpression rules = AnyRoleMapperExpression.builder()
-                    .addExpression(FieldRoleMapperExpression.ofUsername("*"))
-                    .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
-                    .build();
+                .addExpression(FieldRoleMapperExpression.ofUsername("*"))
+                .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
+                .build();
             final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
-                    rules, null, RefreshPolicy.NONE);
+                rules, null, RefreshPolicy.NONE);
             final PutRoleMappingResponse response = client.security().putRoleMapping(request, RequestOptions.DEFAULT);
             // end::put-role-mapping-execute
             // tag::put-role-mapping-response
@@ -148,11 +148,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             final RoleMapperExpression rules = AnyRoleMapperExpression.builder()
-                    .addExpression(FieldRoleMapperExpression.ofUsername("*"))
-                    .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
-                    .build();
+                .addExpression(FieldRoleMapperExpression.ofUsername("*"))
+                .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
+                .build();
             final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
-                    rules, null, RefreshPolicy.NONE);
+                rules, null, RefreshPolicy.NONE);
             // tag::put-role-mapping-execute-listener
             ActionListener<PutRoleMappingResponse> listener = new ActionListener<PutRoleMappingResponse>() {
                 @Override
@@ -183,21 +183,21 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         final RestHighLevelClient client = highLevelClient();
 
         final RoleMapperExpression rules1 = AnyRoleMapperExpression.builder().addExpression(FieldRoleMapperExpression.ofUsername("*"))
-                .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com")).build();
+            .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com")).build();
         final PutRoleMappingRequest putRoleMappingRequest1 = new PutRoleMappingRequest("mapping-example-1", true, Collections.singletonList(
-                "superuser"), rules1, null, RefreshPolicy.NONE);
+            "superuser"), rules1, null, RefreshPolicy.NONE);
         final PutRoleMappingResponse putRoleMappingResponse1 = client.security().putRoleMapping(putRoleMappingRequest1,
-                RequestOptions.DEFAULT);
+            RequestOptions.DEFAULT);
         boolean isCreated1 = putRoleMappingResponse1.isCreated();
         assertTrue(isCreated1);
         final RoleMapperExpression rules2 = AnyRoleMapperExpression.builder().addExpression(FieldRoleMapperExpression.ofGroups(
-                "cn=admins,dc=example,dc=com")).build();
+            "cn=admins,dc=example,dc=com")).build();
         final Map<String, Object> metadata2 = new HashMap<>();
         metadata2.put("k1", "v1");
         final PutRoleMappingRequest putRoleMappingRequest2 = new PutRoleMappingRequest("mapping-example-2", true, Collections.singletonList(
-                "monitoring"), rules2, metadata2, RefreshPolicy.NONE);
+            "monitoring"), rules2, metadata2, RefreshPolicy.NONE);
         final PutRoleMappingResponse putRoleMappingResponse2 = client.security().putRoleMapping(putRoleMappingRequest2,
-                RequestOptions.DEFAULT);
+            RequestOptions.DEFAULT);
         boolean isCreated2 = putRoleMappingResponse2.isCreated();
         assertTrue(isCreated2);
 
@@ -228,7 +228,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(mappings.size(), is(2));
             for (ExpressionRoleMapping roleMapping : mappings) {
                 assertThat(roleMapping.isEnabled(), is(true));
-                assertThat(roleMapping.getName(), isIn(new String[] { "mapping-example-1", "mapping-example-2" }));
+                assertThat(roleMapping.getName(), isIn(new String[]{"mapping-example-1", "mapping-example-2"}));
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));
@@ -251,7 +251,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(mappings.size(), is(2));
             for (ExpressionRoleMapping roleMapping : mappings) {
                 assertThat(roleMapping.isEnabled(), is(true));
-                assertThat(roleMapping.getName(), isIn(new String[] { "mapping-example-1", "mapping-example-2" }));
+                assertThat(roleMapping.getName(), isIn(new String[]{"mapping-example-1", "mapping-example-2"}));
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));
@@ -559,7 +559,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // Create role mappings
             final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("*");
             final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.singletonList("superuser"),
-                    rules, null, RefreshPolicy.NONE);
+                rules, null, RefreshPolicy.NONE);
             final PutRoleMappingResponse response = client.security().putRoleMapping(request, RequestOptions.DEFAULT);
             boolean isCreated = response.isCreated();
             assertTrue(isCreated);
@@ -817,7 +817,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final InvalidateTokenResponse response = future.get(30, TimeUnit.SECONDS);
             assertNotNull(response);
             assertTrue(response.isCreated());// technically, this should be false, but the API is broken
-            // See https://github.com/elastic/elasticsearch/issues/TBD
+            // See https://github.com/elastic/elasticsearch/issues/35115
         }
     }
 }

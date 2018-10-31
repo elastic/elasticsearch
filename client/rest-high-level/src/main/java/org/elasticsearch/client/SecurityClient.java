@@ -385,7 +385,7 @@ public final class SecurityClient {
 
     /**
      * Invalidates an OAuth2 token.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-token.html">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-token.html">
      * the docs</a> for more.
      *
      * @param request the request to invalidate the token
@@ -400,7 +400,7 @@ public final class SecurityClient {
 
     /**
      * Asynchronously invalidates an OAuth2 token.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-token.html">
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-token.html">
      * the docs</a> for more.
      *
      * @param request the request to invalidate the token

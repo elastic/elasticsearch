@@ -28,7 +28,6 @@ public class MlLifeCycleService extends AbstractComponent {
 
     public MlLifeCycleService(Environment environment, ClusterService clusterService, DatafeedManager datafeedManager,
                               AutodetectProcessManager autodetectProcessManager) {
-        super(environment.settings());
         this.environment = environment;
         this.datafeedManager = datafeedManager;
         this.autodetectProcessManager = autodetectProcessManager;

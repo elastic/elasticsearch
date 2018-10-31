@@ -71,7 +71,6 @@ public class FileRolesStore extends AbstractComponent implements BiConsumer<Set<
 
     FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Consumer<Set<String>> listener,
                    XPackLicenseState licenseState) throws IOException {
-        super(settings);
         this.settings = settings;
         this.file = resolveFile(env);
         if (listener != null) {

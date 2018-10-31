@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.process;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -52,10 +51,7 @@ public class DataCountsReporter extends AbstractComponent {
 
     private DataStreamDiagnostics diagnostics;
 
-    public DataCountsReporter(Settings settings, Job job, DataCounts counts, JobDataCountsPersister dataCountsPersister) {
-
-        super(settings);
-
+    public DataCountsReporter(Job job, DataCounts counts, JobDataCountsPersister dataCountsPersister) {
         this.job = job;
         this.dataCountsPersister = dataCountsPersister;
 

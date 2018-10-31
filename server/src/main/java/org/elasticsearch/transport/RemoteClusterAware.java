@@ -175,9 +175,8 @@ public abstract class RemoteClusterAware extends AbstractComponent {
      * @param settings the nodes level settings
      */
     protected RemoteClusterAware(Settings settings) {
-        super(settings);
         this.settings = settings;
-        this.clusterNameResolver = new ClusterNameExpressionResolver(settings);
+        this.clusterNameResolver = new ClusterNameExpressionResolver();
     }
 
     /**

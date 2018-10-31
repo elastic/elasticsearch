@@ -91,7 +91,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
 
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
-        return new GoogleCloudStorageBlobStore(settings, bucket, clientName, storageService);
+        return new GoogleCloudStorageBlobStore(bucket, clientName, storageService);
     }
 
     @Override

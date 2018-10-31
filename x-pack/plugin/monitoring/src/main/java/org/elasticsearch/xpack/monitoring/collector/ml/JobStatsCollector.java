@@ -53,7 +53,7 @@ public class JobStatsCollector extends Collector {
 
     JobStatsCollector(final Settings settings, final ClusterService clusterService,
                       final XPackLicenseState licenseState, final MachineLearningClient client, final ThreadContext threadContext) {
-        super(settings, JobStatsMonitoringDoc.TYPE, clusterService, JOB_STATS_TIMEOUT, licenseState);
+        super(JobStatsMonitoringDoc.TYPE, clusterService, JOB_STATS_TIMEOUT, licenseState);
         this.settings = settings;
         this.client = client;
         this.threadContext = threadContext;

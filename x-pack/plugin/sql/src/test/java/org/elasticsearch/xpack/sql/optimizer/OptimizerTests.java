@@ -345,7 +345,7 @@ public class OptimizerTests extends ESTestCase {
     public void testConstantFoldingIn_RightValueIsNull() {
         In in = new In(EMPTY, getFieldAttribute(), Arrays.asList(NULL, NULL));
         Literal result= (Literal) new ConstantFolding().rule(in);
-        assertEquals(false, result.value());
+        assertNull(result.value());
     }
 
     public void testConstantFoldingIn_LeftValueIsNull() {

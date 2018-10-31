@@ -84,11 +84,12 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public Boolean fold() {
+        // Optimization for early return and Query folding to LocalExec
         if (value.dataType() == DataType.NULL) {
             return null;
         }
         if (list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
-            return false;
+            return null;
         }
 
         Object foldedLeftValue = value.fold();
@@ -128,18 +129,15 @@ public class In extends NamedExpression implements ScriptWeaver {
         String scriptPrefix = leftScript + "==";
         LinkedHashSet<Object> values = list.stream().map(Expression::fold).collect(Collectors.toCollection(LinkedHashSet::new));
         for (Object valueFromList : values) {
-            // if checked against null => false
-            if (valueFromList != null) {
-                if (valueFromList instanceof Expression) {
-                    ScriptTemplate rightScript = asScript((Expression) valueFromList);
-                    sj.add(scriptPrefix + rightScript.template());
-                    rightParams.add(rightScript.params());
+            if (valueFromList instanceof Expression) {
+                ScriptTemplate rightScript = asScript((Expression) valueFromList);
+                sj.add(scriptPrefix + rightScript.template());
+                rightParams.add(rightScript.params());
+            } else {
+                if (valueFromList instanceof String) {
+                    sj.add(scriptPrefix + '"' + valueFromList + '"');
                 } else {
-                    if (valueFromList instanceof String) {
-                        sj.add(scriptPrefix + '"' + valueFromList + '"');
-                    } else {
-                        sj.add(scriptPrefix + valueFromList.toString());
-                    }
+                    sj.add(scriptPrefix + (valueFromList == null ? "null" : valueFromList.toString()));
                 }
             }
         }
@@ -173,6 +171,6 @@ public class In extends NamedExpression implements ScriptWeaver {
 
         In other = (In) obj;
         return Objects.equals(value, other.value)
-                && Objects.equals(list, other.list);
+            && Objects.equals(list, other.list);
     }
 }

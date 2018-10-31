@@ -211,6 +211,7 @@ public class QueryTranslatorTests extends ESTestCase {
         ScriptQuery sq = (ScriptQuery) translation.query;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
             "InternalSqlScriptUtils.power(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)==10 || " +
+            "InternalSqlScriptUtils.power(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)==null || " +
             "InternalSqlScriptUtils.power(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1)==20)",
             sq.script().toString());
         assertEquals("[{v=int}, {v=2}]", sq.script().params().toString());
@@ -254,7 +255,8 @@ public class QueryTranslatorTests extends ESTestCase {
         QueryTranslation translation = QueryTranslator.toQuery(condition, true);
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(params.a0==10 || params.a0==20 || params.a0==30)",
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
+                "params.a0==10 || params.a0==null || params.a0==20 || params.a0==30)",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
     }

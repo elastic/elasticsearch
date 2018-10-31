@@ -42,6 +42,7 @@ import java.util.stream.StreamSupport;
  */
 public class Realms extends AbstractComponent implements Iterable<Realm> {
 
+    private final Settings settings;
     private final Environment env;
     private final Map<String, Realm.Factory> factories;
     private final XPackLicenseState licenseState;
@@ -58,6 +59,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
     public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, XPackLicenseState licenseState,
                   ThreadContext threadContext, ReservedRealm reservedRealm) throws Exception {
         super(settings);
+        this.settings = settings;
         this.env = env;
         this.factories = factories;
         this.licenseState = licenseState;

@@ -6,10 +6,10 @@
 
 package org.elasticsearch.xpack.security.authc.kerberos;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -81,12 +81,13 @@ public abstract class KerberosTestCase extends ESTestCase {
         unsupportedLocaleLanguages.add("my");
         unsupportedLocaleLanguages.add("ps");
         unsupportedLocaleLanguages.add("ur");
+        unsupportedLocaleLanguages.add("pa");
     }
 
     @BeforeClass
     public static void setupKerberos() throws Exception {
         if (isLocaleUnsupported()) {
-            Logger logger = Loggers.getLogger(KerberosTestCase.class);
+            Logger logger = LogManager.getLogger(KerberosTestCase.class);
             logger.warn("Attempting to run Kerberos test on {} locale, but that breaks SimpleKdcServer. Switching to English.",
                 Locale.getDefault());
             restoreLocale = Locale.getDefault();

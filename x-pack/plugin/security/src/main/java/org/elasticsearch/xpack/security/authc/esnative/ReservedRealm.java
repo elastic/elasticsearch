@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
+import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -152,6 +153,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 return new BeatsSystemUser(userInfo.enabled);
             case APMSystemUser.NAME:
                 return new APMSystemUser(userInfo.enabled);
+            case RemoteMonitoringUser.NAME:
+                return new RemoteMonitoringUser(userInfo.enabled);
             default:
                 if (anonymousEnabled && anonymousUser.principal().equals(username)) {
                     return anonymousUser;
@@ -182,6 +185,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
                 userInfo = reservedUserInfos.get(APMSystemUser.NAME);
                 users.add(new APMSystemUser(userInfo == null || userInfo.enabled));
+
+                userInfo = reservedUserInfos.get(RemoteMonitoringUser.NAME);
+                users.add(new RemoteMonitoringUser(userInfo == null || userInfo.enabled));
 
                 if (anonymousEnabled) {
                     users.add(anonymousUser);
@@ -236,6 +242,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 return BeatsSystemUser.DEFINED_SINCE;
             case APMSystemUser.NAME:
                 return APMSystemUser.DEFINED_SINCE;
+            case RemoteMonitoringUser.NAME:
+                return RemoteMonitoringUser.DEFINED_SINCE;
             default:
                 return Version.V_6_0_0;
         }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -43,7 +44,8 @@ public class ExtractedFieldsTests extends ESTestCase {
 
         assertThat(extractedFields.getAllFields(), equalTo(Arrays.asList(timeField)));
         assertThat(extractedFields.timeField(), equalTo("time"));
-        assertThat(extractedFields.getDocValueFields(), equalTo(new String[] { timeField.getName() }));
+        assertThat(extractedFields.getDocValueFields().stream().map(ExtractedField::getName).toArray(String[]::new),
+            equalTo(new String[] { timeField.getName() }));
         assertThat(extractedFields.getSourceFields().length, equalTo(0));
     }
 
@@ -59,16 +61,31 @@ public class ExtractedFieldsTests extends ESTestCase {
 
         assertThat(extractedFields.getAllFields().size(), equalTo(7));
         assertThat(extractedFields.timeField(), equalTo("time"));
-        assertThat(extractedFields.getDocValueFields(), equalTo(new String[] {"time", "doc1", "doc2"}));
+        assertThat(extractedFields.getDocValueFields().stream().map(ExtractedField::getName).toArray(String[]::new),
+            equalTo(new String[] {"time", "doc1", "doc2"}));
         assertThat(extractedFields.getSourceFields(), equalTo(new String[] {"src1", "src2"}));
     }
 
     public void testTimeFieldValue() {
-        SearchHit hit = new SearchHitBuilder(1).addField("time", new DateTime(1000L)).build();
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new DateTime(millis)).build();
+        final ExtractedFields extractedFields = new ExtractedFields(timeField, Collections.singletonList(timeField));
+        assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
+    }
 
-        ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField));
+    public void testStringTimeFieldValue() {
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
+        final ExtractedFields extractedFields = new ExtractedFields(timeField, Collections.singletonList(timeField));
+        assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
+    }
 
-        assertThat(extractedFields.timeFieldValue(hit), equalTo(1000L));
+    public void testPre6xTimeFieldValue() {
+        // Prior to 6.x, timestamps were simply `long` milliseconds-past-the-epoch values
+        final long millis = randomLong();
+        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", millis).build();
+        final ExtractedFields extractedFields = new ExtractedFields(timeField, Collections.singletonList(timeField));
+        assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
     }
 
     public void testTimeFieldValueGivenEmptyArray() {
@@ -124,9 +141,11 @@ public class ExtractedFieldsTests extends ESTestCase {
                 fieldCapabilitiesResponse);
 
         assertThat(extractedFields.timeField(), equalTo("time"));
-        assertThat(extractedFields.getDocValueFields().length, equalTo(2));
-        assertThat(extractedFields.getDocValueFields()[0], equalTo("time"));
-        assertThat(extractedFields.getDocValueFields()[1], equalTo("value"));
+        assertThat(extractedFields.getDocValueFields().size(), equalTo(2));
+        assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("time"));
+        assertThat(extractedFields.getDocValueFields().get(0).getDocValueFormat(), equalTo("epoch_millis"));
+        assertThat(extractedFields.getDocValueFields().get(1).getName(), equalTo("value"));
+        assertThat(extractedFields.getDocValueFields().get(1).getDocValueFormat(), equalTo(DocValueFieldsContext.USE_DEFAULT_FORMAT));
         assertThat(extractedFields.getSourceFields().length, equalTo(1));
         assertThat(extractedFields.getSourceFields()[0], equalTo("airline"));
         assertThat(extractedFields.getAllFields().size(), equalTo(4));
@@ -160,9 +179,9 @@ public class ExtractedFieldsTests extends ESTestCase {
                 fieldCapabilitiesResponse);
 
         assertThat(extractedFields.timeField(), equalTo("time"));
-        assertThat(extractedFields.getDocValueFields().length, equalTo(2));
-        assertThat(extractedFields.getDocValueFields()[0], equalTo("time"));
-        assertThat(extractedFields.getDocValueFields()[1], equalTo("airport.keyword"));
+        assertThat(extractedFields.getDocValueFields().size(), equalTo(2));
+        assertThat(extractedFields.getDocValueFields().get(0).getName(), equalTo("time"));
+        assertThat(extractedFields.getDocValueFields().get(1).getName(), equalTo("airport.keyword"));
         assertThat(extractedFields.getSourceFields().length, equalTo(1));
         assertThat(extractedFields.getSourceFields()[0], equalTo("airline"));
         assertThat(extractedFields.getAllFields().size(), equalTo(3));

@@ -270,7 +270,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                                 // Index doesn't exist - create it and start recovery
                                 // Make sure that the index we are about to create has a validate name
                                 MetaDataCreateIndexService.validateIndexName(renamedIndexName, currentState);
-                                createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(), false);
+                                createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetaData.getSettings(), currentState, false);
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN).index(renamedIndexName);
                                 indexMdBuilder.settings(Settings.builder().put(snapshotIndexMetaData.getSettings()).put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()));
                                 if (!request.includeAliases() && !snapshotIndexMetaData.getAliases().isEmpty()) {
@@ -295,6 +295,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                                 IndexMetaData.Builder indexMdBuilder = IndexMetaData.builder(snapshotIndexMetaData).state(IndexMetaData.State.OPEN);
                                 indexMdBuilder.version(Math.max(snapshotIndexMetaData.getVersion(), currentIndexMetaData.getVersion() + 1));
                                 indexMdBuilder.mappingVersion(Math.max(snapshotIndexMetaData.getMappingVersion(), currentIndexMetaData.getMappingVersion() + 1));
+                                indexMdBuilder.settingsVersion(Math.max(snapshotIndexMetaData.getSettingsVersion(), currentIndexMetaData.getSettingsVersion() + 1));
                                 if (!request.includeAliases()) {
                                     // Remove all snapshot aliases
                                     if (!snapshotIndexMetaData.getAliases().isEmpty()) {

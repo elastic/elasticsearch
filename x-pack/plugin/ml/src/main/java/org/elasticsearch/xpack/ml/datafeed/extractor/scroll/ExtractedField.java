@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.joda.time.base.BaseDateTime;
 
 import java.util.List;
@@ -51,6 +52,10 @@ abstract class ExtractedField {
 
     public abstract Object[] value(SearchHit hit);
 
+    public String getDocValueFormat() {
+        return DocValueFieldsContext.USE_DEFAULT_FORMAT;
+    }
+
     public static ExtractedField newTimeField(String name, ExtractionMethod extractionMethod) {
         if (extractionMethod == ExtractionMethod.SOURCE) {
             throw new IllegalArgumentException("time field cannot be extracted from source");
@@ -93,6 +98,8 @@ abstract class ExtractedField {
 
     private static class TimeField extends FromFields {
 
+        private static final String EPOCH_MILLIS_FORMAT = "epoch_millis";
+
         TimeField(String name, ExtractionMethod extractionMethod) {
             super(name, name, extractionMethod);
         }
@@ -107,10 +114,15 @@ abstract class ExtractedField {
                 value[0] = Long.parseLong((String) value[0]);
             } else if (value[0] instanceof BaseDateTime) { // script field
                 value[0] = ((BaseDateTime) value[0]).getMillis();
-            } else {
+            } else if (value[0] instanceof Long == false) { // pre-6.0 field
                 throw new IllegalStateException("Unexpected value for a time field: " + value[0].getClass());
             }
             return value;
+        }
+
+        @Override
+        public String getDocValueFormat() {
+            return EPOCH_MILLIS_FORMAT;
         }
     }
 

@@ -95,7 +95,7 @@ final class Bootstrap {
 
     /** initialize native resources */
     public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
-        final Logger logger = Loggers.getLogger(Bootstrap.class);
+        final Logger logger = LogManager.getLogger(Bootstrap.class);
 
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {

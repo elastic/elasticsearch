@@ -26,7 +26,8 @@ public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardC
             leaderGlobalCheckpoint,
             leaderMaxSeqNo,
             maxSeqNoOfUpdatesOrDeletes,
-            operations
+            operations,
+            randomNonNegativeLong()
         );
     }
 

@@ -33,35 +33,34 @@ public class DeleteAutoFollowPatternAction extends Action<AcknowledgedResponse> 
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private String leaderCluster;
+        private final String name;
+
+        public Request(String name) {
+            this.name = name;
+        }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (leaderCluster == null) {
-                validationException = addValidationError("leaderCluster is missing", validationException);
+            if (name == null) {
+                validationException = addValidationError("name is missing", validationException);
             }
             return validationException;
         }
 
-        public String getLeaderCluster() {
-            return leaderCluster;
+        public String getName() {
+            return name;
         }
 
-        public void setLeaderCluster(String leaderCluster) {
-            this.leaderCluster = leaderCluster;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            leaderCluster = in.readString();
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            name = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(leaderCluster);
+            out.writeString(name);
         }
 
         @Override
@@ -69,12 +68,12 @@ public class DeleteAutoFollowPatternAction extends Action<AcknowledgedResponse> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(leaderCluster, request.leaderCluster);
+            return Objects.equals(name, request.name);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(leaderCluster);
+            return Objects.hash(name);
         }
     }
 

@@ -40,7 +40,7 @@ GET /_xpack/migration/assistance
 // CONSOLE
 // TEST[skip:cannot create an old index in docs test]
 
-A successful call returns a list of indices that need to updated or reindexed:
+A successful call returns a list of indices that need to be updated or reindexed:
 
 [source,js]
 --------------------------------------------------
@@ -73,7 +73,7 @@ GET /_xpack/migration/assistance/my_*
 // CONSOLE
 // TEST[skip:cannot create an old index in docs test]
 
-A successful call returns a list of indices that needs to updated or reindexed
+A successful call returns a list of indices that needs to be updated or reindexed
 and match the index specified on the endpoint:
 
 [source,js]

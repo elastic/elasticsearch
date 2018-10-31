@@ -140,7 +140,7 @@ A mapping could be specified when creating an index, as follows:
 PUT my_index <1>
 {
   "mappings": {
-    "doc": { <2>
+    "_doc": { <2>
       "properties": { <3>
         "title":    { "type": "text"  }, <4>
         "name":     { "type": "text"  }, <4>

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -21,7 +21,7 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 final class ProcessContext {
 
-    private static final Logger LOGGER = Loggers.getLogger(ProcessContext.class);
+    private static final Logger LOGGER = LogManager.getLogger(ProcessContext.class);
 
     private final ReentrantLock lock = new ReentrantLock();
     private final JobTask jobTask;

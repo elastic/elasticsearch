@@ -19,11 +19,11 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.io.IOException;
  */
 final class DatabaseReaderLazyLoader implements Closeable {
 
-    private static final Logger LOGGER = Loggers.getLogger(DatabaseReaderLazyLoader.class);
+    private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
     private final String databaseFileName;
     private final CheckedSupplier<DatabaseReader, IOException> loader;

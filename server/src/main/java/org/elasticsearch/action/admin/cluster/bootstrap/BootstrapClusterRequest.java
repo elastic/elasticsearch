@@ -28,7 +28,7 @@ import java.io.IOException;
 public class BootstrapClusterRequest extends ActionRequest {
     private BootstrapConfiguration bootstrapConfiguration;
 
-    public BootstrapClusterRequest bootstrapConfiguration(BootstrapConfiguration bootstrapConfiguration) {
+    public BootstrapClusterRequest setBootstrapConfiguration(BootstrapConfiguration bootstrapConfiguration) {
         this.bootstrapConfiguration = bootstrapConfiguration;
         return this;
     }
@@ -38,7 +38,7 @@ public class BootstrapClusterRequest extends ActionRequest {
         return null;
     }
 
-    public BootstrapConfiguration bootstrapConfiguration() {
+    public BootstrapConfiguration getBootstrapConfiguration() {
         return bootstrapConfiguration;
     }
 

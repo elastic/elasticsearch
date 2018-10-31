@@ -202,7 +202,7 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
         assertFalse(coordinator.isInitialConfigurationSet());
 
         final BootstrapClusterRequest request = new BootstrapClusterRequest()
-            .bootstrapConfiguration(new BootstrapConfiguration(singletonList(new NodeDescription(discoveryNode))));
+            .setBootstrapConfiguration(new BootstrapConfiguration(singletonList(new NodeDescription(discoveryNode))));
 
         transportBootstrapClusterAction.doExecute(mock(Task.class), request,
             new ActionListener<AcknowledgedResponse>() {

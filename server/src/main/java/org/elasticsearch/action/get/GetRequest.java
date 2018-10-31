@@ -46,7 +46,7 @@ import java.io.IOException;
  */
 public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
 
-    private String type;
+    private String type = "_all";
     private String id;
     private String routing;
     private String preference;
@@ -63,7 +63,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private long version = Versions.MATCH_ANY;
 
     public GetRequest() {
-        type = "_all";
     }
 
     /**
@@ -72,7 +71,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      */
     public GetRequest(String index) {
         super(index);
-        this.type = "_all";
     }
 
     /**
@@ -111,10 +109,10 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
      * Sets the type of the document to fetch.
      */
     public GetRequest type(@Nullable String type) {
-        if (type == null) {
-            type = "_all";
+        if (type != null) {
+            this.type = type;
         }
-        this.type = type;
+        
         return this;
     }
 

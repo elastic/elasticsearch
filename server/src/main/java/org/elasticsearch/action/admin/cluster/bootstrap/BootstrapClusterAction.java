@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
 public class BootstrapClusterAction extends Action<AcknowledgedResponse> {
     public static final BootstrapClusterAction INSTANCE = new BootstrapClusterAction();
-    public static final String NAME = "cluster:coordination/bootstrap_cluster";
+    public static final String NAME = "cluster:admin/bootstrap_cluster";
 
     private BootstrapClusterAction() {
         super(NAME);

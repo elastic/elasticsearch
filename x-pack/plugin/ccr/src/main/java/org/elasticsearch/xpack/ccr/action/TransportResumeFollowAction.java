@@ -81,7 +81,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             final PersistentTasksService persistentTasksService,
             final IndicesService indicesService,
             final CcrLicenseChecker ccrLicenseChecker) {
-        super(settings, ResumeFollowAction.NAME, transportService, actionFilters, ResumeFollowAction.Request::new);
+        super(settings, ResumeFollowAction.NAME, transportService, actionFilters, in -> new ResumeFollowAction.Request(in));
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;

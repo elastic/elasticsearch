@@ -79,6 +79,8 @@ public class NativeUsersStore extends AbstractComponent {
     public static final String INDEX_TYPE = "doc";
     static final String USER_DOC_TYPE = "user";
     public static final String RESERVED_USER_TYPE = "reserved-user";
+
+    private final Settings settings;
     private final Client client;
     private final ReservedUserInfo disabledDefaultUserInfo;
     private final ReservedUserInfo enabledDefaultUserInfo;
@@ -87,6 +89,7 @@ public class NativeUsersStore extends AbstractComponent {
 
     public NativeUsersStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
         super(settings);
+        this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
         final char[] emptyPasswordHash = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)).

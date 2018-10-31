@@ -148,6 +148,8 @@ class S3Repository extends BlobStoreRepository {
      */
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
 
+    private final Settings settings;
+
     private final S3Service service;
 
     private final String bucket;
@@ -178,6 +180,7 @@ class S3Repository extends BlobStoreRepository {
                  final NamedXContentRegistry namedXContentRegistry,
                  final S3Service service) {
         super(metadata, settings, namedXContentRegistry);
+        this.settings = settings;
         this.service = service;
 
         // Parse and validate the user's S3 Storage Class setting

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
@@ -28,8 +29,11 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
@@ -56,6 +60,7 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanSimplification;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineBinaryComparisons;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineProjections;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ConstantFolding;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.FoldNull;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneSubqueryAliases;
@@ -374,9 +379,35 @@ public class OptimizerTests extends ESTestCase {
         return ((Literal) new ConstantFolding().rule(b)).value();
     }
 
+    public void testNullFoldingIsNotNull() {
+        assertEquals(Literal.TRUE, new FoldNull().rule(new IsNotNull(EMPTY, Literal.TRUE)));
+    }
+
+    public void testGenericNullableExpression() {
+        FoldNull rule = new FoldNull();
+        // date-time
+        assertNullLiteral(rule.rule(new DayName(EMPTY, Literal.NULL, randomTimeZone())));
+        // math function
+        assertNullLiteral(rule.rule(new Cos(EMPTY, Literal.NULL)));
+        // string function
+        assertNullLiteral(rule.rule(new Ascii(EMPTY, Literal.NULL)));
+        assertNullLiteral(rule.rule(new Repeat(EMPTY, getFieldAttribute(), Literal.NULL)));
+        // arithmetic
+        assertNullLiteral(rule.rule(new Add(EMPTY, getFieldAttribute(), Literal.NULL)));
+        // comparison
+        assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), Literal.NULL)));
+        // regex
+        assertNullLiteral(rule.rule(new RLike(EMPTY, getFieldAttribute(), Literal.NULL)));
+    }
+
     //
     // Logical simplifications
     //
+
+    private void assertNullLiteral(Expression expression) {
+        assertEquals(Literal.class, expression.getClass());
+        assertNull(((Literal) expression).fold());
+    }
 
     public void testBinaryComparisonSimplification() {
         assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new Equals(EMPTY, FIVE, FIVE)));

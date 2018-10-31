@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.HasAttributeNodeSelector;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -182,8 +182,7 @@ public class DoSection implements ExecutableSection {
         return doSection;
     }
 
-
-    private static final Logger logger = Loggers.getLogger(DoSection.class);
+    private static final Logger logger = LogManager.getLogger(DoSection.class);
 
     private final XContentLocation location;
     private String catchParam;
@@ -206,7 +205,7 @@ public class DoSection implements ExecutableSection {
         return apiCallSection;
     }
 
-    public void setApiCallSection(ApiCallSection apiCallSection) {
+    void setApiCallSection(ApiCallSection apiCallSection) {
         this.apiCallSection = apiCallSection;
     }
 
@@ -214,7 +213,7 @@ public class DoSection implements ExecutableSection {
      * Warning headers that we expect from this response. If the headers don't match exactly this request is considered to have failed.
      * Defaults to emptyList.
      */
-    public List<String> getExpectedWarningHeaders() {
+    List<String> getExpectedWarningHeaders() {
         return expectedWarningHeaders;
     }
 
@@ -222,7 +221,7 @@ public class DoSection implements ExecutableSection {
      * Set the warning headers that we expect from this response. If the headers don't match exactly this request is considered to have
      * failed. Defaults to emptyList.
      */
-    public void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
+    void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
         this.expectedWarningHeaders = expectedWarningHeaders;
     }
 

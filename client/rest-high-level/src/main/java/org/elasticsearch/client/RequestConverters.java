@@ -118,10 +118,11 @@ final class RequestConverters {
         Params parameters = new Params(request);
         parameters.withTimeout(bulkRequest.timeout());
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
+        parameters.withPipeline(bulkRequest.pipeline());
+        parameters.withRouting(bulkRequest.routing());
         if (bulkRequest.isAutoCreateIndexDisabled()) {
             parameters.putParam("disable_auto_create_index", Boolean.toString(bulkRequest.isAutoCreateIndexDisabled()));
         }
-
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
@@ -262,6 +263,18 @@ final class RequestConverters {
         parameters.withVersionType(getRequest.versionType());
         parameters.withFetchSourceContext(getRequest.fetchSourceContext());
 
+        return request;
+    }
+
+    static Request sourceExists(GetRequest getRequest) {
+        Request request = new Request(HttpHead.METHOD_NAME, endpoint(getRequest.index(), getRequest.type(), getRequest.id(), "_source"));
+
+        Params parameters = new Params(request);
+        parameters.withPreference(getRequest.preference());
+        parameters.withRouting(getRequest.routing());
+        parameters.withRefresh(getRequest.refresh());
+        parameters.withRealtime(getRequest.realtime());
+        // Version params are not currently supported by the source exists API so are not passed
         return request;
     }
 
@@ -702,10 +715,10 @@ final class RequestConverters {
                     putParam("_source", Boolean.FALSE.toString());
                 }
                 if (fetchSourceContext.includes() != null && fetchSourceContext.includes().length > 0) {
-                    putParam("_source_include", String.join(",", fetchSourceContext.includes()));
+                    putParam("_source_includes", String.join(",", fetchSourceContext.includes()));
                 }
                 if (fetchSourceContext.excludes() != null && fetchSourceContext.excludes().length > 0) {
-                    putParam("_source_exclude", String.join(",", fetchSourceContext.excludes()));
+                    putParam("_source_excludes", String.join(",", fetchSourceContext.excludes()));
                 }
             }
             return this;

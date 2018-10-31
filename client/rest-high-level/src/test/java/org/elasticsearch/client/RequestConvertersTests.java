@@ -100,6 +100,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -863,6 +864,21 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
+    public void testGlobalPipelineOnBulkRequest() throws IOException {
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.pipeline("xyz");
+        bulkRequest.add(new IndexRequest("test", "doc", "11")
+            .source(XContentType.JSON, "field", "bulk1"));
+        bulkRequest.add(new IndexRequest("test", "doc", "12")
+            .source(XContentType.JSON, "field", "bulk2"));
+        bulkRequest.add(new IndexRequest("test", "doc", "13")
+            .source(XContentType.JSON, "field", "bulk3"));
+
+        Request request = RequestConverters.bulk(bulkRequest);
+
+        assertThat(request.getParameters(), Matchers.hasEntry("pipeline","xyz"));
+    }
+
     public void testSearchNullSource() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         Request request = RequestConverters.search(searchRequest);
@@ -1517,13 +1533,13 @@ public class RequestConvertersTests extends ESTestCase {
                 String[] includes = new String[numIncludes];
                 String includesParam = randomFields(includes);
                 if (numIncludes > 0) {
-                    expectedParams.put("_source_include", includesParam);
+                    expectedParams.put("_source_includes", includesParam);
                 }
                 int numExcludes = randomIntBetween(0, 5);
                 String[] excludes = new String[numExcludes];
                 String excludesParam = randomFields(excludes);
                 if (numExcludes > 0) {
-                    expectedParams.put("_source_exclude", excludesParam);
+                    expectedParams.put("_source_excludes", excludesParam);
                 }
                 consumer.accept(new FetchSourceContext(true, includes, excludes));
             }

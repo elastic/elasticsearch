@@ -21,7 +21,6 @@ package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 
 import java.util.Locale;
 

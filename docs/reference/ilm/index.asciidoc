@@ -7,10 +7,10 @@
 :ILM:             Index lifecycle management
 [partintro]
 --
-The {ILM} APIs enable you to automate how you want to manage your indices over
-time. Rather than simply performing management actions on your indices on a set
-schedule, you can base actions on other factors such as shard
-size and performance requirements.
+The <<index-lifecycle-management-api, {ilm} APIs>> enable you to automate how you
+want to manage your indices over time. Rather than simply performing management
+actions on your indices on a set schedule, you can base actions on other factors
+such as shard size and performance requirements.
 
 You control how indices are handled as they age by attaching a
 lifecycle policy to the index template used to create them. You can update
@@ -49,23 +49,14 @@ hardware.
 . Delete the index once the required 30 day retention period is reached.
 --
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/getting-started-ilm.asciidoc
 include::getting-started-ilm.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/using-policies--rollover.asciidoc
 include::using-policies-rollover.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/set-up-policy.asciidoc
 include::set-up-lifecycle-policy.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/update-lifecycle-policy.asciidoc
 include::update-lifecycle-policy.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/get-index-lifecycle-information.asciidoc
 include::get-index-lifecycle-information.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/pause-resume-ilm.asciidoc
 include::start-stop-ilm.asciidoc[]
-
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/ilm/apis/ilm-api.asciidoc
-include::{es-repo-dir}/ilm/apis/ilm-api.asciidoc[]

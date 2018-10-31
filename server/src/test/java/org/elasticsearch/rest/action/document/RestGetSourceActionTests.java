@@ -50,29 +50,22 @@ public class RestGetSourceActionTests extends ESTestCase {
     }
 
     public void testRestGetSourceAction() throws Exception {
-        // GIVEN a REST Get Source action response with an existing result and a non-null source
         final BytesReference source = new BytesArray("{\"foo\": \"bar\"}");
         final GetResponse getResponse = new GetResponse(new GetResult("index1", "_doc", "1", -1, true, source, emptyMap()));
 
-        // WHEN building the REST response
         final RestResponse restResponse = listener.buildResponse(getResponse);
 
-        // THEN expect to retrieve document source
         assertThat(restResponse.status(), equalTo(OK));
         assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
         assertThat(restResponse.content(), equalTo(new BytesArray("{\"foo\": \"bar\"}")));
     }
 
     public void testRestGetSourceActionWithNullSource() {
-        // GIVEN a REST Get Source action response with a non-existing result and a null source
         final GetResponse getResponse = new GetResponse(new GetResult("index1", "_doc", "1", -1, false, null, emptyMap()));
 
-        // WHEN building the REST response
-        // THEN expect a resource not found exception
         final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class,
             () -> listener.buildResponse(getResponse));
 
-        // THEN expect a formatted error message
         assertThat(exception.getMessage(), equalTo("Document or source not found [index1]/[_doc]/[1]"));
     }
 }

@@ -237,7 +237,7 @@ batch size is `1000`, so if the `requests_per_second` is set to `500`:
 [source,txt]
 --------------------------------------------------
 target_time = 1000 / 500 per second = 2 seconds
-wait_time = target_time - delete_time = 2 seconds - .5 seconds = 1.5 seconds
+wait_time = target_time - write_time = 2 seconds - .5 seconds = 1.5 seconds
 --------------------------------------------------
 
 Since the batch is issued as a single `_bulk` request large batch sizes will

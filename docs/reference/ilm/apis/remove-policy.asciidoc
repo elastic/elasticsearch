@@ -16,8 +16,7 @@ Removes the assigned lifecycle policy from an index.
 
 Removes the assigned lifecycle policy and stops managing the specified index.
 If an index pattern is specified, removes the assigned policies from all matching
-indices. This has the same effect as setting an index's `index.lifecycle.name`
-setting to `null`.
+indices.
 
 ==== Path Parameters
 

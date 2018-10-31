@@ -42,9 +42,9 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version) {
 
             @Override
-            public void executedHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException {
+            public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException {
                 if (doHandshake) {
-                    super.executedHandshake(node, channel, timeout, listener);
+                    super.executeHandshake(node, channel, timeout, listener);
                 } else {
                     listener.onResponse(version.minimumCompatibilityVersion());
                 }

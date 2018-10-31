@@ -63,9 +63,9 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             new NoneCircuitBreakerService()) {
 
             @Override
-            public void executedHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
+            public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
                 if (doHandshake) {
-                    super.executedHandshake(node, channel, timeout, listener);
+                    super.executeHandshake(node, channel, timeout, listener);
                 } else {
                     listener.onResponse(version.minimumCompatibilityVersion());
                 }

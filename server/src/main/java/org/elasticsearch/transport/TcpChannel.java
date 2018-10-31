@@ -85,47 +85,5 @@ public interface TcpChannel extends CloseableChannel {
      *
      * @param listener to be executed
      */
-    default void addConnectListener(ActionListener<Void> listener) {
-        // TODO: Implement
-    }
-
-    /**
-     * Awaits for all of the pending connections to complete. Will throw an exception if at least one of the
-     * connections fails.
-     *
-     * @param discoveryNode the node for the pending connections
-     * @param connectionFutures representing the pending connections
-     * @param connectTimeout to wait for a connection
-     * @throws ConnectTransportException if one of the connections fails
-     */
-    static void awaitConnected(DiscoveryNode discoveryNode, List<ActionFuture<Void>> connectionFutures, TimeValue connectTimeout)
-        throws ConnectTransportException {
-        Exception connectionException = null;
-        boolean allConnected = true;
-
-        for (ActionFuture<Void> connectionFuture : connectionFutures) {
-            try {
-                connectionFuture.get(connectTimeout.getMillis(), TimeUnit.MILLISECONDS);
-            } catch (TimeoutException e) {
-                allConnected = false;
-                break;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException(e);
-            } catch (ExecutionException e) {
-                allConnected = false;
-                connectionException = (Exception) e.getCause();
-                break;
-            }
-        }
-
-        if (allConnected == false) {
-            if (connectionException == null) {
-                throw new ConnectTransportException(discoveryNode, "connect_timeout[" + connectTimeout + "]");
-            } else {
-                throw new ConnectTransportException(discoveryNode, "connect_exception", connectionException);
-            }
-        }
-    }
-
+    void addConnectListener(ActionListener<Void> listener);
 }

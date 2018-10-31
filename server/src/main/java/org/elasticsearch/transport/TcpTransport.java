@@ -1404,7 +1404,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public void executedHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
+    public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
         handshaker.sendHandshake(responseHandlers.newRequestId(), node, channel, timeout, listener);
     }
 
@@ -1619,7 +1619,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             if (pendingConnections.get() != FAILED && pendingConnections.decrementAndGet() == 0) {
                 final TcpChannel handshakeChannel = channels.get(0);
                 try {
-                    executedHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout(), new ActionListener<Version>() {
+                    executeHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout(), new ActionListener<Version>() {
                         @Override
                         public void onResponse(Version version) {
                             NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);

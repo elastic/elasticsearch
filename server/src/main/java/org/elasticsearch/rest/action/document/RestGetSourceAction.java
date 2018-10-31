@@ -91,7 +91,7 @@ public class RestGetSourceAction extends BaseRestHandler {
 
         @Override
         public RestResponse buildResponse(final GetResponse response) throws Exception {
-            checkIfSourceEmpty(response);
+            checkResource(response);
 
             final XContentBuilder builder = channel.newBuilder(request.getXContentType(), false);
             final BytesReference source = response.getSourceInternal();
@@ -102,19 +102,20 @@ public class RestGetSourceAction extends BaseRestHandler {
         }
 
         /**
-         * Checks if the requested source or document itself is missing.
+         * Checks if the requested document or source is missing.
          *
          * @param response a response
-         * @throws ResourceNotFoundException if source or doc itself is missing
+         * @throws ResourceNotFoundException if the document or source is missing
          */
-        private void checkIfSourceEmpty(final GetResponse response) {
-            if (response.isSourceEmpty()) {
-                final String resourceType = response.isExists() == false ? "Document" : "Source";
-                final String index = response.getIndex();
-                final String type = response.getType();
-                final String id = response.getId();
+        private void checkResource(final GetResponse response) {
+            final String index = response.getIndex();
+            final String type = response.getType();
+            final String id = response.getId();
 
-                throw new ResourceNotFoundException(resourceType + " not found [" + index + "]/[" + type + "]/[" + id + "]");
+            if (response.isExists() == false) {
+                throw new ResourceNotFoundException("Document not found [" + index + "]/[" + type + "]/[" + id + "]");
+            } else if (response.isSourceEmpty()) {
+                throw new ResourceNotFoundException("Source not found [" + index + "]/[" + type + "]/[" + id + "]");
             }
         }
     }

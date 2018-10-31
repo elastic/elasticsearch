@@ -51,9 +51,9 @@ public class RestGetSourceActionTests extends ESTestCase {
 
     public void testRestGetSourceAction() throws Exception {
         final BytesReference source = new BytesArray("{\"foo\": \"bar\"}");
-        final GetResponse getResponse = new GetResponse(new GetResult("index1", "_doc", "1", -1, true, source, emptyMap()));
+        final GetResponse response = new GetResponse(new GetResult("index1", "_doc", "1", -1, true, source, emptyMap()));
 
-        final RestResponse restResponse = listener.buildResponse(getResponse);
+        final RestResponse restResponse = listener.buildResponse(response);
 
         assertThat(restResponse.status(), equalTo(OK));
         assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
@@ -61,19 +61,17 @@ public class RestGetSourceActionTests extends ESTestCase {
     }
 
     public void testRestGetSourceActionWithMissingDocument() {
-        final GetResponse getResponse = new GetResponse(new GetResult("index1", "_doc", "1", -1, false, null, emptyMap()));
+        final GetResponse response = new GetResponse(new GetResult("index1", "_doc", "1", -1, false, null, emptyMap()));
 
-        final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class,
-            () -> listener.buildResponse(getResponse));
+        final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.buildResponse(response));
 
         assertThat(exception.getMessage(), equalTo("Document not found [index1]/[_doc]/[1]"));
     }
 
     public void testRestGetSourceActionWithMissingDocumentSource() {
-        final GetResponse getResponse = new GetResponse(new GetResult("index1", "_doc", "1", -1, true, null, emptyMap()));
+        final GetResponse response = new GetResponse(new GetResult("index1", "_doc", "1", -1, true, null, emptyMap()));
 
-        final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class,
-            () -> listener.buildResponse(getResponse));
+        final ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.buildResponse(response));
 
         assertThat(exception.getMessage(), equalTo("Source not found [index1]/[_doc]/[1]"));
     }

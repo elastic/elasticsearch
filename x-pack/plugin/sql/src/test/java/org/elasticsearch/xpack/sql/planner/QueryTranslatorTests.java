@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.test.AbstractBuilderTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -29,13 +29,12 @@ import org.joda.time.DateTime;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.TimeZone;
 
 import static org.hamcrest.core.StringStartsWith.startsWith;
 
-public class QueryTranslatorTests extends AbstractBuilderTestCase {
+public class QueryTranslatorTests extends ESTestCase {
 
     private static SqlParser parser;
     private static Analyzer analyzer;
@@ -160,7 +159,7 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
         assertEquals("Scalar function (LTRIM(keyword)) not allowed (yet) as arguments for LIKE", ex.getMessage());
     }
 
-    public void testTranslateInExpression_WhereClause() throws IOException {
+    public void testTranslateInExpression_WhereClause() {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'))");
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
@@ -170,10 +169,11 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
         Query query = translation.query;
         assertTrue(query instanceof TermsQuery);
         TermsQuery tq = (TermsQuery) query;
-        assertEquals("keyword:(bar foo lala)", tq.asBuilder().toQuery(createShardContext()).toString());
+        assertEquals("{\"terms\":{\"keyword\":[\"foo\",\"bar\",\"lala\"],\"boost\":1.0}}",
+            tq.asBuilder().toString().replaceAll("\\s", ""));
     }
 
-    public void testTranslateInExpression_WhereClauseAndNullHandling() throws IOException {
+    public void testTranslateInExpression_WhereClauseAndNullHandling() {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', null, 'lala', null, 'foo', concat('la', 'la'))");
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
@@ -183,7 +183,8 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
         Query query = translation.query;
         assertTrue(query instanceof TermsQuery);
         TermsQuery tq = (TermsQuery) query;
-        assertEquals("keyword:(foo lala)", tq.asBuilder().toQuery(createShardContext()).toString());
+        assertEquals("{\"terms\":{\"keyword\":[\"foo\",\"lala\"],\"boost\":1.0}}",
+            tq.asBuilder().toString().replaceAll("\\s", ""));
     }
 
     public void testTranslateInExpressionInvalidValues_WhereClause() {

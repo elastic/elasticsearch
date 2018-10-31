@@ -39,7 +39,8 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
     public GetPipelineTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                       TransportService transportService, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, GetPipelineRequest::new, indexNameExpressionResolver);
+        super(settings, GetPipelineAction.NAME, transportService, clusterService, threadPool, actionFilters, GetPipelineRequest::new,
+                indexNameExpressionResolver);
     }
 
     @Override
@@ -53,7 +54,8 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
     }
 
     @Override
-    protected void masterOperation(GetPipelineRequest request, ClusterState state, ActionListener<GetPipelineResponse> listener) throws Exception {
+    protected void masterOperation(GetPipelineRequest request, ClusterState state, ActionListener<GetPipelineResponse> listener)
+            throws Exception {
         listener.onResponse(new GetPipelineResponse(IngestService.getPipelines(state, request.getIds())));
     }
 

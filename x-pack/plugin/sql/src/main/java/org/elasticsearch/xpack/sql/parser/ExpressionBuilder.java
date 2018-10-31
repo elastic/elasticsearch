@@ -388,6 +388,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case "varchar":
             case "string":
                 return DataType.KEYWORD;
+            case "ip":
+                return DataType.IP;
             default:
                 throw new ParsingException(source(ctx), "Does not recognize type {}", type);
         }

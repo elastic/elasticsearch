@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttr
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.In;
+import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
@@ -63,6 +65,7 @@ import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.ArrayList;
@@ -122,6 +125,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new CombineProjections(),
                 // folding
                 new ReplaceFoldableAttributes(),
+                new FoldNull(),
                 new ConstantFolding(),
                 // boolean
                 new BooleanSimplification(),
@@ -682,8 +686,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (TRUE.equals(filter.condition())) {
                     return filter.child();
                 }
-                // TODO: add comparison with null as well
-                if (FALSE.equals(filter.condition())) {
+                if (FALSE.equals(filter.condition()) || FoldNull.isNull(filter.condition())) {
                     return new LocalRelation(filter.location(), new EmptyExecutable(filter.output()));
                 }
             }
@@ -1109,6 +1112,41 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     || p instanceof Aggregate
                     || p instanceof Limit
                     || p instanceof OrderBy;
+        }
+    }
+
+    static class FoldNull extends OptimizerExpressionRule {
+
+        FoldNull() {
+            super(TransformDirection.UP);
+        }
+
+        private static boolean isNull(Expression ex) {
+            return DataType.NULL == ex.dataType() || (ex.foldable() && ex.fold() == null);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof IsNotNull) {
+                if (((IsNotNull) e).field().nullable() == false) {
+                    return new Literal(e.location(), Expressions.name(e), Boolean.TRUE, DataType.BOOLEAN);
+                }
+            }
+            // see https://github.com/elastic/elasticsearch/issues/34876
+            // similar for IsNull once it gets introduced
+
+            if (e instanceof In) {
+                In in = (In) e;
+                if (isNull(in.value())) {
+                    return Literal.of(in, null);
+                }
+            }
+
+            if (e.nullable() && Expressions.anyMatch(e.children(), FoldNull::isNull)) {
+                return Literal.of(e, null);
+            }
+
+            return e;
         }
     }
 

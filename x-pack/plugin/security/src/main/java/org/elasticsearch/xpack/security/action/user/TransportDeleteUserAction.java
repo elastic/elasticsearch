@@ -25,6 +25,7 @@ import java.util.function.Supplier;
 
 public class TransportDeleteUserAction extends HandledTransportAction<DeleteUserRequest, DeleteUserResponse> {
 
+    private final Settings settings;
     private final NativeUsersStore usersStore;
 
     @Inject
@@ -32,6 +33,7 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
                                      NativeUsersStore usersStore, TransportService transportService) {
         super(settings, DeleteUserAction.NAME, transportService, actionFilters,
             (Supplier<DeleteUserRequest>) DeleteUserRequest::new);
+        this.settings = settings;
         this.usersStore = usersStore;
     }
 

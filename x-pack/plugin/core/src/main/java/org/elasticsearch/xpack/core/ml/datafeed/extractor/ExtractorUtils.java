@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed.extractor;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ExtractorUtils {
 
-    private static final Logger LOGGER = Loggers.getLogger(ExtractorUtils.class);
+    private static final Logger LOGGER = LogManager.getLogger(ExtractorUtils.class);
     private static final String EPOCH_MILLIS = "epoch_millis";
 
     private ExtractorUtils() {}

@@ -792,8 +792,6 @@ include::ingest-node-common-processor.asciidoc[]
 --------------------------------------------------
 // NOTCONSOLE
 
-
-
 [[bytes-processor]]
 === Bytes Processor
 Converts a human readable byte value (e.g. 1kb) to its value in bytes (e.g. 1024).

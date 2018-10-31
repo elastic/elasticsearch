@@ -17,7 +17,7 @@
 "Test watcher stats current watches":
   - skip:
       version: " - 6.99.99"
-      reason:  materics were fixed in 7.0.0
+      reason:  metrics were fixed in 7.0.0
 
   - do:
       xpack.watcher.stats:
@@ -30,7 +30,7 @@
 "Test watcher stats queued watches":
   - skip:
       version: " - 6.99.99"
-      reason:  materics were fixed in 7.0.0
+      reason:  metrics were fixed in 7.0.0
 
   - do:
       xpack.watcher.stats:
@@ -43,7 +43,7 @@
 "Test watcher stats queued watches using pending_watches":
   - skip:
       version: " - 6.99.99"
-      reason:  materics were fixed in 7.0.0
+      reason:  metrics were fixed in 7.0.0
       features: warnings
 
   - do:

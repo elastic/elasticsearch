@@ -506,6 +506,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 buffer.size(),
                 bufferSizeInBytes,
                 currentMappingVersion,
+                currentSettingsVersion,
                 totalReadTimeMillis,
                 totalReadRemoteExecTimeMillis,
                 successfulReadRequests,

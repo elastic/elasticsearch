@@ -178,6 +178,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     protected final Settings settings;
     private final CircuitBreakerService circuitBreakerService;
+    private final Version version;
     protected final ThreadPool threadPool;
     private final BigArrays bigArrays;
     protected final NetworkService networkService;
@@ -194,7 +195,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
-    protected final boolean compress;;
+    protected final boolean compress;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
 
@@ -207,12 +208,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final BytesReference pingMessage;
     private final String nodeName;
 
-    public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays,
+    public TcpTransport(String transportName, Settings settings,  Version version, ThreadPool threadPool, BigArrays bigArrays,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                         NetworkService networkService) {
         super(settings);
         this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
+        this.version = version;
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
         this.circuitBreakerService = circuitBreakerService;
@@ -221,10 +223,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.networkService = networkService;
         this.transportName = transportName;
         this.transportLogger = new TransportLogger();
-        this.handshaker = new TcpTransportHandshaker(getCurrentVersion(), threadPool,
-            (node, channel, requestId, version) -> sendRequestToChannel(node, channel, requestId, TcpTransportHandshaker.HANDSHAKE_ACTION_NAME,
-                TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY, version, TransportStatus.setHandshake((byte) 0)),
-            (version, features, channel, response, requestId) -> sendResponse(version, features, channel, response, requestId,
+        this.handshaker = new TcpTransportHandshaker(version, threadPool,
+            (node, channel, requestId, v) -> sendRequestToChannel(node, channel, requestId,
+                TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY, v,
+                TransportStatus.setHandshake((byte) 0)),
+            (v, features, channel, response, requestId) -> sendResponse(v, features, channel, response, requestId,
                 TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, TransportStatus.setHandshake((byte) 0)));
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
@@ -437,11 +440,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         TimeValue connectTimeout = connectionProfile.getConnectTimeout();
         threadPool.schedule(connectTimeout, ThreadPool.Names.GENERIC, channelsConnectedListener::onTimeout);
-    }
-
-    protected Version getCurrentVersion() {
-        // this is just for tests to mock stuff like the nodes version - tests can override this internally
-        return Version.CURRENT;
     }
 
     @Override
@@ -828,7 +826,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // we pick the smallest of the 2, to support both backward and forward compatibility
             // note, this is the only place we need to do this, since from here on, we use the serialized version
             // as the version to use also when the node receiving this request will send the response with
-            Version version = Version.min(getCurrentVersion(), channelVersion);
+            Version version = Version.min(this.version, channelVersion);
 
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
@@ -1199,7 +1197,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 streamIn = compressor.streamInput(streamIn);
             }
             final boolean isHandshake = TransportStatus.isHandshake(status);
-            ensureVersionCompatibility(version, getCurrentVersion(), isHandshake);
+            ensureVersionCompatibility(version, this.version, isHandshake);
             streamIn = new NamedWriteableAwareStreamInput(streamIn, namedWriteableRegistry);
             streamIn.setVersion(version);
             threadPool.getThreadContext().readHeaders(streamIn);

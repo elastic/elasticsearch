@@ -88,7 +88,6 @@ public class MockTcpTransport extends TcpTransport {
     }
 
     private final ExecutorService executor;
-    private final Version mockVersion;
 
     public MockTcpTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -100,11 +99,11 @@ public class MockTcpTransport extends TcpTransport {
     public MockTcpTransport(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                             NetworkService networkService, Version mockVersion) {
-        super("mock-tcp-transport", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        super("mock-tcp-transport", settings, mockVersion, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry,
+            networkService);
         // we have our own crazy cached threadpool this one is not bounded at all...
         // using the ES thread factory here is crucial for tests otherwise disruption tests won't block that thread
         executor = Executors.newCachedThreadPool(EsExecutors.daemonThreadFactory(settings, Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX));
-        this.mockVersion = mockVersion;
     }
 
     @Override
@@ -455,11 +454,6 @@ public class MockTcpTransport extends TcpTransport {
         synchronized (openChannels) {
             assert openChannels.isEmpty() : "there are still open channels: " + openChannels;
         }
-    }
-
-    @Override
-    protected Version getCurrentVersion() {
-        return mockVersion;
     }
 }
 

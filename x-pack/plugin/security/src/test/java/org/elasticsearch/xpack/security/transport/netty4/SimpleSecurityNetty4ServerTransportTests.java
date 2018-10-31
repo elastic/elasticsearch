@@ -40,7 +40,6 @@ import javax.net.ssl.SNIMatcher;
 import javax.net.ssl.SNIServerName;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -73,24 +72,18 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
         Settings settings1 = Settings.builder()
             .put(settings)
             .put("xpack.security.transport.ssl.enabled", true).build();
-        Transport transport = new SecurityNetty4ServerTransport(settings1, threadPool,
+        Transport transport = new SecurityNetty4ServerTransport(settings1, version, threadPool,
             networkService, BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
             new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
 
             @Override
-            public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException {
+            public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, timeout, listener);
                 } else {
                     listener.onResponse(version.minimumCompatibilityVersion());
                 }
             }
-
-            @Override
-            protected Version getCurrentVersion() {
-                return version;
-            }
-
         };
         MockTransportService mockTransportService =
             MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings,

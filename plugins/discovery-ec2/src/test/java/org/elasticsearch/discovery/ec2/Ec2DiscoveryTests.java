@@ -74,8 +74,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void createTransportService() {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final Transport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()),
-            Version.CURRENT) {
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList())) {
             @Override
             public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
                 // we just need to ensure we don't resolve DNS here

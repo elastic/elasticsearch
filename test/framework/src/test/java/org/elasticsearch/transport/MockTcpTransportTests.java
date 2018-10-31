@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 
-import java.io.IOException;
 import java.util.Collections;
 
 public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
@@ -42,7 +41,7 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version) {
 
             @Override
-            public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException {
+            public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, timeout, listener);
                 } else {

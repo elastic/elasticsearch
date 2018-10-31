@@ -58,24 +58,17 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
                                                          ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        Transport transport = new MockNioTransport(settings, threadPool,
-            networkService, BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(settings), namedWriteableRegistry,
-            new NoneCircuitBreakerService()) {
+        Transport transport = new MockNioTransport(settings, version, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE,
+            new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
-            public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) throws IOException {
+            public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, timeout, listener);
                 } else {
                     listener.onResponse(version.minimumCompatibilityVersion());
                 }
             }
-
-            @Override
-            protected Version getCurrentVersion() {
-                return version;
-            }
-
         };
         MockTransportService mockTransportService =
             MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());

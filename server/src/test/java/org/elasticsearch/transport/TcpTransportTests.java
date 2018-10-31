@@ -188,7 +188,7 @@ public class TcpTransportTests extends ESTestCase {
         AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport(
-                "test", Settings.builder().put("transport.tcp.compress", compressed).build(), threadPool,
+                "test", Settings.builder().put("transport.tcp.compress", compressed).build(), Version.CURRENT, threadPool,
                 new BigArrays(new PageCacheRecycler(Settings.EMPTY), null), null, null, null) {
 
                 @Override

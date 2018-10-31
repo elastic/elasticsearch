@@ -58,9 +58,8 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
                                                          ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        Transport transport = new NioTransport(settings, threadPool,
-            networkService, BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(settings), namedWriteableRegistry,
-            new NoneCircuitBreakerService()) {
+        Transport transport = new NioTransport(settings, version, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE,
+            new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
             public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
@@ -69,11 +68,6 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
                 } else {
                     listener.onResponse(version.minimumCompatibilityVersion());
                 }
-            }
-
-            @Override
-            protected Version getCurrentVersion() {
-                return version;
             }
         };
         MockTransportService mockTransportService =

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -23,18 +24,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class PutRollupJobResponse extends AcknowledgedResponse {
+public class DeleteRollupJobResponse extends AcknowledgedResponse {
 
-
-    public PutRollupJobResponse(boolean acknowledged) {
+    public DeleteRollupJobResponse(boolean acknowledged) {
         super(acknowledged);
     }
 
-    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER = AcknowledgedResponse
-        .generateParser("delete_rollup_job_response", PutRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
+    private static final ConstructingObjectParser<DeleteRollupJobResponse, Void> PARSER = AcknowledgedResponse
+        .generateParser("delete_rollup_job_response", DeleteRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
 
-    public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
+    public static DeleteRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
-
 }

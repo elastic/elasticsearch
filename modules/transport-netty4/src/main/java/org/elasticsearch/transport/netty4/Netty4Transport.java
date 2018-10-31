@@ -40,7 +40,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
@@ -222,7 +221,7 @@ public class Netty4Transport extends TcpTransport {
     static final AttributeKey<Netty4TcpServerChannel> SERVER_CHANNEL_KEY = AttributeKey.newInstance("es-server-channel");
 
     @Override
-    protected Netty4TcpChannel initiateChannel(DiscoveryNode node, ActionListener<Void> listener) throws IOException {
+    protected Netty4TcpChannel initiateChannel(DiscoveryNode node) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         Bootstrap bootstrapWithHandler = clientBootstrap.clone();
         bootstrapWithHandler.handler(getClientChannelInitializer(node));

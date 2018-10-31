@@ -406,15 +406,24 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         try {
             ensureOpen();
             PlainActionFuture<NodeChannels> connectionFuture = PlainActionFuture.newFuture();
-            initiateConnection(node, connectionProfile, connectionFuture);
-            // TODO: This will not return the correct exceptions currently
-            return connectionFuture.actionGet();
+            List<TcpChannel> pendingChannels = initiateConnection(node, connectionProfile, connectionFuture);
+
+            try {
+                return connectionFuture.actionGet();
+            } catch (IllegalStateException e) {
+                // If the future was interrupted we can close the channels to improve the shutdown of the MockTcpTransport
+                if (e.getCause() instanceof InterruptedException) {
+                    CloseableChannel.closeChannels(pendingChannels, false);
+                }
+                throw e;
+            }
         } finally {
             closeLock.readLock().unlock();
         }
     }
 
-    private void initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<NodeChannels> listener) {
+    private List<TcpChannel> initiateConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                                ActionListener<NodeChannels> listener) {
         int numConnections = connectionProfile.getNumConnections();
         assert numConnections > 0 : "A connection profile must be configured with at least one connection";
 
@@ -422,13 +431,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         for (int i = 0; i < numConnections; ++i) {
             try {
-                TcpChannel channel = initiateChannel(node, PlainActionFuture.newFuture());
+                TcpChannel channel = initiateChannel(node);
                 logger.trace(() -> new ParameterizedMessage("Tcp transport client channel opened: {}", channel));
                 channels.add(channel);
             } catch (Exception e) {
                 CloseableChannel.closeChannels(channels, false);
                 listener.onFailure(new ConnectTransportException(node, "general node connection failure", e));
-                return;
+                return channels;
             }
         }
 
@@ -440,6 +449,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         TimeValue connectTimeout = connectionProfile.getConnectTimeout();
         threadPool.schedule(connectTimeout, ThreadPool.Names.GENERIC, channelsConnectedListener::onTimeout);
+        return channels;
     }
 
     @Override
@@ -787,12 +797,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     /**
      * Initiate a single tcp socket channel.
      *
-     * @param node            for the initiated connection
-     * @param connectListener listener to be called when connection complete
+     * @param node for the initiated connection
      * @return the pending connection
      * @throws IOException if an I/O exception occurs while opening the channel
      */
-    protected abstract TcpChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException;
+    protected abstract TcpChannel initiateChannel(DiscoveryNode node) throws IOException;
 
     /**
      * Called to tear down internal resources

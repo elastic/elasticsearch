@@ -162,7 +162,7 @@ public class MockTcpTransport extends TcpTransport {
 
     @Override
     @SuppressForbidden(reason = "real socket for mocking remote connections")
-    protected MockChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException {
+    protected MockChannel initiateChannel(DiscoveryNode node) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         final MockSocket socket = new MockSocket();
         final MockChannel channel = new MockChannel(socket, address, "none");
@@ -181,8 +181,8 @@ public class MockTcpTransport extends TcpTransport {
             try {
                 socket.connect(address);
                 socket.setSoLinger(false, 0);
-                channel.loopRead(executor);
                 channel.connectFuture.complete(null);
+                channel.loopRead(executor);
             } catch (Exception ex) {
                 channel.connectFuture.completeExceptionally(ex);
             }

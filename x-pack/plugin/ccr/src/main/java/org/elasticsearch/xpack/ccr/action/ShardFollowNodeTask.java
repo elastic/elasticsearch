@@ -403,7 +403,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     private void updateSettings(final LongConsumer handler) {
-        updateSettings(handler, new AtomicInteger());
+        updateSettings(handler, new AtomicInteger(0));
     }
 
     private void updateSettings(final LongConsumer handler, final AtomicInteger retryCounter) {

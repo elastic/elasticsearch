@@ -34,12 +34,12 @@ import static org.hamcrest.core.Is.is;
 public class GetDiscoveredNodesRequestTests extends ESTestCase {
     public void testWaitForNodesValidation() {
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        assertThat("default value is 1", getDiscoveredNodesRequest.waitForNodes(), is(1));
+        assertThat("default value is 1", getDiscoveredNodesRequest.getWaitForNodes(), is(1));
         assertNull("default is valid", getDiscoveredNodesRequest.validate());
 
         final int newWaitForNodes = randomIntBetween(1, 10);
         getDiscoveredNodesRequest.setWaitForNodes(newWaitForNodes);
-        assertThat("value updated", getDiscoveredNodesRequest.waitForNodes(), is(newWaitForNodes));
+        assertThat("value updated", getDiscoveredNodesRequest.getWaitForNodes(), is(newWaitForNodes));
         assertNull("updated request is still valid", getDiscoveredNodesRequest.validate());
 
         final IllegalArgumentException exception
@@ -93,7 +93,7 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
         final GetDiscoveredNodesRequest deserialized = copyWriteable(originalRequest, writableRegistry(),
             Streamable.newWriteableReader(GetDiscoveredNodesRequest::new));
 
-        assertThat(deserialized.waitForNodes(), equalTo(originalRequest.waitForNodes()));
+        assertThat(deserialized.getWaitForNodes(), equalTo(originalRequest.getWaitForNodes()));
         assertThat(deserialized.timeout(), equalTo(originalRequest.timeout()));
     }
 }

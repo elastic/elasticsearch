@@ -39,7 +39,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         return this;
     }
 
-    public int waitForNodes() {
+    public int getWaitForNodes() {
         return waitForNodes;
     }
 
@@ -78,7 +78,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(waitForNodes());
+        out.writeInt(getWaitForNodes());
         out.writeTimeValue(timeout());
     }
 

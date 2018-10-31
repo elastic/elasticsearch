@@ -82,7 +82,7 @@ public class TransportGetDiscoveredNodesAction extends TransportAction<GetDiscov
                 final Set<DiscoveryNode> nodesSet = new LinkedHashSet<>();
                 nodesSet.add(localNode);
                 nodes.forEach(nodesSet::add);
-                if (nodesSet.size() >= request.waitForNodes() && responseSent.compareAndSet(false, true)) {
+                if (nodesSet.size() >= request.getWaitForNodes() && responseSent.compareAndSet(false, true)) {
                     listener.onResponse(new GetDiscoveredNodesResponse(nodesSet));
                     countDownLatch.countDown();
                 }

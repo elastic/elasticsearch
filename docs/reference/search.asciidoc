@@ -34,7 +34,7 @@ only the relevant shard:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/_search?routing=kimchy
+GET /twitter/_search?routing=kimchy
 {
     "query": {
         "bool" : {

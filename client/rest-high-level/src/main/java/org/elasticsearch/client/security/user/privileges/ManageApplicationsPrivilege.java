@@ -29,10 +29,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -51,7 +49,7 @@ public final class ManageApplicationsPrivilege implements ToXContentObject {
         @SuppressWarnings("unchecked")
         final ConstructingObjectParser<ManageApplicationsPrivilege, Void> apps_parser =
             new ConstructingObjectParser<>("apps_parser", false, constructorObjects -> {
-                    final Collection<String> applications = (Collection<String>) constructorObjects[0];
+                    final List<String> applications = (List<String>) constructorObjects[0];
                     return new ManageApplicationsPrivilege(applications);
                 });
         apps_parser.declareStringArray(constructorArg(), APPLICATIONS);
@@ -65,17 +63,17 @@ public final class ManageApplicationsPrivilege implements ToXContentObject {
         PARSER.declareObject(constructorArg(), scope_parser, CATEGORY);
     }
 
-    private final Collection<String> applications;
+    private final List<String> applications;
 
-    private ManageApplicationsPrivilege(Collection<String> applications) {
+    private ManageApplicationsPrivilege(List<String> applications) {
         // we do all null checks inside the constructor
         if (null == applications || applications.isEmpty()) {
             throw new IllegalArgumentException("managed applications list should not be null");
         }
-        this.applications = Collections.unmodifiableCollection(applications);
+        this.applications = Collections.unmodifiableList(applications);
     }
 
-    public Collection<String> getApplications() {
+    public List<String> getApplications() {
         return applications;
     }
 
@@ -98,8 +96,9 @@ public final class ManageApplicationsPrivilege implements ToXContentObject {
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("ManageApplicationsPrivilege[");
-        sb.append("applications=[").append(Strings.collectionToCommaDelimitedString(applications)).append("]]");
+        final StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append("[");
+        sb.append(APPLICATIONS.getPreferredName()).append("=[").append(Strings.collectionToCommaDelimitedString(applications));
+        sb.append("]]");
         return sb.toString();
     }
 
@@ -124,7 +123,7 @@ public final class ManageApplicationsPrivilege implements ToXContentObject {
 
     public static class Builder {
 
-        private @Nullable Set<String> applications = null;
+        private @Nullable List<String> applications = null;
 
         private Builder() {
         }
@@ -137,12 +136,8 @@ public final class ManageApplicationsPrivilege implements ToXContentObject {
             return applications(Arrays.asList(applications));
         }
 
-        public Builder applications(@Nullable Collection<String> applications) {
-            if (applications == null) {
-                // null is a no-op to be programmer friendly
-                return this;
-            }
-            this.applications = new HashSet<>(applications);
+        public Builder applications(@Nullable List<String> applications) {
+            this.applications = applications;
             return this;
         }
 

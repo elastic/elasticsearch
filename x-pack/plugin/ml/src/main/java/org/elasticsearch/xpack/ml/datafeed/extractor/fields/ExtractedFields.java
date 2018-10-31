@@ -3,18 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
+package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -25,20 +20,15 @@ import java.util.stream.Collectors;
 /**
  * The fields the datafeed has to extract
  */
-class ExtractedFields {
+public class ExtractedFields {
 
     private static final String TEXT = "text";
 
-    private final ExtractedField timeField;
     private final List<ExtractedField> allFields;
     private final List<ExtractedField> docValueFields;
     private final String[] sourceFields;
 
-    ExtractedFields(ExtractedField timeField, List<ExtractedField> allFields) {
-        if (!allFields.contains(timeField)) {
-            throw new IllegalArgumentException("timeField should also be contained in allFields");
-        }
-        this.timeField = Objects.requireNonNull(timeField);
+    public ExtractedFields(List<ExtractedField> allFields) {
         this.allFields = Collections.unmodifiableList(allFields);
         this.docValueFields = filterFields(ExtractedField.ExtractionMethod.DOC_VALUE, allFields);
         this.sourceFields = filterFields(ExtractedField.ExtractionMethod.SOURCE, allFields).stream().map(ExtractedField::getName)
@@ -61,60 +51,33 @@ class ExtractedFields {
         return fields.stream().filter(field -> field.getExtractionMethod() == method).collect(Collectors.toList());
     }
 
-    public String timeField() {
-        return timeField.getName();
+    public static ExtractedFields build(Collection<String> allFields, Set<String> scriptFields,
+                                        FieldCapabilitiesResponse fieldsCapabilities) {
+        ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(scriptFields, fieldsCapabilities);
+        return new ExtractedFields(allFields.stream().map(field -> extractionMethodDetector.detect(field)).collect(Collectors.toList()));
     }
 
-    public Long timeFieldValue(SearchHit hit) {
-        Object[] value = timeField.value(hit);
-        if (value.length != 1) {
-            throw new RuntimeException("Time field [" + timeField.getAlias() + "] expected a single value; actual was: "
-                    + Arrays.toString(value));
-        }
-        if (value[0] instanceof Long) {
-            return (Long) value[0];
-        }
-        throw new RuntimeException("Time field [" + timeField.getAlias() + "] expected a long value; actual was: " + value[0]);
-    }
+    protected static class ExtractionMethodDetector {
 
-    public static ExtractedFields build(Job job, DatafeedConfig datafeed, FieldCapabilitiesResponse fieldsCapabilities) {
-        Set<String> scriptFields = datafeed.getScriptFields().stream().map(sf -> sf.fieldName()).collect(Collectors.toSet());
-        ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(datafeed.getId(), scriptFields,
-                fieldsCapabilities);
-        String timeField = job.getDataDescription().getTimeField();
-        if (scriptFields.contains(timeField) == false && extractionMethodDetector.isAggregatable(timeField) == false) {
-            throw ExceptionsHelper.badRequestException("datafeed [" + datafeed.getId() + "] cannot retrieve time field [" + timeField
-                    + "] because it is not aggregatable");
-        }
-        ExtractedField timeExtractedField = ExtractedField.newTimeField(timeField, scriptFields.contains(timeField) ?
-                ExtractedField.ExtractionMethod.SCRIPT_FIELD : ExtractedField.ExtractionMethod.DOC_VALUE);
-        List<String> remainingFields = job.allInputFields().stream().filter(f -> !f.equals(timeField)).collect(Collectors.toList());
-        List<ExtractedField> allExtractedFields = new ArrayList<>(remainingFields.size() + 1);
-        allExtractedFields.add(timeExtractedField);
-        remainingFields.stream().forEach(field -> allExtractedFields.add(extractionMethodDetector.detect(field)));
-        return new ExtractedFields(timeExtractedField, allExtractedFields);
-    }
-
-    private static class ExtractionMethodDetector {
-
-        private final String datafeedId;
         private final Set<String> scriptFields;
         private final FieldCapabilitiesResponse fieldsCapabilities;
 
-        private ExtractionMethodDetector(String datafeedId, Set<String> scriptFields, FieldCapabilitiesResponse fieldsCapabilities) {
-            this.datafeedId = datafeedId;
+        protected ExtractionMethodDetector(Set<String> scriptFields, FieldCapabilitiesResponse fieldsCapabilities) {
             this.scriptFields = scriptFields;
             this.fieldsCapabilities = fieldsCapabilities;
         }
 
-        private ExtractedField detect(String field) {
+        protected ExtractedField detect(String field) {
             String internalField = field;
             ExtractedField.ExtractionMethod method = ExtractedField.ExtractionMethod.SOURCE;
             if (scriptFields.contains(field)) {
                 method = ExtractedField.ExtractionMethod.SCRIPT_FIELD;
             } else if (isAggregatable(field)) {
                 method = ExtractedField.ExtractionMethod.DOC_VALUE;
-            } else if (isText(field)) {
+                if (isFieldOfType(field, "date")) {
+                    return ExtractedField.newTimeField(field, method);
+                }
+            } else if (isFieldOfType(field, TEXT)) {
                 String parentField = MlStrings.getParentField(field);
                 // Field is text so check if it is a multi-field
                 if (Objects.equals(parentField, field) == false && fieldsCapabilities.getField(parentField) != null) {
@@ -127,11 +90,10 @@ class ExtractedFields {
             return ExtractedField.newField(field, internalField, method);
         }
 
-        private boolean isAggregatable(String field) {
+        protected boolean isAggregatable(String field) {
             Map<String, FieldCapabilities> fieldCaps = fieldsCapabilities.getField(field);
             if (fieldCaps == null || fieldCaps.isEmpty()) {
-                throw ExceptionsHelper.badRequestException("datafeed [" + datafeedId + "] cannot retrieve field [" + field
-                        + "] because it has no mappings");
+                throw new IllegalArgumentException("cannot retrieve field [" + field + "] because it has no mappings");
             }
             for (FieldCapabilities capsPerIndex : fieldCaps.values()) {
                 if (!capsPerIndex.isAggregatable()) {
@@ -141,10 +103,10 @@ class ExtractedFields {
             return true;
         }
 
-        private boolean isText(String field) {
+        private boolean isFieldOfType(String field, String type) {
             Map<String, FieldCapabilities> fieldCaps = fieldsCapabilities.getField(field);
             if (fieldCaps != null && fieldCaps.size() == 1) {
-                return fieldCaps.containsKey(TEXT);
+                return fieldCaps.containsKey(type);
             }
             return false;
         }

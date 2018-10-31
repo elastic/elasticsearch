@@ -330,8 +330,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                             final Client client = node.client();
                             if (bootstrapConfiguration == null) {
                                 try {
-                                    final GetDiscoveredNodesRequest discoveredNodesRequest
-                                        = new GetDiscoveredNodesRequest().setWaitForNodes(minimumConfigurationSize);
+                                    final GetDiscoveredNodesRequest discoveredNodesRequest = new GetDiscoveredNodesRequest();
+                                    discoveredNodesRequest.setWaitForNodes(minimumConfigurationSize);
                                     if (minimumConfigurationSize > 1 && randomBoolean()) {
                                         discoveredNodesRequest.setTimeout(TimeValue.timeValueSeconds(5));
                                     }
@@ -343,8 +343,9 @@ public abstract class ESTestCase extends LuceneTestCase {
                                 }
                             } else {
                                 try {
-                                    client.execute(BootstrapClusterAction.INSTANCE,
-                                        new BootstrapClusterRequest().setBootstrapConfiguration(bootstrapConfiguration)).get();
+                                    final BootstrapClusterRequest bootstrapClusterRequest = new BootstrapClusterRequest();
+                                    bootstrapClusterRequest.setBootstrapConfiguration(bootstrapConfiguration);
+                                    client.execute(BootstrapClusterAction.INSTANCE, bootstrapClusterRequest).get();
                                     if (usually(bootstrapRandom)) {
                                         return;
                                     }

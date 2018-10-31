@@ -211,7 +211,9 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             = new TransportGetDiscoveredNodesAction(Settings.EMPTY, mock(ActionFilters.class), transportService, coordinator);
 
         final AtomicBoolean responseReceived = new AtomicBoolean();
-        transportGetDiscoveredNodesAction.doExecute(mock(Task.class), new GetDiscoveredNodesRequest().setWaitForNodes(2),
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequest.setWaitForNodes(2);
+        transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequest,
             new ActionListener<GetDiscoveredNodesResponse>() {
                 @Override
                 public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
@@ -289,8 +291,10 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
                     }
                 }));
 
-        transportGetDiscoveredNodesAction.doExecute(mock(Task.class),
-            new GetDiscoveredNodesRequest().setTimeout(TimeValue.timeValueSeconds(60)).setWaitForNodes(2),
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequestWithTimeout = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequestWithTimeout.setTimeout(TimeValue.timeValueSeconds(60));
+        getDiscoveredNodesRequestWithTimeout.setWaitForNodes(2);
+        transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequestWithTimeout,
             new ActionListener<GetDiscoveredNodesResponse>() {
                 @Override
                 public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
@@ -306,8 +310,9 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         assertTrue(responseReceived.get());
 
         responseReceived.set(false);
-        transportGetDiscoveredNodesAction.doExecute(mock(Task.class),
-            new GetDiscoveredNodesRequest().setWaitForNodes(2),
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequestWithoutTimeout = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequestWithoutTimeout.setWaitForNodes(2);
+        transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequestWithoutTimeout,
             new ActionListener<GetDiscoveredNodesResponse>() {
                 @Override
                 public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {

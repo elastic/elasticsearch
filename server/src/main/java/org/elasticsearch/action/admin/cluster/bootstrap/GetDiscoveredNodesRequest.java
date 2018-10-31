@@ -31,24 +31,22 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     private int waitForNodes = 1;
     private TimeValue timeout = TimeValue.ZERO;
 
-    public GetDiscoveredNodesRequest setWaitForNodes(int waitForNodes) {
+    public void setWaitForNodes(int waitForNodes) {
         if (waitForNodes < 1) {
             throw new IllegalArgumentException("always finds at least one node, waiting for [" + waitForNodes + "] is not allowed");
         }
         this.waitForNodes = waitForNodes;
-        return this;
     }
 
     public int getWaitForNodes() {
         return waitForNodes;
     }
 
-    public GetDiscoveredNodesRequest setTimeout(TimeValue timeout) {
+    public void setTimeout(TimeValue timeout) {
         if (timeout.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("negative timeout of [" + timeout + "] is not allowed");
         }
         this.timeout = timeout;
-        return this;
     }
 
     public TimeValue getTimeout() {

@@ -32,7 +32,8 @@ public class BootstrapClusterRequestTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final BootstrapConfiguration bootstrapConfiguration
             = new BootstrapConfiguration(Collections.singletonList(new NodeDescription(null, randomAlphaOfLength(10))));
-        final BootstrapClusterRequest original = new BootstrapClusterRequest().setBootstrapConfiguration(bootstrapConfiguration);
+        final BootstrapClusterRequest original = new BootstrapClusterRequest();
+        original.setBootstrapConfiguration(bootstrapConfiguration);
         assertNull(original.validate());
         final BootstrapClusterRequest deserialized
             = copyWriteable(original, writableRegistry(), newWriteableReader(BootstrapClusterRequest::new));

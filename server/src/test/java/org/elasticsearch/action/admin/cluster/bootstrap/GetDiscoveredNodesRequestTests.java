@@ -64,8 +64,9 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
     }
 
     public void testNoTimeoutAcceptedIfNoNodesToAwait() {
-        final GetDiscoveredNodesRequest getDiscoveredNodesRequest
-            = new GetDiscoveredNodesRequest().setWaitForNodes(1).setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequest.setWaitForNodes(1);
+        getDiscoveredNodesRequest.setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
         final ActionRequestValidationException exception = getDiscoveredNodesRequest.validate();
         assertThat(exception.validationErrors(), hasSize(1));
         final String validationError = exception.validationErrors().get(0);
@@ -74,8 +75,9 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
     }
 
     public void testTimeoutAcceptedIfNodesToAwait() {
-        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest()
-            .setWaitForNodes(randomIntBetween(2, 10)).setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
+        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+        getDiscoveredNodesRequest.setWaitForNodes(randomIntBetween(2, 10));
+        getDiscoveredNodesRequest.setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
         assertNull(getDiscoveredNodesRequest.validate());
     }
 

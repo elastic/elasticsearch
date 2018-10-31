@@ -35,11 +35,9 @@ public class BootstrapClusterRequest extends ActionRequest {
      * Set the bootstrap configuration for this request.
      * @param bootstrapConfiguration the bootstrap configuration: the initial set of master-eligible nodes whose votes are counted in
      *                               elections.
-     * @return this request.
      */
-    public BootstrapClusterRequest setBootstrapConfiguration(BootstrapConfiguration bootstrapConfiguration) {
+    public void setBootstrapConfiguration(BootstrapConfiguration bootstrapConfiguration) {
         this.bootstrapConfiguration = bootstrapConfiguration;
-        return this;
     }
 
     /**

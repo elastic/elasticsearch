@@ -42,7 +42,7 @@ public final class ManageApplicationsPrivilege implements ToXContentObject {
     public static final ParseField SCOPE = new ParseField("manage");
     public static final ParseField APPLICATIONS = new ParseField("applications");
 
-    private static final ConstructingObjectParser<ManageApplicationsPrivilege, Void> PARSER =
+    static final ConstructingObjectParser<ManageApplicationsPrivilege, Void> PARSER =
         new ConstructingObjectParser<>("application_privileges", false, constructorObjects -> {
                 return (ManageApplicationsPrivilege) constructorObjects[0];
             });

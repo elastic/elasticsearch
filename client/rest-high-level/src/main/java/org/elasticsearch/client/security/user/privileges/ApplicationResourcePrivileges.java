@@ -44,7 +44,7 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
     private static final ParseField RESOURCES = new ParseField("resources");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ApplicationResourcePrivileges, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<ApplicationResourcePrivileges, Void> PARSER = new ConstructingObjectParser<>(
             "application_privileges", false, constructorObjects -> {
                 int i = 0;
                 final String application = (String) constructorObjects[i++];

@@ -50,7 +50,7 @@ public final class IndicesPrivileges implements ToXContentObject {
     public static final ParseField QUERY = new ParseField("query");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<IndicesPrivileges, Void> PARSER =
+    static final ConstructingObjectParser<IndicesPrivileges, Void> PARSER =
         new ConstructingObjectParser<>("indices_privileges", false, constructorObjects -> {
                 int i = 0;
                 final Collection<String> indices = (Collection<String>) constructorObjects[i++];

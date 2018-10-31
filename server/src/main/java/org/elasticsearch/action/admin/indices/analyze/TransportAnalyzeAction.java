@@ -79,6 +79,7 @@ import java.util.function.Function;
  */
 public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRequest, AnalyzeResponse> {
 
+    private final Settings settings;
     private final IndicesService indicesService;
     private final Environment environment;
 
@@ -88,6 +89,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                                   IndexNameExpressionResolver indexNameExpressionResolver, Environment environment) {
         super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
             AnalyzeRequest::new, ThreadPool.Names.ANALYZE);
+        this.settings = settings;
         this.indicesService = indicesService;
         this.environment = environment;
     }

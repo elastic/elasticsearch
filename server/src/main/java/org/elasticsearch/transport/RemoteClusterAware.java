@@ -167,7 +167,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                     Setting.Property.NodeScope),
             REMOTE_CLUSTERS_SEEDS);
 
-
+    protected final Settings settings;
     protected final ClusterNameExpressionResolver clusterNameResolver;
 
     /**
@@ -176,6 +176,7 @@ public abstract class RemoteClusterAware extends AbstractComponent {
      */
     protected RemoteClusterAware(Settings settings) {
         super(settings);
+        this.settings = settings;
         this.clusterNameResolver = new ClusterNameExpressionResolver(settings);
     }
 

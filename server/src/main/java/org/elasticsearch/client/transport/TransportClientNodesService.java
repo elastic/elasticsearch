@@ -130,15 +130,15 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
         this.threadPool = threadPool;
         this.minCompatibilityVersion = Version.CURRENT.minimumCompatibilityVersion();
 
-        this.nodesSamplerInterval = TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(this.settings);
-        this.pingTimeout = TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT.get(this.settings).millis();
-        this.ignoreClusterName = TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(this.settings);
+        this.nodesSamplerInterval = TransportClient.CLIENT_TRANSPORT_NODES_SAMPLER_INTERVAL.get(settings);
+        this.pingTimeout = TransportClient.CLIENT_TRANSPORT_PING_TIMEOUT.get(settings).millis();
+        this.ignoreClusterName = TransportClient.CLIENT_TRANSPORT_IGNORE_CLUSTER_NAME.get(settings);
 
         if (logger.isDebugEnabled()) {
             logger.debug("node_sampler_interval[{}]", nodesSamplerInterval);
         }
 
-        if (TransportClient.CLIENT_TRANSPORT_SNIFF.get(this.settings)) {
+        if (TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings)) {
             this.nodesSampler = new SniffNodesSampler();
         } else {
             this.nodesSampler = new SimpleNodeSampler();

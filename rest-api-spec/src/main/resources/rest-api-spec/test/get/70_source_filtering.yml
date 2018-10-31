@@ -75,7 +75,7 @@
 "Deprecated _source_include and _source_exclude":
 
   - skip:
-      version: " - 6.99.99"
+      version: " - 6.5.99"
       reason: _source_include and _source_exclude are deprecated from 6.6.0
       features: "warnings"
 

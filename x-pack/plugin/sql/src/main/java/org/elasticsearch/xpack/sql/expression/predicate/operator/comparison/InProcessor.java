@@ -24,7 +24,7 @@ public class InProcessor implements Processor {
         this.processsors = processors;
     }
 
-    InProcessor(StreamInput in) throws IOException {
+    public InProcessor(StreamInput in) throws IOException {
         processsors = in.readNamedWriteableList(Processor.class);
     }
 

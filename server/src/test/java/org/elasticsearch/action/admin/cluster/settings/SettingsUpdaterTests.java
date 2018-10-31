@@ -185,11 +185,11 @@ public class SettingsUpdaterTests extends ESTestCase {
 
         // these are invalid settings that exist as either persistent or transient settings
         final int numberOfInvalidSettings = randomIntBetween(0, 7);
-        final List<Setting<String>> invalidSettings = createInvalidSettings(numberOfInvalidSettings);
+        final List<Setting<String>> invalidSettings = invalidSettings(numberOfInvalidSettings);
 
         // these are unknown settings that exist as either persistent or transient settings
         final int numberOfUnknownSettings = randomIntBetween(0, 7);
-        final List<Setting<String>> unknownSettings = createUnknownSettings(numberOfUnknownSettings);
+        final List<Setting<String>> unknownSettings = unknownSettings(numberOfUnknownSettings);
 
         final Settings.Builder existingPersistentSettings = Settings.builder();
         final Settings.Builder existingTransientSettings = Settings.builder();
@@ -344,11 +344,11 @@ public class SettingsUpdaterTests extends ESTestCase {
 
         // these are invalid settings that exist as either persistent or transient settings
         final int numberOfInvalidSettings = randomIntBetween(0, 7);
-        final List<Setting<String>> invalidSettings = createInvalidSettings(numberOfInvalidSettings);
+        final List<Setting<String>> invalidSettings = invalidSettings(numberOfInvalidSettings);
 
         // these are unknown settings that exist as either persistent or transient settings
         final int numberOfUnknownSettings = randomIntBetween(0, 7);
-        final List<Setting<String>> unknownSettings = createUnknownSettings(numberOfUnknownSettings);
+        final List<Setting<String>> unknownSettings = unknownSettings(numberOfUnknownSettings);
 
         final Settings.Builder existingPersistentSettings = Settings.builder();
         final Settings.Builder existingTransientSettings = Settings.builder();
@@ -449,35 +449,47 @@ public class SettingsUpdaterTests extends ESTestCase {
         }
     }
 
-    private static List<Setting<String>> createUnknownSettings(int numberOfUnknownSettings) {
+    private static List<Setting<String>> unknownSettings(int numberOfUnknownSettings) {
         final List<Setting<String>> unknownSettings = new ArrayList<>(numberOfUnknownSettings);
         for (int i = 0; i < numberOfUnknownSettings; i++) {
-            final Setting<String> unknownSetting = Setting.simpleString("unknown.setting" + i, Property.NodeScope);
-            unknownSettings.add(unknownSetting);
+            unknownSettings.add(Setting.simpleString("unknown.setting" + i, Property.NodeScope));
         }
         return unknownSettings;
     }
 
-    private static List<Setting<String>> createInvalidSettings(int numberOfInvalidSettings) {
+    private static List<Setting<String>> invalidSettings(int numberOfInvalidSettings) {
         final List<Setting<String>> invalidSettings = new ArrayList<>(numberOfInvalidSettings);
         for (int i = 0; i < numberOfInvalidSettings; i++) {
-            final Setting<String> invalidSetting = createInvalidSetting(i);
-            invalidSettings.add(invalidSetting);
+            invalidSettings.add(randomBoolean() ? invalidInIsolationSetting(i) : invalidWithDependenciesSetting(i));
         }
         return invalidSettings;
     }
 
-    private static Setting<String> createInvalidSetting(int index) {
+    private static Setting<String> invalidInIsolationSetting(int index) {
         return Setting.simpleStringWithValidator("invalid.setting" + index,
             new Setting.Validator<String>() {
                 @Override
                 public void validate(String value) {
-                    throw new IllegalArgumentException("invalid");
+                    throw new IllegalArgumentException("Invalid in isolation setting");
                 }
 
                 @Override
                 public void validate(String value, Map<Setting<String>, String> settings) {
-                    throw new IllegalArgumentException("invalid");
+                }
+            },
+            Property.NodeScope);
+    }
+
+    private static Setting<String> invalidWithDependenciesSetting(int index) {
+        return Setting.simpleStringWithValidator("invalid.setting" + index,
+            new Setting.Validator<String>() {
+                @Override
+                public void validate(String value) {
+                }
+
+                @Override
+                public void validate(String value, Map<Setting<String>, String> settings) {
+                    throw new IllegalArgumentException("Invalid with dependencies setting");
                 }
             },
             Property.NodeScope);

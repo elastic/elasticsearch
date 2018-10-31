@@ -27,3 +27,5 @@ gradle.projectsEvaluated {
     }
 }
 
+// the qa modules does not have any source files
+licenseHeaders.enabled = false

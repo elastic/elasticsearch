@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security;
+package org.elasticsearch.xpack.indexlifecycle;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -21,12 +21,12 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // as default timeout seems not enough on the jenkins VMs
-public class IndexLifecycleWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+public class IndexLifecycleRestIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = Objects.requireNonNull(System.getProperty("tests.rest.cluster.username"));
     private static final String PASS = Objects.requireNonNull(System.getProperty("tests.rest.cluster.password"));
 
-    public IndexLifecycleWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+    public IndexLifecycleRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

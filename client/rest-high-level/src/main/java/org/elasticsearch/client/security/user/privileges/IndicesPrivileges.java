@@ -90,8 +90,8 @@ public final class IndicesPrivileges implements ToXContentObject {
     // missing query means all documents, i.e. no restrictions
     private final @Nullable String query;
 
-    private IndicesPrivileges(Collection<String> indices, Collection<IndexPrivilege> privileges, Collection<String> grantedFields,
-            Collection<String> deniedFields, @Nullable String query) {
+    private IndicesPrivileges(Collection<String> indices, Collection<IndexPrivilege> privileges, @Nullable Collection<String> grantedFields,
+            @Nullable Collection<String> deniedFields, @Nullable String query) {
         // we do all null checks inside the constructor
         if (null == indices || indices.isEmpty()) {
             throw new IllegalArgumentException("indices privileges must refer to at least one index name or index name pattern");
@@ -106,10 +106,6 @@ public final class IndicesPrivileges implements ToXContentObject {
         // no fields are denied unless otherwise specified
         this.deniedFields = deniedFields != null ? Collections.unmodifiableCollection(deniedFields) : Collections.emptySet();
         this.query = query;
-    }
-
-    public static Builder builder() {
-        return new Builder();
     }
 
     public Collection<String> getIndices() {
@@ -153,8 +149,26 @@ public final class IndicesPrivileges implements ToXContentObject {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        IndicesPrivileges that = (IndicesPrivileges) o;
+        return indices.equals(that.indices) && privileges.equals(that.privileges) && grantedFields.equals(that.grantedFields)
+                && deniedFields.equals(that.deniedFields) && Objects.equals(query, that.query);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(indices, privileges, grantedFields, deniedFields, query);
+    }
+
+    @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("IndicesPrivileges[");
+        final StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append("[");
         sb.append(NAMES.getPreferredName()).append("=[").append(Strings.collectionToCommaDelimitedString(indices)).append("], ");
         sb.append(PRIVILEGES.getPreferredName()).append("=[").append(Strings.collectionToCommaDelimitedString(privileges)).append("], ");
         sb.append(FIELD_PERMISSIONS).append("=[");
@@ -166,26 +180,6 @@ public final class IndicesPrivileges implements ToXContentObject {
         }
         sb.append("]");
         return sb.toString();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        IndicesPrivileges that = (IndicesPrivileges) o;
-
-        return indices.equals(that.indices) && privileges.equals(that.privileges) && grantedFields.equals(that.grantedFields)
-                && deniedFields.equals(that.deniedFields) && query.equals(that.query);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(indices, privileges, grantedFields, deniedFields, query);
     }
 
     @Override
@@ -205,6 +199,10 @@ public final class IndicesPrivileges implements ToXContentObject {
 
     public static IndicesPrivileges fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static class Builder {

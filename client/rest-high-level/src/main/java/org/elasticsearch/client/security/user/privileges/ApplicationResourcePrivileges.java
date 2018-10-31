@@ -79,10 +79,6 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
         this.resources = Collections.unmodifiableCollection(resources);
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
     public String getApplication() {
         return application;
     }
@@ -96,14 +92,6 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
     }
 
     @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append("[application=").append(application)
-                .append(", privileges=[").append(Strings.collectionToCommaDelimitedString(privileges)).append("], resources=[")
-                .append(Strings.collectionToCommaDelimitedString(resources)).append("]]");
-        return sb.toString();
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -111,15 +99,22 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
         if (o == null || this.getClass() != o.getClass()) {
             return false;
         }
-
         ApplicationResourcePrivileges that = (ApplicationResourcePrivileges) o;
-
         return application.equals(that.application) && privileges.equals(that.privileges) && resources.equals(that.resources);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(application, privileges, resources);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append("[");
+                sb.append(APPLICATION.getPreferredName()).append("=[").append(application).append("], ");
+                sb.append(PRIVILEGES.getPreferredName()).append("=[").append(Strings.collectionToCommaDelimitedString(privileges)).append("], ");
+                sb.append(RESOURCES.getPreferredName()).append("=[").append(Strings.collectionToCommaDelimitedString(resources)).append("]]");
+        return sb.toString();
     }
 
     @Override
@@ -133,6 +128,10 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
 
     public static ApplicationResourcePrivileges fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static class Builder {

@@ -21,6 +21,7 @@ package org.elasticsearch.client.security.user.privileges;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,29 +36,29 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public final class ManageApplicationPrivileges implements ToXContentObject {
+public final class ManageApplicationsPrivilege implements ToXContentObject {
 
     public static final ParseField CATEGORY = new ParseField("application");
     public static final ParseField SCOPE = new ParseField("manage");
     public static final ParseField APPLICATIONS = new ParseField("applications");
 
-    private static final ConstructingObjectParser<ManageApplicationPrivileges, Void> PARSER =
+    private static final ConstructingObjectParser<ManageApplicationsPrivilege, Void> PARSER =
         new ConstructingObjectParser<>("application_privileges", false, constructorObjects -> {
-                return (ManageApplicationPrivileges) constructorObjects[0];
+                return (ManageApplicationsPrivilege) constructorObjects[0];
             });
 
     static {
         @SuppressWarnings("unchecked")
-        final ConstructingObjectParser<ManageApplicationPrivileges, Void> apps_parser =
+        final ConstructingObjectParser<ManageApplicationsPrivilege, Void> apps_parser =
             new ConstructingObjectParser<>("apps_parser", false, constructorObjects -> {
                     final Collection<String> applications = (Collection<String>) constructorObjects[0];
-                    return new ManageApplicationPrivileges(applications);
+                    return new ManageApplicationsPrivilege(applications);
                 });
         apps_parser.declareStringArray(constructorArg(), APPLICATIONS);
 
-        final ConstructingObjectParser<ManageApplicationPrivileges, Void> scope_parser =
+        final ConstructingObjectParser<ManageApplicationsPrivilege, Void> scope_parser =
                 new ConstructingObjectParser<>("scope_parser", false, constructorObjects -> {
-                        return (ManageApplicationPrivileges) constructorObjects[0];
+                        return (ManageApplicationsPrivilege) constructorObjects[0];
                     });
         scope_parser.declareObject(constructorArg(), apps_parser, SCOPE);
 
@@ -65,6 +66,42 @@ public final class ManageApplicationPrivileges implements ToXContentObject {
     }
 
     private final Collection<String> applications;
+
+    private ManageApplicationsPrivilege(Collection<String> applications) {
+        // we do all null checks inside the constructor
+        if (null == applications || applications.isEmpty()) {
+            throw new IllegalArgumentException("managed applications list should not be null");
+        }
+        this.applications = Collections.unmodifiableCollection(applications);
+    }
+
+    public Collection<String> getApplications() {
+        return applications;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        ManageApplicationsPrivilege that = (ManageApplicationsPrivilege) o;
+        return applications.equals(that.applications);
+    }
+
+    @Override
+    public int hashCode() {
+        return applications.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("ManageApplicationsPrivilege[");
+        sb.append("applications=[").append(Strings.collectionToCommaDelimitedString(applications)).append("]]");
+        return sb.toString();
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -77,16 +114,12 @@ public final class ManageApplicationPrivileges implements ToXContentObject {
         return builder.endObject();
     }
 
-    public static ManageApplicationPrivileges fromXContent(XContentParser parser) {
+    public static ManageApplicationsPrivilege fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    private ManageApplicationPrivileges(@Nullable Collection<String> applications) {
-        // we do all null checks inside the constructor
-        if (null == applications || applications.isEmpty()) {
-            throw new IllegalArgumentException("managed applications list should not be null");
-        }
-        this.applications = Collections.unmodifiableCollection(applications);
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static class Builder {
@@ -113,8 +146,8 @@ public final class ManageApplicationPrivileges implements ToXContentObject {
             return this;
         }
 
-        public ManageApplicationPrivileges build() {
-            return new ManageApplicationPrivileges(applications);
+        public ManageApplicationsPrivilege build() {
+            return new ManageApplicationsPrivilege(applications);
         }
     }
 }

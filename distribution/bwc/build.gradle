@@ -33,7 +33,7 @@ import static org.elasticsearch.gradle.BuildPlugin.getJavaHome
  *  unreleased versions are when Gradle projects are set up, so we use "build-unreleased-version-*" as placeholders
  *  and configure them to build various versions here.
  */
-bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion -> project("$project.path:$unreleasedVersion.gradleProjectName") {
+bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unreleasedVersion -> project("${project.path}:${unreleasedVersion.gradleProjectName}") {
     Version bwcVersion = unreleasedVersion.version
     String bwcBranch = unreleasedVersion.branch
     apply plugin: 'distribution'
@@ -140,7 +140,7 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
         workingDir = checkoutDir
         doFirst {
             // Execution time so that the checkouts are available
-            List<String> lines = file("$checkoutDir/.ci/java-versions.properties").readLines()
+            List<String> lines = file("${checkoutDir}/.ci/java-versions.properties").readLines()
             environment(
                     'JAVA_HOME',
                     getJavaHome(it, Integer.parseInt(
@@ -193,7 +193,7 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
             }
             if (false == missing.empty) {
                 throw new InvalidUserDataException(
-                        "Building $bwcVersion didn't generate expected files ${missing}")
+                        "Building ${bwcVersion} didn't generate expected files ${missing}")
             }
         }
     }
@@ -222,7 +222,7 @@ class IndentingOutputStream extends OutputStream {
 
     public IndentingOutputStream(OutputStream delegate, Object version) {
         this.delegate = delegate
-        indent = " [$version] ".getBytes(StandardCharsets.UTF_8)
+        indent = " [${version}] ".getBytes(StandardCharsets.UTF_8)
     }
 
     @Override

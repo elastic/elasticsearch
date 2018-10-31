@@ -536,7 +536,7 @@ public class SettingsUpdaterTests extends ESTestCase {
     private static final Setting<Integer> SETTING_FOO_HIGH = new Setting<>("foo.high", "100",
         Integer::valueOf, new FooHighSettingValidator(), Property.Dynamic, Setting.Property.NodeScope);
 
-    public void testUpdateOfValidationDependantSettings() {
+    public void testUpdateOfValidationDependentSettings() {
         final ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(asList(SETTING_FOO_LOW, SETTING_FOO_HIGH)));
         final SettingsUpdater updater = new SettingsUpdater(settings);
         final MetaData.Builder metaData = MetaData.builder().persistentSettings(Settings.EMPTY).transientSettings(Settings.EMPTY);

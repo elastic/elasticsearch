@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.model.Tag;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;

@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,12 +41,15 @@ class TcpTransportHandshaker {
 
     private final Version version;
     private final ThreadPool threadPool;
-    private final HandshakeSender handshakeSender;
+    private final HandshakeRequestSender handshakeRequestSender;
+    private final HandshakeResponseSender handshakeResponseSender;
 
-    TcpTransportHandshaker(Version version, ThreadPool threadPool, HandshakeSender handshakeSender) {
+    TcpTransportHandshaker(Version version, ThreadPool threadPool, HandshakeRequestSender handshakeRequestSender,
+                           HandshakeResponseSender handshakeResponseSender) {
         this.version = version;
         this.threadPool = threadPool;
-        this.handshakeSender = handshakeSender;
+        this.handshakeRequestSender = handshakeRequestSender;
+        this.handshakeResponseSender = handshakeResponseSender;
     }
 
     void sendHandshake(long requestId, DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
@@ -60,7 +64,7 @@ class TcpTransportHandshaker {
             // we also have no payload on the request but the response will contain the actual version of the node we talk
             // to as the payload.
             final Version minCompatVersion = version.minimumCompatibilityVersion();
-            handshakeSender.sendHandshake(node, channel, requestId, minCompatVersion);
+            handshakeRequestSender.sendRequest(node, channel, requestId, minCompatVersion);
 
             threadPool.schedule(timeout, ThreadPool.Names.GENERIC,
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")));
@@ -75,8 +79,8 @@ class TcpTransportHandshaker {
         }
     }
 
-    TransportResponse createHandshakeResponse() {
-        return new VersionHandshakeResponse(version);
+    void handleHandshake(Version version, Set<String> features, TcpChannel channel, long requestId) throws IOException {
+        handshakeResponseSender.sendResponse(version, features, channel, new VersionHandshakeResponse(this.version), requestId);
     }
 
     TransportResponseHandler<?> removeHandlerForHandshake(long requestId) {
@@ -163,8 +167,15 @@ class TcpTransportHandshaker {
     }
 
     @FunctionalInterface
-    interface HandshakeSender {
+    interface HandshakeRequestSender {
 
-        void sendHandshake(DiscoveryNode node, TcpChannel channel, long requestId, Version version) throws IOException;
+        void sendRequest(DiscoveryNode node, TcpChannel channel, long requestId, Version version) throws IOException;
+    }
+
+    @FunctionalInterface
+    interface HandshakeResponseSender {
+
+        void sendResponse(Version version, Set<String> features, TcpChannel channel, TransportResponse response, long requestId)
+            throws IOException;
     }
 }

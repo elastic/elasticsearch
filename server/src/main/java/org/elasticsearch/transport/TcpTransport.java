@@ -221,7 +221,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.transportLogger = new TransportLogger();
         this.handshaker = new TcpTransportHandshaker(getCurrentVersion(), threadPool,
             (node, channel, requestId, version) -> sendRequestToChannel(node, channel, requestId, TcpTransportHandshaker.HANDSHAKE_ACTION_NAME,
-                TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY, version, TransportStatus.setHandshake((byte) 0)));
+                TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY, version, TransportStatus.setHandshake((byte) 0)),
+            (version, features, channel, response, requestId) -> sendResponse(version, features, channel, response, requestId,
+                TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY, TransportStatus.setHandshake((byte) 0)));
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
         final Settings defaultFeatures = DEFAULT_FEATURES_SETTING.get(settings);
@@ -1320,10 +1322,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         TransportChannel transportChannel = null;
         try {
             if (TransportStatus.isHandshake(status)) {
-                assert TcpTransportHandshaker.HANDSHAKE_ACTION_NAME.equals(action) : "Invalid handshake action name: " + action;
-                final TransportResponse response = handshaker.createHandshakeResponse();
-                sendResponse(version, features, channel, response, requestId, TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY,
-                    TransportStatus.setHandshake((byte) 0));
+                handshaker.handleHandshake(version, features, channel, requestId);
             } else {
                 final RequestHandlerRegistry reg = getRequestHandler(action);
                 if (reg == null) {
@@ -1405,7 +1404,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public void asyncHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
+    public void executedHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
         handshaker.sendHandshake(responseHandlers.newRequestId(), node, channel, timeout, listener);
     }
 
@@ -1620,7 +1619,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             if (pendingConnections.get() != FAILED && pendingConnections.decrementAndGet() == 0) {
                 final TcpChannel handshakeChannel = channels.get(0);
                 try {
-                    asyncHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout(), new ActionListener<Version>() {
+                    executedHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout(), new ActionListener<Version>() {
                         @Override
                         public void onResponse(Version version) {
                             NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);

@@ -117,7 +117,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
                  new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
                  connectionProfile)) {
             PlainActionFuture<Version> listener = PlainActionFuture.newFuture();
-            originalTransport.asyncHandshake(connection.getNode(), connection.channel(TransportRequestOptions.Type.PING),
+            originalTransport.executedHandshake(connection.getNode(), connection.channel(TransportRequestOptions.Type.PING),
                 TimeValue.timeValueSeconds(10), listener);
             assertEquals(listener.actionGet(), Version.CURRENT);
         }

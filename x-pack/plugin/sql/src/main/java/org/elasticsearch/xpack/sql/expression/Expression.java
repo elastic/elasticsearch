@@ -78,6 +78,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         throw new SqlIllegalArgumentException("Should not fold expression");
     }
 
+    // whether the expression becomes null if at least one param/input is null
     public abstract boolean nullable();
 
     // the references/inputs/leaves of the expression tree

@@ -38,11 +38,11 @@ are still healthy then the cluster can still make progress.
 Many cluster maintenance tasks involve temporarily shutting down one or more
 nodes and then starting them back up again. By default Elasticsearch can remain
 available if one of its master-eligible nodes is taken offline, such as during
-a <<rolling-upgrades,rolling restart>>, and if multiple nodes are stopped and
-then started again then it will automatically recover, such as during a
-<<restart-upgrade,full cluster restart>>. There is no need to take any further
-action with the APIs described here in these cases, because the set of master
-nodes is not changing permanently.
+a <<rolling-upgrades,rolling restart>>. Furthermore, if multiple nodes are
+stopped and then started again then it will automatically recover, such as
+during a <<restart-upgrade,full cluster restart>>. There is no need to take any
+further action with the APIs described here in these cases, because the set of
+master nodes is not changing permanently.
 
 It is also possible to perform a migration of a cluster onto entirely new nodes
 without taking the cluster offline, via a _rolling migration_. A rolling

@@ -259,14 +259,15 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         ClusterState before = clusterService.state();
         CountDownLatch latch = new CountDownLatch(1);
-        step.setLatch(latch);
+        nextStep.setLatch(latch);
         runner.runPolicyAfterStateChange(policyName, indexMetaData);
 
-        latch.await(5, TimeUnit.SECONDS);
-        ClusterState after = clusterService.state();
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
 
-        assertEquals(before, after);
+        // The cluster state can take a few extra milliseconds to update after the steps are executed
+        assertBusy(() -> assertNotEquals(before, clusterService.state()));
         assertThat(step.getExecuteCount(), equalTo(1L));
+        assertThat(nextStep.getExecuteCount(), equalTo(1L));
         clusterService.close();
         threadPool.shutdownNow();
     }

@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.JsonFieldMapper.RootJsonFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.junit.Before;
@@ -41,7 +40,8 @@ public class JsonFieldParserTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        parser = new JsonFieldParser("field", "field._keyed", Integer.MAX_VALUE, null);
+        parser = new JsonFieldParser("field", "field._keyed",
+            Integer.MAX_VALUE, Integer.MAX_VALUE, null);
     }
 
     public void testTextValues() throws Exception {
@@ -213,15 +213,36 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals(new BytesRef("parent2.key\0value"), keyedField2.binaryValue());
     }
 
+    public void testDepthLimit() throws Exception {
+        String input = "{ \"parent1\": { \"key\" : \"value\" }," +
+            "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
+        XContentParser xContentParser = createXContentParser(input);
+        JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
+            2, Integer.MAX_VALUE, null);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> configuredParser.parse(xContentParser));
+        assertEquals("The provided JSON field [field] exceeds the maximum depth limit of [2].", e.getMessage());
+    }
+
+    public void testDepthLimitBoundary() throws Exception {
+        String input = "{ \"parent1\": { \"key\" : \"value\" }," +
+            "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
+        XContentParser xContentParser = createXContentParser(input);
+        JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
+             3, Integer.MAX_VALUE, null);
+
+        List<IndexableField> fields = configuredParser.parse(xContentParser);
+        assertEquals(4, fields.size());
+    }
+
     public void testIgnoreAbove() throws Exception {
         String input = "{ \"key\": \"a longer field than usual\" }";
         XContentParser xContentParser = createXContentParser(input);
+        JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
+            Integer.MAX_VALUE, 10, null);
 
-        RootJsonFieldType fieldType = new RootJsonFieldType();
-        fieldType.setName("field");
-        JsonFieldParser parserWithIgnoreAbove = new JsonFieldParser("field", "field._keyed", 10, null);
-
-        List<IndexableField> fields = parserWithIgnoreAbove.parse(xContentParser);
+        List<IndexableField> fields = configuredParser.parse(xContentParser);
         assertEquals(0, fields.size());
     }
 
@@ -233,10 +254,10 @@ public class JsonFieldParserTests extends ESTestCase {
         assertEquals(0, fields.size());
 
         xContentParser = createXContentParser(input);
-        JsonFieldParser parserWithNullValue = new JsonFieldParser("field", "field._keyed",
-            Integer.MAX_VALUE, "placeholder");
+        JsonFieldParser configuredParser = new JsonFieldParser("field", "field._keyed",
+            Integer.MAX_VALUE, Integer.MAX_VALUE, "placeholder");
 
-        fields = parserWithNullValue.parse(xContentParser);
+        fields = configuredParser.parse(xContentParser);
         assertEquals(2, fields.size());
 
         IndexableField field = fields.get(0);

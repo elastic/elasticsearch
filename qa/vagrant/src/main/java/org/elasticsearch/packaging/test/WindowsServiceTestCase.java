@@ -39,7 +39,7 @@ import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
@@ -91,19 +91,20 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
     }
 
     // runs the service command, dumping all log files on failure
-    private void assertCommand(String command) {
-        Result result = sh.runIgnoreExitCode(serviceScript + " " + command);
+    private void assertCommand(String script) {
+        Result result = sh.runIgnoreExitCode(script);
         if (result.exitCode != 0) {
-            logger.error("---- Failed to run service command " + command);
+            logger.error("---- Failed to run script: " + script);
             logger.error(result);
             logger.error("Dumping log files\n");
-            Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\*.log\"; " +
+            Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\elasticsearch.log\"; " +
                 "Write-Output $files; " +
                 "foreach ($file in $files) {" +
                     "Write-Output \"$file\"; " +
                     "Get-Content \"$file\" " +
                 "}");
             logger.error(logs.stdout);
+            fail();
         }
     }
 
@@ -162,12 +163,56 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
 
     public void test30StartStop() throws IOException {
         sh.run(serviceScript + " install");
-        assertCommand("start");
+        assertCommand(serviceScript + " start");
         ServerUtils.waitForElasticsearch();
         ServerUtils.runElasticsearchTests();
-        sh.run(serviceScript + " stop");
-        sh.runIgnoreExitCode("Wait-Process -Name \"elasticsearch-service-x64\" -Timeout 10");
-        sh.run(serviceScript + " remove");
+
+        /*Result result = sh.run("Get-Process -Name \"elasticsearch-service-x64\"");
+        System.out.println(result);
+        result = sh.run("Get-Process -Name \"elasticsearch-service-x64\" | Select -expand id");
+        String id = result.stdout.trim();*/
+        assertCommand(serviceScript + " stop");
+
+        /*System.out.println(result);
+        result = sh.run("tasklist");
+        System.out.println(result);
+        result = sh.runIgnoreExitCode("Wait-Process -Id " + id + " -Timeout 10");
+        System.out.println(result);
+        result = sh.run("Get-Process -Name \"elasticsearch-service-x64\"");
+        System.out.println(result);
+        assertCommand("$p = Get-Process -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
+            "if ($p -ne $Null) {" +
+            "  echo \"$p\";" +
+            "  exit 1" +
+            "}");
+        logger.error("Dumping log files\n");
+        Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\elasticsearch.log\"; " +
+            "Write-Output $files; " +
+            "foreach ($file in $files) {" +
+            "Write-Output \"$file\"; " +
+            "Get-Content \"$file\" " +
+            "}");
+        logger.error(logs.stdout);*/
+
+        assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\";" +
+            "$p.WaitForStatus(\"Stopped\", \"10s\")");
+        assertCommand(serviceScript + " remove");
+        Result result = sh.runIgnoreExitCode(
+            "$tries = 10;" +
+            "do {" +
+                "  $p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
+                "  echo \"$p\";" +
+                "  if ($p -eq $Null) {" +
+                "    exit 0;" +
+                "  }" +
+                "  sleep -Milliseconds 500;" +
+                "  $tries -= 1;" +
+            "} until ($tries -eq 0)" +
+            "exit 1");
+        System.out.println(result);
+        result = sh.run("tasklist");
+        System.out.println(result);
+
     }
 
     public void test31StartNotInstalled() throws IOException {

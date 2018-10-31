@@ -10,7 +10,7 @@ Deletes a lifecycle policy.
 
 ==== Request
 
-`DELETE _ilm/<policy_id>`
+`DELETE _ilm/policy/<policy_id>`
 
 ==== Description
 

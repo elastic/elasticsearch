@@ -11,7 +11,7 @@ Retrieves a lifecycle policy.
 ==== Request
 
 `GET _ilm/policy`
-`GET _ilm/policy/<policy>`
+`GET _ilm/policy/<policy_id>`
 
 ==== Description
 

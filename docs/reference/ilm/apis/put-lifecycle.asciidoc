@@ -10,7 +10,7 @@ Creates or updates lifecycle policy.
 
 ==== Request
 
-`PUT _ilm/policy/<policy>`
+`PUT _ilm/policy/<policy_id>`
 
 ==== Description
 

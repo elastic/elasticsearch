@@ -82,6 +82,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(originalIndex, policy);
         // index document {"foo": "bar"} to trigger rollover
         index(client(), originalIndex, "_id", "foo", "bar");
+
+        /*
+         * These asserts are in the order that they should be satisfied in, in
+         * order to maximize the time for all operations to complete.
+         * An "out of order" assert here may result in this test occasionally
+         * timing out and failing inappropriately.
+         */
         // asserts that rollover was called
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
         // asserts that shrink deleted the original index
@@ -153,6 +160,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "  }\n" +
             "}");
         client().performRequest(moveToStepRequest);
+
+        /*
+         * These asserts are in the order that they should be satisfied in, in
+         * order to maximize the time for all operations to complete.
+         * An "out of order" assert here may result in this test occasionally
+         * timing out and failing inappropriately.
+         */
         // asserts that rollover was called
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
         // asserts that shrink deleted the original index

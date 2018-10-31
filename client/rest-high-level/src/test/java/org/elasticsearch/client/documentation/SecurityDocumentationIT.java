@@ -29,6 +29,7 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
@@ -50,10 +51,11 @@ import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
+import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.support.CertificateInfo;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
@@ -67,13 +69,14 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.not;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -379,6 +382,51 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testAuthenticate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::authenticate-execute
+            AuthenticateResponse response = client.security().authenticate(RequestOptions.DEFAULT);
+            //end::authenticate-execute
+
+            //tag::authenticate-response
+            User user = response.getUser(); // <1>
+            boolean enabled = response.enabled(); // <2>
+            //end::authenticate-response
+
+            assertThat(user.username(), is("test_user"));
+            assertThat(user.roles(), contains(new String[] {"superuser"}));
+            assertThat(user.fullName(), nullValue());
+            assertThat(user.email(), nullValue());
+            assertThat(user.metadata().isEmpty(), is(true));
+            assertThat(enabled, is(true));
+        }
+
+        {
+            // tag::authenticate-execute-listener
+            ActionListener<AuthenticateResponse> listener = new ActionListener<AuthenticateResponse>() {
+                @Override
+                public void onResponse(AuthenticateResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::authenticate-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+            // tag::authenticate-execute-async
+            client.security().authenticateAsync(RequestOptions.DEFAULT, listener); // <1>
+            // end::authenticate-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 
     public void testClearRolesCache() throws Exception {
         RestHighLevelClient client = highLevelClient();

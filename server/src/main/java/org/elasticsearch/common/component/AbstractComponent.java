@@ -26,10 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 public abstract class AbstractComponent {
 
     protected final Logger logger;
-    protected final Settings settings;
 
     public AbstractComponent(Settings settings) {
         this.logger = LogManager.getLogger(getClass());
-        this.settings = settings;
     }
 }

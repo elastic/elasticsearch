@@ -161,7 +161,11 @@ public class Literal extends NamedExpression {
         if (name == null) {
             name = foldable instanceof NamedExpression ? ((NamedExpression) foldable).name() : String.valueOf(fold);
         }
-
         return new Literal(foldable.location(), name, fold, foldable.dataType());
+    }
+
+    public static Literal of(Expression source, Object value) {
+        String name = source instanceof NamedExpression ? ((NamedExpression) source).name() : String.valueOf(value);
+        return new Literal(source.location(), name, value, source.dataType());
     }
 }

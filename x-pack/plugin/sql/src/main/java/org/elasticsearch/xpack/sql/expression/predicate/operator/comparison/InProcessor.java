@@ -20,11 +20,11 @@ public class InProcessor implements Processor {
 
     private final List<Processor> processsors;
 
-    public InProcessor(List<Processor> processors) {
+    InProcessor(List<Processor> processors) {
         this.processsors = processors;
     }
 
-    public InProcessor(StreamInput in) throws IOException {
+    InProcessor(StreamInput in) throws IOException {
         processsors = in.readNamedWriteableList(Processor.class);
     }
 
@@ -41,7 +41,20 @@ public class InProcessor implements Processor {
     @Override
     public Object process(Object input) {
         Object leftValue = processsors.get(processsors.size() - 1).process(input);
-        return In.doFold(leftValue, Processors.process(processsors.subList(0, processsors.size() - 1), input));
+        return apply(leftValue, Processors.process(processsors.subList(0, processsors.size() - 1), leftValue));
+    }
+
+    public static Boolean apply(Object input, List<Object> values) {
+        Boolean result = Boolean.FALSE;
+        for (Object v : values) {
+            Boolean compResult = Comparisons.eq(input, v);
+            if (compResult == null) {
+                result = null;
+            } else if (compResult == Boolean.TRUE) {
+                return Boolean.TRUE;
+            }
+        }
+        return result;
     }
 
     @Override

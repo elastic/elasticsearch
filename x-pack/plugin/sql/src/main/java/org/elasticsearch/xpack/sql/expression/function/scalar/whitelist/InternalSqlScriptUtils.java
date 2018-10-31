@@ -21,13 +21,13 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNullProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
@@ -116,7 +116,7 @@ public final class InternalSqlScriptUtils {
     }
 
     public static Boolean in(Object value, List<Object> values) {
-        return In.doFold(value, values);
+        return InProcessor.apply(value, values);
     }
 
     //

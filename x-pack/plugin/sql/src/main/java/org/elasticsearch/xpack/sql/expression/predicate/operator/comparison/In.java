@@ -81,27 +81,11 @@ public class In extends NamedExpression implements ScriptWeaver {
     @Override
     public Boolean fold() {
         // Optimization for early return and Query folding to LocalExec
-        if (value.dataType() == DataType.NULL) {
+        if (value.dataType() == DataType.NULL ||
+            list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
             return null;
         }
-        if (list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
-            return null;
-        }
-
-        return doFold(value.fold(), Foldables.valuesOf(list, value.dataType()));
-    }
-
-    public static Boolean doFold(Object value, List<Object> values) {
-        Boolean result = false;
-        for (Object v : values) {
-            Boolean compResult = Comparisons.eq(value, v);
-            if (compResult == null) {
-                result = null;
-            } else if (compResult) {
-                return true;
-            }
-        }
-        return result;
+        return InProcessor.apply(value.fold(), Foldables.valuesOf(list, value.dataType()));
     }
 
     @Override
@@ -124,8 +108,8 @@ public class In extends NamedExpression implements ScriptWeaver {
     public ScriptTemplate asScript() {
         ScriptTemplate leftScript = asScript(value);
         // remove duplicates
-        List<Object> values = new ArrayList<>(
-            list.stream().map(Expression::fold).collect(Collectors.toCollection(LinkedHashSet::new)));
+        List<Object> values = new ArrayList<>(new LinkedHashSet<>(Foldables.valuesOf(list, value.dataType())));
+        values.removeIf(Objects::isNull);
 
         return new ScriptTemplate(
             formatTemplate(String.format(Locale.ROOT, "{sql}.in(%s, {})", leftScript.template())),

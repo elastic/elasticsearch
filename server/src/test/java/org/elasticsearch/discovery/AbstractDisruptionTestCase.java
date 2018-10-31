@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import java.nio.file.Path;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -27,15 +26,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
@@ -56,7 +52,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -64,17 +59,11 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
 
-    private NodeConfigurationSource discoveryConfig;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(discoveryConfig.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(DEFAULT_SETTINGS)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
-    }
-
-    @Before
-    public void clearConfig() {
-        discoveryConfig = null;
     }
 
     @Override
@@ -118,11 +107,6 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     }
 
     List<String> startCluster(int numberOfNodes) {
-        return startCluster(numberOfNodes, -1);
-    }
-
-    List<String> startCluster(int numberOfNodes, int minimumMasterNode) {
-        configureCluster(numberOfNodes, minimumMasterNode);
         InternalTestCluster internalCluster = internalCluster();
         List<String> nodes = internalCluster.startNodes(numberOfNodes);
         ensureStableCluster(numberOfNodes);
@@ -149,38 +133,6 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class);
-    }
-
-    void configureCluster(int numberOfNodes, int minimumMasterNode) {
-        configureCluster(DEFAULT_SETTINGS, numberOfNodes, minimumMasterNode);
-    }
-
-    void configureCluster(Settings settings, int numberOfNodes, int minimumMasterNode) {
-        if (minimumMasterNode < 0) {
-            minimumMasterNode = numberOfNodes / 2 + 1;
-        }
-        logger.info("---> configured unicast");
-        // TODO: Rarely use default settings form some of these
-        Settings nodeSettings = Settings.builder()
-                .put(settings)
-                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numberOfNodes)
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), minimumMasterNode)
-                .putList(DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "file")
-                .build();
-
-        if (discoveryConfig == null) {
-            discoveryConfig = new NodeConfigurationSource() {
-                @Override
-                public Settings nodeSettings(final int nodeOrdinal) {
-                    return nodeSettings;
-                }
-
-                @Override
-                public Path nodeConfigPath(final int nodeOrdinal) {
-                    return null;
-                }
-            };
-        }
     }
 
     ClusterState getNodeClusterState(String node) {

@@ -25,21 +25,33 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+/**
+ * Request to set the initial configuration of master-eligible nodes in a cluster so that the very first master election can take place.
+ */
 public class BootstrapClusterRequest extends ActionRequest {
     private BootstrapConfiguration bootstrapConfiguration;
 
+    /**
+     * Set the bootstrap configuration for this request.
+     * @param bootstrapConfiguration the bootstrap configuration: the initial set of master-eligible nodes whose votes are counted in
+     *                               elections.
+     * @return this request.
+     */
     public BootstrapClusterRequest setBootstrapConfiguration(BootstrapConfiguration bootstrapConfiguration) {
         this.bootstrapConfiguration = bootstrapConfiguration;
         return this;
     }
 
+    /**
+     * @return the bootstrap configuration: the initial set of master-eligible nodes whose votes are counted in elections.
+     */
+    public BootstrapConfiguration getBootstrapConfiguration() {
+        return bootstrapConfiguration;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
-    }
-
-    public BootstrapConfiguration getBootstrapConfiguration() {
-        return bootstrapConfiguration;
     }
 
     @Override

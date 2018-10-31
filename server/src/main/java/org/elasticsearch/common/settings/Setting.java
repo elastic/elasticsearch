@@ -1038,8 +1038,8 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, s -> "", Function.identity(), properties);
     }
 
-    public static Setting<String> simpleString(String key, Function<String, String> parser, Property... properties) {
-        return new Setting<>(key, s -> "", parser, properties);
+    public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
+        return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
     }
 
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
@@ -1052,10 +1052,6 @@ public class Setting<T> implements ToXContentObject {
             final Function<String, String> parser,
             final Property... properties) {
         return new Setting<>(key, fallback, parser, properties);
-    }
-
-    public static Setting<String> simpleStringWithValidator(String key, Validator<String> validator, Property... properties) {
-        return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
     }
 
     /**

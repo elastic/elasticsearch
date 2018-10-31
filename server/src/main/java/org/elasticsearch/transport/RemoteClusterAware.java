@@ -122,7 +122,6 @@ public abstract class RemoteClusterAware extends AbstractComponent {
                         if (Strings.hasLength(s)) {
                             parsePort(s);
                         }
-                        return s;
                     },
                     Setting.Property.Deprecated,
                     Setting.Property.Dynamic,

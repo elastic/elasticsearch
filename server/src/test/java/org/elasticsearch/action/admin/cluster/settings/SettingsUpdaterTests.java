@@ -466,7 +466,7 @@ public class SettingsUpdaterTests extends ESTestCase {
     }
 
     private static Setting<String> invalidInIsolationSetting(int index) {
-        return Setting.simpleStringWithValidator("invalid.setting" + index,
+        return Setting.simpleString("invalid.setting" + index,
             new Setting.Validator<String>() {
                 @Override
                 public void validate(String value) {
@@ -481,7 +481,7 @@ public class SettingsUpdaterTests extends ESTestCase {
     }
 
     private static Setting<String> invalidWithDependenciesSetting(int index) {
-        return Setting.simpleStringWithValidator("invalid.setting" + index,
+        return Setting.simpleString("invalid.setting" + index,
             new Setting.Validator<String>() {
                 @Override
                 public void validate(String value) {

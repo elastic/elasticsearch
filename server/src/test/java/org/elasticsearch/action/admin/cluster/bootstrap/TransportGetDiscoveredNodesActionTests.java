@@ -211,7 +211,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             = new TransportGetDiscoveredNodesAction(Settings.EMPTY, mock(ActionFilters.class), transportService, coordinator);
 
         final AtomicBoolean responseReceived = new AtomicBoolean();
-        transportGetDiscoveredNodesAction.doExecute(mock(Task.class), new GetDiscoveredNodesRequest().waitForNodes(2),
+        transportGetDiscoveredNodesAction.doExecute(mock(Task.class), new GetDiscoveredNodesRequest().setWaitForNodes(2),
             new ActionListener<GetDiscoveredNodesResponse>() {
                 @Override
                 public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
@@ -290,7 +290,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
                 }));
 
         transportGetDiscoveredNodesAction.doExecute(mock(Task.class),
-            new GetDiscoveredNodesRequest().timeout(TimeValue.timeValueSeconds(60)).waitForNodes(2),
+            new GetDiscoveredNodesRequest().timeout(TimeValue.timeValueSeconds(60)).setWaitForNodes(2),
             new ActionListener<GetDiscoveredNodesResponse>() {
                 @Override
                 public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
@@ -307,7 +307,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         responseReceived.set(false);
         transportGetDiscoveredNodesAction.doExecute(mock(Task.class),
-            new GetDiscoveredNodesRequest().waitForNodes(2),
+            new GetDiscoveredNodesRequest().setWaitForNodes(2),
             new ActionListener<GetDiscoveredNodesResponse>() {
                 @Override
                 public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {

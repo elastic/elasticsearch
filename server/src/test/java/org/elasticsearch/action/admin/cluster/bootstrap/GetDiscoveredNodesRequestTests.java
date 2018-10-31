@@ -38,12 +38,12 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
         assertNull("default is valid", getDiscoveredNodesRequest.validate());
 
         final int newWaitForNodes = randomIntBetween(1, 10);
-        getDiscoveredNodesRequest.waitForNodes(newWaitForNodes);
+        getDiscoveredNodesRequest.setWaitForNodes(newWaitForNodes);
         assertThat("value updated", getDiscoveredNodesRequest.waitForNodes(), is(newWaitForNodes));
         assertNull("updated request is still valid", getDiscoveredNodesRequest.validate());
 
         final IllegalArgumentException exception
-            = expectThrows(IllegalArgumentException.class, () -> getDiscoveredNodesRequest.waitForNodes(randomIntBetween(-10, 0)));
+            = expectThrows(IllegalArgumentException.class, () -> getDiscoveredNodesRequest.setWaitForNodes(randomIntBetween(-10, 0)));
         assertThat(exception.getMessage(), startsWith("always finds at least one node, waiting for "));
         assertThat(exception.getMessage(), endsWith(" is not allowed"));
     }
@@ -65,7 +65,7 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
 
     public void testNoTimeoutAcceptedIfNoNodesToAwait() {
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest
-            = new GetDiscoveredNodesRequest().waitForNodes(1).timeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
+            = new GetDiscoveredNodesRequest().setWaitForNodes(1).timeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
         final ActionRequestValidationException exception = getDiscoveredNodesRequest.validate();
         assertThat(exception.validationErrors(), hasSize(1));
         final String validationError = exception.validationErrors().get(0);
@@ -75,7 +75,7 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
 
     public void testTimeoutAcceptedIfNodesToAwait() {
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest()
-            .waitForNodes(randomIntBetween(2, 10)).timeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
+            .setWaitForNodes(randomIntBetween(2, 10)).timeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
         assertNull(getDiscoveredNodesRequest.validate());
     }
 
@@ -83,7 +83,7 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
         final GetDiscoveredNodesRequest originalRequest = new GetDiscoveredNodesRequest();
 
         if (randomBoolean()) {
-            originalRequest.waitForNodes(randomIntBetween(1, 10));
+            originalRequest.setWaitForNodes(randomIntBetween(1, 10));
         }
 
         if (randomBoolean()) {

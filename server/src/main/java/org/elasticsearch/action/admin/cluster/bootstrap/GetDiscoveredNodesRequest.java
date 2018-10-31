@@ -31,7 +31,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     private int waitForNodes = 1;
     private TimeValue timeout = TimeValue.ZERO;
 
-    public GetDiscoveredNodesRequest waitForNodes(int waitForNodes) {
+    public GetDiscoveredNodesRequest setWaitForNodes(int waitForNodes) {
         if (waitForNodes < 1) {
             throw new IllegalArgumentException("always finds at least one node, waiting for [" + waitForNodes + "] is not allowed");
         }
@@ -71,7 +71,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        waitForNodes(in.readInt());
+        setWaitForNodes(in.readInt());
         timeout(in.readTimeValue());
     }
 

@@ -55,7 +55,7 @@ public class ProcessorTests extends ESTestCase {
                 try {
                     value = name.get(proc).toString();
                 } catch (Exception ex) {
-                    fail(procName + " does NOT provide a String NAME field\n" + ex);
+                    fail(procName + " does NOT provide a static NAME field\n" + ex);
                 }
                 if (!registered.contains(value)) {
                     notRegistered.add(procName);
@@ -64,7 +64,7 @@ public class ProcessorTests extends ESTestCase {
             
             fail(missing + " processor(s) not registered : " + notRegistered);
         } else {
-            assertEquals("Detection failed - dicovered more registered processors than classes", 0, missing);
+            assertEquals("Detection failed: discovered more registered processors than classes", 0, missing);
         }
     }
 }

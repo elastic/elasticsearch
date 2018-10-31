@@ -167,52 +167,16 @@ public abstract class WindowsServiceTestCase extends PackagingTestCase {
         ServerUtils.waitForElasticsearch();
         ServerUtils.runElasticsearchTests();
 
-        /*Result result = sh.run("Get-Process -Name \"elasticsearch-service-x64\"");
-        System.out.println(result);
-        result = sh.run("Get-Process -Name \"elasticsearch-service-x64\" | Select -expand id");
-        String id = result.stdout.trim();*/
         assertCommand(serviceScript + " stop");
-
-        /*System.out.println(result);
-        result = sh.run("tasklist");
-        System.out.println(result);
-        result = sh.runIgnoreExitCode("Wait-Process -Id " + id + " -Timeout 10");
-        System.out.println(result);
-        result = sh.run("Get-Process -Name \"elasticsearch-service-x64\"");
-        System.out.println(result);
-        assertCommand("$p = Get-Process -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
-            "if ($p -ne $Null) {" +
-            "  echo \"$p\";" +
-            "  exit 1" +
-            "}");
-        logger.error("Dumping log files\n");
-        Result logs = sh.run("$files = Get-ChildItem \"" + installation.logs + "\\elasticsearch.log\"; " +
-            "Write-Output $files; " +
-            "foreach ($file in $files) {" +
-            "Write-Output \"$file\"; " +
-            "Get-Content \"$file\" " +
-            "}");
-        logger.error(logs.stdout);*/
-
-        assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\";" +
-            "$p.WaitForStatus(\"Stopped\", \"10s\")");
+        assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);
         assertCommand(serviceScript + " remove");
-        Result result = sh.runIgnoreExitCode(
-            "$tries = 10;" +
-            "do {" +
-                "  $p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
-                "  echo \"$p\";" +
-                "  if ($p -eq $Null) {" +
-                "    exit 0;" +
-                "  }" +
-                "  sleep -Milliseconds 500;" +
-                "  $tries -= 1;" +
-            "} until ($tries -eq 0)" +
-            "exit 1");
-        System.out.println(result);
-        result = sh.run("tasklist");
-        System.out.println(result);
-
+        assertCommand("$p = Get-Service -Name \"elasticsearch-service-x64\" -ErrorAction SilentlyContinue;" +
+            "echo \"$p\";" +
+            "if ($p -eq $Null) {" +
+            "  exit 0;" +
+            "} else {" +
+            "  exit 1;" +
+            "}");
     }
 
     public void test31StartNotInstalled() throws IOException {

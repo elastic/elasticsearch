@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -585,7 +586,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     /**
      * Find all subclasses of a particular class.
      */
-    private static <T> List<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
+    public static <T> List<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
         @SuppressWarnings("unchecked") // The map is built this way
         List<Class<? extends T>> lookup = (List<Class<? extends T>>) subclassCache.get(clazz);
         if (lookup != null) {

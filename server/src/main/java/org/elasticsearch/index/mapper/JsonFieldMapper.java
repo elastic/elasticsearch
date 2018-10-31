@@ -97,10 +97,12 @@ public final class JsonFieldMapper extends FieldMapper {
             FIELD_TYPE.freeze();
         }
 
+        public static final int DEPTH_LIMIT = 20;
         public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, JsonFieldMapper> {
+        private int depthLimit = Defaults.DEPTH_LIMIT;
         private int ignoreAbove = Defaults.IGNORE_ABOVE;
 
         public Builder(String name) {
@@ -121,6 +123,14 @@ public final class JsonFieldMapper extends FieldMapper {
                     + indexOptionToString(indexOptions));
             }
             return super.indexOptions(indexOptions);
+        }
+
+        public Builder depthLimit(int depthLimit) {
+            if (depthLimit < 0) {
+                throw new IllegalArgumentException("[depth_limit] must be positive, got " + depthLimit);
+            }
+            this.depthLimit = depthLimit;
+            return this;
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -153,7 +163,7 @@ public final class JsonFieldMapper extends FieldMapper {
                 fieldType().setSearchAnalyzer(WHITESPACE_ANALYZER);
             }
             return new JsonFieldMapper(name, fieldType, defaultFieldType,
-                ignoreAbove, context.indexSettings());
+                ignoreAbove, depthLimit, context.indexSettings());
         }
     }
 
@@ -166,7 +176,10 @@ public final class JsonFieldMapper extends FieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = entry.getKey();
                 Object propNode = entry.getValue();
-                if (propName.equals("ignore_above")) {
+                if (propName.equals("depth_limit")) {
+                    builder.depthLimit(XContentMapValues.nodeIntegerValue(propNode, -1));
+                    iterator.remove();
+                } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
                 } else if (propName.equals("null_value")) {
@@ -367,19 +380,22 @@ public final class JsonFieldMapper extends FieldMapper {
     }
 
     private final JsonFieldParser fieldParser;
+    private int depthLimit;
     private int ignoreAbove;
 
     private JsonFieldMapper(String simpleName,
                             MappedFieldType fieldType,
                             MappedFieldType defaultFieldType,
                             int ignoreAbove,
+                            int depthLimit,
                             Settings indexSettings) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, MultiFields.empty(), CopyTo.empty());
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
 
+        this.depthLimit = depthLimit;
         this.ignoreAbove = ignoreAbove;
         this.fieldParser = new JsonFieldParser(fieldType.name(), keyedFieldName(),
-            ignoreAbove, fieldType.nullValueAsString());
+            depthLimit, ignoreAbove, fieldType.nullValueAsString());
     }
 
     @Override
@@ -453,12 +469,16 @@ public final class JsonFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         super.doXContentBody(builder, includeDefaults, params);
 
-        if (includeDefaults || fieldType().nullValue() != null) {
-            builder.field("null_value", fieldType().nullValue());
+        if (includeDefaults || depthLimit != Defaults.DEPTH_LIMIT) {
+            builder.field("depth_limit", depthLimit);
         }
 
         if (includeDefaults || ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
+        }
+
+        if (includeDefaults || fieldType().nullValue() != null) {
+            builder.field("null_value", fieldType().nullValue());
         }
 
         if (includeDefaults || fieldType().splitQueriesOnWhitespace()) {

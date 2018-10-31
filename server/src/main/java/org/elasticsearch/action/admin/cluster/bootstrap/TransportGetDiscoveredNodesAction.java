@@ -73,7 +73,7 @@ public class TransportGetDiscoveredNodesAction extends TransportAction<GetDiscov
 
         final AtomicBoolean responseSent = new AtomicBoolean();
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final long timeoutMillis = request.timeout().millis();
+        final long timeoutMillis = request.getTimeout().millis();
         assert timeoutMillis >= 0 : timeoutMillis;
 
         final Consumer<Iterable<DiscoveryNode>> respondIfRequestSatisfied = new Consumer<Iterable<DiscoveryNode>>() {

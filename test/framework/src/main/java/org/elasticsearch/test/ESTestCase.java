@@ -333,7 +333,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                                     final GetDiscoveredNodesRequest discoveredNodesRequest
                                         = new GetDiscoveredNodesRequest().setWaitForNodes(minimumConfigurationSize);
                                     if (minimumConfigurationSize > 1 && randomBoolean()) {
-                                        discoveredNodesRequest.timeout(TimeValue.timeValueSeconds(5));
+                                        discoveredNodesRequest.setTimeout(TimeValue.timeValueSeconds(5));
                                     }
 
                                     bootstrapConfiguration = client.execute(GetDiscoveredNodesAction.INSTANCE, discoveredNodesRequest)

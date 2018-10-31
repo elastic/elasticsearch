@@ -50,22 +50,22 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
 
     public void testTimeoutValidation() {
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        assertThat("default value is zero", getDiscoveredNodesRequest.timeout(), is(TimeValue.ZERO));
+        assertThat("default value is zero", getDiscoveredNodesRequest.getTimeout(), is(TimeValue.ZERO));
         assertNull(getDiscoveredNodesRequest.validate());
 
         final TimeValue newTimeout = TimeValue.parseTimeValue(randomTimeValue(), "timeout");
-        getDiscoveredNodesRequest.timeout(newTimeout);
-        assertThat("value updated", getDiscoveredNodesRequest.timeout(), equalTo(newTimeout));
+        getDiscoveredNodesRequest.setTimeout(newTimeout);
+        assertThat("value updated", getDiscoveredNodesRequest.getTimeout(), equalTo(newTimeout));
 
         final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> getDiscoveredNodesRequest.timeout(TimeValue.timeValueNanos(randomLongBetween(-10, -1))));
+            () -> getDiscoveredNodesRequest.setTimeout(TimeValue.timeValueNanos(randomLongBetween(-10, -1))));
         assertThat(exception.getMessage(), startsWith("negative timeout of "));
         assertThat(exception.getMessage(), endsWith(" is not allowed"));
     }
 
     public void testNoTimeoutAcceptedIfNoNodesToAwait() {
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest
-            = new GetDiscoveredNodesRequest().setWaitForNodes(1).timeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
+            = new GetDiscoveredNodesRequest().setWaitForNodes(1).setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
         final ActionRequestValidationException exception = getDiscoveredNodesRequest.validate();
         assertThat(exception.validationErrors(), hasSize(1));
         final String validationError = exception.validationErrors().get(0);
@@ -75,7 +75,7 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
 
     public void testTimeoutAcceptedIfNodesToAwait() {
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest()
-            .setWaitForNodes(randomIntBetween(2, 10)).timeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
+            .setWaitForNodes(randomIntBetween(2, 10)).setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
         assertNull(getDiscoveredNodesRequest.validate());
     }
 
@@ -87,13 +87,13 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
         }
 
         if (randomBoolean()) {
-            originalRequest.timeout(TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
+            originalRequest.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
         }
 
         final GetDiscoveredNodesRequest deserialized = copyWriteable(originalRequest, writableRegistry(),
             Streamable.newWriteableReader(GetDiscoveredNodesRequest::new));
 
         assertThat(deserialized.getWaitForNodes(), equalTo(originalRequest.getWaitForNodes()));
-        assertThat(deserialized.timeout(), equalTo(originalRequest.timeout()));
+        assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
     }
 }

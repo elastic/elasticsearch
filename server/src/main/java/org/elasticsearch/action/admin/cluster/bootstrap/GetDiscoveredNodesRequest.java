@@ -43,7 +43,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         return waitForNodes;
     }
 
-    public GetDiscoveredNodesRequest timeout(TimeValue timeout) {
+    public GetDiscoveredNodesRequest setTimeout(TimeValue timeout) {
         if (timeout.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("negative timeout of [" + timeout + "] is not allowed");
         }
@@ -51,7 +51,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         return this;
     }
 
-    public TimeValue timeout() {
+    public TimeValue getTimeout() {
         return timeout;
     }
 
@@ -72,14 +72,14 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         setWaitForNodes(in.readInt());
-        timeout(in.readTimeValue());
+        setTimeout(in.readTimeValue());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeInt(getWaitForNodes());
-        out.writeTimeValue(timeout());
+        out.writeTimeValue(getTimeout());
     }
 
     @Override

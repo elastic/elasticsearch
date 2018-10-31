@@ -290,7 +290,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
                 }));
 
         transportGetDiscoveredNodesAction.doExecute(mock(Task.class),
-            new GetDiscoveredNodesRequest().timeout(TimeValue.timeValueSeconds(60)).setWaitForNodes(2),
+            new GetDiscoveredNodesRequest().setTimeout(TimeValue.timeValueSeconds(60)).setWaitForNodes(2),
             new ActionListener<GetDiscoveredNodesResponse>() {
                 @Override
                 public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {

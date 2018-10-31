@@ -63,7 +63,7 @@ public class RestGetSourceActionTests extends ESTestCase {
         assertThat(restResponse.content(), equalTo(new BytesArray("{\"foo\": \"bar\"}")));
     }
 
-    public void testRestGetSourceAction_withNullSource() {
+    public void testRestGetSourceActionWithNullSource() {
         // GIVEN a REST Get Source action response with a non-existing result and a null source
         final GetResponse getResponse = new GetResponse(new GetResult("index1", "_doc", "1", -1, false, null, emptyMap()));
 

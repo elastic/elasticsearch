@@ -45,6 +45,8 @@ import org.elasticsearch.client.security.ExpressionRoleMapping;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.InvalidateTokenRequest;
+import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -744,6 +746,78 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // "client-credentials" grants aren't refreshable
             assertNull(future.get().getRefreshToken());
         }
+    }
 
+    public void testInvalidateToken() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        String accessToken;
+        String refreshToken;
+        {
+            // Setup user
+            final char[] password = "password".toCharArray();
+            PutUserRequest putUserRequest = new PutUserRequest("invalidate_token", password,
+                Collections.singletonList("kibana_user"), null, null, true, null, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putUserResponse.isCreated());
+
+            // Create tokens
+            final CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("invalidate_token", password);
+            final CreateTokenResponse tokenResponse = client.security().createToken(createTokenRequest, RequestOptions.DEFAULT);
+            accessToken = tokenResponse.getAccessToken();
+            refreshToken = tokenResponse.getRefreshToken();
+        }
+        {
+            // tag::invalidate-access-token-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.accessToken(accessToken);
+            // end::invalidate-access-token-request
+
+            // tag::invalidate-token-execute
+            InvalidateTokenResponse invalidateTokenResponse =
+                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            // end::invalidate-token-execute
+
+            // tag::invalidate-token-response
+            boolean isCreated = invalidateTokenResponse.isCreated();
+            // end::invalidate-token-response
+            assertTrue(isCreated);
+        }
+
+        {
+            // tag::invalidate-refresh-token-request
+            InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.refreshToken(refreshToken);
+            // end::invalidate-refresh-token-request
+
+            ActionListener<InvalidateTokenResponse> listener;
+            //tag::invalidate-token-execute-listener
+            listener = new ActionListener<InvalidateTokenResponse>() {
+                @Override
+                public void onResponse(InvalidateTokenResponse invalidateTokenResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::invalidate-token-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<InvalidateTokenResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            //tag::invalidate-token-execute-async
+            client.security().invalidateTokenAsync(invalidateTokenRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::invalidate-token-execute-async
+
+            final InvalidateTokenResponse response = future.get(30, TimeUnit.SECONDS);
+            assertNotNull(response);
+            assertTrue(response.isCreated());// technically, this should be false, but the API is broken
+            // See https://github.com/elastic/elasticsearch/issues/TBD
+        }
     }
 }

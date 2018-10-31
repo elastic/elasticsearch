@@ -65,6 +65,16 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
+    private void setupFullAccessRole(String index) throws IOException {
+        Request request = new Request("PUT", "/_xpack/security/role/test_data_access");
+        request.setJsonEntity("{"
+            + "  \"indices\" : ["
+            + "    { \"names\": [\"" + index + "\"], \"privileges\": [\"all\"] }"
+            + "  ]"
+            + "}");
+        client().performRequest(request);
+    }
+
     private void setupUser(String user, List<String> roles) throws IOException {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
@@ -361,7 +371,75 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         assertThat(e.getMessage(), containsString("Cannot create datafeed"));
         assertThat(e.getMessage(),
-                containsString("user ml_admin lacks permissions on the indices to be searched"));
+                containsString("user ml_admin lacks permissions on the indices"));
+    }
+
+    public void testInsufficientSearchPrivilegesOnPutWithRollup() throws Exception {
+        setupDataAccessRole("airline-data-aggs-rollup");
+        String jobId = "privs-put-job-rollup";
+        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        createJobRequest.setJsonEntity("{\n"
+            + "  \"description\": \"Aggs job\",\n"
+            + "  \"analysis_config\": {\n"
+            + "    \"bucket_span\": \"1h\",\n"
+            + "    \"summary_count_field_name\": \"doc_count\",\n"
+            + "    \"detectors\": [\n"
+            + "      {\n"
+            + "        \"function\": \"mean\",\n"
+            + "        \"field_name\": \"responsetime\",\n"
+            + "        \"by_field_name\": \"airline\"\n"
+            + "      }\n"
+            + "    ]\n"
+            + "  },\n"
+            + "  \"data_description\": {\"time_field\": \"time stamp\"}\n"
+            + "}");
+        client().performRequest(createJobRequest);
+
+        String rollupJobId = "rollup-" + jobId;
+        Request createRollupRequest = new Request("PUT", "/_xpack/rollup/job/" + rollupJobId);
+        createRollupRequest.setJsonEntity("{\n"
+            + "\"index_pattern\": \"airline-data-aggs\",\n"
+            + "    \"rollup_index\": \"airline-data-aggs-rollup\",\n"
+            + "    \"cron\": \"*/30 * * * * ?\",\n"
+            + "    \"page_size\" :1000,\n"
+            + "    \"groups\" : {\n"
+            + "      \"date_histogram\": {\n"
+            + "        \"field\": \"time stamp\",\n"
+            + "        \"interval\": \"2m\",\n"
+            + "        \"delay\": \"7d\"\n"
+            + "      },\n"
+            + "      \"terms\": {\n"
+            + "        \"fields\": [\"airline\"]\n"
+            + "      }"
+            + "    },\n"
+            + "    \"metrics\": [\n"
+            + "        {\n"
+            + "            \"field\": \"responsetime\",\n"
+            + "            \"metrics\": [\"avg\",\"min\",\"max\",\"sum\"]\n"
+            + "        },\n"
+            + "        {\n"
+            + "            \"field\": \"time stamp\",\n"
+            + "            \"metrics\": [\"min\",\"max\"]\n"
+            + "        }\n"
+            + "    ]\n"
+            + "}");
+        client().performRequest(createRollupRequest);
+
+        String datafeedId = "datafeed-" + jobId;
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
+            + "\"aggregations\":{"
+            + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
+            + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
+
+
+        ResponseException e = expectThrows(ResponseException.class, () ->
+            new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs-rollup", "doc")
+                .setAggregations(aggregations)
+                .setAuthHeader(BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS) //want to search, but no admin access
+                .build());
+        assertThat(e.getMessage(), containsString("Cannot create datafeed"));
+        assertThat(e.getMessage(),
+            containsString("user ml_admin_plus_data lacks permissions on the indices"));
     }
 
     public void testInsufficientSearchPrivilegesOnPreview() throws Exception {
@@ -750,7 +828,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     public void testLookbackWithoutPermissionsAndRollup() throws Exception {
-        setupDataAccessRole("airline-data-aggs-rollup");
+        setupFullAccessRole("airline-data-aggs-rollup");
         String jobId = "rollup-permission-test-network-job";
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         createJobRequest.setJsonEntity("{\n"
@@ -815,7 +893,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             .build();
 
         // Change the role so that the user can no longer access network-data
-        setupDataAccessRole("some-other-data");
+        setupFullAccessRole("some-other-data");
 
         openJob(client(), jobId);
 

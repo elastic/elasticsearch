@@ -37,7 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * A query that allows for
+ * A query that uses a script to compute documents' scores.
  */
 public class ScriptScoreQuery extends Query {
     final Query subQuery;

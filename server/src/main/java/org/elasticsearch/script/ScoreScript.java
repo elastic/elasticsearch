@@ -83,11 +83,6 @@ public abstract class ScoreScript implements ScorerAware {
         };
     }
 
-    /** Return the score of the current document. */
-    public double getScore() {
-        return scoreSupplier.getAsDouble();
-    }
-
     public double get_score() {
         return scoreSupplier.getAsDouble();
     }

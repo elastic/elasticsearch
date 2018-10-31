@@ -20,7 +20,7 @@ monitoring indices. You can also adjust how monitoring data is displayed.
 To learn about monitoring in general, see 
 {stack-ov}/xpack-monitoring.html[Monitoring the {stack}]. 
 
-. To collect monitoring data about your {es} cluster:
+. Configure your cluster to collect monitoring data:
 
 .. Verify that the `xpack.monitoring.enabled`, 
 `xpack.monitoring.collection.enabled`, and 
@@ -53,14 +53,6 @@ patterns. For example, to include all indices that start with `test` except
 the `xpack.monitoring.collection.interval` setting 10 seconds. See 
 <<monitoring-settings>>.
 
-. Optional: Configure your cluster to route monitoring data from sources such 
-as {kib}, Beats, and Logstash to a monitoring cluster:
-
-.. Verify that `xpack.monitoring.collection.enabled` settings are `true` on each 
-node in the cluster. 
-
-..  {stack-ov}/xpack-monitoring.html[Configure {monitoring} across the Elastic Stack].
-
 . Identify where to store monitoring data. 
 +
 --
@@ -74,10 +66,26 @@ For more information about typical monitoring architectures,
 see {stack-ov}/how-monitoring-works.html[How Monitoring Works].
 --
 
-. If {security} is enabled and you are using an `http` exporter to send data to 
- a dedicated monitoring cluster: 
+. If you choose to use an `http` exporter: 
 
-.. Create a user on the monitoring cluster that has the 
+.. Configure each {es} node in the cluster you are monitoring to send metrics 
+to your monitoring cluster by configuring an HTTP exporter in the
+`xpack.monitoring.exporters` settings in `elasticsearch.yml`. For example:
++
+--
+[source,yaml]
+--------------------------------------------------
+xpack.monitoring.exporters:
+  id1:
+    type: http
+    host: ["http://es-mon-1:9200", "http://es-mon2:9200"] 
+--------------------------------------------------
+--
+
+.. If {security} is enabled on the monitoring cluster, you must provide  
+appropriate credentials when data is shipped to the monitoring cluster:
+
+... Create a user on the monitoring cluster that has the 
 {stack-ov}/built-in-roles.html#built-in-roles-remote-monitoring-agent[`remote_monitoring_agent` built-in role]. 
 For example, the following request creates a `remote_monitor` user that has the 
 `remote_monitoring_agent` role:
@@ -96,19 +104,33 @@ POST /_xpack/security/user/remote_monitor
 // TEST[skip:needs-gold+-license]
 --
 
-.. On each node in the cluster that is being monitored, configure the `http` 
-exporter to use the appropriate credentials when data is shipped to the 
-monitoring cluster. 
+... Add the user ID and password settings to the HTTP exporter settings in the 
+`elasticsearch.yml` file on each node. +
 +
 --
-If SSL/TLS is enabled on the monitoring cluster, you must use the HTTPS protocol 
-in the `host` setting. You must also include the CA certificate in each node's 
-trusted certificates in order to verify the identities of the nodes in the 
-monitoring cluster. 
+For example:
 
-The following example specifies the location of the PEM encoded certificate with 
-the `certificate_authorities` setting:
+[source,yaml]
+--------------------------------------------------
+xpack.monitoring.exporters:
+  id1:
+    type: http
+    host: ["http://es-mon-1:9200", "http://es-mon2:9200"] 
+    auth.username: remote_monitor 
+    auth.password: changeme
+--------------------------------------------------
+--
 
+.. If you configured the monitoring cluster to use 
+<<configuring-tls,encrypted communications>>, you must use the HTTPS protocol in 
+the `host` setting. You must also specify the trusted CA certificates that will 
+be used to verify the identity of the nodes in the monitoring cluster. 
+
+*** To add a CA certificate to an {es} node's trusted certificates, you can 
+specify the location of the PEM encoded certificate with the 
+`certificate_authorities` setting. For example:
++
+--
 [source,yaml]
 --------------------------------------------------
 xpack.monitoring.exporters:
@@ -116,18 +138,17 @@ xpack.monitoring.exporters:
     type: http
     host: ["https://es-mon1:9200", "https://es-mon2:9200"] 
     auth:
-      username: remote_monitor <1>
+      username: remote_monitor
       password: changeme
     ssl:
       certificate_authorities: [ "/path/to/ca.crt" ]
-  id2:
-    type: local
 --------------------------------------------------
-<1> The `username` and `password` parameters provide the user credentials.
+--
 
-Alternatively, you can configure trusted certificates using a truststore
-(a Java Keystore file that contains the certificates):
-
+*** Alternatively, you can configure trusted certificates using a truststore
+(a Java Keystore file that contains the certificates). For example:
++
+--
 [source,yaml]
 --------------------------------------------------
 xpack.monitoring.exporters:
@@ -140,20 +161,24 @@ xpack.monitoring.exporters:
     ssl:
       truststore.path: /path/to/file
       truststore.password: password
-  id2:
-    type: local
 --------------------------------------------------
 --
 
-. If {security} is enabled and you want to visualize monitoring data in {kib}, 
-you must create users that have access to the {kib} indices and permission to 
-read from the monitoring indices.
+. Optional: Configure your cluster to route monitoring data from sources such 
+as {kib}, Beats, and Logstash to the monitoring cluster. 
+
+.. Verify that `xpack.monitoring.collection.enabled` settings are `true` on each 
+node in the cluster. 
+
+.. {stack-ov}/xpack-monitoring.html[Configure {monitoring} across the Elastic Stack].
+
+. Restart {es} on the nodes in your production cluster.
 +
 --
-You set up {monitoring} UI users on the cluster where the monitoring data is 
-stored, that is to say the monitoring cluster. To grant all of the necessary permissions, assign users the
-`monitoring_user` and `kibana_user` roles. For more information, see 
-{stack-ov}/mapping-roles.html[Mapping users and groups to roles].
+TIP: You may want to temporarily {ref}/modules-cluster.html[disable shard
+allocation] before you restart your nodes to avoid unnecessary shard
+reallocation during the install process.
+
 --
 
 . Optional: 

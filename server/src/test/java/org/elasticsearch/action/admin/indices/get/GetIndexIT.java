@@ -197,7 +197,8 @@ public class GetIndexIT extends ESIntegTestCase {
 
         try {
             enableIndexBlock("idx", SETTING_BLOCKS_METADATA);
-            assertBlocked(client().admin().indices().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES), INDEX_METADATA_BLOCK);
+            assertBlocked(client().admin().indices().prepareGetIndex().addIndices("idx").addFeatures(Feature.MAPPINGS, Feature.ALIASES),
+                INDEX_METADATA_BLOCK);
         } finally {
             disableIndexBlock("idx", SETTING_BLOCKS_METADATA);
         }

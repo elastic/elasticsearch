@@ -22,7 +22,7 @@
         },
         "format": {
           "type": "enum",
-          "options": [ "json", "xml", "delimited", "semi_structured_text" ],
+          "options": [ "ndjson", "xml", "delimited", "semi_structured_text" ],
           "description": "Optional parameter to specify the high level file format"
         },
         "has_header_row": {

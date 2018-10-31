@@ -50,7 +50,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.ScheduledEventsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
-import org.elasticsearch.xpack.ml.job.process.NativeStorageProvider;
+import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -108,6 +108,7 @@ public class AutodetectProcessManager extends AbstractComponent {
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
             Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Property.NodeScope);
 
+    private final Settings settings;
     private final Client client;
     private final Environment environment;
     private final ThreadPool threadPool;
@@ -137,6 +138,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                                     AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
                                     NamedXContentRegistry xContentRegistry, Auditor auditor) {
         super(settings);
+        this.settings = settings;
         this.environment = environment;
         this.client = client;
         this.threadPool = threadPool;

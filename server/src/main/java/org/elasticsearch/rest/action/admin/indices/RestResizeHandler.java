@@ -19,12 +19,15 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -34,6 +37,8 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 
 public abstract class RestResizeHandler extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestResizeHandler.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     RestResizeHandler(final Settings settings) {
         super(settings);

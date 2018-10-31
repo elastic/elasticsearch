@@ -5,17 +5,18 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 
 import java.io.IOException;
 
-public class PutFollowActionRequestTests extends AbstractStreamableXContentTestCase<PutFollowAction.Request> {
+public class PutFollowActionRequestTests extends AbstractSerializingTestCase<PutFollowAction.Request> {
 
     @Override
-    protected PutFollowAction.Request createBlankInstance() {
-        return new PutFollowAction.Request();
+    protected Writeable.Reader<PutFollowAction.Request> instanceReader() {
+        return PutFollowAction.Request::new;
     }
 
     @Override

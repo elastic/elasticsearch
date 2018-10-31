@@ -19,7 +19,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.action.AutoFollowStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
@@ -138,9 +138,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
             request.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
-        }
-        if (randomBoolean()) {
             request.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
@@ -154,6 +151,9 @@ public class AutoFollowIT extends CcrIntegTestCase {
         }
         if (randomBoolean()) {
             request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
         }
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
 
@@ -254,14 +254,13 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     private void deleteAutoFollowPatternSetting() {
-        DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request();
-        request.setName("my-pattern");
+        DeleteAutoFollowPatternAction.Request request = new DeleteAutoFollowPatternAction.Request("my-pattern");
         assertTrue(followerClient().execute(DeleteAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 
     private AutoFollowStats getAutoFollowStats() {
-        AutoFollowStatsAction.Request request = new AutoFollowStatsAction.Request();
-        return followerClient().execute(AutoFollowStatsAction.INSTANCE, request).actionGet().getStats();
+        CcrStatsAction.Request request = new CcrStatsAction.Request();
+        return followerClient().execute(CcrStatsAction.INSTANCE, request).actionGet().getAutoFollowStats();
     }
 
     private void createLeaderIndex(String index, Settings settings) {

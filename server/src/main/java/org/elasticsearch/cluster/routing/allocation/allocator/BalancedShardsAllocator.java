@@ -171,9 +171,10 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
      * <li><code>shard balance</code> - balance property over shards per cluster</li>
      * </ul>
      * <p>
-     * Each of these properties are expressed as factor such that the properties factor defines the relative importance of the property for the
-     * weight function. For example if the weight function should calculate the weights only based on a global (shard) balance the index balance
-     * can be set to {@code 0.0} and will in turn have no effect on the distribution.
+     * Each of these properties are expressed as factor such that the properties factor defines the relative
+     * importance of the property for the weight function. For example if the weight function should calculate
+     * the weights only based on a global (shard) balance the index balance can be set to {@code 0.0} and will
+     * in turn have no effect on the distribution.
      * </p>
      * The weight per index is calculated based on the following formula:
      * <ul>
@@ -531,7 +532,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                 break advance_range;
                             }
                             if (logger.isTraceEnabled()) {
-                                logger.trace("Stop balancing index [{}]  min_node [{}] weight: [{}]  max_node [{}] weight: [{}]  delta: [{}]",
+                                logger.trace("Stop balancing index [{}]  min_node [{}] weight: [{}]" +
+                                        "  max_node [{}] weight: [{}]  delta: [{}]",
                                         index, maxNode.getNodeId(), weights[highIdx], minNode.getNodeId(), weights[lowIdx], delta);
                             }
                             break;
@@ -651,7 +653,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
                     sourceNode.removeShard(shardRouting);
                     Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(shardRouting, targetNode.getNodeId(),
-                        allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
+                        allocation.clusterInfo().getShardSize(shardRouting,
+                                                              ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
                     targetNode.addShard(relocatingShards.v2());
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
@@ -794,7 +797,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             /*
              * we use 2 arrays and move replicas to the second array once we allocated an identical
              * replica in the current iteration to make sure all indices get allocated in the same manner.
-             * The arrays are sorted by primaries first and then by index and shard ID so a 2 indices with 2 replica and 1 shard would look like:
+             * The arrays are sorted by primaries first and then by index and shard ID so a 2 indices with
+             * 2 replica and 1 shard would look like:
              * [(0,P,IDX1), (0,P,IDX2), (0,R,IDX1), (0,R,IDX1), (0,R,IDX2), (0,R,IDX2)]
              * if we allocate for instance (0, R, IDX1) we move the second replica to the secondary array and proceed with
              * the next replica. If we could not find a node to allocate (0,R,IDX1) we move all it's replicas to ignoreUnassigned.
@@ -1007,7 +1011,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                 && ((rebalanceDecision.type() == Type.YES) || (rebalanceDecision.type() == Type.THROTTLE))) {
                             if (maxNode.containsShard(shard)) {
                                 // simulate moving shard from maxNode to minNode
-                                final float delta = weight.weightShardAdded(this, minNode, idx) - weight.weightShardRemoved(this, maxNode, idx);
+                                final float delta = weight.weightShardAdded(
+                                    this, minNode, idx) - weight.weightShardRemoved(this, maxNode, idx);
                                 if (delta < minCost ||
                                         (candidate != null && Float.compare(delta, minCost) == 0 && candidate.id() > shard.id())) {
                                     /* this last line is a tie-breaker to make the shard allocation alg deterministic
@@ -1039,8 +1044,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 }
             }
             if (logger.isTraceEnabled()) {
-                logger.trace("Couldn't find shard to relocate from node [{}] to node [{}] allocation decision [{}]", maxNode.getNodeId(),
-                        minNode.getNodeId(), decision == null ? "NO" : decision.type().name());
+                logger.trace("Couldn't find shard to relocate from node [{}] to node [{}] allocation decision [{}]",
+                    maxNode.getNodeId(), minNode.getNodeId(), decision == null ? "NO" : decision.type().name());
             }
             return false;
         }

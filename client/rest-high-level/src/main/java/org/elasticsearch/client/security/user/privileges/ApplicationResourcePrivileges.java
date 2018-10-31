@@ -31,10 +31,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -61,9 +60,8 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
     }
 
     private final String application;
-    // uniqueness and order are important for equals and hashcode
-    private final SortedSet<String> privileges;
-    private final SortedSet<String> resources;
+    private final Set<String> privileges;
+    private final Set<String> resources;
 
     private ApplicationResourcePrivileges(String application, Collection<String> privileges, Collection<String> resources) {
         // we do all null checks inside the constructor
@@ -77,8 +75,8 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
             throw new IllegalArgumentException("application privileges must refer to at least one resource");
         }
         this.application = application;
-        this.privileges = Collections.unmodifiableSortedSet(new TreeSet<>(privileges));
-        this.resources = Collections.unmodifiableSortedSet(new TreeSet<>(resources));
+        this.privileges = Collections.unmodifiableSet(new HashSet<>(privileges));
+        this.resources = Collections.unmodifiableSet(new HashSet<>(resources));
     }
 
     public String getApplication() {

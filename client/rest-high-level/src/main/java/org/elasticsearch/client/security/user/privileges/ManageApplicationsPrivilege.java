@@ -31,8 +31,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -65,18 +65,17 @@ public final class ManageApplicationsPrivilege implements ToXContentObject {
         PARSER.declareObject(constructorArg(), scope_parser, CATEGORY);
     }
 
-    // uniqueness and order are important for equals and hashcode
-    private final SortedSet<String> applications;
+    private final Set<String> applications;
 
     private ManageApplicationsPrivilege(Collection<String> applications) {
         // we do all null checks inside the constructor
         if (null == applications || applications.isEmpty()) {
             throw new IllegalArgumentException("managed applications list should not be null");
         }
-        this.applications = Collections.unmodifiableSortedSet(new TreeSet<>(applications));
+        this.applications = Collections.unmodifiableSet(new HashSet<>(applications));
     }
 
-    public SortedSet<String> getApplications() {
+    public Set<String> getApplications() {
         return applications;
     }
 

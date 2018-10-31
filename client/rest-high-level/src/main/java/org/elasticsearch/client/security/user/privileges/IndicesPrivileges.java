@@ -32,10 +32,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Objects;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
@@ -82,13 +81,12 @@ public final class IndicesPrivileges implements ToXContentObject {
         PARSER.declareStringOrNull(optionalConstructorArg(), QUERY);
     }
 
-    // uniqueness and order are important for equals and hashcode
-    private final SortedSet<String> indices;
-    private final SortedSet<IndexPrivilege> privileges;
+    private final Set<String> indices;
+    private final Set<IndexPrivilege> privileges;
     // '*' means all fields (default value), empty means no fields
-    private final SortedSet<String> grantedFields;
+    private final Set<String> grantedFields;
     // empty means no field is denied
-    private final SortedSet<String> deniedFields;
+    private final Set<String> deniedFields;
     // missing query means all documents, i.e. no restrictions
     private final @Nullable String query;
 
@@ -101,30 +99,30 @@ public final class IndicesPrivileges implements ToXContentObject {
         if (null == privileges || privileges.isEmpty()) {
             throw new IllegalArgumentException("indices privileges must define at least one privilege");
         }
-        this.indices = Collections.unmodifiableSortedSet(new TreeSet<>(indices));
-        this.privileges = Collections.unmodifiableSortedSet(new TreeSet<>(privileges));
+        this.indices = Collections.unmodifiableSet(new HashSet<>(indices));
+        this.privileges = Collections.unmodifiableSet(new HashSet<>(privileges));
         // all fields granted unless otherwise specified
         this.grantedFields = Collections
-                .unmodifiableSortedSet(new TreeSet<>(grantedFields != null ? grantedFields : Collections.singletonList("*")));
+                .unmodifiableSet(grantedFields != null ? new HashSet<>(grantedFields) : Collections.singleton("*"));
         // no fields are denied unless otherwise specified
         this.deniedFields = Collections
-                .unmodifiableSortedSet(new TreeSet<>(deniedFields != null ? deniedFields : Collections.emptyList()));
+                .unmodifiableSet(deniedFields != null ? new HashSet<>(deniedFields) : Collections.emptySet());
         this.query = query;
     }
 
-    public SortedSet<String> getIndices() {
+    public Set<String> getIndices() {
         return this.indices;
     }
 
-    public SortedSet<IndexPrivilege> getPrivileges() {
+    public Set<IndexPrivilege> getPrivileges() {
         return this.privileges;
     }
 
-    public SortedSet<String> getGrantedFields() {
+    public Set<String> getGrantedFields() {
         return this.grantedFields;
     }
 
-    public SortedSet<String> getDeniedFields() {
+    public Set<String> getDeniedFields() {
         return this.deniedFields;
     }
 
@@ -284,20 +282,6 @@ public final class IndicesPrivileges implements ToXContentObject {
         public IndicesPrivileges build() {
             return new IndicesPrivileges(indices, privileges, grantedFields, deniedFields, query);
         }
-    }
-
-    private static final class AlphaNumericComparator implements Comparator<IndexPrivilege> {
-
-        static final AlphaNumericComparator INSTANCE = new AlphaNumericComparator();
-
-        private AlphaNumericComparator() {
-        }
-
-        @Override
-        public int compare(IndexPrivilege o1, IndexPrivilege o2) {
-            return o1.toString().compareTo(o2.toString());
-        }
-
     }
 
 }

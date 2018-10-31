@@ -26,21 +26,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 public class RoleDescriptor implements ToXContentObject {
 
     private final String name;
     // uniqueness and order are important for equals and hashcode
-    private final SortedSet<ClusterPrivilege> clusterPrivileges;
-    private final SortedSet<ManageApplicationsPrivilege> manageApplicationPrivileges;
-    private final SortedSet<IndicesPrivileges> indicesPrivileges;
-    private final SortedSet<ApplicationResourcePrivileges> applicationResourcePrivileges;
-    private final SortedSet<String> runAs;
+    private final Set<ClusterPrivilege> clusterPrivileges;
+    private final Set<ManageApplicationsPrivilege> manageApplicationPrivileges;
+    private final Set<IndicesPrivileges> indicesPrivileges;
+    private final Set<ApplicationResourcePrivileges> applicationResourcePrivileges;
+    private final Set<String> runAs;
     private final Map<String, Object> metadata;
 
     private RoleDescriptor(String name, Collection<ClusterPrivilege> clusterPrivileges,
@@ -54,18 +53,18 @@ public class RoleDescriptor implements ToXContentObject {
         this.name = name;
         // no cluster privileges are granted unless otherwise specified
         this.clusterPrivileges = Collections
-                .unmodifiableSortedSet(new TreeSet<>(clusterPrivileges != null ? clusterPrivileges : Collections.emptyList()));
+                .unmodifiableSet(clusterPrivileges != null ? new HashSet<>(clusterPrivileges) : Collections.emptySet());
         // no manage application privileges are granted unless otherwise specified
-        this.manageApplicationPrivileges = Collections.unmodifiableSortedSet(
-                new TreeSet<>(manageApplicationPrivileges != null ? manageApplicationPrivileges : Collections.emptyList()));
+        this.manageApplicationPrivileges = Collections
+                .unmodifiableSet(manageApplicationPrivileges != null ? new HashSet<>(manageApplicationPrivileges) : Collections.emptySet());
         // no indices privileges are granted unless otherwise specified
         this.indicesPrivileges = Collections
-                .unmodifiableSortedSet(new TreeSet<>(indicesPrivileges != null ? indicesPrivileges : Collections.emptyList()));
+                .unmodifiableSet(indicesPrivileges != null ? new HashSet<>(indicesPrivileges) : Collections.emptySet());
         // no application resource privileges are granted unless otherwise specified
-        this.applicationResourcePrivileges = Collections.unmodifiableSortedSet(
-                new TreeSet<>(applicationResourcePrivileges != null ? applicationResourcePrivileges : Collections.emptyList()));
+        this.applicationResourcePrivileges = Collections.unmodifiableSet(
+                applicationResourcePrivileges != null ? new HashSet<>(applicationResourcePrivileges) : Collections.emptySet());
         // no run as privileges are granted unless otherwise specified
-        this.runAs = Collections.unmodifiableSortedSet(new TreeSet<>(runAs != null ? runAs : Collections.emptyList()));
+        this.runAs = Collections.unmodifiableSet(runAs != null ? new HashSet<>(runAs) : Collections.emptySet());
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
     }
 
@@ -89,7 +88,7 @@ public class RoleDescriptor implements ToXContentObject {
         return applicationResourcePrivileges;
     }
 
-    public SortedSet<String> getRunAs() {
+    public Set<String> getRunAs() {
         return runAs;
     }
 

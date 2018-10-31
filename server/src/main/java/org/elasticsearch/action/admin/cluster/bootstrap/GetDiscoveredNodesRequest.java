@@ -26,11 +26,22 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
+/**
+ * Request the set of master-eligible nodes discovered by this node. Most useful in a brand-new cluster as a precursor to setting the
+ * initial configuration using {@link BootstrapClusterRequest}.
+ */
 public class GetDiscoveredNodesRequest extends ActionRequest {
 
     private int waitForNodes = 1;
     private TimeValue timeout = TimeValue.ZERO;
 
+    /**
+     * Sometimes it is useful only to receive a successful response after discovering a certain number of master-eligible nodes. This
+     * parameter controls this behaviour.
+     *
+     * @param waitForNodes the minimum number of nodes to have discovered before this request will receive a successful response. Must be at
+     *                     least 1.
+     */
     public void setWaitForNodes(int waitForNodes) {
         if (waitForNodes < 1) {
             throw new IllegalArgumentException("always finds at least one node, waiting for [" + waitForNodes + "] is not allowed");
@@ -38,10 +49,22 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         this.waitForNodes = waitForNodes;
     }
 
+    /**
+     * Sometimes it is useful only to receive a successful response after discovering a certain number of master-eligible nodes. This
+     * parameter controls this behaviour.
+     *
+     * @return the minimum number of nodes to have discovered before this request will receive a successful response.
+     */
     public int getWaitForNodes() {
         return waitForNodes;
     }
 
+    /**
+     * Sometimes it is useful to wait until enough nodes have been discovered, rather than failing immediately. This parameter controls how
+     * long to wait. It may only be set to a nonzero timeout when waiting for more than one node, because every node always discovers
+     * at least one node, itself.
+     * @param timeout how long to wait to discover sufficiently many nodes to respond successfully.
+     */
     public void setTimeout(TimeValue timeout) {
         if (timeout.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("negative timeout of [" + timeout + "] is not allowed");
@@ -49,6 +72,12 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
         this.timeout = timeout;
     }
 
+    /**
+     * Sometimes it is useful to wait until enough nodes have been discovered, rather than failing immediately. This parameter controls how
+     * long to wait. It may only be set to a nonzero timeout when waiting for more than one node, because every node always discovers
+     * at least one node, itself.
+     * @return how long to wait to discover sufficiently many nodes to respond successfully.
+     */
     public TimeValue getTimeout() {
         return timeout;
     }

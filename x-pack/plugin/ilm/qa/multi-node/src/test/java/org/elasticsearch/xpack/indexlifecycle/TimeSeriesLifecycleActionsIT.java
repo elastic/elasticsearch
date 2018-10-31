@@ -84,7 +84,14 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         index(client(), originalIndex, "_id", "foo", "bar");
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
-        assertBusy(() -> assertFalse(indexExists(originalIndex)));
+        assertBusy(() -> {
+            try {
+                StepKey key = getStepKeyForIndex(originalIndex);
+                logger.error("TRACE: ILM key [" + key + "]");
+            } catch (Exception e) {
+            }
+            assertFalse(indexExists(originalIndex));
+        });
     }
 
     public void testMoveToAllocateStep() throws Exception {

@@ -82,8 +82,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(originalIndex, policy);
         // index document {"foo": "bar"} to trigger rollover
         index(client(), originalIndex, "_id", "foo", "bar");
+        // asserts that rollover was called
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
+        // asserts that shrink deleted the original index
         assertBusy(() -> assertFalse(indexExists(originalIndex)));
+        // asserts that the delete phase completed for the managed shrunken index
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
 
@@ -150,8 +153,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "  }\n" +
             "}");
         client().performRequest(moveToStepRequest);
+        // asserts that rollover was called
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
+        // asserts that shrink deleted the original index
         assertBusy(() -> assertFalse(indexExists(originalIndex)));
+        // asserts that the delete phase completed for the managed shrunken index
         assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
 

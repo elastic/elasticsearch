@@ -73,7 +73,7 @@
       bulk:
         include_type_name: false
         index: test_index
-        _source_include: foo
+        _source_includes: foo
         body: |
           { "update": { "_id": "test_id_3" } }
           { "doc": { "foo": "garply" } }

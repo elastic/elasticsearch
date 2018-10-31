@@ -209,7 +209,7 @@ public abstract class MetaDataStateFormat<T> {
         }
         assert maxStateId >= 0 : "maxStateId must be positive but was: [" + maxStateId + "]";
 
-        final String fileName = prefix + maxStateId + STATE_FILE_EXTENSION;
+        final String fileName = getStateFileName(maxStateId);
         final String tmpFileName = fileName + ".tmp";
         List<Tuple<Path, Directory>> directories = new ArrayList<>();
 
@@ -291,6 +291,9 @@ public abstract class MetaDataStateFormat<T> {
         return new SimpleFSDirectory(dir);
     }
 
+    /**
+     * Whether to perform autoCleanup of old state files after successful {@link #write(Object, Path...)}.
+     */
     protected boolean autoCleanup() {
         return true;
     }
@@ -302,7 +305,7 @@ public abstract class MetaDataStateFormat<T> {
      * @param locations         state paths.
      */
     public void cleanupOldFiles(final long currentGeneration, Path[] locations) {
-        final String fileNameToKeep = prefix + currentGeneration + STATE_FILE_EXTENSION;
+        final String fileNameToKeep = getStateFileName(currentGeneration);
         for (Path location : locations) {
             logger.trace("cleanupOldFiles: cleaning up {}", location);
             Path stateLocation = location.resolve(STATE_DIR_NAME);
@@ -351,7 +354,7 @@ public abstract class MetaDataStateFormat<T> {
             return files;
         }
 
-        final String fileName = prefix + generation + STATE_FILE_EXTENSION;
+        final String fileName = getStateFileName(generation);
         for (Path dataLocation : locations) {
             final Path stateFilePath = dataLocation.resolve(STATE_DIR_NAME).resolve(fileName);
             if (Files.exists(stateFilePath)) {
@@ -361,6 +364,10 @@ public abstract class MetaDataStateFormat<T> {
         }
 
         return files;
+    }
+
+    private String getStateFileName(long generation) {
+        return prefix + generation + STATE_FILE_EXTENSION;
     }
 
     /**

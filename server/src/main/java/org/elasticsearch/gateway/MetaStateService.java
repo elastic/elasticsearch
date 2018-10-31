@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -56,7 +55,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
      * Loads the full state, which includes both the global state and all the indices meta data. <br>
      * When loading, manifest file is consulted (represented by {@link MetaState} class), to load proper generations. <br>
      * If there is no manifest file on disk, this method fallbacks to BWC mode, where latest generation of global and indices
-     * metadata is loaded. Please note that currently where is no way to distinguish between manifest file being removed and manifest
+     * metadata is loaded. Please note that currently there is no way to distinguish between manifest file being removed and manifest
      * file was not yet created. It means that this method always fallbacks to BWC mode, if there is no manifest file.
      *
      * @return tuple of {@link MetaState} and {@link MetaData} with global metadata and indices metadata. If there is no state on disk,
@@ -66,12 +65,6 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
     Tuple<MetaState, MetaData> loadFullState() throws IOException {
         final MetaState metaState = loadMetaState();
         if (metaState == null) {
-            MetaData globalMetaData =
-                    MetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
-            boolean isFreshStartup = globalMetaData == null;
-            if (isFreshStartup == false && Version.CURRENT.major >= 8) {
-                throw new IOException("failed to find manifest file, which is mandatory staring with ElasticSearch version 8.0");
-            }
             return loadFullStateBWC();
         }
         final MetaData.Builder metaDataBuilder;
@@ -107,6 +100,12 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
                 MetaData.FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
         MetaData globalMetaData = metaDataAndGeneration.v1();
         long globalStateGeneration = metaDataAndGeneration.v2();
+        boolean isFreshStartup = globalMetaData == null;
+
+        if (isFreshStartup) {
+            assert Version.CURRENT.major < 8 : "failed to find manifest file, which is mandatory staring with Elasticsearch version 8.0";
+        }
+
         MetaData.Builder metaDataBuilder;
         if (globalMetaData != null) {
             metaDataBuilder = MetaData.builder(globalMetaData);
@@ -185,8 +184,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
             logger.trace("[_meta] state written (generation: {})", generation);
             return generation;
         } catch (WriteStateException ex) {
-            logger.warn("[_meta]: failed to write meta state", ex);
-            throw ex;
+            throw new WriteStateException(ex.isDirty(), "[_meta]: failed to write meta state", ex);
         }
     }
 
@@ -207,9 +205,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
             logger.trace("[{}] state written", index);
             return generation;
         } catch (WriteStateException ex) {
-            logger.warn(() -> new ParameterizedMessage("[{}]: failed to write index state", index), ex);
-            ex.resetDirty();
-            throw ex;
+            throw new WriteStateException(false, "[" + index + "]: failed to write index state", ex);
         }
     }
 
@@ -226,9 +222,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
             logger.trace("[_global] state written");
             return generation;
         } catch (WriteStateException ex) {
-            logger.warn("[_global]: failed to write global state", ex);
-            ex.resetDirty();
-            throw ex;
+            throw new WriteStateException(false, "[_global]: failed to write global state", ex);
         }
     }
 

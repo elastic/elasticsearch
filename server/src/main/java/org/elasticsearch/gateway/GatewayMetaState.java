@@ -114,7 +114,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                     List<Runnable> cleanupActions = new ArrayList<>();
                     // If globalStateGeneration is non-negative, it means we should have some metadata on disk
                     // Always re-write it even if upgrade plugins do not upgrade it, to be sure it's properly persisted on all data path
-                    Map<Index, Long> indices = new HashMap<>(metaState.getIndices());
                     final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
 
                     if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
@@ -125,6 +124,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                     final long currentGlobalStateGeneration = globalStateGeneration;
                     cleanupActions.add(() -> metaStateService.cleanupGlobalState(currentGlobalStateGeneration));
 
+                    Map<Index, Long> indices = new HashMap<>();
                     for (IndexMetaData indexMetaData : upgradedMetaData) {
                         long generation;
                         if (metaData.hasIndexMetaData(indexMetaData) == false) {
@@ -143,7 +143,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                     performCleanup(cleanupActions);
                 }
             } catch (Exception e) {
-                logger.error("failed to read local state, exiting...", e);
+                logger.error("failed to read or re-write local state, exiting...", e);
                 throw e;
             }
         }

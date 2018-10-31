@@ -198,8 +198,9 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testLargeClusterStatePublishing() throws Exception {
-        int estimatedBytesSize = scaledRandomIntBetween(ByteSizeValue.parseBytesSizeValue("10k", "estimatedBytesSize").bytesAsInt(),
-                                                        ByteSizeValue.parseBytesSizeValue("256k", "estimatedBytesSize").bytesAsInt());
+        int estimatedBytesSize = scaledRandomIntBetween(
+            ByteSizeValue.parseBytesSizeValue("10k", "estimatedBytesSize").bytesAsInt(),
+            ByteSizeValue.parseBytesSizeValue("256k", "estimatedBytesSize").bytesAsInt());
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties");
         int counter = 0;
         int numberOfFields = 0;
@@ -281,7 +282,8 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         // ignore_unavailable set to false throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
         try {
-            client().admin().cluster().prepareState().clear().setMetaData(true).setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
+            client().admin().cluster().prepareState().clear().setMetaData(true)
+                .setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), is("no such index [fzzbzz]"));

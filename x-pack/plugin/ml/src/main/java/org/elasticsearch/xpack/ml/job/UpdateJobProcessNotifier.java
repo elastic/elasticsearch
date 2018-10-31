@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -13,7 +14,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.core.ml.action.UpdateProcessAction.Respons
  */
 public class UpdateJobProcessNotifier extends AbstractComponent {
 
-    private static final Logger LOGGER = Loggers.getLogger(UpdateJobProcessNotifier.class);
+    private static final Logger LOGGER = LogManager.getLogger(UpdateJobProcessNotifier.class);
 
     private final Client client;
     private final ClusterService clusterService;

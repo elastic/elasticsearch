@@ -90,10 +90,19 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
+    private String globalPipeline;
+    private String globalRouting;
+    private String globalIndex;
+    private String globalType;
 
     private long sizeInBytes = 0;
 
     public BulkRequest() {
+    }
+
+    public BulkRequest(@Nullable String globalIndex, @Nullable String globalType) {
+        this.globalIndex = globalIndex;
+        this.globalType = globalType;
     }
 
     /**
@@ -154,6 +163,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     BulkRequest internalAdd(IndexRequest request, @Nullable Object payload) {
         Objects.requireNonNull(request, "'request' must not be null");
+        applyGlobalMandatoryParameters(request);
+
         requests.add(request);
         addPayload(payload);
         // lack of source is validated in validate() method
@@ -175,6 +186,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     BulkRequest internalAdd(UpdateRequest request, @Nullable Object payload) {
         Objects.requireNonNull(request, "'request' must not be null");
+        applyGlobalMandatoryParameters(request);
+
         requests.add(request);
         addPayload(payload);
         if (request.doc() != null) {
@@ -199,6 +212,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     public BulkRequest add(DeleteRequest request, @Nullable Object payload) {
         Objects.requireNonNull(request, "'request' must not be null");
+        applyGlobalMandatoryParameters(request);
+
         requests.add(request);
         addPayload(payload);
         sizeInBytes += REQUEST_OVERHEAD;
@@ -327,13 +342,13 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 String index = defaultIndex;
                 String type = defaultType;
                 String id = null;
-                String routing = defaultRouting;
+                String routing = valueOrDefault(defaultRouting, globalRouting);
                 FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
                 String opType = null;
                 long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
                 int retryOnConflict = 0;
-                String pipeline = defaultPipeline;
+                String pipeline = valueOrDefault(defaultPipeline, globalPipeline);
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
@@ -503,6 +518,15 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return this;
     }
 
+    public final BulkRequest pipeline(String globalPipeline) {
+        this.globalPipeline = globalPipeline;
+        return this;
+    }
+
+    public final BulkRequest routing(String globalRouting){
+        this.globalRouting = globalRouting;
+        return this;
+    }
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
@@ -512,6 +536,14 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     public TimeValue timeout() {
         return timeout;
+    }
+
+    public String pipeline() {
+        return globalPipeline;
+    }
+
+    public String routing() {
+        return globalRouting;
     }
 
     private int findNextMarker(byte marker, int from, BytesReference data, int length) {
@@ -579,4 +611,15 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return "requests[" + requests.size() + "], indices[" + Strings.collectionToDelimitedString(indices, ", ") + "]";
     }
 
+    private void applyGlobalMandatoryParameters(DocWriteRequest<?> request) {
+        request.index(valueOrDefault(request.index(), globalIndex));
+        request.type(valueOrDefault(request.type(), globalType));
+    }
+
+    private static String valueOrDefault(String value, String globalDefault) {
+        if (Strings.isNullOrEmpty(value) && !Strings.isNullOrEmpty(globalDefault)) {
+            return globalDefault;
+        }
+        return value;
+    }
 }

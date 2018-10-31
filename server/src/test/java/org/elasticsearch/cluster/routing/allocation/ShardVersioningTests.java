@@ -41,7 +41,8 @@ public class ShardVersioningTests extends ESAllocationTestCase {
     private final Logger logger = LogManager.getLogger(ShardVersioningTests.class);
 
     public void testSimple() {
-        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+        AllocationService strategy = createAllocationService(Settings.builder()
+            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()
@@ -54,10 +55,12 @@ public class ShardVersioningTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test2"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("start two nodes");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+            .add(newNode("node1")).add(newNode("node2"))).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 

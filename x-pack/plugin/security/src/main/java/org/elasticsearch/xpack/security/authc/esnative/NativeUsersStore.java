@@ -83,6 +83,8 @@ public class NativeUsersStore extends AbstractComponent {
 
     private final Hasher hasher = Hasher.BCRYPT;
     public static final String RESERVED_USER_TYPE = "reserved-user";
+
+    private final Settings settings;
     private final Client client;
     private final boolean isTribeNode;
     private final ReservedUserInfo disabledDefaultUserInfo;
@@ -92,6 +94,7 @@ public class NativeUsersStore extends AbstractComponent {
 
     public NativeUsersStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
         super(settings);
+        this.settings = settings;
         this.client = client;
         this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityIndex = securityIndex;

@@ -96,6 +96,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         }
     };
 
+    private final Settings settings;
     private final Client client;
     private final boolean isTribeNode;
     private final SecurityIndexManager securityIndex;
@@ -103,6 +104,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
         super(settings);
+        this.settings = settings;
         this.client = client;
         this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityIndex = securityIndex;

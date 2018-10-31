@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 public class TransportChangePasswordAction extends HandledTransportAction<ChangePasswordRequest, ChangePasswordResponse> {
 
+    private final Settings settings;
     private final NativeUsersStore nativeUsersStore;
 
     @Inject
@@ -33,6 +34,7 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
                                          NativeUsersStore nativeUsersStore) {
         super(settings, ChangePasswordAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 ChangePasswordRequest::new);
+        this.settings = settings;
         this.nativeUsersStore = nativeUsersStore;
     }
 

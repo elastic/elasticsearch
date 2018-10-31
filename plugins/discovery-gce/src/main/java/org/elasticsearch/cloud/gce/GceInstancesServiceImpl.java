@@ -94,6 +94,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
         return instances;
     }
 
+    private final Settings settings;
     private Compute client;
     private TimeValue refreshInterval = null;
     private long lastRefresh;
@@ -108,6 +109,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
 
     public GceInstancesServiceImpl(Settings settings) {
         super(settings);
+        this.settings = settings;
         this.validateCerts = GCE_VALIDATE_CERTIFICATES.get(settings);
         this.project = resolveProject();
         this.zones = resolveZones();

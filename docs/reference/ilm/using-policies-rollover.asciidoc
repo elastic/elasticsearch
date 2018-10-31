@@ -48,7 +48,7 @@ this example, that means the index will be deleted 30 days after rollover, not
 
 [source,js]
 --------------------------------------------------
-PUT /_ilm/my_policy
+PUT /_ilm/policy/my_policy
 {
   "policy": {
     "phases": {

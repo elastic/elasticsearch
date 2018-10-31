@@ -1,3 +1,6 @@
+setup:
+  - skip:
+      features: headers
 ---
 "Test NDJSON file structure analysis without overrides":
   - do:

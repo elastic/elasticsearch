@@ -46,7 +46,7 @@ public abstract class Function extends NamedExpression {
 
     @Override
     public boolean nullable() {
-        return false;
+        return Expressions.nullable(children());
     }
 
     @Override

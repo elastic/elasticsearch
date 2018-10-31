@@ -41,7 +41,7 @@ final class IndexLifecycleRequestConverters {
     private IndexLifecycleRequestConverters() {}
 
     static Request getLifecyclePolicy(GetLifecyclePolicyRequest getLifecyclePolicyRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_ilm")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_ilm/policy")
                 .addCommaSeparatedPathParts(getLifecyclePolicyRequest.getPolicyNames()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
@@ -52,7 +52,7 @@ final class IndexLifecycleRequestConverters {
 
     static Request putLifecyclePolicy(PutLifecyclePolicyRequest putLifecycleRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_ilm")
+            .addPathPartAsIs("_ilm/policy")
             .addPathPartAsIs(putLifecycleRequest.getName())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -66,7 +66,7 @@ final class IndexLifecycleRequestConverters {
     static Request deleteLifecyclePolicy(DeleteLifecyclePolicyRequest deleteLifecyclePolicyRequest) {
         Request request = new Request(HttpDelete.METHOD_NAME,
             new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_ilm")
+                .addPathPartAsIs("_ilm/policy")
                 .addPathPartAsIs(deleteLifecyclePolicyRequest.getLifecyclePolicy())
                 .build());
         RequestConverters.Params params = new RequestConverters.Params(request);

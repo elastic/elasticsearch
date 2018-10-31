@@ -34,7 +34,7 @@ public class XPackUsageResponse {
 
     private final Map<String, Map<String, Object>> usages;
 
-    private XPackUsageResponse(Map<String, Map<String, Object>> usages) throws IOException {
+    private XPackUsageResponse(Map<String, Map<String, Object>> usages) {
         this.usages = usages;
     }
 

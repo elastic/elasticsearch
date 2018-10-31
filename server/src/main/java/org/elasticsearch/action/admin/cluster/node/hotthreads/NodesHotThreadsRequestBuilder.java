@@ -23,7 +23,8 @@ import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 
-public class NodesHotThreadsRequestBuilder extends NodesOperationRequestBuilder<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
+public class NodesHotThreadsRequestBuilder
+        extends NodesOperationRequestBuilder<NodesHotThreadsRequest, NodesHotThreadsResponse, NodesHotThreadsRequestBuilder> {
 
     public NodesHotThreadsRequestBuilder(ElasticsearchClient client, NodesHotThreadsAction action) {
         super(client, action, new NodesHotThreadsRequest());

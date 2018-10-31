@@ -1,0 +1,6 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ccr-getting-started]]
+== Getting Started
+
+This is the getting started section of the {ccr} docs.

@@ -276,7 +276,8 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     private ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses;
     private List<Failure> failures;
 
-    public IndicesShardStoresResponse(ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses, List<Failure> failures) {
+    public IndicesShardStoresResponse(ImmutableOpenMap<String, ImmutableOpenIntMap<List<StoreStatus>>> storeStatuses,
+                                      List<Failure> failures) {
         this.storeStatuses = storeStatuses;
         this.failures = failures;
     }

@@ -107,6 +107,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private static final ShardStateAction.Listener SHARD_STATE_ACTION_LISTENER = new ShardStateAction.Listener() {
     };
 
+    private final Settings settings;
     // a list of shards that failed during recovery
     // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
     final ConcurrentMap<ShardId, ShardRouting> failedShardsCache = ConcurrentCollections.newConcurrentMap();
@@ -156,6 +157,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                PrimaryReplicaSyncer primaryReplicaSyncer,
                                Consumer<ShardId> globalCheckpointSyncer) {
         super(settings);
+        this.settings = settings;
         this.buildInIndexListener =
                 Arrays.asList(
                         peerRecoverySourceService,
@@ -172,7 +174,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.repositoriesService = repositoriesService;
         this.primaryReplicaSyncer = primaryReplicaSyncer;
         this.globalCheckpointSyncer = globalCheckpointSyncer;
-        this.sendRefreshMapping = this.settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
+        this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
     }
 
     @Override

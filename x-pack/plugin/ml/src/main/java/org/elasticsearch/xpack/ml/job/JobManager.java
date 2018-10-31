@@ -84,6 +84,7 @@ public class JobManager extends AbstractComponent {
     private static final DeprecationLogger deprecationLogger =
             new DeprecationLogger(LogManager.getLogger(JobManager.class));
 
+    private final Settings settings;
     private final Environment environment;
     private final JobResultsProvider jobResultsProvider;
     private final ClusterService clusterService;
@@ -102,6 +103,7 @@ public class JobManager extends AbstractComponent {
                       ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
                       Client client, UpdateJobProcessNotifier updateJobProcessNotifier) {
         super(settings);
+        this.settings = settings;
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.clusterService = Objects.requireNonNull(clusterService);

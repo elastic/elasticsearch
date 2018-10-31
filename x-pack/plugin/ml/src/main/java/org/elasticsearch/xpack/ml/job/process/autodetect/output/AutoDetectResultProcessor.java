@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
@@ -17,7 +18,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -83,7 +83,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class AutoDetectResultProcessor {
 
-    private static final Logger LOGGER = Loggers.getLogger(AutoDetectResultProcessor.class);
+    private static final Logger LOGGER = LogManager.getLogger(AutoDetectResultProcessor.class);
 
     /**
      * This is how far behind real-time we'll update the job with the latest established model memory.

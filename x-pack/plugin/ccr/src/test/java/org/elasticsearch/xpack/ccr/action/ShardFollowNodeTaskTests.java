@@ -616,6 +616,85 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
         assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
     }
 
+    public void testSettingsUpdate() {
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
+        startTask(task, 63, -1);
+
+        settingsVersions.add(1L);
+        task.coordinateReads();
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 1L, 63L);
+        task.handleReadResponse(0L, 63L, response);
+
+        assertThat(bulkShardOperationRequests.size(), equalTo(1));
+        assertThat(bulkShardOperationRequests.get(0), equalTo(Arrays.asList(response.getOperations())));
+
+        ShardFollowNodeTaskStatus status = task.getStatus();
+        assertThat(status.followerMappingVersion(), equalTo(0L));
+        assertThat(status.followerSettingsVersion(), equalTo(1L));
+        assertThat(status.outstandingReadRequests(), equalTo(1));
+        assertThat(status.outstandingWriteRequests(), equalTo(1));
+        assertThat(status.lastRequestedSeqNo(), equalTo(63L));
+        assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
+        assertThat(status.followerGlobalCheckpoint(), equalTo(-1L));
+    }
+
+    public void testSettingsUpdateRetryableError() {
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
+        startTask(task, 63, -1);
+
+        int max = randomIntBetween(1, 30);
+        for (int i = 0; i < max; i++) {
+            settingsUpdateFailures.add(new ConnectException());
+        }
+        settingsVersions.add(1L);
+        task.coordinateReads();
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 63, 0L, 1L, 63L);
+        task.handleReadResponse(0L, 63L, response);
+
+        assertThat(mappingUpdateFailures.size(), equalTo(0));
+        assertThat(bulkShardOperationRequests.size(), equalTo(1));
+        assertThat(task.isStopped(), equalTo(false));
+        ShardFollowNodeTaskStatus status = task.getStatus();
+        assertThat(status.followerMappingVersion(), equalTo(0L));
+        assertThat(status.followerSettingsVersion(), equalTo(1L));
+        assertThat(status.outstandingReadRequests(), equalTo(1));
+        assertThat(status.outstandingWriteRequests(), equalTo(1));
+        assertThat(status.lastRequestedSeqNo(), equalTo(63L));
+        assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
+    }
+
+    public void testSettingsUpdateNonRetryableError() {
+        ShardFollowTaskParams params = new ShardFollowTaskParams();
+        params.maxReadRequestOperationCount = 64;
+        params.maxOutstandingReadRequests = 1;
+        params.maxOutstandingWriteRequests = 1;
+        ShardFollowNodeTask task = createShardFollowTask(params);
+        startTask(task, 63, -1);
+
+        settingsUpdateFailures.add(new RuntimeException());
+        task.coordinateReads();
+        ShardChangesAction.Response response = generateShardChangesResponse(0, 64, 0L, 1L, 64L);
+        task.handleReadResponse(0L, 64L, response);
+
+        assertThat(bulkShardOperationRequests.size(), equalTo(0));
+        assertThat(task.isStopped(), equalTo(true));
+        ShardFollowNodeTaskStatus status = task.getStatus();
+        assertThat(status.followerMappingVersion(), equalTo(0L));
+        assertThat(status.followerSettingsVersion(), equalTo(0L));
+        assertThat(status.outstandingReadRequests(), equalTo(1));
+        assertThat(status.outstandingWriteRequests(), equalTo(0));
+        assertThat(status.lastRequestedSeqNo(), equalTo(63L));
+        assertThat(status.leaderGlobalCheckpoint(), equalTo(63L));
+    }
+
     public void testCoordinateWrites() {
         ShardFollowTaskParams params = new ShardFollowTaskParams();
         params.maxReadRequestOperationCount = 128;

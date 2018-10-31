@@ -29,8 +29,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -49,7 +51,7 @@ public final class ManageApplicationsPrivilege implements ToXContentObject {
         @SuppressWarnings("unchecked")
         final ConstructingObjectParser<ManageApplicationsPrivilege, Void> apps_parser =
             new ConstructingObjectParser<>("apps_parser", false, constructorObjects -> {
-                    final List<String> applications = (List<String>) constructorObjects[0];
+                    final Collection<String> applications = (Collection<String>) constructorObjects[0];
                     return new ManageApplicationsPrivilege(applications);
                 });
         apps_parser.declareStringArray(constructorArg(), APPLICATIONS);
@@ -63,17 +65,18 @@ public final class ManageApplicationsPrivilege implements ToXContentObject {
         PARSER.declareObject(constructorArg(), scope_parser, CATEGORY);
     }
 
-    private final List<String> applications;
+    // uniqueness and order are important for equals and hashcode
+    private final SortedSet<String> applications;
 
-    private ManageApplicationsPrivilege(List<String> applications) {
+    private ManageApplicationsPrivilege(Collection<String> applications) {
         // we do all null checks inside the constructor
         if (null == applications || applications.isEmpty()) {
             throw new IllegalArgumentException("managed applications list should not be null");
         }
-        this.applications = Collections.unmodifiableList(applications);
+        this.applications = Collections.unmodifiableSortedSet(new TreeSet<>(applications));
     }
 
-    public List<String> getApplications() {
+    public SortedSet<String> getApplications() {
         return applications;
     }
 
@@ -121,9 +124,9 @@ public final class ManageApplicationsPrivilege implements ToXContentObject {
         return new Builder();
     }
 
-    public static class Builder {
+    public static final class Builder {
 
-        private @Nullable List<String> applications = null;
+        private @Nullable Collection<String> applications = null;
 
         private Builder() {
         }
@@ -136,7 +139,7 @@ public final class ManageApplicationsPrivilege implements ToXContentObject {
             return applications(Arrays.asList(applications));
         }
 
-        public Builder applications(@Nullable List<String> applications) {
+        public Builder applications(@Nullable Collection<String> applications) {
             this.applications = applications;
             return this;
         }

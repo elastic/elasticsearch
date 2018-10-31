@@ -28,15 +28,19 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 public class RoleDescriptor implements ToXContentObject {
 
     private final String name;
-    private final Collection<ClusterPrivilege> clusterPrivileges;
-    private final Collection<ManageApplicationsPrivilege> manageApplicationPrivileges;
-    private final Collection<IndicesPrivileges> indicesPrivileges;
-    private final Collection<ApplicationResourcePrivileges> applicationResourcePrivileges;
-    private final Collection<String> runAs;
+    // uniqueness and order are important for equals and hashcode
+    private final SortedSet<ClusterPrivilege> clusterPrivileges;
+    private final SortedSet<ManageApplicationsPrivilege> manageApplicationPrivileges;
+    private final SortedSet<IndicesPrivileges> indicesPrivileges;
+    private final SortedSet<ApplicationResourcePrivileges> applicationResourcePrivileges;
+    private final SortedSet<String> runAs;
     private final Map<String, Object> metadata;
 
     private RoleDescriptor(String name, Collection<ClusterPrivilege> clusterPrivileges,
@@ -49,19 +53,19 @@ public class RoleDescriptor implements ToXContentObject {
         }
         this.name = name;
         // no cluster privileges are granted unless otherwise specified
-        this.clusterPrivileges = clusterPrivileges != null ? Collections.unmodifiableCollection(clusterPrivileges) : Collections.emptySet();
+        this.clusterPrivileges = Collections
+                .unmodifiableSortedSet(new TreeSet<>(clusterPrivileges != null ? clusterPrivileges : Collections.emptyList()));
         // no manage application privileges are granted unless otherwise specified
-        this.manageApplicationPrivileges = manageApplicationPrivileges != null
-                ? Collections.unmodifiableCollection(manageApplicationPrivileges)
-                : Collections.emptySet();
+        this.manageApplicationPrivileges = Collections.unmodifiableSortedSet(
+                new TreeSet<>(manageApplicationPrivileges != null ? manageApplicationPrivileges : Collections.emptyList()));
         // no indices privileges are granted unless otherwise specified
-        this.indicesPrivileges = indicesPrivileges != null ? Collections.unmodifiableCollection(indicesPrivileges) : Collections.emptySet();
+        this.indicesPrivileges = Collections
+                .unmodifiableSortedSet(new TreeSet<>(indicesPrivileges != null ? indicesPrivileges : Collections.emptyList()));
         // no application resource privileges are granted unless otherwise specified
-        this.applicationResourcePrivileges = applicationResourcePrivileges != null
-                ? Collections.unmodifiableCollection(applicationResourcePrivileges)
-                : Collections.emptySet();
+        this.applicationResourcePrivileges = Collections.unmodifiableSortedSet(
+                new TreeSet<>(applicationResourcePrivileges != null ? applicationResourcePrivileges : Collections.emptyList()));
         // no run as privileges are granted unless otherwise specified
-        this.runAs = runAs != null ? Collections.unmodifiableCollection(runAs) : Collections.emptySet();
+        this.runAs = Collections.unmodifiableSortedSet(new TreeSet<>(runAs != null ? runAs : Collections.emptyList()));
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
     }
 
@@ -69,23 +73,23 @@ public class RoleDescriptor implements ToXContentObject {
         return name;
     }
 
-    public Collection<ClusterPrivilege> getClusterPrivileges() {
+    public Set<ClusterPrivilege> getClusterPrivileges() {
         return clusterPrivileges;
     }
 
-    public Collection<ManageApplicationsPrivilege> getManageApplicationPrivileges() {
+    public Set<ManageApplicationsPrivilege> getManageApplicationPrivileges() {
         return manageApplicationPrivileges;
     }
 
-    public Collection<IndicesPrivileges> getIndicesPrivileges() {
+    public Set<IndicesPrivileges> getIndicesPrivileges() {
         return indicesPrivileges;
     }
 
-    public Collection<ApplicationResourcePrivileges> getApplicationResourcePrivileges() {
+    public Set<ApplicationResourcePrivileges> getApplicationResourcePrivileges() {
         return applicationResourcePrivileges;
     }
 
-    public Collection<String> getRunAs() {
+    public SortedSet<String> getRunAs() {
         return runAs;
     }
 

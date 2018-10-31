@@ -107,6 +107,9 @@
 
 ---
 "Find a task result record from the old cluster":
+  - skip:
+      features: headers
+
   - do:
       search:
         index: .tasks

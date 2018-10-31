@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -109,7 +111,15 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                     privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
                     client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
                 },
-                listener::onFailure
+                e -> {
+                    if (e instanceof IndexNotFoundException) {
+                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                        privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
+                        client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
             );
 
             executeAsyncWithOrigin(client,

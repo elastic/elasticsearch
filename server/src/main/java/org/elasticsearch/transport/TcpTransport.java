@@ -44,7 +44,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.CloseableChannel;
@@ -194,18 +193,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
-    protected final boolean compress;
+    protected final boolean compress;;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
-
-    private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
-    private final CounterMetric numHandshakes = new CounterMetric();
-    private static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
 
     private final MeanMetric readBytesMetric = new MeanMetric();
     private final MeanMetric transmittedBytesMetric = new MeanMetric();
     private volatile Map<String, RequestHandlerRegistry<? extends TransportRequest>> requestHandlers = Collections.emptyMap();
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
+    private final TcpTransportHandshaker handshaker;
     private final TransportLogger transportLogger;
     private final BytesReference pingMessage;
     private final String nodeName;
@@ -223,6 +219,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.networkService = networkService;
         this.transportName = transportName;
         this.transportLogger = new TransportLogger();
+        this.handshaker = new TcpTransportHandshaker(getCurrentVersion(), threadPool,
+            (node, channel, requestId, version) -> sendRequestToChannel(node, channel, requestId, TcpTransportHandshaker.HANDSHAKE_ACTION_NAME,
+                TransportRequest.Empty.INSTANCE, TransportRequestOptions.EMPTY, version, TransportStatus.setHandshake((byte) 0)));
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
 
         final Settings defaultFeatures = DEFAULT_FEATURES_SETTING.get(settings);
@@ -272,54 +271,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
         }
         requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
-    }
-
-    private class HandshakeResponseHandler implements TransportResponseHandler<VersionHandshakeResponse> {
-
-        private final long requestId;
-        private final TcpChannel channel;
-        private final ActionListener<Version> listener;
-        private final Version currentVersion;
-
-        private HandshakeResponseHandler(TcpChannel channel, long requestId, Version currentVersion, ActionListener<Version> listener) {
-            this.channel = channel;
-            this.requestId = requestId;
-            this.currentVersion = currentVersion;
-            this.listener = listener;
-        }
-
-        @Override
-        public VersionHandshakeResponse read(StreamInput in) throws IOException {
-            return new VersionHandshakeResponse(in);
-        }
-
-        @Override
-        public void handleResponse(VersionHandshakeResponse response) {
-            HandshakeResponseHandler handler = pendingHandshakes.remove(requestId);
-            if (handler != null) {
-                Version version = response.version;
-                if (currentVersion.isCompatible(version) == false) {
-                    listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + version
-                        + "] minimal compatible version is: [" + currentVersion.minimumCompatibilityVersion() + "]"));
-                } else {
-                    listener.onResponse(version);
-                }
-            }
-        }
-
-        @Override
-        public void handleException(TransportException e) {
-            HandshakeResponseHandler handler = pendingHandshakes.remove(requestId);
-            if (handler != null) {
-                // TODO: Do we really need to wrap in ise?
-                listener.onFailure(new IllegalStateException("handshake failed", e));
-            }
-        }
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SAME;
-        }
     }
 
     public final class NodeChannels extends CloseableConnection {
@@ -1254,12 +1205,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             } else {
                 final TransportResponseHandler<?> handler;
                 if (isHandshake) {
-                    handler = pendingHandshakes.remove(requestId);
+                    handler = handshaker.removeHandlerForHandshake(requestId);
                 } else {
                     TransportResponseHandler<? extends TransportResponse> theHandler =
                         responseHandlers.onResponseReceived(requestId, messageListener);
                     if (theHandler == null && TransportStatus.isError(status)) {
-                        handler = pendingHandshakes.remove(requestId);
+                        handler = handshaker.removeHandlerForHandshake(requestId);
                     } else {
                         handler = theHandler;
                     }
@@ -1369,8 +1320,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         TransportChannel transportChannel = null;
         try {
             if (TransportStatus.isHandshake(status)) {
-                final VersionHandshakeResponse response = new VersionHandshakeResponse(getCurrentVersion());
-                sendResponse(version, features, channel, response, requestId, HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY,
+                assert TcpTransportHandshaker.HANDSHAKE_ACTION_NAME.equals(action) : "Invalid handshake action name: " + action;
+                final TransportResponse response = handshaker.createHandshakeResponse();
+                sendResponse(version, features, channel, response, requestId, TcpTransportHandshaker.HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY,
                     TransportStatus.setHandshake((byte) 0));
             } else {
                 final RequestHandlerRegistry reg = getRequestHandler(action);
@@ -1453,60 +1405,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    private static final class VersionHandshakeResponse extends TransportResponse {
-        private final Version version;
-
-        private VersionHandshakeResponse(Version version) {
-            this.version = version;
-        }
-
-        private VersionHandshakeResponse(StreamInput in) throws IOException {
-            super.readFrom(in);
-            version = Version.readVersion(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            assert version != null;
-            Version.writeVersion(version, out);
-        }
-    }
-
     public void asyncHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
-        numHandshakes.inc();
-        final long requestId = responseHandlers.newRequestId();
-        final HandshakeResponseHandler handler = new HandshakeResponseHandler(channel, requestId, getCurrentVersion(), listener);
-        pendingHandshakes.put(requestId, handler);
-        channel.addCloseListener(ActionListener.wrap(() -> handler.handleException(new TransportException("connection reset"))));
-        boolean success = false;
-        try {
-            // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
-            // we also have no payload on the request but the response will contain the actual version of the node we talk
-            // to as the payload.
-            final Version minCompatVersion = getCurrentVersion().minimumCompatibilityVersion();
-            sendRequestToChannel(node, channel, requestId, HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE,
-                TransportRequestOptions.EMPTY, minCompatVersion, TransportStatus.setHandshake((byte) 0));
-
-            threadPool.schedule(timeout, ThreadPool.Names.GENERIC,
-                () -> handler.handleException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")));
-            success = true;
-        } catch (Exception e) {
-            handler.handleException(new SendRequestTransportException(node, HANDSHAKE_ACTION_NAME, e));
-        } finally {
-            if (success == false) {
-                TransportResponseHandler<?> removed = pendingHandshakes.remove(requestId);
-                assert removed == null : "Handshake should not be pending if exception was thrown";
-            }
-        }
+        handshaker.sendHandshake(responseHandlers.newRequestId(), node, channel, timeout, listener);
     }
 
-    final int getNumPendingHandshakes() { // for testing
-        return pendingHandshakes.size();
+    final int getNumPendingHandshakes() {
+        return handshaker.getNumPendingHandshakes();
     }
 
     final long getNumHandshakes() {
-        return numHandshakes.count(); // for testing
+        return handshaker.getNumHandshakes();
     }
 
     /**

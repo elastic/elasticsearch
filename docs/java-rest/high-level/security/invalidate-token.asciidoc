@@ -1,72 +1,39 @@
-[[java-rest-high-security-invalidate-token]]
+--
+:api: invalidate-token
+:request: InvalidateTokenRequest
+:response: InvalidateTokenResponse
+--
+
+[id="{upid}-{api}"]
 === Invalidate Token API
 
-[[java-rest-high-security-invalidate-token-request]]
-==== Request
-The `InvalidateTokenRequest` supports invalidating either an _access token_ or a _refresh token_
+[id="{upid}-{api}-request"]
+==== Invalidate Token Request
+The +{request}+ supports invalidating either an _access token_ or a _refresh token_
 
 ===== Access Token
-
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[invalidate-access-token-request]
+include-tagged::{doc-tests-file}[invalidate-access-token-request]
 --------------------------------------------------
 
 ===== Refresh Token
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[invalidate-refresh-token-request]
+include-tagged::{doc-tests-file}[invalidate-refresh-token-request]
 --------------------------------------------------
 
-[[java-rest-high-security-invalidate-token-execution]]
-==== Execution
+include::../execution.asciidoc[]
 
-Invalidating a OAuth2 security token can be performed by passing the appropriate request to the
- `security().invalidateToken()` method:
+[id="{upid}-{api}-response"]
+==== Invalidate Token Response
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[invalidate-token-execute]
---------------------------------------------------
-
-[[java-rest-high-security-invalidate-token-response]]
-==== Response
-
-The returned `InvalidateTokenResponse` contains a single property:
+The returned +{response}+ contains a single property:
 
 `created`:: Whether the invalidation record was newly created (`true`),
    or if the token had already been invalidated (`false`).
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[invalidate-token-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-
-[[java-rest-high-security-invalidate-token-async]]
-==== Asynchronous Execution
-
-This request can be executed asynchronously using the `security().invalidateTokenAsync()`
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[invalidate-token-execute-async]
---------------------------------------------------
-<1> The `InvalidateTokenRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once the request
-has completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for a `InvalidateTokenResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SecurityDocumentationIT.java[invalidate-token-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-

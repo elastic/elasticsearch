@@ -95,7 +95,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             }
         };
         this.mapperService = mapperService;
-        final long requestingSize = toSeqNo - fromSeqNo + 1L;
+        final long requestingSize = (toSeqNo - fromSeqNo) == Long.MAX_VALUE ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
         this.searchBatchSize = requestingSize < searchBatchSize ? Math.toIntExact(requestingSize) : searchBatchSize;
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;

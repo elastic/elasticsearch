@@ -540,8 +540,10 @@ version 5.3.2 run:
 -------------------------------------------------
 
 Tests are ran for versions that are not yet released but with which the current version will be compatible with.
-These are automatically checked out and build from source.
-See link:./buildSrc/src/main/java/org/elasticsearch/gradle/VersionCollection.java[VersionCollection] for more information.
+These are automatically checked out and built from source.
+See link:./buildSrc/src/main/java/org/elasticsearch/gradle/VersionCollection.java[VersionCollection]
+and link:./distribution/bwc/build.gradle[distribution/bwc/build.gradle] 
+for more information.
 
 When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
 

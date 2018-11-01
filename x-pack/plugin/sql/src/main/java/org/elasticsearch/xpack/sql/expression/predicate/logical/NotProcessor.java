@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.logical;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
@@ -18,6 +19,8 @@ public class NotProcessor implements Processor {
     public static final String NAME = "ln";
 
     private NotProcessor() {}
+
+    public NotProcessor(StreamInput in) throws IOException {}
 
     @Override
     public String getWriteableName() {

@@ -248,20 +248,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      * @param newMaxSizeInBytes The new maximum number of bytes.
      */
     void setMaxSizeInBytes(int newMaxSizeInBytes) {
-        if (clusterState != null) {
-            ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
-
-            if (scriptMetadata != null) {
-                for (Map.Entry<String, StoredScriptSource> source : scriptMetadata.getStoredScripts().entrySet()) {
-                    if (source.getValue().getSource().getBytes().length > newMaxSizeInBytes) {
-                        throw new IllegalArgumentException("script.max_size_in_bytes cannot be set to [" + newMaxSizeInBytes + "], " +
-                                "stored script [" + source.getKey() + "] exceeds the new value with a size of " +
-                                "[" + source.getValue().getSource().getBytes().length + "]");
-                    }
-                }
+        for (Map.Entry<String, StoredScriptSource> source : getScriptsFromClusterState().entrySet()) {
+            if (source.getValue().getSource().getBytes().length > newMaxSizeInBytes) {
+                throw new IllegalArgumentException("script.max_size_in_bytes cannot be set to [" + newMaxSizeInBytes + "], " +
+                        "stored script [" + source.getKey() + "] exceeds the new value with a size of " +
+                        "[" + source.getValue().getSource().getBytes().length + "]");
             }
-
-            cache.invalidateAll();
         }
 
         maxSizeInBytes = newMaxSizeInBytes;
@@ -421,6 +413,15 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     public boolean isAnyContextEnabled() {
         return contextsAllowed == null || contextsAllowed.isEmpty() == false;
+    }
+
+    Map<String, StoredScriptSource> getScriptsFromClusterState() {
+        if (clusterState == null) {
+            return Collections.emptyMap();
+        }
+
+        ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
+        return scriptMetadata.getStoredScripts();
     }
 
     StoredScriptSource getScriptFromClusterState(String id) {

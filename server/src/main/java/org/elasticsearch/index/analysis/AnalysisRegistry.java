@@ -20,6 +20,9 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -51,6 +54,7 @@ public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(AnalysisRegistry.class));
     private final PrebuiltAnalysis prebuiltAnalysis;
     private final Map<String, Analyzer> cachedAnalyzer = new ConcurrentHashMap<>();
 
@@ -130,7 +134,13 @@ public final class AnalysisRegistry implements Closeable {
                             throw new ElasticsearchException("failed to load analyzer for name " + key, ex);
                         }}
             );
+        } else if ("standard_html_strip".equals(analyzer)) {
+            if (Version.CURRENT.onOrAfter(Version.V_7_0_0_alpha1)) {
+                throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
+                    "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
+            }
         }
+
         return analyzerProvider.get(environment, analyzer).get();
     }
 

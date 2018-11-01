@@ -20,6 +20,9 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -28,14 +31,30 @@ import org.elasticsearch.index.analysis.Analysis;
 
 public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProvider<StandardHtmlStripAnalyzer> {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(StandardHtmlStripAnalyzerProvider.class));
+
     private final StandardHtmlStripAnalyzer analyzer;
 
+    /**
+     * @deprecated in 6.5, can not create in 7.0, and we remove this in 8.0
+     */
+    @Deprecated
     StandardHtmlStripAnalyzerProvider(IndexSettings indexSettings, Environment env,  String name, Settings settings) {
         super(indexSettings, name, settings);
         final CharArraySet defaultStopwords = CharArraySet.EMPTY_SET;
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
         analyzer = new StandardHtmlStripAnalyzer(stopWords);
         analyzer.setVersion(version);
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+            throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
+                "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
+        }
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
+            DEPRECATION_LOGGER.deprecatedAndMaybeLog("standard_html_strip_deprecation",
+                "Deprecated analyzer [standard_html_strip] used, " +
+                    "replace it with a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
+        }
     }
 
     @Override

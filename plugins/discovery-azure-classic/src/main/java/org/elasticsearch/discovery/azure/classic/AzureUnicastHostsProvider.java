@@ -108,7 +108,6 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
 
     public AzureUnicastHostsProvider(Settings settings, AzureComputeService azureComputeService,
                                      TransportService transportService, NetworkService networkService) {
-        super(settings);
         this.settings = settings;
         this.azureComputeService = azureComputeService;
         this.transportService = transportService;

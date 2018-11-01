@@ -32,7 +32,6 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
@@ -55,9 +54,8 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final StorageClass storageClass;
 
-    S3BlobStore(Settings settings, S3Service service, String clientName, String bucket, boolean serverSideEncryption,
+    S3BlobStore(S3Service service, String clientName, String bucket, boolean serverSideEncryption,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass) {
-        super(settings);
         this.service = service;
         this.clientName = clientName;
         this.bucket = bucket;

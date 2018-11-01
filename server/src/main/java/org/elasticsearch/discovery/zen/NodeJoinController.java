@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -65,9 +64,7 @@ public class NodeJoinController extends AbstractComponent {
     private ElectionContext electionContext = null;
 
 
-    public NodeJoinController(MasterService masterService, AllocationService allocationService, ElectMasterService electMaster,
-                              Settings settings) {
-        super(settings);
+    public NodeJoinController(MasterService masterService, AllocationService allocationService, ElectMasterService electMaster) {
         this.masterService = masterService;
         joinTaskExecutor = new JoinTaskExecutor(allocationService, electMaster, logger);
     }

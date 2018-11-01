@@ -68,7 +68,6 @@ public class CryptoService extends AbstractComponent {
     private final SecretKey encryptionKey;
 
     public CryptoService(Settings settings) throws IOException {
-        super(settings);
         this.encryptionAlgorithm = ENCRYPTION_ALGO_SETTING.get(settings);
         final int keyLength = ENCRYPTION_KEY_LENGTH_SETTING.get(settings);
         this.ivLength = keyLength / 8;

@@ -190,7 +190,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.bigArrays = bigArrays;
-        this.queryPhase = new QueryPhase(clusterService.getSettings());
+        this.queryPhase = new QueryPhase();
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings);
 

@@ -101,7 +101,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, clusterService, transportService,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), null);
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(), null);
     }
 
     @Override

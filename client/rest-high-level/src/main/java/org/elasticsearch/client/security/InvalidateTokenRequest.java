@@ -42,7 +42,7 @@ public final class InvalidateTokenRequest implements Validatable, ToXContentObje
                 throw new IllegalArgumentException("Either access-token or refresh-token is required");
             }
         } else if (Strings.isNullOrEmpty(refreshToken) == false) {
-            throw new IllegalArgumentException("Cannot supplt both access-token and refresh-token");
+            throw new IllegalArgumentException("Cannot supply both access-token and refresh-token");
         }
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;

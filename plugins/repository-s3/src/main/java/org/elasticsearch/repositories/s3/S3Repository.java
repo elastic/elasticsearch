@@ -245,7 +245,7 @@ class S3Repository extends BlobStoreRepository {
     protected S3BlobStore createBlobStore() {
         if (reference != null) {
             assert S3ClientSettings.checkDeprecatedCredentials(metadata.settings()) : metadata.name();
-            return new S3BlobStore(settings, service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass) {
+            return new S3BlobStore(service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass) {
                 @Override
                 public AmazonS3Reference clientReference() {
                     if (reference.tryIncRef()) {
@@ -256,7 +256,7 @@ class S3Repository extends BlobStoreRepository {
                 }
             };
         } else {
-            return new S3BlobStore(settings, service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+            return new S3BlobStore(service, clientName, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
         }
     }
 

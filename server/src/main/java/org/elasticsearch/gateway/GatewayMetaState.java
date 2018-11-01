@@ -69,7 +69,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
                             MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) throws IOException {
-        super(settings);
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
 

@@ -53,7 +53,7 @@ public class TransportPutAutoFollowPatternAction extends
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(settings, PutAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, PutAutoFollowPatternAction.Request::new);
+            PutAutoFollowPatternAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
     }

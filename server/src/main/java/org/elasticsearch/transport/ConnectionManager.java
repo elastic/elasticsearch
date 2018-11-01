@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -67,16 +67,15 @@ public class ConnectionManager implements Closeable {
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
     public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool) {
-        this(settings, transport, threadPool, ConnectionProfile.buildDefaultConnectionProfile(settings));
+        this(settings, transport, threadPool, TcpTransport.PING_SCHEDULE.get(settings));
     }
 
-    public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool, ConnectionProfile defaultProfile) {
+    public ConnectionManager(Settings settings, Transport transport, ThreadPool threadPool, TimeValue pingSchedule) {
         this.transport = transport;
         this.threadPool = threadPool;
-        this.pingSchedule = TcpTransport.PING_SCHEDULE.get(settings);
-        this.defaultProfile = defaultProfile;
+        this.pingSchedule = pingSchedule;
+        this.defaultProfile = ConnectionProfile.buildDefaultConnectionProfile(settings);
         this.lifecycle.moveToStarted();
-
         if (pingSchedule.millis() > 0) {
             threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, new ScheduledPing());
         }
@@ -203,7 +202,7 @@ public class ConnectionManager implements Closeable {
             threadPool.generic().execute(() -> {
                 closeLock.writeLock().lock();
                 try {
-                    // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
+                    // we are holding a write lock so nobody adds to the connectedNodes / openConnections map - it's safe to first close
                     // all instances and then clear them maps
                     Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
                     while (iterator.hasNext()) {
@@ -250,6 +249,10 @@ public class ConnectionManager implements Closeable {
         if (lifecycle.started() == false) {
             throw new IllegalStateException("connection manager is closed");
         }
+    }
+
+    TimeValue getPingSchedule() {
+        return pingSchedule;
     }
 
     private class ScheduledPing extends AbstractLifecycleRunnable {

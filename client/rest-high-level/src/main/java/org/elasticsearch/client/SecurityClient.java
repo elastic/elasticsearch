@@ -20,12 +20,17 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.security.AuthenticateRequest;
+import org.elasticsearch.client.security.AuthenticateResponse;
+import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
+import org.elasticsearch.client.security.CreateTokenRequest;
+import org.elasticsearch.client.security.CreateTokenResponse;
+import org.elasticsearch.client.security.DeleteRoleMappingRequest;
+import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
-import org.elasticsearch.client.security.PutRoleMappingRequest;
-import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -33,11 +38,10 @@ import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesRequest;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
+import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
-import org.elasticsearch.client.security.ChangePasswordRequest;
-import org.elasticsearch.client.security.DeleteRoleMappingRequest;
-import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 
 import java.io.IOException;
 
@@ -209,6 +213,32 @@ public final class SecurityClient {
     }
 
     /**
+     * Authenticate the current user and return all the information about the authenticated user.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-authenticate.html">
+     * the docs</a> for more.
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized 
+     * @return the responsee from the authenticate user call
+     */
+    public AuthenticateResponse authenticate(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(AuthenticateRequest.INSTANCE, AuthenticateRequest::getRequest, options,
+                AuthenticateResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Authenticate the current user asynchronously and return all the information about the authenticated user.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-authenticate.html">
+     * the docs</a> for more.
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized 
+     * @param listener the listener to be notified upon request completion 
+     */
+    public void authenticateAsync(RequestOptions options, ActionListener<AuthenticateResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(AuthenticateRequest.INSTANCE, AuthenticateRequest::getRequest, options,
+                AuthenticateResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Clears the native roles cache for a set of roles.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-role-cache.html">
      * the docs</a> for more.
@@ -350,4 +380,32 @@ public final class SecurityClient {
             DeleteRoleResponse::fromXContent, listener, singleton(404));
     }
 
+    /**
+     * Creates an OAuth2 token.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request for the token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create token call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CreateTokenResponse createToken(CreateTokenRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::createToken, options,
+            CreateTokenResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates an OAuth2 token.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request for the token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void createTokenAsync(CreateTokenRequest request, RequestOptions options, ActionListener<CreateTokenResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::createToken, options,
+            CreateTokenResponse::fromXContent, listener, emptySet());
+    }
 }

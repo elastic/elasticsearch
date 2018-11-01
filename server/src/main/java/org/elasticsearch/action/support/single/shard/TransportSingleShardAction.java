@@ -60,7 +60,8 @@ import static org.elasticsearch.action.support.TransportActions.isShardNotAvaila
  * the read operation can be performed on other shard copies. Concrete implementations can provide their own list
  * of candidate shards to try the read operation on.
  */
-public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends TransportAction<Request, Response> {
+public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse>
+        extends TransportAction<Request, Response> {
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -71,8 +72,9 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     private final String executor;
 
     protected TransportSingleShardAction(Settings settings, String actionName, ThreadPool threadPool, ClusterService clusterService,
-                                         TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         Supplier<Request> request, String executor) {
+                                         TransportService transportService, ActionFilters actionFilters,
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                         String executor) {
         super(settings, actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -181,7 +183,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         public void start() {
             if (shardIt == null) {
                 // just execute it on the local node
-                transportService.sendRequest(clusterService.localNode(), transportShardAction, internalRequest.request(), new TransportResponseHandler<Response>() {
+                transportService.sendRequest(clusterService.localNode(), transportShardAction, internalRequest.request(),
+                    new TransportResponseHandler<Response>() {
                     @Override
                     public Response read(StreamInput in) throws IOException {
                         Response response = newResponse();
@@ -211,7 +214,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
         private void onFailure(ShardRouting shardRouting, Exception e) {
             if (e != null) {
-                logger.trace(() -> new ParameterizedMessage("{}: failed to execute [{}]", shardRouting, internalRequest.request()), e);
+                logger.trace(() -> new ParameterizedMessage("{}: failed to execute [{}]", shardRouting,
+                    internalRequest.request()), e);
             }
             perform(e);
         }
@@ -226,9 +230,11 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             if (shardRouting == null) {
                 Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
-                    failure = new NoShardAvailableActionException(null, LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()), failure);
+                    failure = new NoShardAvailableActionException(null,
+                        LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()), failure);
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null, internalRequest.request()), failure);
+                    logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null,
+                        internalRequest.request()), failure);
                 }
                 listener.onFailure(failure);
                 return;
@@ -246,29 +252,30 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                             node
                     );
                 }
-                transportService.sendRequest(node, transportShardAction, internalRequest.request(), new TransportResponseHandler<Response>() {
+                transportService.sendRequest(node, transportShardAction, internalRequest.request(),
+                    new TransportResponseHandler<Response>() {
 
-                    @Override
-                    public Response read(StreamInput in) throws IOException {
-                        Response response = newResponse();
-                        response.readFrom(in);
-                        return response;
-                    }
+                        @Override
+                        public Response read(StreamInput in) throws IOException {
+                            Response response = newResponse();
+                            response.readFrom(in);
+                            return response;
+                        }
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
 
-                    @Override
-                    public void handleResponse(final Response response) {
-                        listener.onResponse(response);
-                    }
+                        @Override
+                        public void handleResponse(final Response response) {
+                            listener.onResponse(response);
+                        }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        onFailure(shardRouting, exp);
-                    }
+                        @Override
+                        public void handleException(TransportException exp) {
+                            onFailure(shardRouting, exp);
+                        }
                 });
             }
         }

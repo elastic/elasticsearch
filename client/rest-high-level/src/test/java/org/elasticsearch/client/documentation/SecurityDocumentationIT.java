@@ -24,13 +24,17 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
+import org.elasticsearch.client.security.CreateTokenRequest;
+import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
@@ -47,10 +51,11 @@ import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.support.CertificateInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
+import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.client.security.support.CertificateInfo;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
@@ -64,13 +69,14 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.not;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
@@ -217,7 +223,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::get-role-mappings-list-execute
             final GetRoleMappingsRequest request = new GetRoleMappingsRequest("mapping-example-1", "mapping-example-2");
             final GetRoleMappingsResponse response = client.security().getRoleMappings(request, RequestOptions.DEFAULT);
-            // end::get-role-mappings-all-execute
+            // end::get-role-mappings-list-execute
             List<ExpressionRoleMapping> mappings = response.getMappings();
             assertNotNull(mappings);
             assertThat(mappings.size(), is(2));
@@ -376,6 +382,51 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testAuthenticate() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::authenticate-execute
+            AuthenticateResponse response = client.security().authenticate(RequestOptions.DEFAULT);
+            //end::authenticate-execute
+
+            //tag::authenticate-response
+            User user = response.getUser(); // <1>
+            boolean enabled = response.enabled(); // <2>
+            //end::authenticate-response
+
+            assertThat(user.username(), is("test_user"));
+            assertThat(user.roles(), contains(new String[] {"superuser"}));
+            assertThat(user.fullName(), nullValue());
+            assertThat(user.email(), nullValue());
+            assertThat(user.metadata().isEmpty(), is(true));
+            assertThat(enabled, is(true));
+        }
+
+        {
+            // tag::authenticate-execute-listener
+            ActionListener<AuthenticateResponse> listener = new ActionListener<AuthenticateResponse>() {
+                @Override
+                public void onResponse(AuthenticateResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::authenticate-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+            // tag::authenticate-execute-async
+            client.security().authenticateAsync(RequestOptions.DEFAULT, listener); // <1>
+            // end::authenticate-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 
     public void testClearRolesCache() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -668,4 +719,79 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         client().performRequest(addRoleRequest);
     }
 
+    public void testCreateToken() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // Setup user
+            PutUserRequest putUserRequest = new PutUserRequest("token_user", "password".toCharArray(),
+                Collections.singletonList("kibana_user"), null, null, true, null, RefreshPolicy.IMMEDIATE);
+            PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
+            assertTrue(putUserResponse.isCreated());
+        }
+        {
+            // tag::create-token-password-request
+            final char[] password = new char[]{'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+            CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant("token_user", password);
+            // end::create-token-password-request
+
+            // tag::create-token-execute
+            CreateTokenResponse createTokenResponse = client.security().createToken(createTokenRequest, RequestOptions.DEFAULT);
+            // end::create-token-execute
+
+            // tag::create-token-response
+            String accessToken = createTokenResponse.getAccessToken();    // <1>
+            String refreshToken = createTokenResponse.getRefreshToken();    // <2>
+            // end::create-token-response
+            assertNotNull(accessToken);
+            assertNotNull(refreshToken);
+            assertNotNull(createTokenResponse.getExpiresIn());
+
+            // tag::create-token-refresh-request
+            createTokenRequest = CreateTokenRequest.refreshTokenGrant(refreshToken);
+            // end::create-token-refresh-request
+
+            CreateTokenResponse refreshResponse = client.security().createToken(createTokenRequest, RequestOptions.DEFAULT);
+            assertNotNull(refreshResponse.getAccessToken());
+            assertNotNull(refreshResponse.getRefreshToken());
+        }
+
+        {
+            // tag::create-token-client-credentials-request
+            CreateTokenRequest createTokenRequest = CreateTokenRequest.clientCredentialsGrant();
+            // end::create-token-client-credentials-request
+
+            ActionListener<CreateTokenResponse> listener;
+            //tag::create-token-execute-listener
+            listener = new ActionListener<CreateTokenResponse>() {
+                @Override
+                public void onResponse(CreateTokenResponse createTokenResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::create-token-execute-listener
+
+            // Avoid unused variable warning
+            assertNotNull(listener);
+
+            // Replace the empty listener by a blocking listener in test
+            final PlainActionFuture<CreateTokenResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            //tag::create-token-execute-async
+            client.security().createTokenAsync(createTokenRequest, RequestOptions.DEFAULT, listener); // <1>
+            //end::create-token-execute-async
+
+            assertNotNull(future.get(30, TimeUnit.SECONDS));
+            assertNotNull(future.get().getAccessToken());
+            // "client-credentials" grants aren't refreshable
+            assertNull(future.get().getRefreshToken());
+        }
+
+    }
 }

@@ -97,8 +97,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public static final Setting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING =
         Setting.positiveTimeSetting("script.cache.expire", TimeValue.timeValueMillis(0), Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
-        Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
-    // public Setting(String key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
+        Setting.intSetting("script.max_size_in_bytes", 65535, 0, Property.Dynamic, Property.NodeScope);
     public static final Setting<Tuple<Integer, TimeValue>> SCRIPT_MAX_COMPILATIONS_RATE =
             new Setting<>("script.max_compilations_rate", "75/5m", MAX_COMPILATION_RATE_FUNCTION, Property.Dynamic, Property.NodeScope);
 
@@ -121,6 +120,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final ScriptMetrics scriptMetrics = new ScriptMetrics();
 
     private ClusterState clusterState;
+
+    private int maxSizeInBytes;
 
     private Tuple<Integer, TimeValue> rate;
     private long lastInlineCompileTime;
@@ -220,10 +221,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
         this.lastInlineCompileTime = System.nanoTime();
+        this.setMaxSizeInBytes(SCRIPT_MAX_SIZE_IN_BYTES.get(settings));
         this.setMaxCompilationRate(SCRIPT_MAX_COMPILATIONS_RATE.get(settings));
     }
 
     void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_SIZE_IN_BYTES, this::setMaxSizeInBytes);
         clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_RATE, this::setMaxCompilationRate);
     }
 
@@ -238,6 +241,30 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             throw new IllegalArgumentException("script_lang not supported [" + lang + "]");
         }
         return scriptEngine;
+    }
+
+    /**
+     * Changes the maximum number of bytes a script's source is allowed to have.
+     * @param newMaxSizeInBytes The new maximum number of bytes.
+     */
+    void setMaxSizeInBytes(int newMaxSizeInBytes) {
+        if (clusterState != null) {
+            ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
+
+            if (scriptMetadata != null) {
+                for (Map.Entry<String, StoredScriptSource> source : scriptMetadata.getStoredScripts().entrySet()) {
+                    if (source.getValue().getSource().getBytes().length > newMaxSizeInBytes) {
+                        throw new IllegalArgumentException("script.max_size_in_bytes cannot be set to [" + newMaxSizeInBytes + "], " +
+                                "stored script [" + source.getKey() + "] exceeds the new value with a size of " +
+                                "[" + source.getValue().getSource().getBytes().length + "]");
+                    }
+                }
+            }
+
+            cache.invalidateAll();
+        }
+
+        maxSizeInBytes = newMaxSizeInBytes;
     }
 
     /**
@@ -292,6 +319,13 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
         if (isContextEnabled(context) == false) {
             throw new IllegalArgumentException("cannot execute scripts using [" + context.name + "] context");
+        }
+
+        if (type == ScriptType.INLINE) {
+            if (idOrCode.getBytes().length > maxSizeInBytes) {
+                throw new IllegalArgumentException("exceeded max allowed inline script size in bytes [" + maxSizeInBytes + "] " +
+                        "with size [" + idOrCode.getBytes().length + "] for script [" + idOrCode + "]");
+            }
         }
 
         if (logger.isTraceEnabled()) {
@@ -407,10 +441,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     public void putStoredScript(ClusterService clusterService, PutStoredScriptRequest request,
                                 ActionListener<AcknowledgedResponse> listener) {
-        int max = SCRIPT_MAX_SIZE_IN_BYTES.get(settings);
-
-        if (request.content().length() > max) {
-            throw new IllegalArgumentException("exceeded max allowed stored script size in bytes [" + max + "] with size [" +
+        if (request.content().length() > maxSizeInBytes) {
+            throw new IllegalArgumentException("exceeded max allowed stored script size in bytes [" + maxSizeInBytes + "] with size [" +
                 request.content().length() + "] for script [" + request.id() + "]");
         }
 

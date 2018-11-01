@@ -37,9 +37,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -350,6 +352,13 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     @Override
     public EnumSet<MetaData.XContentContext> context() {
         return MetaData.ALL_CONTEXTS;
+    }
+
+    /**
+     * Returns the map of stored scripts.
+     */
+    Map<String, StoredScriptSource> getStoredScripts() {
+        return scripts;
     }
 
     /**

@@ -59,18 +59,17 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
             return new Result(false, new CheckShrinkReadyStep.Info("", expectedShardCount, -1));
         }
 
-        // The id of the node the shards should be on TODO: change to _id
-        String idShardsShouldBeOn = idxMeta.getSettings().get(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name");
+        // The id of the node the shards should be on
+        final String idShardsShouldBeOn = idxMeta.getSettings().get(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id");
         if (idShardsShouldBeOn == null) {
-            throw new IllegalStateException("Cannot check shrink allocation as there are no allocation rules by _name");
+            throw new IllegalStateException("Cannot check shrink allocation as there are no allocation rules by _id");
         }
 
-        IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
+        final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
         int foundShards = 0;
         for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.STARTED)) {
-            String currentNodeId = shard.currentNodeId();
-            String currentNodeName = clusterState.getRoutingNodes().node(currentNodeId).node().getName();
-            if (idShardsShouldBeOn.equals(currentNodeName) && shard.relocating() == false) {
+            final String currentNodeId = shard.currentNodeId();
+            if (idShardsShouldBeOn.equals(currentNodeId) && shard.relocating() == false) {
                 foundShards++;
             }
         }
@@ -113,14 +112,14 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
         private final long numberShardsLeftToAllocate;
         private final String message;
 
-        static final ParseField NODE = new ParseField("node");
+        static final ParseField NODE_ID = new ParseField("node_id");
         static final ParseField EXPECTED_SHARDS = new ParseField("expected_shards");
         static final ParseField SHARDS_TO_ALLOCATE = new ParseField("shards_left_to_allocate");
         static final ParseField MESSAGE = new ParseField("message");
         static final ConstructingObjectParser<CheckShrinkReadyStep.Info, Void> PARSER = new ConstructingObjectParser<>(
             "check_shrink_ready_step_info", a -> new CheckShrinkReadyStep.Info((String) a[0], (long) a[1], (long) a[2]));
         static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXPECTED_SHARDS);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SHARDS_TO_ALLOCATE);
             PARSER.declareString((i, s) -> {}, MESSAGE);
@@ -142,7 +141,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(MESSAGE.getPreferredName(), message);
-            builder.field(NODE.getPreferredName(), nodeId);
+            builder.field(NODE_ID.getPreferredName(), nodeId);
             builder.field(SHARDS_TO_ALLOCATE.getPreferredName(), numberShardsLeftToAllocate);
             builder.field(EXPECTED_SHARDS.getPreferredName(), actualReplicas);
             builder.endObject();

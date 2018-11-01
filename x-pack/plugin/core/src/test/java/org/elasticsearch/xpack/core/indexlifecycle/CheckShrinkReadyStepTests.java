@@ -24,14 +24,12 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-@TestLogging("org.elasticsearch.xpack.core.indexlifecycle:TRACE")
 public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkReadyStep> {
 
     @Override
@@ -89,7 +87,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
                 new ClusterStateWaitStep.Result(true, null));
         });
-        assertThat(e.getMessage(), containsString("Cannot check shrink allocation as there are no allocation rules by _name"));
+        assertThat(e.getMessage(), containsString("Cannot check shrink allocation as there are no allocation rules by _id"));
     }
 
     public void testConditionMet() {
@@ -97,7 +95,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "node1")
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
@@ -121,7 +119,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "node1")
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
@@ -147,7 +145,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "node1")
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
@@ -176,7 +174,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "node1")
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
@@ -201,7 +199,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "node1")
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
@@ -228,7 +226,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "node1")
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
@@ -263,12 +261,12 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
      * PUT index/_settings
      * {
      *  "number_of_replicas": 1,
-     *  "index.routing.allocation.include._name": "{node-name}"
+     *  "index.routing.allocation.include._id": "{node-name}"
      * }
      */
     public void testExecuteReplicasNotAllocatedOnSingleNode() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = Collections.singletonMap("_name", "node1");
+        Map<String, String> requires = Collections.singletonMap("_id", "node1");
         Settings.Builder existingSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetaData.SETTING_INDEX_UUID, index.getUUID());
         Settings.Builder expectedSettings = Settings.builder();

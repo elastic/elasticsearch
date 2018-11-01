@@ -88,4 +88,12 @@ public final class Processors {
         entries.add(new Entry(Processor.class, SubstringFunctionProcessor.NAME, SubstringFunctionProcessor::new));
         return entries;
     }
+
+    public static List<Object> process(List<Processor> processors, Object input) {
+        List<Object> values = new ArrayList<>(processors.size());
+        for (Processor p : processors) {
+            values.add(p.process(input));
+        }
+        return values;
+    }
 }

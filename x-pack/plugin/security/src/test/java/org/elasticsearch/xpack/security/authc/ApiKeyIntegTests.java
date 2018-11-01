@@ -25,7 +25,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
@@ -72,6 +74,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertEquals("simple", response.getName());
         assertNotNull(response.getId());
         assertNotNull(response.getKey());
+        assertThat(response.getId(), not(containsString(new String(response.getKey().getChars()))));
         assertNull(response.getExpiration());
     }
 }

@@ -105,7 +105,6 @@ public class ApiKeyService {
                     .endObject();
                 final IndexRequest indexRequest =
                     client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE)
-                        .setOpType(DocWriteRequest.OpType.CREATE)
                         .setSource(builder)
                         .setRefreshPolicy(request.getRefreshPolicy())
                         .request();

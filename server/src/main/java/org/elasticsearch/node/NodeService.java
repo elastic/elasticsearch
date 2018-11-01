@@ -68,7 +68,6 @@ public class NodeService extends AbstractComponent implements Closeable {
                 @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
                 SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
                 SearchTransportService searchTransportService) {
-        super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.monitorService = monitorService;

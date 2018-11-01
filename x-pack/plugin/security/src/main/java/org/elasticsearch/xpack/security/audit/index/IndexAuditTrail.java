@@ -186,7 +186,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     public IndexAuditTrail(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService) {
-        super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.clusterService = clusterService;

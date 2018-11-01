@@ -38,7 +38,6 @@ public class OsService extends AbstractComponent {
                 Property.NodeScope);
 
     public OsService(Settings settings) {
-        super(settings);
         this.probe = OsProbe.getInstance();
         TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.numberOfProcessors(settings));

@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
@@ -97,12 +96,10 @@ public class PublishClusterStateAction extends AbstractComponent {
     private final AtomicLong compatibleClusterStateDiffReceivedCount = new AtomicLong();
 
     public PublishClusterStateAction(
-            Settings settings,
             TransportService transportService,
             NamedWriteableRegistry namedWriteableRegistry,
             IncomingClusterStateListener incomingClusterStateListener,
             DiscoverySettings discoverySettings) {
-        super(settings);
         this.transportService = transportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.incomingClusterStateListener = incomingClusterStateListener;

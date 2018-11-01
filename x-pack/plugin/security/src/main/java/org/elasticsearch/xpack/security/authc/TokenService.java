@@ -184,7 +184,6 @@ public final class TokenService extends AbstractComponent {
      */
     public TokenService(Settings settings, Clock clock, Client client,
                         SecurityIndexManager securityIndex, ClusterService clusterService) throws GeneralSecurityException {
-        super(settings);
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
 

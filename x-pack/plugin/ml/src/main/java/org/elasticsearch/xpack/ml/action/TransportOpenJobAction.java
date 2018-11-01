@@ -690,7 +690,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
                                               AutodetectProcessManager autodetectProcessManager) {
-            super(settings, OpenJobAction.TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            super(OpenJobAction.TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.autodetectProcessManager = autodetectProcessManager;
             this.fallbackMaxNumberOfOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);

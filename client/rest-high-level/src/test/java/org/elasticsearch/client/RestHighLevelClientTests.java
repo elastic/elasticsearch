@@ -719,7 +719,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                         methods.containsKey(apiName.substring(0, apiName.length() - 6)));
                 assertThat("async method [" + method + "] should return void", method.getReturnType(), equalTo(Void.TYPE));
                 assertEquals("async method [" + method + "] should not throw any exceptions", 0, method.getExceptionTypes().length);
-                if (apiName.equals("security.get_ssl_certificates_async")) {
+                if (apiName.equals("security.authenticate_async") || apiName.equals("security.get_ssl_certificates_async")) {
                     assertEquals(2, method.getParameterTypes().length);
                     assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
                     assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
@@ -744,7 +744,8 @@ public class RestHighLevelClientTests extends ESTestCase {
 
                 assertEquals("incorrect number of exceptions for method [" + method + "]", 1, method.getExceptionTypes().length);
                 //a few methods don't accept a request object as argument
-                if (apiName.equals("ping") || apiName.equals("info") || apiName.equals("security.get_ssl_certificates")) {
+                if (apiName.equals("ping") || apiName.equals("info") || apiName.equals("security.get_ssl_certificates")
+                    || apiName.equals("security.authenticate")) {
                     assertEquals("incorrect number of arguments for method [" + method + "]", 1, method.getParameterTypes().length);
                     assertThat("the parameter to method [" + method + "] is the wrong type",
                         method.getParameterTypes()[0], equalTo(RequestOptions.class));

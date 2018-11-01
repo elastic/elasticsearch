@@ -39,7 +39,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     protected final TaskManager taskManager;
 
     protected TransportAction(Settings settings, String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-        super(settings);
+        // TODO drop settings from ctor
         this.actionName = actionName;
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;

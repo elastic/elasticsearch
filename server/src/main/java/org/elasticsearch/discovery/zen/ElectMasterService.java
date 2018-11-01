@@ -98,7 +98,6 @@ public class ElectMasterService extends AbstractComponent {
     }
 
     public ElectMasterService(Settings settings) {
-        super(settings);
         this.minimumMasterNodes = DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);
         logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
     }

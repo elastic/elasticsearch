@@ -68,7 +68,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 assertThat(parentTask, instanceOf(PrimaryReplicaSyncer.ResyncTask.class));
                 listener.onResponse(new ResyncReplicationResponse());
             };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY, taskManager, syncAction);
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(taskManager, syncAction);
         syncer.setChunkSize(new ByteSizeValue(randomIntBetween(1, 10)));
 
         int numDocs = randomInt(10);
@@ -136,7 +136,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
                 syncActionCalled.set(true);
                 threadPool.generic().execute(() -> listener.onResponse(new ResyncReplicationResponse()));
             };
-        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(Settings.EMPTY,
+        PrimaryReplicaSyncer syncer = new PrimaryReplicaSyncer(
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()), syncAction);
         syncer.setChunkSize(new ByteSizeValue(1)); // every document is sent off separately
 

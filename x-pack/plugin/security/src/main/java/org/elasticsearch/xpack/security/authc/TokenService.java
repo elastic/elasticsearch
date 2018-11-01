@@ -162,6 +162,7 @@ public final class TokenService extends AbstractComponent {
     private static final int MAX_RETRY_ATTEMPTS = 5;
 
     private final SecureRandom secureRandom = new SecureRandom();
+    private final Settings settings;
     private final ClusterService clusterService;
     private final Clock clock;
     private final TimeValue expirationDelay;
@@ -183,11 +184,11 @@ public final class TokenService extends AbstractComponent {
      */
     public TokenService(Settings settings, Clock clock, Client client,
                         SecurityIndexManager securityIndex, ClusterService clusterService) throws GeneralSecurityException {
-        super(settings);
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
 
         final SecureString tokenPassphrase = generateTokenKey();
+        this.settings = settings;
         this.clock = clock.withZone(ZoneOffset.UTC);
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
         this.client = client;

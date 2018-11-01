@@ -86,7 +86,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         clock.freeze();
-        listener = new WatcherIndexingListener(Settings.EMPTY, parser, clock, triggerService);
+        listener = new WatcherIndexingListener(parser, clock, triggerService);
 
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));

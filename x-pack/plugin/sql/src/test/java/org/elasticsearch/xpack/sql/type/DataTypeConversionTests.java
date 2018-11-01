@@ -7,9 +7,12 @@ package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion.Conversion;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+
+import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
 public class DataTypeConversionTests extends ESTestCase {
     public void testConversionToString() {
@@ -221,6 +224,12 @@ public class DataTypeConversionTests extends ESTestCase {
         assertNull(conversion.convert(10.0));
     }
 
+    public void testConversionFromNull() {
+        Conversion conversion = DataTypeConversion.conversionFor(DataType.NULL, DataType.INTEGER);
+        assertNull(conversion.convert(null));
+        assertNull(conversion.convert(10));
+    }
+
     public void testConversionToIdentity() {
         Conversion conversion = DataTypeConversion.conversionFor(DataType.INTEGER, DataType.INTEGER);
         assertNull(conversion.convert(null));
@@ -251,5 +260,20 @@ public class DataTypeConversionTests extends ESTestCase {
             Exception e = expectThrows(SqlIllegalArgumentException.class,
                 () -> DataTypeConversion.conversionFor(DataType.INTEGER, DataType.UNSUPPORTED));
             assertEquals("cannot convert from [INTEGER] to [UNSUPPORTED]", e.getMessage());
+    }
+
+    public void testStringToIp() {
+        Conversion conversion = DataTypeConversion.conversionFor(DataType.KEYWORD, DataType.IP);
+        assertNull(conversion.convert(null));
+        assertEquals("192.168.1.1", conversion.convert("192.168.1.1"));
+        Exception e = expectThrows(SqlIllegalArgumentException.class, () -> conversion.convert("10.1.1.300"));
+        assertEquals("[10.1.1.300] is not a valid IPv4 or IPv6 address", e.getMessage());
+    }
+
+    public void testIpToString() {
+        Conversion ipToString = DataTypeConversion.conversionFor(DataType.IP, DataType.KEYWORD);
+        assertEquals("10.0.0.1", ipToString.convert(new Literal(EMPTY, "10.0.0.1", DataType.IP)));
+        Conversion stringToIp = DataTypeConversion.conversionFor(DataType.KEYWORD, DataType.IP);
+        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(Literal.of(EMPTY, "10.0.0.1"))));
     }
 }

@@ -126,7 +126,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 null, null, new ActionFilters(Collections.emptySet()), null,
                 new AutoCreateIndex(
                     SETTINGS, new ClusterSettings(SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    new IndexNameExpressionResolver(SETTINGS)
+                    new IndexNameExpressionResolver()
                 )
             );
         }

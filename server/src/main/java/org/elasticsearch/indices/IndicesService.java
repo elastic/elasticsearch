@@ -172,6 +172,10 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
+    /**
+     * The node's settings.
+     */
+    private final Settings settings;
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry xContentRegistry;
@@ -214,6 +218,7 @@ public class IndicesService extends AbstractLifecycleComponent
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
                           Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
         super(settings);
+        this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
@@ -482,7 +487,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                                          IndicesFieldDataCache indicesFieldDataCache,
                                                          List<IndexEventListener> builtInListeners,
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
-        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopedSettings);
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, settings, indexScopedSettings);
         // we ignore private settings since they are not registered settings
         indexScopedSettings.validate(indexMetaData.getSettings(), true, true, true);
         logger.debug("creating Index [{}], shards [{}]/[{}] - reason [{}]",

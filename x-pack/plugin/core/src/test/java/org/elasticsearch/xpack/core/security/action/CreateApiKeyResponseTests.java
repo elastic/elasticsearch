@@ -27,14 +27,6 @@ public class CreateApiKeyResponseTests extends ESTestCase {
         final CreateApiKeyResponse response = new CreateApiKeyResponse(name, id, key, expiration);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                CreateApiKeyResponse serialized = new CreateApiKeyResponse();
-                serialized.readFrom(in);
-                assertEquals(name, serialized.getName());
-                assertEquals(id, serialized.getId());
-                assertEquals(key, serialized.getKey());
-                assertEquals(expiration, serialized.getExpiration());
-            }
 
             try (StreamInput in = out.bytes().streamInput()) {
                 CreateApiKeyResponse serialized = new CreateApiKeyResponse(in);

@@ -279,9 +279,15 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     void handleReadResponse(long from, long maxRequiredSeqNo, ShardChangesAction.Response response) {
-        maybeUpdateMapping(
-                response.getMappingVersion(),
-                () -> maybeUpdateSettings(response.getSettingsVersion(), () -> innerHandleReadResponse(from, maxRequiredSeqNo, response)));
+        // In order to process this read response (3), we need to check and potentially update the follow index's setting (1) and
+        // check and potentially update the follow index's mappings (2).
+
+        // 3) handle read response:
+        Runnable handleResponseTask = () -> innerHandleReadResponse(from, maxRequiredSeqNo, response);
+        // 2) update follow index mapping:
+        Runnable updateMappingsTask = () -> maybeUpdateMapping(response.getMappingVersion(), handleResponseTask);
+        // 1) update follow index settings:
+        maybeUpdateSettings(response.getSettingsVersion(), updateMappingsTask);
     }
 
     /** Called when some operations are fetched from the leading */

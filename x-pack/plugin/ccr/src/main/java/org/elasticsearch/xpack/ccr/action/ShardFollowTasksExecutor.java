@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -22,6 +24,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -136,7 +140,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
             }
 
             @Override
-            protected void innerUpdateSettings(final LongConsumer handler, final Consumer<Exception> errorHandler) {
+            protected void innerUpdateSettings(final LongConsumer finalHandler, final Consumer<Exception> errorHandler) {
                 final Index leaderIndex = params.getLeaderShardId().getIndex();
                 final Index followIndex = params.getFollowShardId().getIndex();
 
@@ -145,72 +149,45 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 clusterStateRequest.metaData(true);
                 clusterStateRequest.indices(leaderIndex.getName());
 
-                leaderClient
-                        .admin()
-                        .cluster()
-                        .state(
-                                clusterStateRequest,
-                                ActionListener.wrap(
-                                        clusterStateResponse -> {
-                                            final IndexMetaData indexMetaData =
-                                                    clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
+                CheckedConsumer<ClusterStateResponse, Exception> onResponse =  clusterStateResponse -> {
+                    final IndexMetaData leaderIMD = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
+                    final IndexMetaData followerIMD = clusterService.state().metaData().getIndexSafe(followIndex);
 
-                                            final Settings existingSettings =
-                                                    TransportResumeFollowAction.filter(
-                                                            clusterService.state().metaData().getIndexSafe(followIndex).getSettings());
-                                            final Settings settings = TransportResumeFollowAction.filter(indexMetaData.getSettings());
-                                            if (existingSettings.equals(settings)) {
-                                                handler.accept(indexMetaData.getSettingsVersion());
-                                                return;
-                                            }
-                                            final Settings updatedSettings = settings.filter(
-                                                    s -> existingSettings.get(s) == null
-                                                            || existingSettings.get(s).equals(settings.get(s)) == false);
-                                            final UpdateSettingsRequest updateSettingsRequest =
-                                                    new UpdateSettingsRequest(followIndex.getName());
-                                            updateSettingsRequest.settings(updatedSettings);
-
-                                            // TODO: we should only close if needed, iterate over the settings and check if any non-dynamic
-                                            final ActionListener<AcknowledgedResponse> close =
-                                                    getChainedListener(
-                                                            handler,
-                                                            errorHandler,
-                                                            followIndex,
-                                                            indexMetaData,
-                                                            updateSettingsRequest);
-
-                                            followerClient
-                                                    .admin()
-                                                    .indices()
-                                                    .close(new CloseIndexRequest(followIndex.getName()), close);
-
-                                        },
-                                        errorHandler));
+                    final Settings existingSettings = TransportResumeFollowAction.filter(followerIMD.getSettings());
+                    final Settings settings = TransportResumeFollowAction.filter(leaderIMD.getSettings());
+                    if (existingSettings.equals(settings)) {
+                        finalHandler.accept(leaderIMD.getSettingsVersion());
+                    } else {
+                        final Settings updatedSettings = settings.filter(
+                            s -> existingSettings.get(s) == null || existingSettings.get(s).equals(settings.get(s)) == false
+                        );
+                        // TODO: we should only close if needed, iterate over the settings and check if any non-dynamic
+                        Runnable handler = () -> finalHandler.accept(leaderIMD.getSettingsVersion());
+                        closeIndex(followIndex.getName(), updatedSettings, handler, errorHandler);
+                    }
+                };
+                leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
             }
 
-            // TODO: this is horribly unreadable, we need a better approach here
-            private ActionListener<AcknowledgedResponse> getChainedListener(
-                    LongConsumer handler,
-                    Consumer<Exception> errorHandler,
-                    Index followIndex,
-                    IndexMetaData indexMetaData,
-                    UpdateSettingsRequest updateSettingsRequest) {
-                return ActionListener.wrap(
-                        response -> followerClient
-                                .admin()
-                                .indices()
-                                .updateSettings(
-                                        updateSettingsRequest,
-                                        ActionListener.wrap(
-                                                us -> followerClient.admin()
-                                                        .indices()
-                                                        .open(
-                                                                new OpenIndexRequest(followIndex.getName()),
-                                                                ActionListener.wrap(
-                                                                        open -> handler.accept(indexMetaData.getSettingsVersion()),
-                                                                        errorHandler)),
-                                                errorHandler)),
-                        errorHandler);
+            private void closeIndex(String followIndex, Settings updatedSettings, Runnable handler, Consumer<Exception> onFailure) {
+                CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex);
+                CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> {
+                    updateSettings(followIndex, updatedSettings, handler, onFailure);
+                };
+                followerClient.admin().indices().close(closeRequest, ActionListener.wrap(onResponse, onFailure));
+            }
+
+            private void updateSettings(String followIndex, Settings updatedSettings, Runnable handler, Consumer<Exception> onFailure) {
+                final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex);
+                updateSettingsRequest.settings(updatedSettings);
+                CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> openIndex(followIndex, handler, onFailure);
+                followerClient.admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(onResponse, onFailure));
+            }
+
+            private void openIndex(String followIndex, Runnable handler, Consumer<Exception> onFailure) {
+                OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex);
+                CheckedConsumer<OpenIndexResponse, Exception> onResponse = response -> handler.run();
+                followerClient.admin().indices().open(openIndexRequest, ActionListener.wrap(onResponse, onFailure));
             }
 
             @Override
@@ -223,8 +200,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
                 final BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(),
                     followerHistoryUUID, operations, maxSeqNoOfUpdatesOrDeletes);
-                followerClient.execute(BulkShardOperationsAction.INSTANCE, request,
-                    ActionListener.wrap(response -> handler.accept(response), errorHandler));
+                followerClient.execute(BulkShardOperationsAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
             }
 
             @Override

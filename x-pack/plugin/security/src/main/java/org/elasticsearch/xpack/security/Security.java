@@ -107,9 +107,9 @@ import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
@@ -125,6 +125,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexSe
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -164,9 +165,9 @@ import org.elasticsearch.xpack.security.action.token.TransportRefreshTokenAction
 import org.elasticsearch.xpack.security.action.user.TransportAuthenticateAction;
 import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
 import org.elasticsearch.xpack.security.action.user.TransportDeleteUserAction;
+import org.elasticsearch.xpack.security.action.user.TransportGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportGetUsersAction;
 import org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction;
-import org.elasticsearch.xpack.security.action.user.TransportGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -189,7 +190,6 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
@@ -444,7 +444,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
-        securityIndex.set(new SecurityIndexManager(settings, client, SecurityIndexManager.SECURITY_INDEX_NAME, clusterService));
+        securityIndex.set(new SecurityIndexManager(client, SecurityIndexManager.SECURITY_INDEX_NAME, clusterService));
 
         final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService);
         this.tokenService.set(tokenService);

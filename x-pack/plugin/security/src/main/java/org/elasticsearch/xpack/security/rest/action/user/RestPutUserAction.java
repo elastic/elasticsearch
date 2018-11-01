@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,11 +38,14 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Rest endpoint to add a User to the security index
  */
 public class RestPutUserAction extends SecurityBaseRestHandler implements RestRequestFilter {
+    private static final Logger logger = LogManager.getLogger(RestPutUserAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    private final Hasher passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+    private final Hasher passwordHasher;
 
     public RestPutUserAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
+        passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         controller.registerHandler(POST, "/_xpack/security/user/{username}", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}", this);
 

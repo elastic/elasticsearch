@@ -98,6 +98,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     private volatile List<Supplier<DiscoveryNode>> seedNodes;
     private volatile boolean skipUnavailable;
     private final ConnectHandler connectHandler;
+    private final TimeValue initialConnectionTimeout;
     private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
 
     /**
@@ -117,9 +118,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     }
 
     RemoteClusterConnection(Settings settings, String clusterAlias, List<Supplier<DiscoveryNode>> seedNodes,
-            TransportService transportService, ConnectionManager connectionManager, int maxNumRemoteConnections, Predicate<DiscoveryNode>
-                                nodePredicate,
-                            String proxyAddress) {
+            TransportService transportService, ConnectionManager connectionManager, int maxNumRemoteConnections,
+            Predicate<DiscoveryNode> nodePredicate, String proxyAddress) {
         super(settings);
         this.transportService = transportService;
         this.maxNumRemoteConnections = maxNumRemoteConnections;
@@ -145,6 +145,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         // we register the transport service here as a listener to make sure we notify handlers on disconnect etc.
         connectionManager.addListener(transportService);
         this.proxyAddress = proxyAddress;
+        initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
     }
 
     private static DiscoveryNode maybeAddProxyAddress(String proxyAddress, DiscoveryNode node) {
@@ -223,8 +224,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             new TransportResponseHandler<ClusterSearchShardsResponse>() {
 
                 @Override
-                public ClusterSearchShardsResponse newInstance() {
-                    return new ClusterSearchShardsResponse();
+                public ClusterSearchShardsResponse read(StreamInput in) throws IOException {
+                    return new ClusterSearchShardsResponse(in);
                 }
 
                 @Override
@@ -596,8 +597,10 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             }
 
             @Override
-            public ClusterStateResponse newInstance() {
-                return new ClusterStateResponse();
+            public ClusterStateResponse read(StreamInput in) throws IOException {
+                ClusterStateResponse response = new ClusterStateResponse();
+                response.readFrom(in);
+                return response;
             }
 
             @Override
@@ -685,7 +688,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             // not connected we return immediately
             RemoteConnectionInfo remoteConnectionStats = new RemoteConnectionInfo(clusterAlias,
                 Collections.emptyList(), Collections.emptyList(), maxNumRemoteConnections, 0,
-                RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings), skipUnavailable);
+                initialConnectionTimeout, skipUnavailable);
             listener.onResponse(remoteConnectionStats);
         } else {
             NodesInfoRequest request = new NodesInfoRequest();
@@ -695,8 +698,10 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             transportService.sendRequest(connection, NodesInfoAction.NAME, request, TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<NodesInfoResponse>() {
                 @Override
-                public NodesInfoResponse newInstance() {
-                    return new NodesInfoResponse();
+                public NodesInfoResponse read(StreamInput in) throws IOException {
+                    NodesInfoResponse ir = new NodesInfoResponse();
+                    ir.readFrom(in);
+                    return ir;
                 }
 
                 @Override
@@ -723,7 +728,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                         seedNodes.stream().map(sup -> sup.get().getAddress()).collect(Collectors.toList()),
                         new ArrayList<>(httpAddresses),
                         maxNumRemoteConnections, connectedNodes.size(),
-                        RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings), skipUnavailable);
+                        initialConnectionTimeout, skipUnavailable);
                     listener.onResponse(remoteConnectionInfo);
                 }
 
@@ -743,7 +748,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     RemoteConnectionInfo getLocalConnectionInfo() { // for tests
         List<TransportAddress> seedNodeAddresses = seedNodes.stream().map(node -> node.get().getAddress()).collect
             (Collectors.toList());
-        TimeValue initialConnectionTimeout = RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
         return new RemoteConnectionInfo(clusterAlias, Collections.emptyList(),
             seedNodeAddresses, maxNumRemoteConnections, connectedNodes.size(), initialConnectionTimeout, skipUnavailable);
     }

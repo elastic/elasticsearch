@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -172,8 +173,12 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                         TransportRequestOptions.EMPTY,
                         new TransportResponseHandler<TransportResponse>() {
                     @Override
-                    public TransportResponse newInstance() {
-                        fail("never get that far");
+                    public TransportResponse read(StreamInput in) {
+                        try {
+                            fail("never get that far");
+                        } finally {
+                            latch.countDown();
+                        }
                         return null;
                     }
 

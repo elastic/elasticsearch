@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.license;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -18,6 +21,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutLicenseAction extends XPackRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestPutLicenseAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     public RestPutLicenseAction(Settings settings, RestController controller) {
         super(settings);
         // @deprecated Remove deprecations in 6.0

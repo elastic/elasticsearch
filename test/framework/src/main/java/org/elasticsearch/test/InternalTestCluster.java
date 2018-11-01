@@ -27,6 +27,8 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -56,7 +58,6 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -173,7 +174,7 @@ import static org.junit.Assert.fail;
  */
 public final class InternalTestCluster extends TestCluster {
 
-    private final Logger logger = Loggers.getLogger(getClass());
+    private final Logger logger = LogManager.getLogger(getClass());
 
 
     private static final AtomicInteger clusterOrdinal = new AtomicInteger();
@@ -1589,6 +1590,7 @@ public final class InternalTestCluster extends TestCluster {
                 // if we're adding too many master-eligible nodes at once, we can't update the min master setting before adding the nodes.
                 updateMinMasterNodes(currentMasters + newMasters);
             }
+            rebuildUnicastHostFiles(nodeAndClients); // ensure that new nodes can find the existing nodes when they start
             List<Future<?>> futures = nodeAndClients.stream().map(node -> executor.submit(node::startNode)).collect(Collectors.toList());
 
             try {

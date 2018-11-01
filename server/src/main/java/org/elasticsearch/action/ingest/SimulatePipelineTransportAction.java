@@ -39,8 +39,10 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     private final SimulateExecutionService executionService;
 
     @Inject
-    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
-        super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SimulatePipelineRequest::new);
+    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, 
+            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, NodeService nodeService) {
+        super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters, 
+                indexNameExpressionResolver, SimulatePipelineRequest::new);
         this.ingestService = nodeService.getIngestService();
         this.executionService = new SimulateExecutionService(threadPool);
     }

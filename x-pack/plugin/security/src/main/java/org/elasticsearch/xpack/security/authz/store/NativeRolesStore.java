@@ -13,6 +13,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -50,7 +53,6 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -88,6 +90,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
             TimeValue.timeValueMinutes(20), Property.NodeScope, Property.Deprecated);
     private static final String ROLE_DOC_TYPE = "doc";
 
+    private final Settings settings;
     private final Client client;
     private final XPackLicenseState licenseState;
     private final boolean isTribeNode;
@@ -97,6 +100,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
 
     public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex) {
         super(settings);
+        this.settings = settings;
         this.client = client;
         this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);
         this.securityClient = new SecurityClient(client);
@@ -116,58 +120,84 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
         if (securityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
             listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
-        } else if (names != null && names.size() == 1) {
-            getRoleDescriptor(Objects.requireNonNull(names.iterator().next()), listener);
-        } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-                QueryBuilder query;
-                if (names == null || names.isEmpty()) {
-                    query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
-                } else {
-                    final String[] roleNames = names.stream().map(NativeRolesStore::getIdForUser).toArray(String[]::new);
-                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(ROLE_DOC_TYPE).addIds(roleNames));
-                }
+        } else if (names == null || names.isEmpty()) {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                QueryBuilder query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
                     SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
-                            .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
-                            .setQuery(query)
-                            .setSize(1000)
-                            .setFetchSource(true)
-                            .request();
+                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                        .setQuery(query)
+                        .setSize(1000)
+                        .setFetchSource(true)
+                        .request();
                     request.indicesOptions().ignoreUnavailable();
-                    final ActionListener<Collection<RoleDescriptor>> descriptorsListener = ActionListener.wrap(
-                        roleDescriptors -> listener.onResponse(RoleRetrievalResult.success(new HashSet<>(roleDescriptors))),
-                        e -> listener.onResponse(RoleRetrievalResult.failure(e)));
-                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier, descriptorsListener),
-                            (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState));
+                    ScrollHelper.fetchAllByEntity(client, request, new ContextPreservingActionListener<>(supplier,
+                            ActionListener.wrap(roles -> listener.onResponse(RoleRetrievalResult.success(new HashSet<>(roles))),
+                                e -> listener.onResponse(RoleRetrievalResult.failure(e)))),
+                        (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState));
                 }
+            });
+        } else if (names.size() == 1) {
+            getRoleDescriptor(Objects.requireNonNull(names.iterator().next()), listener);
+        } else {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                final String[] roleIds = names.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
+                MultiGetRequest multiGetRequest = client.prepareMultiGet().add(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, roleIds).request();
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, multiGetRequest,
+                    ActionListener.<MultiGetResponse>wrap(mGetResponse -> {
+                            final MultiGetItemResponse[] responses = mGetResponse.getResponses();
+                            Set<RoleDescriptor> descriptors = new HashSet<>();
+                            for (int i = 0; i < responses.length; i++) {
+                                MultiGetItemResponse item = responses[i];
+                                if (item.isFailed()) {
+                                    final Exception failure = item.getFailure().getFailure();
+                                    for (int j = i + 1; j < responses.length; j++) {
+                                        item = responses[j];
+                                        if (item.isFailed()) {
+                                            failure.addSuppressed(failure);
+                                        }
+                                    }
+                                    listener.onResponse(RoleRetrievalResult.failure(failure));
+                                    return;
+                                } else if (item.getResponse().isExists()) {
+                                    descriptors.add(transformRole(item.getResponse()));
+                                }
+                            }
+                            listener.onResponse(RoleRetrievalResult.success(descriptors));
+                        },
+                        e -> listener.onResponse(RoleRetrievalResult.failure(e))), client::multiGet);
             });
         }
     }
 
     public void deleteRole(final DeleteRoleRequest deleteRoleRequest, final ActionListener<Boolean> listener) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("roles may not be deleted using a tribe node"));
+        } else if (frozenSecurityIndex.indexExists() == false) {
+            listener.onResponse(false);
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client.prepareDelete(SecurityIndexManager.SECURITY_INDEX_NAME,
-                        ROLE_DOC_TYPE, getIdForUser(deleteRoleRequest.name())).request();
+                    ROLE_DOC_TYPE, getIdForRole(deleteRoleRequest.name())).request();
                 request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                        new ActionListener<DeleteResponse>() {
-                            @Override
-                            public void onResponse(DeleteResponse deleteResponse) {
-                                clearRoleCache(deleteRoleRequest.name(), listener,
-                                        deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                            }
+                    new ActionListener<DeleteResponse>() {
+                        @Override
+                        public void onResponse(DeleteResponse deleteResponse) {
+                            clearRoleCache(deleteRoleRequest.name(), listener,
+                                deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.error("failed to delete role from the index", e);
-                                listener.onFailure(e);
-                            }
-                        }, client::delete);
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.error("failed to delete role from the index", e);
+                            listener.onFailure(e);
+                        }
+                    }, client::delete);
             });
         }
     }
@@ -194,7 +224,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
                 listener.onFailure(e);
                 return;
             }
-            final IndexRequest indexRequest = client.prepareIndex(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForUser(role.getName()))
+            final IndexRequest indexRequest = client.prepareIndex(SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForRole(role.getName()))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
@@ -219,13 +249,13 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
         Map<String, Object> usageStats = new HashMap<>(3);
-        if (securityIndex.indexExists() == false) {
+        if (securityIndex.isAvailable() == false) {
             usageStats.put("size", 0L);
             usageStats.put("fls", false);
             usageStats.put("dls", false);
             listener.onResponse(usageStats);
         } else {
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareMultiSearch()
                         .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
@@ -307,10 +337,10 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
     }
 
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+        securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareGet(SECURITY_INDEX_NAME,
-                            ROLE_DOC_TYPE, getIdForUser(role)).request(),
+                            ROLE_DOC_TYPE, getIdForRole(role)).request(),
                     listener,
                     client::get));
     }
@@ -390,7 +420,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
     /**
      * Gets the document's id field for the given role name.
      */
-    private static String getIdForUser(final String roleName) {
+    private static String getIdForRole(final String roleName) {
         return ROLE_TYPE + "-" + roleName;
     }
 }

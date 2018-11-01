@@ -5,21 +5,22 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 
-public class GetAutoFollowPatternRequestTests extends AbstractStreamableTestCase<GetAutoFollowPatternAction.Request> {
+public class GetAutoFollowPatternRequestTests extends AbstractWireSerializingTestCase<GetAutoFollowPatternAction.Request> {
 
     @Override
-    protected GetAutoFollowPatternAction.Request createBlankInstance() {
-        return new GetAutoFollowPatternAction.Request();
+    protected Writeable.Reader<GetAutoFollowPatternAction.Request> instanceReader() {
+        return GetAutoFollowPatternAction.Request::new;
     }
 
     @Override
     protected GetAutoFollowPatternAction.Request createTestInstance() {
         GetAutoFollowPatternAction.Request request = new GetAutoFollowPatternAction.Request();
         if (randomBoolean()) {
-            request.setLeaderCluster(randomAlphaOfLength(4));
+            request.setName(randomAlphaOfLength(4));
         }
         return request;
     }

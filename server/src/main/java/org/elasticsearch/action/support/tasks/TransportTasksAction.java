@@ -279,8 +279,10 @@ public abstract class TransportTasksAction<
                             transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
-                                    public NodeTasksResponse newInstance() {
-                                        return new NodeTasksResponse();
+                                    public NodeTasksResponse read(StreamInput in) throws IOException {
+                                        NodeTasksResponse response = new NodeTasksResponse();
+                                        response.readFrom(in);
+                                        return response;
                                     }
 
                                     @Override

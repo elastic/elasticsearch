@@ -99,6 +99,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME_V6 = "internal:cluster/snapshot/update_snapshot";
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
 
+    private final Settings settings;
 
     private final ClusterService clusterService;
 
@@ -124,6 +125,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                                  TransportService transportService, IndicesService indicesService,
                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings);
+        this.settings = settings;
         this.indicesService = indicesService;
         this.snapshotsService = snapshotsService;
         this.transportService = transportService;

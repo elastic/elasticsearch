@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -35,7 +36,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -113,7 +113,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             "_size", "_timestamp", "_ttl", IgnoredFieldMapper.NAME
     );
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(MapperService.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(MapperService.class));
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -158,7 +158,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_rc1)) {
             if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())) {
-                DEPRECATION_LOGGER.deprecated("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " is deprecated since indices may not have more than one type anymore.");
+                DEPRECATION_LOGGER.deprecated("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey()
+                    + " is deprecated since indices may not have more than one type anymore.");
             }
             this.dynamic = INDEX_MAPPER_DYNAMIC_DEFAULT;
         } else {
@@ -196,7 +197,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (includingDefaultMapping) {
                 documentMappers = mappers.values();
             } else {
-                documentMappers = mappers.values().stream().filter(mapper -> !DEFAULT_MAPPING.equals(mapper.type())).collect(Collectors.toList());
+                documentMappers = mappers.values().stream()
+                    .filter(mapper -> !DEFAULT_MAPPING.equals(mapper.type()))
+                    .collect(Collectors.toList());
             }
             return Collections.unmodifiableCollection(documentMappers).iterator();
         };
@@ -228,7 +231,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Update mapping by only merging the metadata that is different between received and stored entries
      */
     public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
-        assert newIndexMetaData.getIndex().equals(index()) : "index mismatch: expected " + index() + " but was " + newIndexMetaData.getIndex();
+        assert newIndexMetaData.getIndex().equals(index()) : "index mismatch: expected " + index()
+            + " but was " + newIndexMetaData.getIndex();
         // go over and add the relevant mappings (or update them)
         final Set<String> existingMappers = new HashSet<>(mappers.keySet());
         final Map<String, DocumentMapper> updatedEntries;
@@ -254,15 +258,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             } else if (logger.isTraceEnabled()) {
                 logger.trace("[{}] {} mapping [{}], source [{}]", index(), op, mappingType, incomingMappingSource.string());
             } else {
-                logger.debug("[{}] {} mapping [{}] (source suppressed due to length, use TRACE level if needed)", index(), op, mappingType);
+                logger.debug("[{}] {} mapping [{}] (source suppressed due to length, use TRACE level if needed)",
+                    index(), op, mappingType);
             }
 
             // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
             // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
             // merge version of it, which it does when refreshing the mappings), and warn log it.
             if (documentMapper(mappingType).mappingSource().equals(incomingMappingSource) == false) {
-                logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index(), mappingType,
-                    incomingMappingSource, documentMapper(mappingType).mappingSource());
+                logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}",
+                    index(), mappingType, incomingMappingSource, documentMapper(mappingType).mappingSource());
 
                 requireRefresh = true;
             }
@@ -314,7 +319,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, CompressedXContent> mappingSourcesCompressed = new LinkedHashMap<>(mappings.size());
         for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
             try {
-                mappingSourcesCompressed.put(entry.getKey(), new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(entry.getValue()))));
+                mappingSourcesCompressed.put(entry.getKey(), new CompressedXContent(Strings.toString(
+                    XContentFactory.jsonBuilder().map(entry.getValue()))));
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
             }
@@ -331,8 +337,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return internalMerge(Collections.singletonMap(type, mappingSource), reason, updateAllTypes).get(type);
     }
 
-    private synchronized Map<String, DocumentMapper> internalMerge(IndexMetaData indexMetaData, MergeReason reason, boolean updateAllTypes,
-                                                                   boolean onlyUpdateIfNeeded) {
+    private synchronized Map<String, DocumentMapper> internalMerge(IndexMetaData indexMetaData, MergeReason reason,
+                                                                   boolean updateAllTypes, boolean onlyUpdateIfNeeded) {
         Map<String, CompressedXContent> map = new LinkedHashMap<>();
         for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
             MappingMetaData mappingMetaData = cursor.value;
@@ -348,7 +354,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return internalMerge(map, reason, updateAllTypes);
     }
 
-    private synchronized Map<String, DocumentMapper> internalMerge(Map<String, CompressedXContent> mappings, MergeReason reason, boolean updateAllTypes) {
+    private synchronized Map<String, DocumentMapper> internalMerge(Map<String, CompressedXContent> mappings,
+                                                                   MergeReason reason, boolean updateAllTypes) {
         DocumentMapper defaultMapper = null;
         String defaultMappingSource = null;
 
@@ -404,10 +411,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             throw new InvalidTypeNameException("mapping type name is empty");
         }
         if (type.length() > 255) {
-            throw new InvalidTypeNameException("mapping type name [" + type + "] is too long; limit is length 255 but was [" + type.length() + "]");
+            throw new InvalidTypeNameException("mapping type name [" + type + "] is too long; limit is length 255 but was ["
+                + type.length() + "]");
         }
         if (type.charAt(0) == '_' && SINGLE_MAPPING_NAME.equals(type) == false) {
-            throw new InvalidTypeNameException("mapping type name [" + type + "] can't start with '_' unless it is called [" + SINGLE_MAPPING_NAME + "]");
+            throw new InvalidTypeNameException("mapping type name [" + type + "] can't start with '_' unless it is called ["
+                + SINGLE_MAPPING_NAME + "]");
         }
         if (type.contains("#")) {
             throw new InvalidTypeNameException("mapping type name [" + type + "] should not include '#' in it");
@@ -420,8 +429,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private synchronized Map<String, DocumentMapper> internalMerge(@Nullable DocumentMapper defaultMapper, @Nullable String defaultMappingSource,
-                                                                   List<DocumentMapper> documentMappers, MergeReason reason, boolean updateAllTypes) {
+    private synchronized Map<String, DocumentMapper> internalMerge(@Nullable DocumentMapper defaultMapper,
+                                                                   @Nullable String defaultMappingSource,
+                                                                   List<DocumentMapper> documentMappers,
+                                                                   MergeReason reason, boolean updateAllTypes) {
         boolean hasNested = this.hasNested;
         boolean allEnabled = this.allEnabled;
         Map<String, ObjectMapper> fullPathObjectMappers = this.fullPathObjectMappers;
@@ -448,7 +459,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             actualTypes.remove(DEFAULT_MAPPING);
             if (actualTypes.size() > 1) {
                 throw new IllegalArgumentException(
-                    "Rejecting mapping update to [" + index().getName() + "] as the final mapping would have more than 1 type: " + actualTypes);
+                    "Rejecting mapping update to [" + index().getName() + "] as the final mapping would have more than 1 type: "
+                        + actualTypes);
             }
         }
 
@@ -508,7 +520,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 // deserializing cluster state that was sent by the master node,
                 // this check will be skipped.
                 // Also, don't take metadata mappers into account for the field limit check
-                checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length + fieldAliasMappers.size() );
+                checkTotalFieldsLimit(objectMappers.size() + fieldMappers.size() - metadataMappers.length
+                    + fieldAliasMappers.size() );
             }
 
             if (oldMapper == null && newMapper.parentFieldMapper().active()) {
@@ -618,14 +631,16 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         if (actualNestedFields > allowedNestedFields) {
-            throw new IllegalArgumentException("Limit of nested fields [" + allowedNestedFields + "] in index [" + index().getName() + "] has been exceeded");
+            throw new IllegalArgumentException("Limit of nested fields [" + allowedNestedFields + "] in index [" + index().getName()
+                + "] has been exceeded");
         }
     }
 
     private void checkTotalFieldsLimit(long totalMappers) {
         long allowedTotalFields = indexSettings.getValue(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
         if (allowedTotalFields < totalMappers) {
-            throw new IllegalArgumentException("Limit of total fields [" + allowedTotalFields + "] in index [" + index().getName() + "] has been exceeded");
+            throw new IllegalArgumentException("Limit of total fields [" + allowedTotalFields + "] in index [" + index().getName()
+                + "] has been exceeded");
         }
     }
 

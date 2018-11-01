@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.index.query.functionscore;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,7 +41,8 @@ import java.util.Objects;
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(RandomScoreFunctionBuilder.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(
+            LogManager.getLogger(RandomScoreFunctionBuilder.class));
 
     public static final String NAME = "random_score";
     private String field;

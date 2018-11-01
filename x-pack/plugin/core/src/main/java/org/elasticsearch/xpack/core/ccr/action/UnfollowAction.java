@@ -48,6 +48,11 @@ public class UnfollowAction extends Action<UnfollowAction.Request, AcknowledgedR
             this.followerIndex = followerIndex;
         }
 
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            followerIndex = in.readString();
+        }
+
         public Request() {
         }
 
@@ -76,12 +81,6 @@ public class UnfollowAction extends Action<UnfollowAction.Request, AcknowledgedR
                 e = addValidationError("follower index is missing", e);
             }
             return e;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            followerIndex = in.readString();
         }
 
         @Override

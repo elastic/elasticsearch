@@ -20,6 +20,7 @@
 package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.util.ReferenceCounted;
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
@@ -80,17 +81,25 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
-        TransportAddress transportAddress = (TransportAddress) randomFrom(httpServerTransport.boundAddress
+        TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress
             ().boundAddresses());
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
             Collection<FullHttpResponse> singleResponse = nettyHttpClient.post(transportAddress.address(), requests[0]);
-            assertThat(singleResponse, hasSize(1));
-            assertAtLeastOnceExpectedStatus(singleResponse, HttpResponseStatus.OK);
+            try {
+                assertThat(singleResponse, hasSize(1));
+                assertAtLeastOnceExpectedStatus(singleResponse, HttpResponseStatus.OK);
+            } finally {
+              singleResponse.forEach(ReferenceCounted::release);
+            }
 
             Collection<FullHttpResponse> multipleResponses = nettyHttpClient.post(transportAddress.address(), requests);
-            assertThat(multipleResponses, hasSize(requests.length));
-            assertAtLeastOnceExpectedStatus(multipleResponses, HttpResponseStatus.SERVICE_UNAVAILABLE);
+            try {
+                assertThat(multipleResponses, hasSize(requests.length));
+                assertAtLeastOnceExpectedStatus(multipleResponses, HttpResponseStatus.SERVICE_UNAVAILABLE);
+            } finally {
+                multipleResponses.forEach(ReferenceCounted::release);
+            }
         }
     }
 
@@ -105,13 +114,17 @@ public class Netty4HttpRequestSizeLimitIT extends ESNetty4IntegTestCase {
         }
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
-        TransportAddress transportAddress = (TransportAddress) randomFrom(httpServerTransport.boundAddress
+        TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress
             ().boundAddresses());
 
         try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
             Collection<FullHttpResponse> responses = nettyHttpClient.put(transportAddress.address(), requestUris);
-            assertThat(responses, hasSize(requestUris.length));
-            assertAllInExpectedStatus(responses, HttpResponseStatus.OK);
+            try {
+                assertThat(responses, hasSize(requestUris.length));
+                assertAllInExpectedStatus(responses, HttpResponseStatus.OK);
+            } finally {
+                responses.forEach(ReferenceCounted::release);
+            }
         }
     }
 

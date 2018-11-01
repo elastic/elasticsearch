@@ -20,8 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoResponse;
+import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
 
 import java.io.IOException;
 

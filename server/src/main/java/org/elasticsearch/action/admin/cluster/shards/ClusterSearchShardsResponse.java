@@ -39,36 +39,12 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
     public static final ClusterSearchShardsResponse EMPTY = new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
             new DiscoveryNode[0], Collections.emptyMap());
 
-    private ClusterSearchShardsGroup[] groups;
-    private DiscoveryNode[] nodes;
-    private Map<String, AliasFilter> indicesAndFilters;
+    private final ClusterSearchShardsGroup[] groups;
+    private final DiscoveryNode[] nodes;
+    private final Map<String, AliasFilter> indicesAndFilters;
 
-    public ClusterSearchShardsResponse() {
-
-    }
-
-    public ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes,
-                                       Map<String, AliasFilter> indicesAndFilters) {
-        this.groups = groups;
-        this.nodes = nodes;
-        this.indicesAndFilters = indicesAndFilters;
-    }
-
-    public ClusterSearchShardsGroup[] getGroups() {
-        return groups;
-    }
-
-    public DiscoveryNode[] getNodes() {
-        return nodes;
-    }
-
-    public Map<String, AliasFilter> getIndicesAndFilters() {
-        return indicesAndFilters;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
+    public ClusterSearchShardsResponse(StreamInput in) throws IOException {
+        super(in);
         groups = new ClusterSearchShardsGroup[in.readVInt()];
         for (int i = 0; i < groups.length; i++) {
             groups[i] = ClusterSearchShardsGroup.readSearchShardsGroupResponse(in);
@@ -85,7 +61,14 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
                 AliasFilter aliasFilter = new AliasFilter(in);
                 indicesAndFilters.put(index, aliasFilter);
             }
+        } else {
+            indicesAndFilters = null;
         }
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -106,6 +89,25 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
                 entry.getValue().writeTo(out);
             }
         }
+    }
+
+    public ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes,
+                                       Map<String, AliasFilter> indicesAndFilters) {
+        this.groups = groups;
+        this.nodes = nodes;
+        this.indicesAndFilters = indicesAndFilters;
+    }
+
+    public ClusterSearchShardsGroup[] getGroups() {
+        return groups;
+    }
+
+    public DiscoveryNode[] getNodes() {
+        return nodes;
+    }
+
+    public Map<String, AliasFilter> getIndicesAndFilters() {
+        return indicesAndFilters;
     }
 
     @Override

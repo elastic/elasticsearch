@@ -434,6 +434,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 TcpChannel channel = initiateChannel(node);
                 logger.trace(() -> new ParameterizedMessage("Tcp transport client channel opened: {}", channel));
                 channels.add(channel);
+            } catch (ConnectTransportException e) {
+                CloseableChannel.closeChannels(channels, false);
+                listener.onFailure(e);
+                return channels;
             } catch (Exception e) {
                 CloseableChannel.closeChannels(channels, false);
                 listener.onFailure(new ConnectTransportException(node, "general node connection failure", e));

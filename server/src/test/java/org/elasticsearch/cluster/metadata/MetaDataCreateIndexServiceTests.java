@@ -397,7 +397,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         MetaDataCreateIndexService.validateIndexName("foo:bar", ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
                         .getDefault(Settings.EMPTY)).build());
-        assertWarnings("index or alias name [foo:bar] containing ':' is deprecated and will not be supported in Elasticsearch 7.0+");
+        assertWarnings("index or alias name [foo:bar] containing ':' is deprecated. Elasticsearch 7.x will read, " +
+                        "but not allow creation of new indices containing ':'");
     }
 
     private void validateIndexName(String indexName, String errorMessage) {

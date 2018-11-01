@@ -11,7 +11,6 @@ setup:
   - match: { operation_mode: "RUNNING" }
 
   - do:
-      acknowlege: true
       ilm.put_lifecycle:
         policy: "my_timeseries_lifecycle"
         body: |
@@ -41,7 +40,6 @@ setup:
   - match: { operation_mode: "RUNNING" }
 
   - do:
-      acknowledge: true
       ilm.stop: {}
 
   - do:
@@ -49,7 +47,6 @@ setup:
   - match: { operation_mode: /STOPP(ED|ING)/ }
 
   - do:
-      acknowledge: true
       ilm.start: {}
 
   - do:
@@ -57,7 +54,6 @@ setup:
   - match: { operation_mode: "RUNNING" }
 
   - do:
-      acknowledge: true
       ilm.delete_lifecycle:
         policy: "my_timeseries_lifecycle"
 

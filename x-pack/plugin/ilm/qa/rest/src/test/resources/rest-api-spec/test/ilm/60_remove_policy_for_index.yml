@@ -4,7 +4,6 @@ setup:
       cluster.health:
           wait_for_status: yellow
   - do:
-      acknowlege: true
       ilm.put_lifecycle:
         policy: "my_moveable_timeseries_lifecycle"
         body: |
@@ -28,12 +27,10 @@ setup:
            }
 
   - do:
-      acknowledge: true
       ilm.get_lifecycle:
         policy: "my_moveable_timeseries_lifecycle"
         
   - do:
-      acknowlege: true
       ilm.put_lifecycle:
         policy: "my_alternative_timeseries_lifecycle"
         body: |
@@ -57,7 +54,6 @@ setup:
            }
 
   - do:
-      acknowledge: true
       ilm.get_lifecycle:
         policy: "my_alternative_timeseries_lifecycle"
 
@@ -96,29 +92,23 @@ setup:
 teardown:
 
   - do:
-      acknowledge: true
       indices.delete:
         index: my_index
   - do:
-      acknowledge: true
       indices.delete:
         index: my_index2
   - do:
-      acknowledge: true
       indices.delete:
         index: another_index
   - do:
-      acknowledge: true
       indices.delete:
         index: unmanaged_index
 
   - do:
-      acknowledge: true
       indices.delete:
         index: my_index_no_policy
 
   - do:
-      acknowledge: true
       ilm.delete_lifecycle:
         policy: "my_moveable_timeseries_lifecycle"
 
@@ -128,7 +118,6 @@ teardown:
         policy: "my_moveable_timeseries_lifecycle"
 
   - do:
-      acknowledge: true
       ilm.delete_lifecycle:
         policy: "my_alternative_timeseries_lifecycle"
 
@@ -147,7 +136,6 @@ teardown:
   - match: { another_index.settings.index.lifecycle.name: my_moveable_timeseries_lifecycle }
 
   - do:
-      acknowledge: true
       ilm.remove_policy:
         index: "another_index"
 
@@ -171,7 +159,6 @@ teardown:
   - match: { my_index2.settings.index.lifecycle.name: my_moveable_timeseries_lifecycle }
 
   - do:
-      acknowledge: true
       ilm.remove_policy:
         index: "my_*"
 
@@ -195,7 +182,6 @@ teardown:
   - is_false: unmanaged_index.settings.index.lifecycle.name
 
   - do:
-      acknowledge: true
       ilm.remove_policy:
         index: "unmanaged_index"
 

@@ -84,8 +84,16 @@ public final class CreateApiKeyRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (Strings.isNullOrEmpty(name)) {
             validationException = addValidationError("name is required", validationException);
-        } else if (name.length() > 256) {
-            validationException = addValidationError("name may not be more than 256 characters long", validationException);
+        } else {
+            if (name.length() > 256) {
+                validationException = addValidationError("name may not be more than 256 characters long", validationException);
+            }
+            if (name.equals(name.trim()) == false) {
+                validationException = addValidationError("name may not begin or end with whitespace", validationException);
+            }
+            if (name.startsWith("_")) {
+                validationException = addValidationError("name may not begin with an underscore", validationException);
+            }
         }
         return validationException;
     }

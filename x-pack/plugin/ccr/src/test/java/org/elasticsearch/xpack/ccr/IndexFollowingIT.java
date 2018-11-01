@@ -64,6 +64,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -560,8 +561,64 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
         assertBusy(() -> assertThat(followerClient().prepareSearch("follower").get().getHits().totalHits, equalTo(firstBatchNumDocs)));
 
+        // Sanity check that the setting has not been set in follower index:
+        {
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            getSettingsRequest.indices("follower");
+            GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
+            assertThat(getSettingsResponse.getSetting("follower", "index.max_ngram_diff"), nullValue());
+        }
+        assertThat(getFollowTaskSettingsVersion("follower"), equalTo(1L));
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest("leader");
         updateSettingsRequest.settings(Settings.builder().put("index.max_ngram_diff", 2));
+        assertAcked(leaderClient().admin().indices().updateSettings(updateSettingsRequest).actionGet());
+
+        final int secondBatchNumDocs = randomIntBetween(2, 64);
+        for (long i = firstBatchNumDocs; i < firstBatchNumDocs + secondBatchNumDocs; i++) {
+            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+        }
+        assertBusy(() -> {
+            // Check that the setting has been set in follower index:
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            getSettingsRequest.indices("follower");
+            GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
+            assertThat(getSettingsResponse.getSetting("follower", "index.max_ngram_diff"), equalTo("2"));
+            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(2L));
+
+            try {
+                assertThat(followerClient().prepareSearch("follower").get().getHits().totalHits,
+                    equalTo(firstBatchNumDocs + secondBatchNumDocs));
+            } catch (Exception e) {
+                throw new AssertionError("error while searching", e);
+            }
+        });
+    }
+
+    public void testUpdateWhiteListedSetting() throws Exception {
+        final String leaderIndexSettings = getIndexSettings(1, 0,
+            singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
+        assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
+        ensureLeaderYellow("leader");
+
+        final PutFollowAction.Request followRequest = putFollow("leader", "follower");
+        followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+
+        final long firstBatchNumDocs = randomIntBetween(2, 64);
+        for (long i = 0; i < firstBatchNumDocs; i++) {
+            leaderClient().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
+        }
+        assertBusy(() -> assertThat(followerClient().prepareSearch("follower").get().getHits().totalHits, equalTo(firstBatchNumDocs)));
+
+        // Sanity check that the setting has not been set in follower index:
+        {
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            getSettingsRequest.indices("follower");
+            GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
+            assertThat(getSettingsResponse.getSetting("follower", "index.number_of_replicas"), equalTo("0"));
+        }
+        assertThat(getFollowTaskSettingsVersion("follower"), equalTo(1L));
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest("leader");
+        updateSettingsRequest.settings(Settings.builder().put("index.number_of_replicas", 1));
         assertAcked(leaderClient().admin().indices().updateSettings(updateSettingsRequest).actionGet());
 
         final int secondBatchNumDocs = randomIntBetween(2, 64);
@@ -572,7 +629,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
             getSettingsRequest.indices("follower");
             GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
-            assertThat(getSettingsResponse.getSetting("follower", "index.max_ngram_diff"), equalTo("2"));
+            assertThat(getSettingsResponse.getSetting("follower", "index.number_of_replicas"), equalTo("0"));
+            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(2L));
 
             try {
                 assertThat(followerClient().prepareSearch("follower").get().getHits().totalHits,
@@ -598,6 +656,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         assertBusy(() -> assertThat(followerClient().prepareSearch("follower").get().getHits().totalHits, equalTo(firstBatchNumDocs)));
+        assertThat(getFollowTaskSettingsVersion("follower"), equalTo(1L));
+        assertThat(getFollowTaskMappingVersion("follower"), equalTo(1L));
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest("leader");
         assertAcked(leaderClient().admin().indices().close(closeIndexRequest).actionGet());
@@ -625,6 +685,9 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
 
         assertBusy(() -> {
+            assertThat(getFollowTaskSettingsVersion("follower"), equalTo(2L));
+            assertThat(getFollowTaskMappingVersion("follower"), equalTo(2L));
+
             GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
             getSettingsRequest.indices("follower");
             GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
@@ -646,6 +709,40 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 throw new AssertionError("error while searching", e);
             }
         });
+    }
+
+    private long getFollowTaskSettingsVersion(String followerIndex) {
+        long settingsVersion = -1L;
+        for (ShardFollowNodeTaskStatus status : getFollowTaskStatuses(followerIndex)) {
+            if (settingsVersion == -1L) {
+                settingsVersion = status.followerSettingsVersion();
+            } else {
+                assert settingsVersion == status.followerSettingsVersion();
+            }
+        }
+        return settingsVersion;
+    }
+
+    private long getFollowTaskMappingVersion(String followerIndex) {
+        long mappingVersion = -1L;
+        for (ShardFollowNodeTaskStatus status : getFollowTaskStatuses(followerIndex)) {
+            if (mappingVersion == -1L) {
+                mappingVersion = status.followerMappingVersion();
+            } else {
+                assert mappingVersion == status.followerMappingVersion();
+            }
+        }
+        return mappingVersion;
+    }
+
+    private List<ShardFollowNodeTaskStatus> getFollowTaskStatuses(String followerIndex) {
+        FollowStatsAction.StatsRequest request = new StatsRequest();
+        request.setIndices(new String[]{followerIndex});
+        FollowStatsAction.StatsResponses response = followerClient().execute(FollowStatsAction.INSTANCE, request).actionGet();
+        return response.getStatsResponses().stream()
+            .map(FollowStatsAction.StatsResponse::status)
+            .filter(status -> status.followerIndex().equals(followerIndex))
+            .collect(Collectors.toList());
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

@@ -86,8 +86,8 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         return groupOrJobLookup.isGroupOrJob(id);
     }
 
-    public Set<String> expandJobIds(String expression, boolean allowNoJobs) {
-        return groupOrJobLookup.expandJobIds(expression, allowNoJobs);
+    public Set<String> expandJobIds(String expression) {
+        return groupOrJobLookup.expandJobIds(expression);
     }
 
     public boolean isJobDeleting(String jobId) {
@@ -107,9 +107,9 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
     }
 
-    public Set<String> expandDatafeedIds(String expression, boolean allowNoDatafeeds) {
-        return NameResolver.newUnaliased(datafeeds.keySet(), ExceptionsHelper::missingDatafeedException)
-                .expand(expression, allowNoDatafeeds);
+    public Set<String> expandDatafeedIds(String expression) {
+        return NameResolver.newUnaliased(datafeeds.keySet())
+                .expand(expression);
     }
 
     @Override

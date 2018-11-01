@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.job.groups;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NameResolver;
 
 import java.util.ArrayList;
@@ -55,8 +54,8 @@ public class GroupOrJobLookup {
         }
     }
 
-    public Set<String> expandJobIds(String expression, boolean allowNoJobs) {
-        return new GroupOrJobResolver().expand(expression, allowNoJobs);
+    public Set<String> expandJobIds(String expression) {
+        return new GroupOrJobResolver().expand(expression);
     }
 
     public boolean isGroupOrJob(String id) {
@@ -66,7 +65,6 @@ public class GroupOrJobLookup {
     private class GroupOrJobResolver extends NameResolver {
 
         private GroupOrJobResolver() {
-            super(ExceptionsHelper::missingJobException);
         }
 
         @Override

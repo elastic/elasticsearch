@@ -9,6 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
@@ -315,5 +316,31 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
                 exception.getMessage());
 
         assertTrue(policy.isActionSafe(new StepKey("new", randomAlphaOfLength(10), randomAlphaOfLength(10))));
+    }
+
+    public void testValidatePolicyName() {
+        for (Character badChar : Strings.INVALID_FILENAME_CHARS) {
+            expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) +
+                badChar + randomAlphaOfLengthBetween(0,10)));
+        }
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) +
+            "#" + randomAlphaOfLengthBetween(0,10)));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) +
+            ":" + randomAlphaOfLengthBetween(0,10)));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName("_" + randomAlphaOfLengthBetween(1, 20)));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName("-" + randomAlphaOfLengthBetween(1, 20)));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName("+" + randomAlphaOfLengthBetween(1, 20)));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName("."));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(".."));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(256, 1000)));
+
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1,10) + "_" + randomAlphaOfLengthBetween(0,10));
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1,10) + "-" + randomAlphaOfLengthBetween(0,10));
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1,10) + "+" + randomAlphaOfLengthBetween(0,10));
+
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) + "." + randomAlphaOfLengthBetween(1,10));
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) + ".." + randomAlphaOfLengthBetween(1,10));
+        
+        LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1,255));
     }
 }

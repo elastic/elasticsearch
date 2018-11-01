@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.common.Names;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -106,7 +105,7 @@ public class AliasValidator extends AbstractComponent {
         if (!Strings.hasText(alias)) {
             throw new IllegalArgumentException("alias name is required");
         }
-        Names.validateNameWithIndexNameRules(alias, InvalidAliasNameException::new);
+        MetaDataCreateIndexService.validateIndexOrAliasName(alias, InvalidAliasNameException::new);
         if (indexRouting != null && indexRouting.indexOf(',') != -1) {
             throw new IllegalArgumentException("alias [" + alias + "] has several index routing values associated with it");
         }

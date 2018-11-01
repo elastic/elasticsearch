@@ -189,7 +189,9 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool, Client client) {
+                                                                       ThreadPool threadPool,
+                                                                       Client client,
+                                                                       IndexScopedSettings indexScopedSettings) {
         if (enabled == false || transportClientMode ) {
             return emptyList();
         }

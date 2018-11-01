@@ -71,6 +71,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.SettingUpgrader;
@@ -488,9 +489,10 @@ public class Node implements Closeable {
                 threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase(),
                 responseCollectorService);
 
+            final IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService
                 .filterPlugins(PersistentTaskPlugin.class).stream()
-                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client))
+                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, indexScopedSettings))
                 .flatMap(List::stream)
                 .collect(toList());
 

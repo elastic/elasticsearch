@@ -431,7 +431,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     }
 
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool, Client client) {
+                                                                       ThreadPool threadPool,
+                                                                       Client client,
+                                                                       IndexScopedSettings indexScopedSettings) {
         if (enabled == false || transportClientMode) {
             return emptyList();
         }

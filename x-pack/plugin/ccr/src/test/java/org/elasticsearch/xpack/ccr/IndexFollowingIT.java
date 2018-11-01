@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -64,6 +65,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
@@ -546,7 +548,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
     }
 
-    public void testUpdateLeaderIndexSettings() throws Exception {
+    public void testUpdateDynamicLeaderIndexSettings() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
@@ -554,6 +556,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final PutFollowAction.Request followRequest = putFollow("leader", "follower");
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        BooleanSupplier hasFollowIndexBeenClosedChecker = hasFollowIndexBeenClosed("follower");
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (long i = 0; i < firstBatchNumDocs; i++) {
@@ -592,9 +595,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 throw new AssertionError("error while searching", e);
             }
         });
+        assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(false));
     }
 
-    public void testUpdateWhiteListedSetting() throws Exception {
+    public void testUpdateWhiteListedLeaderIndexSettings() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
@@ -602,6 +606,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final PutFollowAction.Request followRequest = putFollow("leader", "follower");
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        BooleanSupplier hasFollowIndexBeenClosedChecker = hasFollowIndexBeenClosed("follower");
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (long i = 0; i < firstBatchNumDocs; i++) {
@@ -639,9 +644,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 throw new AssertionError("error while searching", e);
             }
         });
+        assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(false));
     }
 
-    public void testUpdateLeaderAnalysisSettings() throws Exception {
+    public void testUpdateAnalysisLeaderIndexSettings() throws Exception {
         final String leaderIndexSettings = getIndexSettings(1, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
@@ -649,6 +655,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final PutFollowAction.Request followRequest = putFollow("leader", "follower");
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
+        BooleanSupplier hasFollowIndexBeenClosedChecker = hasFollowIndexBeenClosed("follower");
 
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (long i = 0; i < firstBatchNumDocs; i++) {
@@ -709,6 +716,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 throw new AssertionError("error while searching", e);
             }
         });
+        assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(true));
     }
 
     private long getFollowTaskSettingsVersion(String followerIndex) {
@@ -743,6 +751,19 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             .map(FollowStatsAction.StatsResponse::status)
             .filter(status -> status.followerIndex().equals(followerIndex))
             .collect(Collectors.toList());
+    }
+
+    private BooleanSupplier hasFollowIndexBeenClosed(String indexName) {
+        String electedMasterNode = getFollowerCluster().getMasterName();
+        ClusterService clusterService = getFollowerCluster().getInstance(ClusterService.class, electedMasterNode);
+        AtomicBoolean closed = new AtomicBoolean(false);
+        clusterService.addListener(event -> {
+            IndexMetaData indexMetaData = event.state().metaData().index(indexName);
+            if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                closed.set(true);
+            }
+        });
+        return closed::get;
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

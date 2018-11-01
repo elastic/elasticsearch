@@ -149,8 +149,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool, Client client) {
-        return Collections.singletonList(new ShardFollowTasksExecutor(client, threadPool, clusterService));
+                                                                       ThreadPool threadPool,
+                                                                       Client client,
+                                                                       IndexScopedSettings indexScopedSettings) {
+        return Collections.singletonList(new ShardFollowTasksExecutor(client, threadPool, clusterService, indexScopedSettings));
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

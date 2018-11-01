@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -64,12 +65,17 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private final Client client;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final IndexScopedSettings indexScopedSettings;
 
-    public ShardFollowTasksExecutor(Client client, ThreadPool threadPool, ClusterService clusterService) {
+    public ShardFollowTasksExecutor(Client client,
+                                    ThreadPool threadPool,
+                                    ClusterService clusterService,
+                                    IndexScopedSettings indexScopedSettings) {
         super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.indexScopedSettings = indexScopedSettings;
     }
 
     @Override
@@ -149,21 +155,42 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 clusterStateRequest.metaData(true);
                 clusterStateRequest.indices(leaderIndex.getName());
 
-                CheckedConsumer<ClusterStateResponse, Exception> onResponse =  clusterStateResponse -> {
+                CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
                     final IndexMetaData leaderIMD = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
                     final IndexMetaData followerIMD = clusterService.state().metaData().getIndexSafe(followIndex);
 
                     final Settings existingSettings = TransportResumeFollowAction.filter(followerIMD.getSettings());
                     final Settings settings = TransportResumeFollowAction.filter(leaderIMD.getSettings());
                     if (existingSettings.equals(settings)) {
+                        // If no settings have been changed then just propagate settings version to shard follow node task:
                         finalHandler.accept(leaderIMD.getSettingsVersion());
                     } else {
+                        // Figure out which settings have been updated:
                         final Settings updatedSettings = settings.filter(
                             s -> existingSettings.get(s) == null || existingSettings.get(s).equals(settings.get(s)) == false
                         );
-                        // TODO: we should only close if needed, iterate over the settings and check if any non-dynamic
-                        Runnable handler = () -> finalHandler.accept(leaderIMD.getSettingsVersion());
-                        closeIndex(followIndex.getName(), updatedSettings, handler, errorHandler);
+
+                        // Figure out whether the updated settings are all dynamic settings:
+                        boolean onlyDynamicSettings = true;
+                        for (String key : updatedSettings.keySet()) {
+                            if (indexScopedSettings.isDynamicSetting(key) == false) {
+                                onlyDynamicSettings = false;
+                                break;
+                            }
+                        }
+
+                        if (onlyDynamicSettings) {
+                            // If only dynamic settings have been updated then just update these settings in follower index:
+                            final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName());
+                            updateSettingsRequest.settings(updatedSettings);
+                            followerClient.admin().indices().updateSettings(updateSettingsRequest,
+                                ActionListener.wrap(response -> finalHandler.accept(leaderIMD.getSettingsVersion()), errorHandler));
+                        } else {
+                            // If one or more setting are not dynamic then close follow index, update leader settings and
+                            // then open leader index:
+                            Runnable handler = () -> finalHandler.accept(leaderIMD.getSettingsVersion());
+                            closeIndex(followIndex.getName(), updatedSettings, handler, errorHandler);
+                        }
                     }
                 };
                 leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));

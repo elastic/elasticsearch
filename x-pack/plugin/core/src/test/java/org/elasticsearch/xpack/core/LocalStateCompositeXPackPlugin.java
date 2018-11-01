@@ -74,7 +74,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -384,9 +383,11 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool, Client client) {
+                                                                       ThreadPool threadPool,
+                                                                       Client client,
+                                                                       IndexScopedSettings indexScopedSettings) {
         return filterPlugins(PersistentTaskPlugin.class).stream()
-                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client))
+                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, indexScopedSettings))
                 .flatMap(List::stream)
                 .collect(toList());
     }

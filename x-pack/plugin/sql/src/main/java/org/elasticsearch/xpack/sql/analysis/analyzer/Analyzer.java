@@ -409,8 +409,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 // since this is an unresolved start we don't know whether it's a path or an actual qualifier
                 Attribute q = resolveAgainstList(us.qualifier(), output);
 
-                // the wildcard coulnd't be expanded because the field doesn't exist at all
-                // to the list of expanded attributes add its qualifier instead
+                // the wildcard couldn't be expanded because the field doesn't exist at all
+                // so, add to the list of expanded attributes its qualifier (the field without the wildcard)
+                // the qualifier will be unresolved and later used in the error message presented to the user
                 if (q == null) {
                     expanded.add(us.qualifier());
                     return expanded;

@@ -46,12 +46,16 @@ public class NamesTests extends ESTestCase {
             "#" + randomAlphaOfLengthBetween(0, 10), exceptionCtor));
         expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(0, 10) +
             ":" + randomAlphaOfLengthBetween(0, 10), exceptionCtor));
-        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules("_" + randomAlphaOfLengthBetween(1, 20), exceptionCtor));
-        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules("-" + randomAlphaOfLengthBetween(1, 20), exceptionCtor));
-        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules("+" + randomAlphaOfLengthBetween(1, 20), exceptionCtor));
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules("_" + randomAlphaOfLengthBetween(1, 20),
+            exceptionCtor));
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules("-" + randomAlphaOfLengthBetween(1, 20),
+            exceptionCtor));
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules("+" + randomAlphaOfLengthBetween(1, 20),
+            exceptionCtor));
         expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules(".", exceptionCtor));
         expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules("..", exceptionCtor));
-        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(256, 1000), exceptionCtor));
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(256, 1000),
+            exceptionCtor));
 
         Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(1, 10) + "_" + randomAlphaOfLengthBetween(0, 10), exceptionCtor);
         Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(1, 10) + "-" + randomAlphaOfLengthBetween(0, 10), exceptionCtor);

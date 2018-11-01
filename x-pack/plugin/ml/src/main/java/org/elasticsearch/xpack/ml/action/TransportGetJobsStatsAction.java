@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
-import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
@@ -54,27 +54,27 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     private final ClusterService clusterService;
     private final AutodetectProcessManager processManager;
     private final JobResultsProvider jobResultsProvider;
-    private final JobConfigProvider jobConfigProvider;
+    private final JobManager jobManager;
 
     @Inject
     public TransportGetJobsStatsAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, ClusterService clusterService,
                                        IndexNameExpressionResolver indexNameExpressionResolver,
                                        AutodetectProcessManager processManager, JobResultsProvider jobResultsProvider,
-                                       JobConfigProvider jobConfigProvider) {
+                                       JobManager jobManager) {
         super(settings, GetJobsStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 indexNameExpressionResolver, GetJobsStatsAction.Request::new, GetJobsStatsAction.Response::new,
                 ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.processManager = processManager;
         this.jobResultsProvider = jobResultsProvider;
-        this.jobConfigProvider = jobConfigProvider;
+        this.jobManager = jobManager;
     }
 
     @Override
     protected void doExecute(Task task, GetJobsStatsAction.Request request, ActionListener<GetJobsStatsAction.Response> finalListener) {
 
-        jobConfigProvider.expandJobsIds(request.getJobId(), request.allowNoJobs(), true, ActionListener.wrap(
+        jobManager.expandJobIds(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
                 expandedIds -> {
                     request.setExpandedJobsIds(new ArrayList<>(expandedIds));
                     ActionListener<GetJobsStatsAction.Response> jobStatsListener = ActionListener.wrap(

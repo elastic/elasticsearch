@@ -32,13 +32,11 @@ public final class DotExpanderProcessor extends AbstractProcessor {
 
     private final String path;
     private final String field;
-    private final boolean ignoreMissing;
 
-    DotExpanderProcessor(String tag, String path, String field, boolean ignoreMissing) {
+    DotExpanderProcessor(String tag, String path, String field) {
         super(tag);
         this.path = path;
         this.field = field;
-        this.ignoreMissing = ignoreMissing;
     }
 
     @Override
@@ -56,10 +54,8 @@ public final class DotExpanderProcessor extends AbstractProcessor {
 
         if (ingestDocument.hasField(path)) {
             Object value = map.remove(field);
-            if(value != null) {
-                ingestDocument.appendFieldValue(path, value);
-            }
-        } else if (ignoreMissing == false){
+            ingestDocument.appendFieldValue(path, value);
+        } else {
             // check whether we actually can expand the field in question into an object field.
             // part of the path may already exist and if part of it would be a value field (string, integer etc.)
             // then we can't override it with an object field and we should fail with a good reason.
@@ -119,9 +115,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
             }
 
             String path = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "path");
-            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
-
-            return new DotExpanderProcessor(tag, path, field, ignoreMissing);
+            return new DotExpanderProcessor(tag, path, field);
         }
     }
 }

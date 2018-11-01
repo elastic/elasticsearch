@@ -2564,7 +2564,7 @@ public class InternalEngine extends Engine {
     }
 
 
-    private Object refreshIfNeededMutex = new Object();
+    private final Object refreshIfNeededMutex = new Object();
 
     /**
      * Refresh this engine **internally** iff the requesting seq_no is greater than the last refreshed checkpoint.

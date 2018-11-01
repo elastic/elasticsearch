@@ -22,12 +22,10 @@ import java.util.Arrays;
  */
 public final class CreateApiKeyResponse extends ActionResponse {
 
-    private String name;
-    private String id;
-    private SecureString key;
-    private Instant expiration;
-
-    CreateApiKeyResponse() {}
+    private final String name;
+    private final String id;
+    private final SecureString key;
+    private final Instant expiration;
 
     public CreateApiKeyResponse(String name, String id, SecureString key, Instant expiration) {
         this.name = name;

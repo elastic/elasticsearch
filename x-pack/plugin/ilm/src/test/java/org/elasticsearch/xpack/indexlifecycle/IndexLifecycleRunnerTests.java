@@ -255,7 +255,8 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 .localNodeId(node.getId()))
             .build();
         ClusterServiceUtils.setState(clusterService, state);
-        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> 0L);
+        long stepTime = randomLong();
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, clusterService, () -> stepTime);
 
         ClusterState before = clusterService.state();
         CountDownLatch latch = new CountDownLatch(1);
@@ -266,6 +267,12 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         // The cluster state can take a few extra milliseconds to update after the steps are executed
         assertBusy(() -> assertNotEquals(before, clusterService.state()));
+        LifecycleExecutionState newExecutionState = LifecycleExecutionState
+            .fromIndexMetadata(clusterService.state().metaData().index(indexMetaData.getIndex()));
+        assertThat(newExecutionState.getPhase(), equalTo("phase"));
+        assertThat(newExecutionState.getAction(), equalTo("action"));
+        assertThat(newExecutionState.getStep(), equalTo("next_cluster_state_action_step"));
+        assertThat(newExecutionState.getStepTime(), equalTo(stepTime));
         assertThat(step.getExecuteCount(), equalTo(1L));
         assertThat(nextStep.getExecuteCount(), equalTo(1L));
         clusterService.close();

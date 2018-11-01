@@ -15,6 +15,6 @@ integTestCluster {
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
-    setting 'indices.lifecycle.poll_interval', '2500ms'
+    setting 'indices.lifecycle.poll_interval', '1000ms'
 
 }

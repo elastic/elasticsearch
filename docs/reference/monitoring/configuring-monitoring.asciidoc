@@ -6,7 +6,7 @@
 <titleabbrev>Configuring monitoring</titleabbrev>
 ++++
 
-If you enable the Elastic {monitoring-features} in your cluster, you can 
+If you enable the Elastic {monitor-features} in your cluster, you can 
 optionally collect metrics about {es}. By default, monitoring is enabled but 
 data collection is disabled. 
 
@@ -25,7 +25,7 @@ To learn about monitoring in general, see
 .. Verify that the `xpack.monitoring.enabled`, 
 `xpack.monitoring.collection.enabled`, and 
 `xpack.monitoring.elasticsearch.collection.enabled` settings are `true` on each
-node in the  cluster. By default `xpack.monitoring.collection.enabled` is disabled
+node in the cluster. By default `xpack.monitoring.collection.enabled` is disabled
 (`false`), and that overrides `xpack.monitoring.elasticsearch.collection.enabled`,
 which defaults to being enabled (`true`). Both settings can be set dynamically
 at runtime. For more information, see <<monitoring-settings>>.
@@ -56,10 +56,11 @@ the `xpack.monitoring.collection.interval` setting 10 seconds. See
 . Identify where to store monitoring data. 
 +
 --
-By default, `local` exporters index monitoring data on the same cluster. See <<es-monitoring-default-exporter>> and <<local-exporter>>. 
+By default, the data is stored on the same cluster by using 
+<<local-exporter,`local` exporters>>. 
 
-Alternatively, you can use `http` exporters to send data to a separate 
-_monitoring cluster_. See <<http-exporter>>. 
+Alternatively, you can use <<http-exporter,`http` exporters>> to send data to a 
+separate _monitoring cluster_. 
 
 For more information about typical monitoring architectures, 
 see {stack-ov}/how-monitoring-works.html[How Monitoring Works].
@@ -164,13 +165,14 @@ xpack.monitoring.exporters:
 --------------------------------------------------
 --
 
-. Optional: Configure your cluster to route monitoring data from sources such 
-as {kib}, Beats, and Logstash to the monitoring cluster. The 
+. Configure your cluster to route monitoring data from sources such as {kib}, 
+Beats, and {ls} to the monitoring cluster. The 
 `xpack.monitoring.collection.enabled` setting must be `true` on each node in the 
 cluster. For information about configuring each product to collect and send 
 monitoring data, see {stack-ov}/xpack-monitoring.html[Monitoring the {stack}].
 
-. Restart {es} on the nodes in your production cluster.
+. If you updated settings in the `elasticsearch.yml` files on your production 
+cluster, restart {es}. See <<stopping-elasticsearch>> and <<starting-elasticsearch>>. 
 +
 --
 TIP: You may want to temporarily {ref}/modules-cluster.html[disable shard

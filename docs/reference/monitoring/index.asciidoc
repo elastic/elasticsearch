@@ -5,7 +5,7 @@
 
 [partintro]
 --
-The Elastic {monitoring-features} enable you to easily monitor the health of 
+The Elastic {monitor-features} enable you to easily monitor the health of 
 your {es} cluster. The monitoring metrics are collected from each node and 
 stored in {es} indices.
 

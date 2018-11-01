@@ -171,7 +171,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
         if (index.contains(":")) {
             deprecationLogger.deprecated("index or alias name [" + index +
-                            "] containing ':' is deprecated and will not be supported in Elasticsearch 7.0+");
+                            "] containing ':' is deprecated. Elasticsearch 7.x will read, " +
+                            "but not allow creation of new indices containing ':'");
         }
         if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
             throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");

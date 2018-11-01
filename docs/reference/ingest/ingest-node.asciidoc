@@ -2462,8 +2462,8 @@ IMPORTANT: Requires an authenticated user for the index request.
 | Name          | Required  | Default                                                   | Description
 | `field`       | yes       | -                                                         | The field to store the user information into.
 | `properties`  | no        | [`username`, `roles`, `email`, `full_name`, `metadata`]   | Controls what user related properties are added to the `field`.
+include::ingest-node-common-processor.asciidoc[]
 |======
-//TODO: ensure common options are included once PR 35091 is merged.
 
 The following example adds all user details for the current authenticated user
 to the `user` field for all documents that are processed by this pipeline:

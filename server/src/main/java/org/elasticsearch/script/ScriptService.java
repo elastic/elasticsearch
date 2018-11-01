@@ -48,6 +48,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -249,10 +250,10 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      */
     void setMaxSizeInBytes(int newMaxSizeInBytes) {
         for (Map.Entry<String, StoredScriptSource> source : getScriptsFromClusterState().entrySet()) {
-            if (source.getValue().getSource().getBytes().length > newMaxSizeInBytes) {
+            if (source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length > newMaxSizeInBytes) {
                 throw new IllegalArgumentException("script.max_size_in_bytes cannot be set to [" + newMaxSizeInBytes + "], " +
                         "stored script [" + source.getKey() + "] exceeds the new value with a size of " +
-                        "[" + source.getValue().getSource().getBytes().length + "]");
+                        "[" + source.getValue().getSource().getBytes(StandardCharsets.UTF_8).length + "]");
             }
         }
 
@@ -314,9 +315,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
 
         if (type == ScriptType.INLINE) {
-            if (idOrCode.getBytes().length > maxSizeInBytes) {
+            if (idOrCode.getBytes(StandardCharsets.UTF_8).length > maxSizeInBytes) {
                 throw new IllegalArgumentException("exceeded max allowed inline script size in bytes [" + maxSizeInBytes + "] " +
-                        "with size [" + idOrCode.getBytes().length + "] for script [" + idOrCode + "]");
+                        "with size [" + idOrCode.getBytes(StandardCharsets.UTF_8).length + "] for script [" + idOrCode + "]");
             }
         }
 

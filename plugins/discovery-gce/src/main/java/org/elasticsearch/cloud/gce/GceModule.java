@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cloud.gce;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
 public class GceModule extends AbstractModule {
@@ -29,7 +29,7 @@ public class GceModule extends AbstractModule {
     static Class<? extends GceInstancesService> computeServiceImpl = GceInstancesServiceImpl.class;
 
     protected final Settings settings;
-    protected final Logger logger = Loggers.getLogger(GceModule.class);
+    protected final Logger logger = LogManager.getLogger(GceModule.class);
 
     public GceModule(Settings settings) {
         this.settings = settings;

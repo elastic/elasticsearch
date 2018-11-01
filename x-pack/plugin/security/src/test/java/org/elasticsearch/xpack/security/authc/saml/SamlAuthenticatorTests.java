@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.xml.security.Init;
 import org.apache.xml.security.encryption.EncryptedData;
 import org.apache.xml.security.encryption.EncryptedKey;
@@ -16,7 +17,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
@@ -57,7 +57,6 @@ import javax.xml.crypto.dsig.spec.TransformParameterSpec;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
-
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
@@ -125,7 +124,7 @@ public class SamlAuthenticatorTests extends SamlTestCase {
     public static void init() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, there is no DOM XMLSignature Factory so we can't sign XML documents", inFipsJvm());
         // TODO: Refactor the signing to use org.opensaml.xmlsec.signature.support.Signer so that we can run the tests
-        SamlUtils.initialize(Loggers.getLogger(SamlAuthenticatorTests.class));
+        SamlUtils.initialize(LogManager.getLogger(SamlAuthenticatorTests.class));
         // Initialise Apache XML security so that the signDoc methods work correctly.
         Init.init();
     }

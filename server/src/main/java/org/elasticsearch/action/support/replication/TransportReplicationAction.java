@@ -147,7 +147,7 @@ public abstract class TransportReplicationAction<
         this.transportReplicaAction = actionName + "[r]";
         registerRequestHandlers(actionName, transportService, request, replicaRequest, executor);
 
-        this.transportOptions = transportOptions();
+        this.transportOptions = transportOptions(settings);
 
         this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
     }
@@ -231,7 +231,7 @@ public abstract class TransportReplicationAction<
         return true;
     }
 
-    protected TransportRequestOptions transportOptions() {
+    protected TransportRequestOptions transportOptions(Settings settings) {
         return TransportRequestOptions.EMPTY;
     }
 

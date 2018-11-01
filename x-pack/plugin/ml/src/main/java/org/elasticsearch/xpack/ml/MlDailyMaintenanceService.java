@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  */
 public class MlDailyMaintenanceService implements Releasable {
 
-    private static final Logger LOGGER = Loggers.getLogger(MlDailyMaintenanceService.class);
+    private static final Logger LOGGER = LogManager.getLogger(MlDailyMaintenanceService.class);
 
     private static final int MAX_TIME_OFFSET_MINUTES = 120;
 

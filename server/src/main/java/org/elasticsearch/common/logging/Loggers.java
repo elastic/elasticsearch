@@ -81,15 +81,6 @@ public class Loggers {
      * @deprecated Prefer {@link LogManager#getLogger}
      */
     @Deprecated
-    public static Logger getLogger(String s) {
-        return LogManager.getLogger(s);
-    }
-
-    /**
-     * Get or build a logger.
-     * @deprecated Prefer {@link LogManager#getLogger}
-     */
-    @Deprecated
     public static Logger getLogger(Class<?> clazz) {
         return ESLoggerFactory.getLogger(null, clazz);
     }

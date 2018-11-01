@@ -68,7 +68,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
             .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        Names.validateTopLevelName(request.getPolicy().getName(),
+        Names.validateNameWithIndexNameRules(request.getPolicy().getName(),
             (name, message) -> new IllegalArgumentException(String.format(Locale.ROOT, "invalid policy name [%s]: %s", name, message)));
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
                 new AckedClusterStateUpdateTask<Response>(request, listener) {

@@ -34,9 +34,9 @@ public class Names {
     private Names() {}
 
     /**
-     * Validates a name by the rules used for Index names.
+     * Validates a name by the rules used for Index names. Used for some things that are not indexes for consistency.
      */
-    public static void validateTopLevelName(String name, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
+    public static void validateNameWithIndexNameRules(String name, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
         if (!Strings.validFileName(name)) {
             throw exceptionCtor.apply(name, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }

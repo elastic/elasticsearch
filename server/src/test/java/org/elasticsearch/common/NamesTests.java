@@ -39,27 +39,27 @@ public class NamesTests extends ESTestCase {
 
     public void testValidateTopLevelName() {
         for (Character badChar : Strings.INVALID_FILENAME_CHARS) {
-            expectThrows(RuntimeException.class, () -> Names.validateTopLevelName(randomAlphaOfLengthBetween(0, 10) +
+            expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(0, 10) +
                 badChar + randomAlphaOfLengthBetween(0, 10), exceptionCtor));
         }
-        expectThrows(RuntimeException.class, () -> Names.validateTopLevelName(randomAlphaOfLengthBetween(0, 10) +
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(0, 10) +
             "#" + randomAlphaOfLengthBetween(0, 10), exceptionCtor));
-        expectThrows(RuntimeException.class, () -> Names.validateTopLevelName(randomAlphaOfLengthBetween(0, 10) +
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(0, 10) +
             ":" + randomAlphaOfLengthBetween(0, 10), exceptionCtor));
-        expectThrows(RuntimeException.class, () -> Names.validateTopLevelName("_" + randomAlphaOfLengthBetween(1, 20), exceptionCtor));
-        expectThrows(RuntimeException.class, () -> Names.validateTopLevelName("-" + randomAlphaOfLengthBetween(1, 20), exceptionCtor));
-        expectThrows(RuntimeException.class, () -> Names.validateTopLevelName("+" + randomAlphaOfLengthBetween(1, 20), exceptionCtor));
-        expectThrows(RuntimeException.class, () -> Names.validateTopLevelName(".", exceptionCtor));
-        expectThrows(RuntimeException.class, () -> Names.validateTopLevelName("..", exceptionCtor));
-        expectThrows(RuntimeException.class, () -> Names.validateTopLevelName(randomAlphaOfLengthBetween(256, 1000), exceptionCtor));
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules("_" + randomAlphaOfLengthBetween(1, 20), exceptionCtor));
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules("-" + randomAlphaOfLengthBetween(1, 20), exceptionCtor));
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules("+" + randomAlphaOfLengthBetween(1, 20), exceptionCtor));
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules(".", exceptionCtor));
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules("..", exceptionCtor));
+        expectThrows(RuntimeException.class, () -> Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(256, 1000), exceptionCtor));
 
-        Names.validateTopLevelName(randomAlphaOfLengthBetween(1, 10) + "_" + randomAlphaOfLengthBetween(0, 10), exceptionCtor);
-        Names.validateTopLevelName(randomAlphaOfLengthBetween(1, 10) + "-" + randomAlphaOfLengthBetween(0, 10), exceptionCtor);
-        Names.validateTopLevelName(randomAlphaOfLengthBetween(1, 10) + "+" + randomAlphaOfLengthBetween(0, 10), exceptionCtor);
+        Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(1, 10) + "_" + randomAlphaOfLengthBetween(0, 10), exceptionCtor);
+        Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(1, 10) + "-" + randomAlphaOfLengthBetween(0, 10), exceptionCtor);
+        Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(1, 10) + "+" + randomAlphaOfLengthBetween(0, 10), exceptionCtor);
 
-        Names.validateTopLevelName(randomAlphaOfLengthBetween(0, 10) + "." + randomAlphaOfLengthBetween(1, 10), exceptionCtor);
-        Names.validateTopLevelName(randomAlphaOfLengthBetween(0, 10) + ".." + randomAlphaOfLengthBetween(1, 10), exceptionCtor);
+        Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(0, 10) + "." + randomAlphaOfLengthBetween(1, 10), exceptionCtor);
+        Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(0, 10) + ".." + randomAlphaOfLengthBetween(1, 10), exceptionCtor);
 
-        Names.validateTopLevelName(randomAlphaOfLengthBetween(1, 255), exceptionCtor);
+        Names.validateNameWithIndexNameRules(randomAlphaOfLengthBetween(1, 255), exceptionCtor);
     }
 }

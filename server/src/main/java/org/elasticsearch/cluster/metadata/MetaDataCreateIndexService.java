@@ -146,7 +146,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
      * Validate the name for an index against some static rules and a cluster state.
      */
     public static void validateIndexName(String index, ClusterState state) {
-        Names.validateTopLevelName(index, InvalidIndexNameException::new);
+        Names.validateNameWithIndexNameRules(index, InvalidIndexNameException::new);
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }

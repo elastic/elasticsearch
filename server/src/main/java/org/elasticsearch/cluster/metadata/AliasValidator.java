@@ -106,7 +106,7 @@ public class AliasValidator extends AbstractComponent {
         if (!Strings.hasText(alias)) {
             throw new IllegalArgumentException("alias name is required");
         }
-        Names.validateTopLevelName(alias, InvalidAliasNameException::new);
+        Names.validateNameWithIndexNameRules(alias, InvalidAliasNameException::new);
         if (indexRouting != null && indexRouting.indexOf(',') != -1) {
             throw new IllegalArgumentException("alias [" + alias + "] has several index routing values associated with it");
         }

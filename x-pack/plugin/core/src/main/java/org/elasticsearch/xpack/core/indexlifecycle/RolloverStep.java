@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.core.indexlifecycle;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.client.Client;
@@ -21,6 +24,8 @@ import java.util.Objects;
 
 public class RolloverStep extends AsyncWaitStep {
     public static final String NAME = "attempt_rollover";
+
+    private static final Logger logger = LogManager.getLogger(RolloverStep.class);
 
     private ByteSizeValue maxSize;
     private TimeValue maxAge;
@@ -63,7 +68,16 @@ public class RolloverStep extends AsyncWaitStep {
             rolloverRequest.addMaxIndexDocsCondition(maxDocs);
         }
         getClient().admin().indices().rolloverIndex(rolloverRequest,
-                ActionListener.wrap(response -> listener.onResponse(response.isRolledOver(), new EmptyInfo()), listener::onFailure));
+            ActionListener.wrap(response -> listener.onResponse(response.isRolledOver(), new EmptyInfo()), exception -> {
+                if (exception instanceof ResourceAlreadyExistsException) {
+                    // This can happen sometimes when this step is executed multiple times
+                    logger.debug("index [{}] cannot roll over because the next index already exists, skipping to next step",
+                        indexMetaData.getIndex());
+                    listener.onResponse(true, new EmptyInfo());
+                } else {
+                    listener.onFailure(exception);
+                }
+            }));
     }
 
     ByteSizeValue getMaxSize() {

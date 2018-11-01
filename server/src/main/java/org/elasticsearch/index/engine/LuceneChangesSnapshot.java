@@ -95,14 +95,14 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             }
         };
         this.mapperService = mapperService;
-        this.searchBatchSize = searchBatchSize;
+        this.searchBatchSize = Math.min(Math.toIntExact(toSeqNo - fromSeqNo + 1), searchBatchSize);
         this.fromSeqNo = fromSeqNo;
         this.toSeqNo = toSeqNo;
         this.lastSeenSeqNo = fromSeqNo - 1;
         this.requiredFullRange = requiredFullRange;
         this.indexSearcher = new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
         this.indexSearcher.setQueryCache(null);
-        this.parallelArray = new ParallelArray(searchBatchSize);
+        this.parallelArray = new ParallelArray(this.searchBatchSize);
         final TopDocs topDocs = searchOperations(null);
         this.totalHits = Math.toIntExact(topDocs.totalHits.value);
         this.scoreDocs = topDocs.scoreDocs;

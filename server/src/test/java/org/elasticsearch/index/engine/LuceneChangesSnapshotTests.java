@@ -58,8 +58,8 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
     }
 
     public void testBasics() throws Exception {
-        long fromSeqNo = randomNonNegativeLong();
-        long toSeqNo = randomLongBetween(fromSeqNo, Long.MAX_VALUE);
+        long fromSeqNo = randomLongBetween(0, Integer.MAX_VALUE);
+        long toSeqNo = randomLongBetween(fromSeqNo, Integer.MAX_VALUE);
         // Empty engine
         try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", mapperService, fromSeqNo, toSeqNo, true)) {
             IllegalStateException error = expectThrows(IllegalStateException.class, () -> drainAll(snapshot));

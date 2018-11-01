@@ -71,7 +71,7 @@ public class ApiKeyService {
             final Instant expiration = getApiKeyExpiration(created, request);
             final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
             final Version version = clusterService.state().nodes().getMinNodeVersion();
-            if (version.before(Version.V_7_0_0_alpha1)) { // TODO(jaymode) change to V6_5_0 on backport!
+            if (version.before(Version.V_7_0_0_alpha1)) { // TODO(jaymode) change to V6_6_0 on backport!
                 logger.warn("nodes prior to the minimum supported version for api keys {} exist in the cluster; these nodes will not be " +
                     "able to use api keys", Version.V_7_0_0_alpha1);
             }
@@ -104,7 +104,7 @@ public class ApiKeyService {
                     .endObject()
                     .endObject();
                 final IndexRequest indexRequest =
-                    client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, getApiKeyDocumentId(apiKey))
+                    client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE)
                         .setOpType(DocWriteRequest.OpType.CREATE)
                         .setSource(builder)
                         .setRefreshPolicy(request.getRefreshPolicy())
@@ -120,10 +120,6 @@ public class ApiKeyService {
                 Arrays.fill(keyHash, (char) 0);
             }
         }
-    }
-
-    private static String getApiKeyDocumentId(SecureString key) {
-        return "api_key_" + key;
     }
 
     private Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {

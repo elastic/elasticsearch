@@ -17,10 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.client.migration;
+package org.elasticsearch.client.security;
 
-import org.elasticsearch.test.ESTestCase;
+import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Validatable;
 
-public class IndexUpgradeInfoResponseTests extends ESTestCase {
-    // TODO: add to cross XPack-HLRC serialization test
+/**
+ * Empty request object required to make the authenticate call. The authenticate call
+ * retrieves metadata about the authenticated user.
+ */
+public final class AuthenticateRequest implements Validatable {
+
+    public static final AuthenticateRequest INSTANCE = new AuthenticateRequest();
+
+    private AuthenticateRequest() {
+    }
+
+    public Request getRequest() {
+        return new Request(HttpGet.METHOD_NAME, "/_xpack/security/_authenticate");
+    }
+
 }

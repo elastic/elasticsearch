@@ -61,7 +61,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         AnomalyRecord record = new AnomalyRecord(JOB_ID, new Date(), 600);
         bucket.setRecords(Collections.singletonList(record));
 
-        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
+        JobResultsPersister persister = new JobResultsPersister(client);
         persister.bulkPersisterBuilder(JOB_ID).persistBucket(bucket).executeRequest();
         BulkRequest bulkRequest = captor.getValue();
         assertEquals(2, bulkRequest.numberOfActions());
@@ -113,7 +113,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         typicals.add(998765.3);
         r1.setTypical(typicals);
 
-        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
+        JobResultsPersister persister = new JobResultsPersister(client);
         persister.bulkPersisterBuilder(JOB_ID).persistRecords(records).executeRequest();
         BulkRequest bulkRequest = captor.getValue();
         assertEquals(1, bulkRequest.numberOfActions());
@@ -149,7 +149,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         inf.setProbability(0.4);
         influencers.add(inf);
 
-        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
+        JobResultsPersister persister = new JobResultsPersister(client);
         persister.bulkPersisterBuilder(JOB_ID).persistInfluencers(influencers).executeRequest();
         BulkRequest bulkRequest = captor.getValue();
         assertEquals(1, bulkRequest.numberOfActions());
@@ -165,7 +165,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     public void testExecuteRequest_ClearsBulkRequest() {
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         Client client = mockClient(captor);
-        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
+        JobResultsPersister persister = new JobResultsPersister(client);
 
         List<Influencer> influencers = new ArrayList<>();
         Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1", new Date(), 600);
@@ -182,7 +182,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     public void testBulkRequestExecutesWhenReachMaxDocs() {
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         Client client = mockClient(captor);
-        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
+        JobResultsPersister persister = new JobResultsPersister(client);
 
         JobResultsPersister.Builder bulkBuilder = persister.bulkPersisterBuilder("foo");
         ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);

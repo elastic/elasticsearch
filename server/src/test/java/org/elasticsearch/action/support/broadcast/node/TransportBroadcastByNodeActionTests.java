@@ -177,10 +177,6 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
     }
 
     class MyResolver extends IndexNameExpressionResolver {
-        MyResolver() {
-            super(Settings.EMPTY);
-        }
-
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();

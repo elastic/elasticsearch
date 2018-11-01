@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -42,7 +41,7 @@ import java.util.function.LongSupplier;
 /**
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
  */
-public class IndexLifecycleService extends AbstractComponent
+public class IndexLifecycleService
         implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, LocalNodeMasterListener {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
     private static final Set<String> IGNORE_ACTIONS_MAINTENANCE_REQUESTED = Collections.singleton(ShrinkAction.NAME);
@@ -61,7 +60,7 @@ public class IndexLifecycleService extends AbstractComponent
 
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier,
                                  NamedXContentRegistry xContentRegistry) {
-        super(settings);
+        super();
         this.settings = settings;
         this.client = client;
         this.clusterService = clusterService;

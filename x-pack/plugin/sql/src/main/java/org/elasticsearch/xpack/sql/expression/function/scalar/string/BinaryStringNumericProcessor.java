@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
 import org.elasticsearch.xpack.sql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
@@ -56,7 +57,7 @@ public class BinaryStringNumericProcessor extends FunctionalBinaryProcessor<Stri
 
         @Override
         public String apply(String stringExp, Number count) {
-            if (stringExp == null || count == null) {
+            if (stringExp == null || MathProcessor.nanSafe(count) == null) {
                 return null;
             }
             return op.apply(stringExp, count);

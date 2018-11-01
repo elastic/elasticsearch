@@ -24,7 +24,7 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
         return new BinaryStringNumericProcessor(
                 new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(1, 128)), 
                 new ConstantProcessor(randomInt(256)),
-                randomFrom(BinaryStringNumericOperation.values()));
+            randomOperation());
     }
 
     @Override
@@ -108,5 +108,14 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
         siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Repeat(EMPTY, l("foo bar"), l("baz")).makePipe().asProcessor().process(null));
         assertEquals("A number is required; received [baz]", siae.getMessage());
+    }
+
+    public void testHandleNaN() {
+        assertNull(randomOperation().apply("foo", Double.NaN));
+        assertNull(randomOperation().apply("foo", Float.NaN));
+    }
+
+    private BinaryStringNumericOperation randomOperation() {
+        return randomFrom(BinaryStringNumericOperation.values());
     }
 }

@@ -54,7 +54,7 @@ public class BinaryMathProcessor extends FunctionalBinaryProcessor<Number, Numbe
 
         @Override
         public final Number apply(Number left, Number right) {
-            if (left == null || right == null) {
+            if (MathProcessor.nanSafe(left) == null || MathProcessor.nanSafe(right) == null) {
                 return null;
             }
             return process.apply(left, right);

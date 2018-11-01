@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.predicate;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
@@ -35,7 +36,7 @@ public class IsNotNullProcessor implements Processor {
     }
 
     public static Boolean apply(Object input) {
-        return input != null ? Boolean.TRUE : Boolean.FALSE;
+        return MathProcessor.nanSafe(input) != null ? Boolean.TRUE : Boolean.FALSE;
     }
 
     @Override
@@ -49,6 +50,6 @@ public class IsNotNullProcessor implements Processor {
             return true;
         }
 
-        return obj == null || getClass() != obj.getClass();
+        return obj != null && getClass() == obj.getClass();
     }
 }

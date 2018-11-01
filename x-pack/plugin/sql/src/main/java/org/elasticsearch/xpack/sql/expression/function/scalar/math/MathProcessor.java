@@ -20,14 +20,14 @@ import java.util.function.Supplier;
 public class MathProcessor implements Processor {
     
     public enum MathOperation {
-        ABS((Object l) -> {
+        ABS((Number l) -> {
             if (l instanceof Float) {
-                return Double.valueOf(Math.abs(((Float) l).floatValue()));
+                return Double.valueOf(Math.abs(l.floatValue()));
             }
             if (l instanceof Double) {
-                return Math.abs(((Double) l).doubleValue());
+                return Math.abs(l.doubleValue());
             }
-            long lo = ((Number) l).longValue();
+            long lo = l.longValue();
             //handles the corner-case of Long.MIN_VALUE
             return lo >= 0 ? lo : lo == Long.MIN_VALUE ? Double.valueOf(Long.MAX_VALUE) : -lo;
         }),
@@ -39,7 +39,7 @@ public class MathProcessor implements Processor {
         CEIL(Math::ceil),
         COS(Math::cos),
         COSH(Math::cosh),
-        COT((Object l) -> 1.0d / Math.tan(((Number) l).doubleValue())),
+        COT((Number l) -> 1.0d / Math.tan(l.doubleValue())),
         DEGREES(Math::toDegrees),
         E(() -> Math.E),
         EXP(Math::exp),
@@ -49,18 +49,18 @@ public class MathProcessor implements Processor {
         LOG10(Math::log10),
         PI(() -> Math.PI),
         RADIANS(Math::toRadians),
-        RANDOM((Object l) -> l != null ?
-                new Random(((Number) l).longValue()).nextDouble() :
-                Randomness.get().nextDouble(), true),
+        RANDOM((Number l) -> l != null ?
+            new Random(l.longValue()).nextDouble() :
+            Randomness.get().nextDouble(), true),
         SIGN((DoubleFunction<Double>) Math::signum),
         SIN(Math::sin),
         SINH(Math::sinh),
         SQRT(Math::sqrt),
         TAN(Math::tan);
 
-        private final Function<Object, Double> apply;
+        private final Function<Number, Double> apply;
 
-        MathOperation(Function<Object, Double> apply) {
+        MathOperation(Function<Number, Double> apply) {
             this(apply, false);
         }
 
@@ -69,7 +69,7 @@ public class MathProcessor implements Processor {
          * If true, nulls are passed through, otherwise the function is short-circuited
          * and null returned.
          */
-        MathOperation(Function<Object, Double> apply, boolean nullAware) {
+        MathOperation(Function<Number, Double> apply, boolean nullAware) {
             if (nullAware) {
                 this.apply = apply;
             } else {
@@ -78,21 +78,30 @@ public class MathProcessor implements Processor {
         }
 
         MathOperation(DoubleFunction<Double> apply) {
-            this.apply = (Object l) -> l == null ? null : apply.apply(((Number) l).doubleValue());
+            this.apply = (Number l) -> l == null ? null : apply.apply(l.doubleValue());
         }
 
         MathOperation(Supplier<Double> supplier) {
             this.apply = l -> supplier.get();
         }
 
-        public final Double apply(Object l) {
+        public final Double apply(Object input) {
+            if (input != null && !(input instanceof Number)) {
+                throw new SqlIllegalArgumentException("A number is required; received [{}]", input);
+            }
+            return apply.apply(nanSafe((Number) input));
+        }
+
+        public final Double apply(Number l) {
             return apply.apply(l);
         }
     }
-    
+
     public static final String NAME = "m";
 
     private final MathOperation processor;
+
+    public MathProcessor() {processor = null;}
 
     public MathProcessor(MathOperation processor) {
         this.processor = processor;
@@ -114,10 +123,6 @@ public class MathProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        if (input != null && !(input instanceof Number)) {
-            throw new SqlIllegalArgumentException("A number is required; received [{}]", input);
-        }
-
         return processor.apply(input);
     }
 
@@ -142,5 +147,24 @@ public class MathProcessor implements Processor {
     @Override
     public String toString() {
         return processor.toString();
+    }
+
+    public static Object nanSafe(Object input) {
+        if (input instanceof Number) {
+            return nanSafe((Number) input);
+        }
+        return input;
+    }
+
+    public static Number nanSafe(Number input) {
+        if (input == null) {
+            return null;
+        }
+
+        if ((input instanceof Double && ((Double) input).isNaN()) ||
+            (input instanceof Float && ((Float) input).isNaN())) {
+            return null;
+        }
+        return input;
     }
 }

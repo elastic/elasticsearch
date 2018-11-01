@@ -55,4 +55,9 @@ public class MathFunctionProcessorTests extends AbstractWireSerializingTestCase<
         assertNotNull(proc.process(null));
         assertNotNull(proc.process(randomLong()));
     }
+
+    public void testHandleNaN() {
+        assertNull(randomMathFunctionProcessor().process(Double.NaN));
+        assertNull(randomMathFunctionProcessor().process(Float.NaN));
+    }
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
@@ -45,9 +46,10 @@ public class InProcessor implements Processor {
     }
 
     public static Boolean apply(Object input, List<Object> values) {
+        Object leftValue = MathProcessor.nanSafe(input);
         Boolean result = Boolean.FALSE;
         for (Object v : values) {
-            Boolean compResult = Comparisons.eq(input, v);
+            Boolean compResult = Comparisons.eq(leftValue, v);
             if (compResult == null) {
                 result = null;
             } else if (compResult == Boolean.TRUE) {

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.predicate.PredicateBiFunction;
@@ -39,7 +40,7 @@ public class BinaryArithmeticProcessor extends FunctionalBinaryProcessor<Number,
 
         @Override
         public final Number doApply(Number left, Number right) {
-            return process.apply(left, right);
+            return process.apply(MathProcessor.nanSafe(left), MathProcessor.nanSafe(right));
         }
 
         @Override

@@ -99,7 +99,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Index index = indexMetaData.getIndex();
-        Set<String> validNodeNames = new HashSet<>();
+        Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         int numNodes = randomIntBetween(1, 20);
@@ -107,13 +107,13 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             String nodeId = "node_id_" + i;
             String nodeName = "node_" + i;
             int nodePort = 9300 + i;
-            Settings nodeSettings = Settings.builder().put(validNodeSettings).put("node.name", nodeName).build();
+            Settings nodeSettings = Settings.builder().put(validNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
             nodes.add(
                     DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
-            validNodeNames.add(nodeName);
+            validNodeIds.add(nodeId);
         }
 
-        assertNodeSelected(indexMetaData, index, validNodeNames, nodes);
+        assertNodeSelected(indexMetaData, index, validNodeIds, nodes);
     }
 
     public void testPerformActionAttrsAllNodesValid() throws IOException {
@@ -129,7 +129,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Index index = indexMetaData.getIndex();
-        Set<String> validNodeNames = new HashSet<>();
+        Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         int numNodes = randomIntBetween(1, 20);
@@ -141,10 +141,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             Settings nodeSettings = Settings.builder().put(validNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName)
                     .put(Node.NODE_ATTRIBUTES.getKey() + nodeAttr[0], nodeAttr[1]).build();
             nodes.add(DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
-            validNodeNames.add(nodeName);
+            validNodeIds.add(nodeId);
         }
 
-        assertNodeSelected(indexMetaData, index, validNodeNames, nodes);
+        assertNodeSelected(indexMetaData, index, validNodeIds, nodes);
     }
 
     public void testPerformActionAttrsSomeNodesValid() throws IOException {
@@ -155,7 +155,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Index index = indexMetaData.getIndex();
-        Set<String> validNodeNames = new HashSet<>();
+        Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + validAttr[0], validAttr[1]).build();
         Settings invalidNodeSettings = Settings.builder().put(Node.NODE_ATTRIBUTES.getKey() + invalidAttr[0], invalidAttr[1]).build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
@@ -166,9 +166,9 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             int nodePort = 9300 + i;
             Builder nodeSettingsBuilder = Settings.builder();
             // randomise whether the node had valid attributes or not but make sure at least one node is valid
-            if (randomBoolean() || (i == numNodes - 1 && validNodeNames.isEmpty())) {
+            if (randomBoolean() || (i == numNodes - 1 && validNodeIds.isEmpty())) {
                 nodeSettingsBuilder.put(validNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName);
-                validNodeNames.add(nodeName);
+                validNodeIds.add(nodeId);
             } else {
                 nodeSettingsBuilder.put(invalidNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName);
             }
@@ -176,7 +176,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                     nodeId));
         }
 
-        assertNodeSelected(indexMetaData, index, validNodeNames, nodes);
+        assertNodeSelected(indexMetaData, index, validNodeIds, nodes);
     }
 
     public void testPerformActionAttrsNoNodesValid() {
@@ -215,7 +215,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Index index = indexMetaData.getIndex();
-        Set<String> validNodeNames = new HashSet<>();
+        Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         int numNodes = randomIntBetween(1, 20);
@@ -227,7 +227,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             Settings nodeSettings = Settings.builder().put(validNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName)
                     .put(Node.NODE_ATTRIBUTES.getKey() + nodeAttr[0], nodeAttr[1]).build();
             nodes.add(DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
-            validNodeNames.add(nodeName);
+            validNodeIds.add(nodeId);
         }
 
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
@@ -253,7 +253,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 @SuppressWarnings("unchecked")
                 ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
                 assertSettingsRequestContainsValueFrom(request,
-                        IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", validNodeNames, true,
+                        IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", validNodeIds, true,
                         indexMetaData.getIndex().getName());
                 listener.onFailure(exception);
                 return null;
@@ -296,7 +296,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10)).settings(indexSettings)
                 .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
         Index index = indexMetaData.getIndex();
-        Set<String> validNodeNames = new HashSet<>();
+        Set<String> validNodeIds = new HashSet<>();
         Settings validNodeSettings = Settings.EMPTY;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         int numNodes = randomIntBetween(1, 20);
@@ -308,7 +308,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             Settings nodeSettings = Settings.builder().put(validNodeSettings).put(Node.NODE_NAME_SETTING.getKey(), nodeName)
                     .put(Node.NODE_ATTRIBUTES.getKey() + nodeAttr[0], nodeAttr[1]).build();
             nodes.add(DiscoveryNode.createLocal(nodeSettings, new TransportAddress(TransportAddress.META_ADDRESS, nodePort), nodeId));
-            validNodeNames.add(nodeName);
+            validNodeIds.add(nodeId);
         }
 
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
@@ -341,7 +341,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
     }
 
     private void assertNodeSelected(IndexMetaData indexMetaData, Index index,
-                                    Set<String> validNodeNames, DiscoveryNodes.Builder nodes) throws IOException {
+                                    Set<String> validNodeIds, DiscoveryNodes.Builder nodes) throws IOException {
         ImmutableOpenMap.Builder<String, IndexMetaData> indices = ImmutableOpenMap.<String, IndexMetaData> builder().fPut(index.getName(),
                 indexMetaData);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
@@ -365,7 +365,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
                 @SuppressWarnings("unchecked")
                 ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
                 assertSettingsRequestContainsValueFrom(request,
-                        IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", validNodeNames, true,
+                        IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", validNodeIds, true,
                         indexMetaData.getIndex().getName());
                 listener.onResponse(new AcknowledgedResponse(true));
                 return null;

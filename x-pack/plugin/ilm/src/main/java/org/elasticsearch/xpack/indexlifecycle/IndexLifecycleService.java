@@ -53,6 +53,7 @@ public class IndexLifecycleService extends AbstractComponent
     private final Clock clock;
     private final PolicyStepsRegistry policyRegistry;
     private final IndexLifecycleRunner lifecycleRunner;
+    private final Settings settings;
     private Client client;
     private ClusterService clusterService;
     private LongSupplier nowSupplier;
@@ -61,6 +62,7 @@ public class IndexLifecycleService extends AbstractComponent
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier,
                                  NamedXContentRegistry xContentRegistry) {
         super(settings);
+        this.settings = settings;
         this.client = client;
         this.clusterService = clusterService;
         this.clock = clock;

@@ -21,7 +21,7 @@ To show this, let's create a policy `my_policy`.
 
 [source,js]
 ------------------------
-PUT _ilm/my_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {
@@ -33,7 +33,7 @@ PUT _ilm/my_policy
         }
       },
       "delete": {
-        "minimum_age": "30d",
+        "min_age": "30d",
         "actions": {
           "delete": {}
         }
@@ -53,7 +53,7 @@ Updating the Delete phase's minimum age can be done in an update request.
 
 [source,js]
 ------------------------
-PUT _ilm/my_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {
@@ -65,7 +65,7 @@ PUT _ilm/my_policy
         }
       },
       "delete": {
-        "minimum_age": "10d", <1>
+        "min_age": "10d", <1>
         "actions": {
           "delete": {}
         }
@@ -76,12 +76,12 @@ PUT _ilm/my_policy
 ------------------------
 // CONSOLE
 // TEST[continued]
-<1> update `minimum_age` to 10 days
+<1> update `min_age` to 10 days
 
 //////////
 [source,js]
 --------------------------------------------------
-GET _ilm
+GET _ilm/policy
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -99,7 +99,7 @@ with its version bumped to 2.
     "policy": {
       "phases": {
         "hot": {
-          "minimum_age": "0ms",
+          "min_age": "0ms",
           "actions": {
             "rollover": {
               "max_size": "25gb"
@@ -107,7 +107,7 @@ with its version bumped to 2.
           }
         },
         "delete": {
-          "minimum_age": "10d",
+          "min_age": "10d",
           "actions": {
             "delete": {}
           }
@@ -136,7 +136,7 @@ Let's say we have an index `my_index` managed by the below `my_executing_policy`
 
 [source,js]
 ------------------------
-PUT _ilm/my_executing_policy
+PUT _ilm/policy/my_executing_policy
 {
   "policy": {
     "phases": {
@@ -148,7 +148,7 @@ PUT _ilm/my_executing_policy
         }
       },
       "delete": {
-        "minimum_age": "10d",
+        "min_age": "10d",
         "actions": {
           "delete": {}
         }
@@ -203,7 +203,7 @@ GET my_index/_ilm/explain
         "modified_date_in_millis": 1538475653317,
         "version": 1,
         "phase_definition": {
-          "minimum_age": "0ms",
+          "min_age": "0ms",
           "actions": {
             "rollover": {
               "max_docs": 1
@@ -226,12 +226,12 @@ Updating `my_executing_policy` to have no rollover action and, instead, go direc
 
 [source,js]
 ------------------------
-PUT _ilm/my_executing_policy
+PUT _ilm/policy/my_executing_policy
 {
   "policy": {
     "phases": {
       "warm": {
-        "minimum_age": "1d",
+        "min_age": "1d",
         "actions": {
           "forcemerge": {
             "max_num_segments": 1
@@ -239,7 +239,7 @@ PUT _ilm/my_executing_policy
         }
       },
       "delete": {
-        "minimum_age": "10d",
+        "min_age": "10d",
         "actions": {
           "delete": {}
         }
@@ -283,7 +283,7 @@ GET my_index/_ilm/explain
         "modified_date_in_millis": 1538475653317,
         "version": 1,
         "phase_definition": {
-          "minimum_age": "0ms",
+          "min_age": "0ms",
           "actions": {
             "rollover": {
               "max_docs": 1
@@ -339,7 +339,7 @@ GET my_index/_ilm/explain
         "modified_date_in_millis": 1538475653317,
         "version": 2, <1>
         "phase_definition": {
-          "minimum_age": "1d",
+          "min_age": "1d",
           "actions": {
             "forcemerge": {
               "max_num_segments": 1
@@ -371,7 +371,7 @@ it will move on to the next phase in `my_other_policy`. So if it was on the
 ////
 [source,js]
 ------------------------
-PUT _ilm/my_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {
@@ -383,7 +383,7 @@ PUT _ilm/my_policy
         }
       },
       "delete": {
-        "minimum_age": "10d",
+        "min_age": "10d",
         "actions": {
           "delete": {}
         }
@@ -392,12 +392,12 @@ PUT _ilm/my_policy
   }
 }
 
-PUT _ilm/my_other_policy
+PUT _ilm/policy/my_other_policy
 {
   "policy": {
     "phases": {
       "delete": {
-        "minimum_age": "1d",
+        "min_age": "1d",
         "actions": {
           "delete": {}
         }

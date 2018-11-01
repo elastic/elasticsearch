@@ -60,7 +60,7 @@ public class IndexLifecycleRequestConvertersTests extends ESTestCase {
         Request request = IndexLifecycleRequestConverters.getLifecyclePolicy(req);
         assertEquals(request.getMethod(), HttpGet.METHOD_NAME);
         String policiesStr = Strings.arrayToCommaDelimitedString(policies);
-        assertEquals(request.getEndpoint(), "/_ilm" + (policiesStr.isEmpty() ? "" : ("/" + policiesStr)));
+        assertEquals(request.getEndpoint(), "/_ilm/policy" + (policiesStr.isEmpty() ? "" : ("/" + policiesStr)));
         assertEquals(request.getParameters(), expectedParams);
     }
 
@@ -74,7 +74,7 @@ public class IndexLifecycleRequestConvertersTests extends ESTestCase {
 
         Request request = IndexLifecycleRequestConverters.putLifecyclePolicy(req);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_ilm/" + name, request.getEndpoint());
+        assertEquals("/_ilm/policy/" + name, request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
     }
 
@@ -87,7 +87,7 @@ public class IndexLifecycleRequestConvertersTests extends ESTestCase {
 
         Request request = IndexLifecycleRequestConverters.deleteLifecyclePolicy(req);
         assertEquals(request.getMethod(), HttpDelete.METHOD_NAME);
-        assertEquals(request.getEndpoint(), "/_ilm/" + lifecycleName);
+        assertEquals(request.getEndpoint(), "/_ilm/policy/" + lifecycleName);
         assertEquals(request.getParameters(), expectedParams);
     }
 

@@ -85,9 +85,19 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         updatePolicy(originalIndex, policy);
         // index document {"foo": "bar"} to trigger rollover
         index(client(), originalIndex, "_id", "foo", "bar");
+
+        /*
+         * These asserts are in the order that they should be satisfied in, in
+         * order to maximize the time for all operations to complete.
+         * An "out of order" assert here may result in this test occasionally
+         * timing out and failing inappropriately.
+         */
+        // asserts that rollover was called
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
-        assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
+        // asserts that shrink deleted the original index
         assertBusy(() -> assertFalse(indexExists(originalIndex)));
+        // asserts that the delete phase completed for the managed shrunken index
+        assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
 
     public void testMoveToAllocateStep() throws Exception {
@@ -153,9 +163,19 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             "  }\n" +
             "}");
         client().performRequest(moveToStepRequest);
+
+        /*
+         * These asserts are in the order that they should be satisfied in, in
+         * order to maximize the time for all operations to complete.
+         * An "out of order" assert here may result in this test occasionally
+         * timing out and failing inappropriately.
+         */
+        // asserts that rollover was called
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
-        assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
+        // asserts that shrink deleted the original index
         assertBusy(() -> assertFalse(indexExists(originalIndex)));
+        // asserts that the delete phase completed for the managed shrunken index
+        assertBusy(() -> assertFalse(indexExists(shrunkenOriginalIndex)));
     }
 
     public void testRolloverAction() throws Exception {
@@ -399,7 +419,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity(
             "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "_ilm/" + policy);
+        Request request = new Request("PUT", "_ilm/policy/" + policy);
         request.setEntity(entity);
         assertOK(client().performRequest(request));
     }
@@ -415,7 +435,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity(
             "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "_ilm/" + policy);
+        Request request = new Request("PUT", "_ilm/policy/" + policy);
         request.setEntity(entity);
         client().performRequest(request);
     }

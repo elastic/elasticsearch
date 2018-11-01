@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
@@ -251,6 +252,44 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertEquals("policy [" + mixedPolicyName + "] for index [" + index.getName() + "] failed on step [" + startStep.getKey() + "].",
                 exception.getMessage());
         assertSame(expectedException, exception.getCause());
+    }
+
+    public void testClusterActionStepThrowsException() throws IOException {
+        RuntimeException thrownException = new RuntimeException("error");
+        firstStep.setException(thrownException);
+        setStateToKey(firstStepKey);
+        Step startStep = policyStepsRegistry.getStep(indexMetaData, firstStepKey);
+        long now = randomNonNegativeLong();
+        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
+        ClusterState newState = task.execute(clusterState);
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetaData().index(index));
+        StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
+        assertThat(currentStepKey, equalTo(new StepKey(firstStepKey.getPhase(), firstStepKey.getAction(), ErrorStep.NAME)));
+        assertThat(firstStep.getExecuteCount(), equalTo(1L));
+        assertThat(secondStep.getExecuteCount(), equalTo(0L));
+        assertThat(task.getNextStepKey(), equalTo(secondStep.getKey()));
+        assertThat(lifecycleState.getPhaseTime(), nullValue());
+        assertThat(lifecycleState.getActionTime(), nullValue());
+        assertThat(lifecycleState.getStepInfo(), equalTo("{\"type\":\"runtime_exception\",\"reason\":\"error\"}"));
+    }
+
+    public void testClusterWaitStepThrowsException() throws IOException {
+        RuntimeException thrownException = new RuntimeException("error");
+        secondStep.setException(thrownException);
+        setStateToKey(firstStepKey);
+        Step startStep = policyStepsRegistry.getStep(indexMetaData, firstStepKey);
+        long now = randomNonNegativeLong();
+        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
+        ClusterState newState = task.execute(clusterState);
+        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetaData().index(index));
+        StepKey currentStepKey = IndexLifecycleRunner.getCurrentStepKey(lifecycleState);
+        assertThat(currentStepKey, equalTo(new StepKey(firstStepKey.getPhase(), firstStepKey.getAction(), ErrorStep.NAME)));
+        assertThat(firstStep.getExecuteCount(), equalTo(1L));
+        assertThat(secondStep.getExecuteCount(), equalTo(1L));
+        assertThat(task.getNextStepKey(), equalTo(thirdStepKey));
+        assertThat(lifecycleState.getPhaseTime(), nullValue());
+        assertThat(lifecycleState.getActionTime(), nullValue());
+        assertThat(lifecycleState.getStepInfo(), equalTo("{\"type\":\"runtime_exception\",\"reason\":\"error\"}"));
     }
 
     private void setStateToKey(StepKey stepKey) throws IOException {

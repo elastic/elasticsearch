@@ -126,7 +126,7 @@ public class PermissionsIT extends ESRestTestCase {
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity(
             "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
-        Request request = new Request("PUT", "_ilm/" + policy);
+        Request request = new Request("PUT", "_ilm/policy/" + policy);
         request.setEntity(entity);
         client().performRequest(request);
     }

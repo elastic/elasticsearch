@@ -5,20 +5,21 @@
 
 [partintro]
 --
-{monitoring} enables you to easily monitor the health of your {es} cluster. The
-monitoring metrics are collected from each node and stored in {es} indices.
+The Elastic {monitoring-features} enable you to easily monitor the health of 
+your {es} cluster. The monitoring metrics are collected from each node and 
+stored in {es} indices.
 
 Each {es} node is considered unique based on its persistent UUID, which is
 written on first start to its <<path-settings,`path.data`>> directory, which
 defaults to `./data`.
 
-All settings associated with {monitoring} in {es} must be set in either the
+All settings associated with monitoring in {es} must be set in either the
 `elasticsearch.yml` file for each node or, where possible, in the dynamic
 cluster settings. For more information, see <<configuring-monitoring>>.
 
 [[es-monitoring-overview]]
-{es} is also at the core of {monitoring} across the {stack}. In all cases, 
-{monitoring} documents are just ordinary JSON documents built by monitoring each 
+{es} is also at the core of monitoring across the {stack}. In all cases, 
+monitoring documents are just ordinary JSON documents built by monitoring each 
 {stack} component at some collection interval, then indexing those 
 documents into the monitoring cluster. 
 

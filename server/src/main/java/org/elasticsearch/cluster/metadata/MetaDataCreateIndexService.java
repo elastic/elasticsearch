@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Names;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -143,7 +144,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
      * Validate the name for an index against some static rules and a cluster state.
      */
     public static void validateIndexName(String index, ClusterState state) {
-        validateIndexOrAliasName(index, InvalidIndexNameException::new);
+        Names.validateTopLevelName(index, InvalidIndexNameException::new);
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");
         }

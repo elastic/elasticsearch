@@ -16,13 +16,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Names;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction;
@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Req
 import org.elasticsearch.xpack.core.indexlifecycle.action.PutLifecycleAction.Response;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -67,7 +68,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
             .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-        LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
+        Names.validateTopLevelName(request.getPolicy().getName(),
+            (name, message) -> new IllegalArgumentException(String.format(Locale.ROOT, "invalid policy name [%s]: %s", name, message)));
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
                 new AckedClusterStateUpdateTask<Response>(request, listener) {
                     @Override

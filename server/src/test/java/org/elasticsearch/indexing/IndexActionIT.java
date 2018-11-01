@@ -198,7 +198,7 @@ public class IndexActionIT extends ESIntegTestCase {
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat("exception contains message about index name too long: " + e.getMessage(),
-                    e.getMessage().contains("index name is too long,"), equalTo(true));
+                    e.getMessage().contains("name is too long,"), equalTo(true));
         }
 
         try {
@@ -206,7 +206,7 @@ public class IndexActionIT extends ESIntegTestCase {
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat("exception contains message about index name too long: " + e.getMessage(),
-                    e.getMessage().contains("index name is too long,"), equalTo(true));
+                    e.getMessage().contains("name is too long,"), equalTo(true));
         }
 
         try {
@@ -217,7 +217,7 @@ public class IndexActionIT extends ESIntegTestCase {
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat("exception contains message about index name too long: " + e.getMessage(),
-                    e.getMessage().contains("index name is too long,"), equalTo(true));
+                    e.getMessage(), containsString("name is too long"));
         }
 
         // we can create an index of max length

@@ -94,7 +94,7 @@ public class MockNioTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX), 2,
+            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX), 2,
                 (s) -> new TestingSocketEventHandler(this::onNonChannelException, s));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");

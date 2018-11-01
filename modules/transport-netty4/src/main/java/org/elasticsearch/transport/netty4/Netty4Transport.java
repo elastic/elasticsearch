@@ -122,7 +122,7 @@ public class Netty4Transport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            ThreadFactory threadFactory = daemonThreadFactory(settings, TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX);
+            ThreadFactory threadFactory = daemonThreadFactory(settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX);
             eventLoopGroup = new NioEventLoopGroup(workerCount, threadFactory);
             clientBootstrap = createClientBootstrap(eventLoopGroup);
             if (NetworkService.NETWORK_SERVER.get(settings)) {

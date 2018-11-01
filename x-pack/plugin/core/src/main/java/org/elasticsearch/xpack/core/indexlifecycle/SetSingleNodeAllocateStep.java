@@ -30,7 +30,7 @@ import java.util.Optional;
 public class SetSingleNodeAllocateStep extends AsyncActionStep {
     public static final String NAME = "set-single-node-allocation";
 
-    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(Settings.EMPTY, Collections.singletonList(
+    private static final AllocationDeciders ALLOCATION_DECIDERS = new AllocationDeciders(Collections.singletonList(
             new FilterAllocationDecider(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))));
 
     public SetSingleNodeAllocateStep(StepKey key, StepKey nextStepKey, Client client) {

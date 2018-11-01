@@ -202,7 +202,7 @@ public class ConnectionManager implements Closeable {
             threadPool.generic().execute(() -> {
                 closeLock.writeLock().lock();
                 try {
-                    // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
+                    // we are holding a write lock so nobody adds to the connectedNodes / openConnections map - it's safe to first close
                     // all instances and then clear them maps
                     Iterator<Map.Entry<DiscoveryNode, Transport.Connection>> iterator = connectedNodes.entrySet().iterator();
                     while (iterator.hasNext()) {

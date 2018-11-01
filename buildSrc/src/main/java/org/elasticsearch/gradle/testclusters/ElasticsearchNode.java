@@ -64,11 +64,11 @@ public class ElasticsearchNode {
         this.distribution = distribution;
     }
 
-    public void start() {
+    void start() {
         logger.info("Starting `{}`", this);
     }
 
-    public void stop(boolean tailLogs) {
+    void stop(boolean tailLogs) {
         logger.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
     }
 

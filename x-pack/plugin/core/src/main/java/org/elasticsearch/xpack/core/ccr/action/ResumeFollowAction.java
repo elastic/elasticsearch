@@ -264,13 +264,14 @@ public final class ResumeFollowAction extends Action<
             return e;
         }
 
-        @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             followerIndex = in.readString();
             maxReadRequestOperationCount = in.readOptionalVInt();
             maxOutstandingReadRequests = in.readOptionalVInt();
             maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
+            maxWriteRequestOperationCount = in.readOptionalVInt();
+            maxWriteRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxOutstandingWriteRequests = in.readOptionalVInt();
             maxWriteBufferCount = in.readOptionalVInt();
             maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
@@ -285,6 +286,8 @@ public final class ResumeFollowAction extends Action<
             out.writeOptionalVInt(maxReadRequestOperationCount);
             out.writeOptionalVInt(maxOutstandingReadRequests);
             out.writeOptionalWriteable(maxReadRequestSize);
+            out.writeOptionalVInt(maxWriteRequestOperationCount);
+            out.writeOptionalWriteable(maxWriteRequestSize);
             out.writeOptionalVInt(maxOutstandingWriteRequests);
             out.writeOptionalVInt(maxWriteBufferCount);
             out.writeOptionalWriteable(maxWriteBufferSize);

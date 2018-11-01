@@ -19,6 +19,7 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -34,10 +35,14 @@ import org.elasticsearch.client.rollup.GetRollupJobRequest;
 import org.elasticsearch.client.rollup.GetRollupJobResponse;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.IndexerState;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
+import org.elasticsearch.client.rollup.DeleteRollupJobRequest;
+import org.elasticsearch.client.rollup.DeleteRollupJobResponse;
 import org.elasticsearch.client.rollup.PutRollupJobRequest;
 import org.elasticsearch.client.rollup.PutRollupJobResponse;
 import org.elasticsearch.client.rollup.RollableIndexCaps;
 import org.elasticsearch.client.rollup.RollupJobCaps;
+import org.elasticsearch.client.rollup.StartRollupJobRequest;
+import org.elasticsearch.client.rollup.StartRollupJobResponse;
 import org.elasticsearch.client.rollup.job.config.DateHistogramGroupConfig;
 import org.elasticsearch.client.rollup.job.config.GroupConfig;
 import org.elasticsearch.client.rollup.job.config.MetricConfig;
@@ -51,6 +56,7 @@ import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.sum.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -62,24 +68,40 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RollupIT extends ESRestHighLevelClientTestCase {
 
+    double sum = 0.0d;
+    int max = Integer.MIN_VALUE;
+    int min = Integer.MAX_VALUE;
     private static final List<String> SUPPORTED_METRICS = Arrays.asList(MaxAggregationBuilder.NAME, MinAggregationBuilder.NAME,
         SumAggregationBuilder.NAME, AvgAggregationBuilder.NAME, ValueCountAggregationBuilder.NAME);
 
-    @SuppressWarnings("unchecked")
-    public void testPutAndGetRollupJob() throws Exception {
-        double sum = 0.0d;
-        int max = Integer.MIN_VALUE;
-        int min = Integer.MAX_VALUE;
+    private String id;
+    private String indexPattern;
+    private String rollupIndex;
+    private String cron;
+    private int pageSize;
+    private int numDocs;
 
+    @Before
+    public void init() throws Exception {
+        id = randomAlphaOfLength(10);
+        indexPattern = randomFrom("docs", "d*", "doc*");
+        rollupIndex = randomFrom("rollup", "test");
+        cron = "*/1 * * * * ?";
+        numDocs = indexDocs();
+        pageSize = randomIntBetween(numDocs, numDocs * 10);
+    }
+
+    public int indexDocs() throws Exception {
         final BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int minute = 0; minute < 60; minute++) {
@@ -88,10 +110,10 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
                 final IndexRequest indexRequest = new IndexRequest("docs", "doc");
                 indexRequest.source(jsonBuilder()
-                    .startObject()
-                    .field("value", value)
-                    .field("date", String.format(Locale.ROOT, "2018-01-01T00:%02d:%02dZ", minute, second))
-                    .endObject());
+                        .startObject()
+                        .field("value", value)
+                        .field("date", String.format(Locale.ROOT, "2018-01-01T00:%02d:%02dZ", minute, second))
+                        .endObject());
                 bulkRequest.add(indexRequest);
 
                 sum += value;
@@ -119,31 +141,49 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
         RefreshResponse refreshResponse = highLevelClient().indices().refresh(new RefreshRequest("docs"), RequestOptions.DEFAULT);
         assertEquals(0, refreshResponse.getFailedShards());
+        return numDocs;
+    }
 
-        final String id = randomAlphaOfLength(10);
-        final String indexPattern = randomFrom("docs", "d*", "doc*");
-        final String rollupIndex = randomFrom("rollup", "test");
-        final String cron = "*/1 * * * * ?";
-        final int pageSize = randomIntBetween(numDocs, numDocs * 10);
+
+    public void testDeleteRollupJob() throws Exception {
+        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
+        final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
+        PutRollupJobRequest putRollupJobRequest =
+            new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
+        final RollupClient rollupClient = highLevelClient().rollup();
+        PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
+        DeleteRollupJobRequest deleteRollupJobRequest = new DeleteRollupJobRequest(id);
+        DeleteRollupJobResponse deleteRollupJobResponse = highLevelClient().rollup()
+            .deleteRollupJob(deleteRollupJobRequest, RequestOptions.DEFAULT);
+        assertTrue(deleteRollupJobResponse.isAcknowledged());
+    }
+
+    public void testDeleteMissingRollupJob() {
+        DeleteRollupJobRequest deleteRollupJobRequest = new DeleteRollupJobRequest(randomAlphaOfLength(10));
+        ElasticsearchStatusException responseException = expectThrows(ElasticsearchStatusException.class,() -> highLevelClient().rollup()
+            .deleteRollupJob(deleteRollupJobRequest, RequestOptions.DEFAULT));
+        assertThat(responseException.status().getStatus(), is(404));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutAndGetRollupJob() throws Exception {
         // TODO expand this to also test with histogram and terms?
         final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
         PutRollupJobRequest putRollupJobRequest =
-            new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
+                new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
 
         final RollupClient rollupClient = highLevelClient().rollup();
         PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
         assertTrue(response.isAcknowledged());
 
-        // TODO Replace this with the Rollup Start Job API
-        Response startResponse = client().performRequest(new Request("POST", "/_xpack/rollup/job/" + id + "/_start"));
-        assertEquals(RestStatus.OK.getStatus(), startResponse.getHttpResponse().getStatusLine().getStatusCode());
+        StartRollupJobRequest startRequest = new StartRollupJobRequest(id);
+        StartRollupJobResponse startResponse = execute(startRequest, rollupClient::startRollupJob, rollupClient::startRollupJobAsync);
+        assertTrue(startResponse.isAcknowledged());
 
-        int finalMin = min;
-        int finalMax = max;
-        double finalSum = sum;
         assertBusy(() -> {
             SearchResponse searchResponse = highLevelClient().search(new SearchRequest(rollupIndex), RequestOptions.DEFAULT);
             assertEquals(0, searchResponse.getFailedShards());
@@ -161,13 +201,13 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 for (String name : metric.getMetrics()) {
                     Number value = (Number) source.get(metric.getField() + "." + name + ".value");
                     if ("min".equals(name)) {
-                        assertEquals(finalMin, value.intValue());
+                        assertEquals(min, value.intValue());
                     } else if ("max".equals(name)) {
-                        assertEquals(finalMax, value.intValue());
+                        assertEquals(max, value.intValue());
                     } else if ("sum".equals(name)) {
-                        assertEquals(finalSum, value.doubleValue(), 0.0d);
+                        assertEquals(sum, value.doubleValue(), 0.0d);
                     } else if ("avg".equals(name)) {
-                        assertEquals(finalSum, value.doubleValue(), 0.0d);
+                        assertEquals(sum, value.doubleValue(), 0.0d);
                         Number avgCount = (Number) source.get(metric.getField() + "." + name + "._count");
                         assertEquals(numDocs, avgCount.intValue());
                     } else if ("value_count".equals(name)) {
@@ -198,7 +238,6 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertThat(getResponse.getJobs(), empty());
     }
 
-
     public void testGetRollupCaps() throws Exception {
         final Set<Integer> values = new HashSet<>();
         double sum = 0.0d;
@@ -213,10 +252,10 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
                 final IndexRequest indexRequest = new IndexRequest("docs", "doc");
                 indexRequest.source(jsonBuilder()
-                    .startObject()
-                    .field("value", value)
-                    .field("date", String.format(Locale.ROOT, "2018-01-01T00:%02d:%02dZ", minute, second))
-                    .endObject());
+                        .startObject()
+                        .field("value", value)
+                        .field("date", String.format(Locale.ROOT, "2018-01-01T00:%02d:%02dZ", minute, second))
+                        .endObject());
                 bulkRequest.add(indexRequest);
 
                 values.add(value);
@@ -257,7 +296,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
         PutRollupJobRequest putRollupJobRequest =
-            new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
+                new PutRollupJobRequest(new RollupJobConfig(id, indexPattern, rollupIndex, cron, pageSize, groups, metrics, timeout));
 
         final RollupClient rollupClient = highLevelClient().rollup();
         PutRollupJobResponse response = execute(putRollupJobRequest, rollupClient::putRollupJob, rollupClient::putRollupJobAsync);
@@ -268,7 +307,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
         GetRollupCapsRequest getRollupCapsRequest = new GetRollupCapsRequest(indexPattern);
         GetRollupCapsResponse capsResponse = highLevelClient().rollup()
-            .getRollupCapabilities(getRollupCapsRequest, RequestOptions.DEFAULT);
+                .getRollupCapabilities(getRollupCapsRequest, RequestOptions.DEFAULT);
 
         assertNotNull(capsResponse);
         Map<String, RollableIndexCaps> rolledPatterns = capsResponse.getJobs();
@@ -290,20 +329,20 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         List<Map<String, Object>> timestampCaps = fieldCaps.get("date").getAggs();
         for (Map.Entry<String, Object> entry : timestampCaps.get(0).entrySet()) {
             switch (entry.getKey()) {
-                case "agg":
-                    assertThat(entry.getValue(), equalTo("date_histogram"));
-                    break;
-                case "delay":
-                    assertThat(entry.getValue(), equalTo("foo"));
-                    break;
-                case "interval":
-                    assertThat(entry.getValue(), equalTo("1d"));
-                    break;
-                case "time_zone":
-                    assertThat(entry.getValue(), equalTo("UTC"));
-                    break;
-                default:
-                    fail("Unknown field cap: [" + entry.getKey() + "]");
+            case "agg":
+                assertThat(entry.getValue(), equalTo("date_histogram"));
+                break;
+            case "delay":
+                assertThat(entry.getValue(), equalTo("foo"));
+                break;
+            case "interval":
+                assertThat(entry.getValue(), equalTo("1d"));
+                break;
+            case "time_zone":
+                assertThat(entry.getValue(), equalTo("UTC"));
+                break;
+            default:
+                fail("Unknown field cap: [" + entry.getKey() + "]");
             }
         }
 

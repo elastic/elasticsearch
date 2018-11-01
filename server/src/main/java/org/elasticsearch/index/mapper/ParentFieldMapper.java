@@ -106,14 +106,16 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             }
             name = joinField(parentType);
             setupFieldType(context);
-            return new ParentFieldMapper(createParentJoinFieldMapper(documentType, context), fieldType, parentType, context.indexSettings());
+            return new ParentFieldMapper(createParentJoinFieldMapper(documentType, context), fieldType,
+                parentType, context.indexSettings());
         }
     }
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         private static final ParseField FIELDDATA = new ParseField("fielddata").withAllDeprecated("eager_global_ordinals");
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
+                                                 ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.type());
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -141,7 +143,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
             final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             final String typeName = context.type();
-            KeywordFieldMapper parentJoinField = createParentJoinFieldMapper(typeName, new BuilderContext(indexSettings, new ContentPath(0)));
+            KeywordFieldMapper parentJoinField = createParentJoinFieldMapper(typeName,
+                new BuilderContext(indexSettings, new ContentPath(0)));
             MappedFieldType childJoinFieldType = new ParentFieldType(Defaults.FIELD_TYPE, typeName);
             childJoinFieldType.setName(ParentFieldMapper.NAME);
             return new ParentFieldMapper(parentJoinField, childJoinFieldType, null, indexSettings);
@@ -218,7 +221,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     // the parent field mapper in the child type pointing to this type determines the field data settings for this join field
     private final KeywordFieldMapper parentJoinField;
 
-    private ParentFieldMapper(KeywordFieldMapper parentJoinField, MappedFieldType childJoinFieldType, String parentType, Settings indexSettings) {
+    private ParentFieldMapper(KeywordFieldMapper parentJoinField, MappedFieldType childJoinFieldType,
+                              String parentType, Settings indexSettings) {
         super(NAME, childJoinFieldType, Defaults.FIELD_TYPE, indexSettings);
         this.parentType = parentType;
         this.parentJoinField = parentJoinField;
@@ -269,7 +273,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                     // we did not add it in the parsing phase, add it now
                     fields.add(new SortedDocValuesField(fieldType.name(), new BytesRef(parentId)));
                 } else if (parentId != null && !parsedParentId.equals(Uid.createUid(parentType, parentId))) {
-                    throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + parentId + "]");
+                    throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id()
+                        + "], while external value is [" + parentId + "]");
                 }
             }
         }
@@ -310,7 +315,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
         if (fieldMergeWith.parentType != null && Objects.equals(parentType, fieldMergeWith.parentType) == false) {
-            throw new IllegalArgumentException("The _parent field's type option can't be changed: [" + parentType + "]->[" + fieldMergeWith.parentType + "]");
+            throw new IllegalArgumentException("The _parent field's type option can't be changed: [" + parentType + "]->["
+                + fieldMergeWith.parentType + "]");
         }
         // If fieldMergeWith is not active it means the user provided a mapping
         // update that does not explicitly configure the _parent field, so we

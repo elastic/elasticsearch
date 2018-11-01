@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.test.disruption;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Random;
@@ -28,7 +28,7 @@ import static org.junit.Assert.assertFalse;
 
 public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
 
-    protected final Logger logger = Loggers.getLogger(getClass());
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     protected volatile String disruptedNode;
     protected volatile InternalTestCluster cluster;

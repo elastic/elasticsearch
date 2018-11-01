@@ -26,6 +26,7 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -73,6 +74,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
@@ -108,22 +110,10 @@ public abstract class ESRestTestCase extends ESTestCase {
      * Does any node in the cluster being tested have x-pack installed?
      */
     public static boolean hasXPack() throws IOException {
-        RestClient client = adminClient();
-        if (client == null) {
+        if (hasXPack == null) {
             throw new IllegalStateException("must be called inside of a rest test case test");
         }
-        Map<?, ?> response = entityAsMap(client.performRequest(new Request("GET", "_nodes/plugins")));
-        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-        for (Map.Entry<?, ?> node : nodes.entrySet()) {
-            Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-            for (Object module: (List<?>) nodeInfo.get("modules")) {
-                Map<?, ?> moduleInfo = (Map<?, ?>) module;
-                if (moduleInfo.get("name").toString().startsWith("x-pack-")) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return hasXPack;
     }
 
     private static List<HttpHost> clusterHosts;
@@ -136,12 +126,16 @@ public abstract class ESRestTestCase extends ESTestCase {
      * completes
      */
     private static RestClient adminClient;
+    private static Boolean hasXPack;
+    private static TreeSet<Version> nodeVersions;
 
     @Before
     public void initClient() throws IOException {
         if (client == null) {
             assert adminClient == null;
             assert clusterHosts == null;
+            assert hasXPack == null;
+            assert nodeVersions == null;
             String cluster = System.getProperty("tests.rest.cluster");
             if (cluster == null) {
                 throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
@@ -162,10 +156,27 @@ public abstract class ESRestTestCase extends ESTestCase {
             logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+
+            hasXPack = false;
+            nodeVersions = new TreeSet<>();
+            Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
+            Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+            for (Map.Entry<?, ?> node : nodes.entrySet()) {
+                Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
+                nodeVersions.add(Version.fromString(nodeInfo.get("version").toString()));
+                for (Object module: (List<?>) nodeInfo.get("modules")) {
+                    Map<?, ?> moduleInfo = (Map<?, ?>) module;
+                    if (moduleInfo.get("name").toString().startsWith("x-pack-")) {
+                        hasXPack = true;
+                    }
+                }
+            }
         }
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
+        assert hasXPack != null;
+        assert nodeVersions != null;
     }
 
     /**
@@ -195,6 +206,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             clusterHosts = null;
             client = null;
             adminClient = null;
+            hasXPack = null;
+            nodeVersions = null;
         }
     }
 
@@ -335,8 +348,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
-        boolean hasXPack = hasXPack();
-
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
             try {
@@ -384,18 +395,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             wipeClusterSettings();
         }
 
-        if (hasXPack && false == preserveRollupJobsUponCompletion()) {
-            try {
-                wipeRollupJobs();
-            } catch (ResponseException e) {
-                // Temporary work around for mixed clusters, some of which don't have rollup
-                if (    // The request was made to node without rollup
-                        e.getResponse().getStatusLine().getStatusCode() != 400
-                        // or the request was made to a node with rollup and it sent something to a node without it
-                        && false == e.getMessage().contains("No handler for action [cluster:monitor/xpack/rollup/get]")) {
-                    throw e;
-                }
-            }
+        /*
+         * Rollups were introduced in 6.3.0 so any cluster that contains older
+         * nodes won't be able to do *anything* with rollups, including cleanup.
+         */
+        if (hasXPack && nodeVersions.first().onOrAfter(Version.V_6_3_0)
+                && false == preserveRollupJobsUponCompletion()) {
+            wipeRollupJobs();
             waitForPendingRollupTasks();
         }
     }
@@ -486,7 +492,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             try {
                 Response jobsResponse = adminClient().performRequest(request);
                 String body = EntityUtils.toString(jobsResponse.getEntity());
-                logger.error(body);
                 // If the body contains any of the non-stopped states, at least one job is not finished yet
                 return Arrays.stream(new String[]{"started", "aborting", "stopping", "indexing"}).noneMatch(body::contains);
             } catch (IOException e) {

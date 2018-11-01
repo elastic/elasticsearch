@@ -64,7 +64,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
     static final TimeValue DEFAULT_READ_POLL_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final Client client;
-    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final IndicesService indicesService;
@@ -83,9 +82,8 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             final IndicesService indicesService,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(settings, ResumeFollowAction.NAME, threadPool, transportService, actionFilters,
-            indexNameExpressionResolver, ResumeFollowAction.Request::new);
+            ResumeFollowAction.Request::new, indexNameExpressionResolver);
         this.client = client;
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;

@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -55,17 +56,27 @@ public class ClusterService extends AbstractLifecycleComponent {
     public static final org.elasticsearch.common.settings.Setting.AffixSetting<String> USER_DEFINED_META_DATA =
         Setting.prefixKeySetting("cluster.metadata.", (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
 
+    /**
+     * The node's settings.
+     */
+    private final Settings settings;
+
     private final ClusterName clusterName;
 
     private final OperationRouting operationRouting;
 
     private final ClusterSettings clusterSettings;
+
+    private final String nodeName;
+
     private final Map<String, Supplier<ClusterState.Custom>> initialClusterStateCustoms;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
                           Map<String, Supplier<ClusterState.Custom>> initialClusterStateCustoms) {
         super(settings);
-        this.masterService = new MasterService(settings, threadPool);
+        this.settings = settings;
+        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
+        this.masterService = new MasterService(nodeName, settings, threadPool);
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.clusterSettings = clusterSettings;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
@@ -74,7 +85,8 @@ public class ClusterService extends AbstractLifecycleComponent {
         // Add a no-op update consumer so changes are logged
         this.clusterSettings.addAffixUpdateConsumer(USER_DEFINED_META_DATA, (first, second) -> {}, (first, second) -> {});
         this.initialClusterStateCustoms = initialClusterStateCustoms;
-        this.clusterApplierService = new ClusterApplierService(settings, clusterSettings, threadPool, this::newClusterStateBuilder);
+        this.clusterApplierService = new ClusterApplierService(nodeName, settings, clusterSettings,
+            threadPool, this::newClusterStateBuilder);
     }
 
     /**
@@ -210,8 +222,18 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterSettings;
     }
 
+    /**
+     * The node's settings.
+     */
     public Settings getSettings() {
         return settings;
+    }
+
+    /**
+     * The name of this node.
+     */
+    public final String getNodeName() {
+        return nodeName;
     }
 
     /**

@@ -83,8 +83,7 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             clusterSearchShardsResponse.writeTo(out);
             try(StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
                 in.setVersion(version);
-                ClusterSearchShardsResponse deserialized = new ClusterSearchShardsResponse();
-                deserialized.readFrom(in);
+                ClusterSearchShardsResponse deserialized = new ClusterSearchShardsResponse(in);
                 assertArrayEquals(clusterSearchShardsResponse.getNodes(), deserialized.getNodes());
                 assertEquals(clusterSearchShardsResponse.getGroups().length, deserialized.getGroups().length);
                 for (int i = 0; i < clusterSearchShardsResponse.getGroups().length; i++) {

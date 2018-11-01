@@ -22,6 +22,7 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentLocation;
@@ -52,7 +53,7 @@ import static org.mockito.Mockito.when;
 
 public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
 
-    public void testWarningHeaders() throws IOException {
+    public void testWarningHeaders() {
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
 
@@ -422,6 +423,17 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_warmer"));
         assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
+    }
+
+    public void testUnsupportedTopLevelField() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+            "max_concurrent_shard_requests: 1"
+        );
+
+        ParsingException e = expectThrows(ParsingException.class, () -> DoSection.parse(parser));
+        assertThat(e.getMessage(), is("unsupported field [max_concurrent_shard_requests]"));
+        parser.nextToken();
+        parser.nextToken();
     }
 
     public void testParseDoSectionWithHeaders() throws Exception {

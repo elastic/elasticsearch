@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -124,8 +125,10 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, builder.build(),
                 new TransportResponseHandler<GetTaskResponse>() {
                     @Override
-                    public GetTaskResponse newInstance() {
-                        return new GetTaskResponse();
+                    public GetTaskResponse read(StreamInput in) throws IOException {
+                        GetTaskResponse response = new GetTaskResponse();
+                        response.readFrom(in);
+                        return response;
                     }
 
                     @Override

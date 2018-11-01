@@ -9,6 +9,8 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.ssl.SslHandler;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.network.NetworkService;
@@ -30,6 +32,7 @@ import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper
 import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isReceivedCertificateUnknownException;
 
 public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport {
+    private static final Logger logger = LogManager.getLogger(SecurityNetty4HttpServerTransport.class);
 
     private final IPFilter ipFilter;
     private final SSLService sslService;

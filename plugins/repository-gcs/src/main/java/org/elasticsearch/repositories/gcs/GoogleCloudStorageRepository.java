@@ -26,6 +26,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -78,6 +79,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
     static final Setting<TimeValue> HTTP_CONNECT_TIMEOUT =
             timeSetting("http.connect_timeout", NO_TIMEOUT, Property.NodeScope, Property.Dynamic);
 
+    private final Settings settings;
     private final GoogleCloudStorageService storageService;
     private final BlobPath basePath;
     private final boolean compress;
@@ -89,6 +91,7 @@ class GoogleCloudStorageRepository extends BlobStoreRepository {
                                         NamedXContentRegistry namedXContentRegistry,
                                         GoogleCloudStorageService storageService) {
         super(metadata, environment.settings(), namedXContentRegistry);
+        this.settings = environment.settings();
         this.storageService = storageService;
 
         String basePath = BASE_PATH.get(metadata.settings());

@@ -36,6 +36,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportMainAction extends HandledTransportAction<MainRequest, MainResponse> {
 
+    private final String nodeName;
     private final ClusterService clusterService;
 
     @Inject
@@ -43,16 +44,16 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ClusterService clusterService) {
         super(settings, MainAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MainRequest::new);
+        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.clusterService = clusterService;
     }
 
     @Override
     protected void doExecute(MainRequest request, ActionListener<MainResponse> listener) {
         ClusterState clusterState = clusterService.state();
-        assert Node.NODE_NAME_SETTING.exists(settings);
         final boolean available = clusterState.getBlocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE) == false;
         listener.onResponse(
-            new MainResponse(Node.NODE_NAME_SETTING.get(settings), Version.CURRENT, clusterState.getClusterName(),
+            new MainResponse(nodeName, Version.CURRENT, clusterState.getClusterName(),
                     clusterState.metaData().clusterUUID(), Build.CURRENT, available));
     }
 }

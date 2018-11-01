@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery.zen;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -27,10 +26,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING;
 import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
-import static org.elasticsearch.discovery.zen.SettingsBasedHostsProvider.LIMIT_LOCAL_PORTS_COUNT;
-import static org.elasticsearch.transport.TcpTransport.PORT;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/34781")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SettingsBasedHostProviderIT extends ESIntegTestCase {
 
@@ -63,21 +59,5 @@ public class SettingsBasedHostProviderIT extends ESIntegTestCase {
             Settings.builder().putList(DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), seedNodeAddress).build());
 
         ensureStableCluster(extraNodes + 1);
-    }
-
-    public void testClusterFormsByScanningPorts() {
-        // This test will fail if all 4 ports just less than the one used by the first node are already bound by something else. It's hard
-        // to know how often this might happen in reality, so let's try it and see.
-
-        final String seedNodeName = internalCluster().startNode();
-        final NodesInfoResponse nodesInfoResponse
-            = client(seedNodeName).admin().cluster().nodesInfo(new NodesInfoRequest("_local")).actionGet();
-        final int seedNodePort = nodesInfoResponse.getNodes().get(0).getTransport().getAddress().publishAddress().getPort();
-        final int minPort = randomIntBetween(seedNodePort - LIMIT_LOCAL_PORTS_COUNT + 1, seedNodePort - 1);
-        final String portSpec = minPort + "-" + seedNodePort;
-
-        logger.info("--> using port specification [{}]", portSpec);
-        internalCluster().startNode(Settings.builder().put(PORT.getKey(), portSpec));
-        ensureStableCluster(2);
     }
 }

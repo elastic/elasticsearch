@@ -7,13 +7,14 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.protocol.AbstractHlrcXContentTestCase;
+import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.CalendarTests;
 
 import java.io.IOException;
 
-public class PutCalendarActionResponseTests extends AbstractHlrcXContentTestCase<PutCalendarAction.Response, PutCalendarResponse> {
+public class PutCalendarActionResponseTests
+    extends AbstractHlrcStreamableXContentTestCase<PutCalendarAction.Response, PutCalendarResponse> {
 
     @Override
     protected PutCalendarAction.Response createTestInstance() {
@@ -40,5 +41,10 @@ public class PutCalendarActionResponseTests extends AbstractHlrcXContentTestCase
         org.elasticsearch.client.ml.calendars.Calendar hlrcCalendar = instance.getCalendar();
         Calendar internalCalendar = new Calendar(hlrcCalendar.getId(), hlrcCalendar.getJobIds(), hlrcCalendar.getDescription());
         return new PutCalendarAction.Response(internalCalendar);
+    }
+
+    @Override
+    protected PutCalendarAction.Response createBlankInstance() {
+        return new PutCalendarAction.Response();
     }
 }

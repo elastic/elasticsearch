@@ -27,7 +27,7 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
     @Override
     public void testSelectInvalidSql() throws Exception {
         assertFoundOneProblem(command("SELECT * FRO"));
-        assertEquals("line 1:8: Cannot determine columns for *" + END, readLine());
+        assertEquals("line 1:8: Cannot determine columns for [*]" + END, readLine());
     }
 
     @Override

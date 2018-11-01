@@ -20,7 +20,7 @@ public class ErrorsTestCase extends JdbcIntegrationTestCase implements org.elast
     public void testSelectInvalidSql() throws Exception {
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FRO").executeQuery());
-            assertEquals("Found 1 problem(s)\nline 1:8: Cannot determine columns for *", e.getMessage());
+            assertEquals("Found 1 problem(s)\nline 1:8: Cannot determine columns for [*]", e.getMessage());
         }
     }
 

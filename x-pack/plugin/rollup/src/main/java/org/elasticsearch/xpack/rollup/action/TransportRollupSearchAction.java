@@ -101,7 +101,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(clusterService.getSettings());
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request.indices());
         RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetaData().indices());
 

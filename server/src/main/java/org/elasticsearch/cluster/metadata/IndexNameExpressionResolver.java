@@ -26,9 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
@@ -54,18 +52,14 @@ import java.util.SortedMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public class IndexNameExpressionResolver extends AbstractComponent {
+import static java.util.Collections.unmodifiableList;
 
-    private final List<ExpressionResolver> expressionResolvers;
-    private final DateMathExpressionResolver dateMathExpressionResolver;
+public class IndexNameExpressionResolver {
 
-    public IndexNameExpressionResolver(Settings settings) {
-        super(settings);
-        expressionResolvers = Arrays.asList(
-                dateMathExpressionResolver = new DateMathExpressionResolver(),
-                new WildcardExpressionResolver()
-        );
-    }
+    private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
+    private final List<ExpressionResolver> expressionResolvers = unmodifiableList(Arrays.asList(
+            dateMathExpressionResolver,
+            new WildcardExpressionResolver()));
 
     /**
      * Same as {@link #concreteIndexNames(ClusterState, IndicesOptions, String...)}, but the index expressions and options

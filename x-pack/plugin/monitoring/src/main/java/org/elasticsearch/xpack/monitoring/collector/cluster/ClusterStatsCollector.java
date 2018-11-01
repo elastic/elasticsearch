@@ -65,7 +65,7 @@ public class ClusterStatsCollector extends Collector {
                                  final XPackLicenseState licenseState,
                                  final Client client,
                                  final LicenseService licenseService) {
-        this(settings, clusterService, licenseState, client, licenseService, new IndexNameExpressionResolver(Settings.EMPTY));
+        this(settings, clusterService, licenseState, client, licenseService, new IndexNameExpressionResolver());
     }
 
     ClusterStatsCollector(final Settings settings,
@@ -74,7 +74,7 @@ public class ClusterStatsCollector extends Collector {
                           final Client client,
                           final LicenseService licenseService,
                           final IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);
+        super(ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);
         this.settings = settings;
         this.client = client;
         this.licenseService = licenseService;

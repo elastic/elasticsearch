@@ -3,20 +3,17 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.expression.predicate;
+package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.script.Params;
-import org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptWeaver;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Comparisons;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -30,7 +27,6 @@ import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
-import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public class In extends NamedExpression implements ScriptWeaver {
@@ -84,24 +80,12 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public Boolean fold() {
-        if (value.dataType() == DataType.NULL) {
+        // Optimization for early return and Query folding to LocalExec
+        if (value.dataType() == DataType.NULL ||
+            list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
             return null;
         }
-        if (list.size() == 1 && list.get(0).dataType() == DataType.NULL) {
-            return false;
-        }
-
-        Object foldedLeftValue = value.fold();
-        Boolean result = false;
-        for (Expression rightValue : list) {
-            Boolean compResult = Comparisons.eq(foldedLeftValue, rightValue.fold());
-            if (compResult == null) {
-                result = null;
-            } else if (compResult) {
-                return true;
-            }
-        }
-        return result;
+        return InProcessor.apply(value.fold(), Foldables.valuesOf(list, value.dataType()));
     }
 
     @Override
@@ -122,34 +106,18 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public ScriptTemplate asScript() {
-        StringJoiner sj = new StringJoiner(" || ");
         ScriptTemplate leftScript = asScript(value);
-        List<Params> rightParams = new ArrayList<>();
-        String scriptPrefix = leftScript + "==";
-        LinkedHashSet<Object> values = list.stream().map(Expression::fold).collect(Collectors.toCollection(LinkedHashSet::new));
-        for (Object valueFromList : values) {
-            // if checked against null => false
-            if (valueFromList != null) {
-                if (valueFromList instanceof Expression) {
-                    ScriptTemplate rightScript = asScript((Expression) valueFromList);
-                    sj.add(scriptPrefix + rightScript.template());
-                    rightParams.add(rightScript.params());
-                } else {
-                    if (valueFromList instanceof String) {
-                        sj.add(scriptPrefix + '"' + valueFromList + '"');
-                    } else {
-                        sj.add(scriptPrefix + valueFromList.toString());
-                    }
-                }
-            }
-        }
+        // remove duplicates
+        List<Object> values = new ArrayList<>(new LinkedHashSet<>(Foldables.valuesOf(list, value.dataType())));
+        values.removeIf(Objects::isNull);
 
-        ParamsBuilder paramsBuilder = paramsBuilder().script(leftScript.params());
-        for (Params p : rightParams) {
-            paramsBuilder = paramsBuilder.script(p);
-        }
-
-        return new ScriptTemplate(format(Locale.ROOT, "%s", sj.toString()), paramsBuilder.build(), dataType());
+        return new ScriptTemplate(
+            formatTemplate(String.format(Locale.ROOT, "{sql}.in(%s, {})", leftScript.template())),
+            paramsBuilder()
+                .script(leftScript.params())
+                .variable(values)
+                .build(),
+            dataType());
     }
 
     @Override

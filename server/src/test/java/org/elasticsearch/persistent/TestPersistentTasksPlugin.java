@@ -91,7 +91,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
                                                                        ThreadPool threadPool, Client client) {
-        return Collections.singletonList(new TestPersistentTasksExecutor(Settings.EMPTY, clusterService));
+        return Collections.singletonList(new TestPersistentTasksExecutor(clusterService));
     }
 
     @Override
@@ -292,8 +292,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         public static final String NAME = "cluster:admin/persistent/test";
         private final ClusterService clusterService;
 
-        public TestPersistentTasksExecutor(Settings settings, ClusterService clusterService) {
-            super(settings, NAME, ThreadPool.Names.GENERIC);
+        public TestPersistentTasksExecutor(ClusterService clusterService) {
+            super(NAME, ThreadPool.Names.GENERIC);
             this.clusterService = clusterService;
         }
 

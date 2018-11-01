@@ -16,7 +16,6 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -50,7 +49,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final boolean isElectedMaster = randomBoolean();
         whenLocalNodeElectedMaster(isElectedMaster);
 
-        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(false));
         if (isElectedMaster) {
@@ -60,14 +59,14 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(false), is(false));
     }
 
     public void testShouldCollectReturnsTrue() {
         when(licenseState.isMonitoringAllowed()).thenReturn(true);
-        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(true), is(true));
         verify(licenseState).isMonitoringAllowed();
@@ -144,7 +143,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final Client client = mock(Client.class);
         when(client.admin()).thenReturn(adminClient);
 
-        final IndexStatsCollector collector = new IndexStatsCollector(Settings.EMPTY, clusterService, licenseState, client);
+        final IndexStatsCollector collector = new IndexStatsCollector(clusterService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
 
         final long interval = randomNonNegativeLong();

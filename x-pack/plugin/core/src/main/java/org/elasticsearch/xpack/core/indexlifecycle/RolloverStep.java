@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -71,8 +72,13 @@ public class RolloverStep extends AsyncWaitStep {
             ActionListener.wrap(response -> listener.onResponse(response.isRolledOver(), new EmptyInfo()), exception -> {
                 if (exception instanceof ResourceAlreadyExistsException) {
                     // This can happen sometimes when this step is executed multiple times
-                    logger.debug("index [{}] cannot roll over because the next index already exists, skipping to next step",
-                        indexMetaData.getIndex());
+                    if (logger.isTraceEnabled()) {
+                        logger.debug(() -> new ParameterizedMessage("{} index cannot roll over because the next index already exists, " +
+                            "skipping to next step", indexMetaData.getIndex()), exception);
+                    } else {
+                        logger.debug("{} index cannot roll over because the next index already exists, skipping to next step",
+                            indexMetaData.getIndex());
+                    }
                     listener.onResponse(true, new EmptyInfo());
                 } else {
                     listener.onFailure(exception);

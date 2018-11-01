@@ -72,7 +72,7 @@ public final class TransportPutFollowAction
                 indexNameExpressionResolver);
         this.client = client;
         this.allocationService = allocationService;
-        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
 

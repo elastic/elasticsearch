@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -58,8 +57,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
-    public ShardFollowTasksExecutor(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService) {
-        super(settings, ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
+    public ShardFollowTasksExecutor(Client client, ThreadPool threadPool, ClusterService clusterService) {
+        super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;

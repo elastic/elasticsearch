@@ -344,7 +344,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
                 b.bind(CompositeRolesStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(NativeRoleMappingStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(AuditTrailService.class)
-                    .toInstance(new AuditTrailService(settings, Collections.emptyList(), getLicenseState()));
+                    .toInstance(new AuditTrailService(Collections.emptyList(), getLicenseState()));
             });
             return modules;
         }
@@ -415,7 +415,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             }
         }
         final AuditTrailService auditTrailService =
-                new AuditTrailService(settings, new ArrayList<>(auditTrails), getLicenseState());
+                new AuditTrailService(new ArrayList<>(auditTrails), getLicenseState());
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
@@ -487,16 +487,16 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         final Set<RequestInterceptor> requestInterceptors;
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
             requestInterceptors = Collections.unmodifiableSet(Sets.newHashSet(
-                    new SearchRequestInterceptor(settings, threadPool, getLicenseState()),
-                    new UpdateRequestInterceptor(settings, threadPool, getLicenseState()),
-                    new BulkShardRequestInterceptor(settings, threadPool, getLicenseState()),
-                    new ResizeRequestInterceptor(settings, threadPool, getLicenseState(), auditTrailService),
+                    new SearchRequestInterceptor(threadPool, getLicenseState()),
+                    new UpdateRequestInterceptor(threadPool, getLicenseState()),
+                    new BulkShardRequestInterceptor(threadPool, getLicenseState()),
+                    new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
                     new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService)));
         } else {
             requestInterceptors = Collections.emptySet();
         }
 
-        securityActionFilter.set(new SecurityActionFilter(settings, authcService.get(), authzService, getLicenseState(),
+        securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
                 requestInterceptors, threadPool, securityContext.get(), destructiveOperations));
 
         return components;

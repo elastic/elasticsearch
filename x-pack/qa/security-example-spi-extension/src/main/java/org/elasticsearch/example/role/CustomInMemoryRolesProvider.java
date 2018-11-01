@@ -7,7 +7,6 @@ package org.elasticsearch.example.role;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
@@ -30,8 +29,7 @@ public class CustomInMemoryRolesProvider
 
     private final Map<String, String> rolePermissionSettings;
 
-    public CustomInMemoryRolesProvider(Settings settings, Map<String, String> rolePermissionSettings) {
-        super(settings);
+    public CustomInMemoryRolesProvider(Map<String, String> rolePermissionSettings) {
         this.rolePermissionSettings = rolePermissionSettings;
     }
 

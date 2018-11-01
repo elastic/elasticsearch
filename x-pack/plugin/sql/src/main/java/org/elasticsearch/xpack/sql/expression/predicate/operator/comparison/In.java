@@ -107,6 +107,8 @@ public class In extends NamedExpression implements ScriptWeaver {
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate leftScript = asScript(value);
+
+        // fold & remove duplicates
         List<Object> values = new ArrayList<>(new LinkedHashSet<>(Foldables.valuesOf(list, value.dataType())));
 
         return new ScriptTemplate(

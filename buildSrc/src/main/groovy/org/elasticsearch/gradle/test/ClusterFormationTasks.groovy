@@ -115,6 +115,9 @@ class ClusterFormationTasks {
             final String elasticsearchVersion
             if (i < config.numBwcNodes) {
                 elasticsearchVersion = config.bwcVersion.toString()
+                if (project.bwcVersions.unreleased.contains(config.bwcVersion)) {
+                    elasticsearchVersion += "-SNAPSHOT"
+                }
                 distro = bwcDistro
             } else {
                 elasticsearchVersion = VersionProperties.elasticsearch

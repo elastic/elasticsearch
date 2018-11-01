@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class ApiKeyService {
 
-    private static final Logger LOGGER = LogManager.getLogger(ApiKeyService.class);
+    private static final Logger logger = LogManager.getLogger(ApiKeyService.class);
     private static final String TYPE = "doc";
 
     private final Clock clock;
@@ -72,7 +72,7 @@ public class ApiKeyService {
             final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
             final Version version = clusterService.state().nodes().getMinNodeVersion();
             if (version.before(Version.V_7_0_0_alpha1)) { // TODO(jaymode) change to V6_5_0 on backport!
-                LOGGER.warn("nodes prior to the minimum supported version for api keys {} exist in the cluster; these nodes will not be " +
+                logger.warn("nodes prior to the minimum supported version for api keys {} exist in the cluster; these nodes will not be " +
                     "able to use api keys", Version.V_7_0_0_alpha1);
             }
 

@@ -99,6 +99,7 @@ public class AuthorizationService {
     private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
     private static final Logger logger = LogManager.getLogger(AuthorizationService.class);
 
+    private final Settings settings;
     private final ClusterService clusterService;
     private final CompositeRolesStore rolesStore;
     private final AuditTrailService auditTrail;
@@ -125,6 +126,7 @@ public class AuthorizationService {
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
         this.rbacEngine = new RBACEngine(settings, rolesStore);
+        this.settings = settings;
     }
 
     /**
@@ -421,10 +423,33 @@ public class AuthorizationService {
                     authentication.getUser().roles(), e));
             }));
         } else if (IndexPrivilege.ACTION_MATCHER.test(action)) {
+            if (authzEngine.isCompositeAction(action)) {
 
+            }
         } else {
             listener.onFailure(denial(authentication, action, unwrappedRequest, authentication.getUser().roles()));
         }
+    }
+
+    private void authorizeIndexActionName(final Authentication authentication, final String action,
+                                          final TransportRequest unwrappedRequest, final AuthorizationInfo authzInfo,
+                                          final AuthorizationEngine authzEngine, final ActionListener<Void> listener) {
+        authzEngine.authorizeIndexActionName(authentication, unwrappedRequest, action, authzInfo,
+            ActionListener.wrap(result -> {
+                if (result.isGranted()) {
+                    if (result.isAuditable()) {
+                        // TODO authzInfo
+                        auditTrail.accessGranted(authentication, action, unwrappedRequest, authentication.getUser().roles());
+                    }
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(denial(authentication, action, unwrappedRequest, authentication.getUser().roles()));
+                }
+            }, e -> {
+                // TODO need a failure handler better than this!
+                listener.onFailure(denial(authentication, action, unwrappedRequest,
+                    authentication.getUser().roles(), e));
+            }));
     }
 
     private AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {

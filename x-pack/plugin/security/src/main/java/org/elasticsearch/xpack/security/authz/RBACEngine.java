@@ -1,6 +1,10 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -10,9 +14,6 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -110,6 +111,41 @@ public class RBACEngine implements AuthorizationEngine {
             return sameUsername;
         }
         return false;
+    }
+
+    @Override
+    public boolean isCompositeAction(String action) {
+        switch (action) {
+            case BulkAction.NAME:
+            case MultiGetAction.NAME:
+            case MultiTermVectorsAction.NAME:
+            case MultiSearchAction.NAME:
+            case "indices:data/read/mpercolate":
+            case "indices:data/read/msearch/template":
+            case "indices:data/read/search/template":
+            case "indices:data/write/reindex":
+            case "indices:data/read/sql":
+            case "indices:data/read/sql/translate":
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    @Override
+    public void authorizeIndexActionName(Authentication authentication, TransportRequest request, String action,
+                                         AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo) {
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserRole();
+            if (role.indices().check(action)) {
+                listener.onResponse(AuthorizationResult.granted());
+            } else {
+                listener.onResponse(AuthorizationResult.deny());
+            }
+        } else {
+            listener.onFailure(new IllegalArgumentException("unsupported authorization info:" +
+                authorizationInfo.getClass().getSimpleName()));
+        }
     }
 
     private static boolean checkChangePasswordAction(Authentication authentication) {

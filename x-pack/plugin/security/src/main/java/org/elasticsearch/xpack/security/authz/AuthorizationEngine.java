@@ -25,6 +25,11 @@ public interface AuthorizationEngine {
 
     boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication);
 
+    boolean isCompositeAction(String action);
+
+    void authorizeIndexActionName(Authentication authentication, TransportRequest request, String action,
+                                  AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener);
+
     interface AuthorizationInfo {
 
         Map<String, Object> asMap();

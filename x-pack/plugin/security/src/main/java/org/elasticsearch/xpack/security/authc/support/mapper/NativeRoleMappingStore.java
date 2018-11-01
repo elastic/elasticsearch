@@ -103,7 +103,6 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
-        super(settings);
         this.settings = settings;
         this.client = client;
         this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);

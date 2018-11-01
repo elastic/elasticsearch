@@ -122,7 +122,7 @@ public class IndexUpgradeTasksIT extends ESIntegTestCase {
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
             return Arrays.asList(new IndexUpgradeService(settings, Collections.singletonList(
-                    new IndexUpgradeCheck("test", settings,
+                    new IndexUpgradeCheck("test",
                             new Function<IndexMetaData, UpgradeActionRequired>() {
                                 @Override
                                 public UpgradeActionRequired apply(IndexMetaData indexMetaData) {

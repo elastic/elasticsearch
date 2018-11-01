@@ -707,7 +707,7 @@ public class SearchModule {
         registerFetchSubPhase(new FetchSourceSubPhase());
         registerFetchSubPhase(new VersionFetchSubPhase());
         registerFetchSubPhase(new MatchedQueriesFetchSubPhase());
-        registerFetchSubPhase(new HighlightPhase(settings, highlighters));
+        registerFetchSubPhase(new HighlightPhase(highlighters));
         registerFetchSubPhase(new ParentFieldSubFetchPhase());
 
         FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);

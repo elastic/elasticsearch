@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.DocValueFormat;
@@ -45,7 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testShortcutQueryAndFetchOptimization() throws IOException {
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
@@ -87,7 +86,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testFetchTwoDocument() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
@@ -105,8 +104,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult);
 
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -142,7 +140,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testFailFetchOneDoc() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
@@ -160,8 +158,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult);
 
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -201,7 +198,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         int resultSetSize = randomIntBetween(0, 100);
         // we use at least 2 hits otherwise this is subject to single shard optimization and we trip an assert...
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
@@ -214,8 +211,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             queryResult.setShardIndex(i);
             results.consumeResult(queryResult);
         }
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -258,7 +254,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testExceptionFailsPhase() throws IOException {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
@@ -276,8 +272,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult);
         AtomicInteger numFetches = new AtomicInteger(0);
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {
@@ -312,7 +307,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testCleanupIrrelevantContexts() throws IOException { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
-        SearchPhaseController controller = new SearchPhaseController(Settings.EMPTY,
+        SearchPhaseController controller = new SearchPhaseController(
             (b) -> new InternalAggregation.ReduceContext(BigArrays.NON_RECYCLING_INSTANCE, null, b));
         InitialSearchPhase.ArraySearchPhaseResults<SearchPhaseResult> results =
             controller.newSearchPhaseResults(mockSearchPhaseContext.getRequest(), 2);
@@ -330,8 +325,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         queryResult.setShardIndex(1);
         results.consumeResult(queryResult);
 
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendExecuteFetch(Transport.Connection connection, ShardFetchSearchRequest request, SearchTask task,
                                          SearchActionListener<FetchSearchResult> listener) {

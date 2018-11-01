@@ -72,9 +72,8 @@ public class TaskResultsService extends AbstractComponent {
     private final TransportCreateIndexAction createIndexAction;
 
     @Inject
-    public TaskResultsService(Settings settings, Client client, ClusterService clusterService,
+    public TaskResultsService(Client client, ClusterService clusterService,
                               TransportCreateIndexAction createIndexAction) {
-        super(settings);
         this.client = client;
         this.clusterService = clusterService;
         this.createIndexAction = createIndexAction;

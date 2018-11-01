@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.NodeClosedException;
@@ -56,8 +55,7 @@ public class PersistentTasksService extends AbstractComponent {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
 
-    public PersistentTasksService(Settings settings, ClusterService clusterService, ThreadPool threadPool, Client client) {
-        super(settings);
+    public PersistentTasksService(ClusterService clusterService, ThreadPool threadPool, Client client) {
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

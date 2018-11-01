@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
@@ -40,8 +39,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     private final String executor;
     private final String taskName;
 
-    protected PersistentTasksExecutor(Settings settings, String taskName, String executor) {
-        super(settings);
+    protected PersistentTasksExecutor(String taskName, String executor) {
         this.taskName = taskName;
         this.executor = executor;
     }

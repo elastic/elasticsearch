@@ -77,6 +77,7 @@ import java.util.stream.Collectors;
 
 public class TransportRollupSearchAction extends TransportAction<SearchRequest, SearchResponse> {
 
+    private final Settings settings;
     private final Client client;
     private final NamedWriteableRegistry registry;
     private final BigArrays bigArrays;
@@ -90,6 +91,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                                  Client client, NamedWriteableRegistry registry, BigArrays bigArrays,
                                  ScriptService scriptService, ClusterService clusterService) {
         super(settings, RollupSearchAction.NAME, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
+        this.settings = settings;
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;
@@ -107,8 +109,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     @Override
     protected void doExecute(SearchRequest request, ActionListener<SearchResponse> listener) {
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(clusterService.getSettings());
-        String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request.indices());    
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(settings);
+        String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request.indices());
         RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetaData().indices());
 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);

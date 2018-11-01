@@ -71,11 +71,10 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService,
+    public MetaDataIndexTemplateService(ClusterService clusterService,
                                         MetaDataCreateIndexService metaDataCreateIndexService,
                                         AliasValidator aliasValidator, IndicesService indicesService,
                                         IndexScopedSettings indexScopedSettings, NamedXContentRegistry xContentRegistry) {
-        super(settings);
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
         this.indicesService = indicesService;

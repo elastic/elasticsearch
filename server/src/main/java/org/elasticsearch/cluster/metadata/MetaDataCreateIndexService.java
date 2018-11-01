@@ -127,7 +127,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             final ThreadPool threadPool,
             final NamedXContentRegistry xContentRegistry,
             final boolean forbidPrivateIndexSettings) {
-        super(settings);
         this.settings = settings;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -135,7 +134,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.aliasValidator = aliasValidator;
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
-        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.xContentRegistry = xContentRegistry;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
     }

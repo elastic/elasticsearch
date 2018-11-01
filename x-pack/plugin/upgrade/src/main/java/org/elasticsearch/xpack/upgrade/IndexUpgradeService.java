@@ -30,7 +30,6 @@ public class IndexUpgradeService extends AbstractComponent {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     public IndexUpgradeService(Settings settings, List<IndexUpgradeCheck> upgradeChecks) {
-        super(settings);
         this.upgradeChecks = upgradeChecks;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
     }

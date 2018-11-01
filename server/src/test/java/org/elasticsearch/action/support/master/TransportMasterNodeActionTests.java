@@ -132,7 +132,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     class Action extends TransportMasterNodeAction<Request, Response> {
         Action(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, threadPool,
-                    new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY), Request::new);
+                    new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(settings), Request::new);
         }
 
         @Override

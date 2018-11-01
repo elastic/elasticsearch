@@ -248,7 +248,7 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         List<Object> components = new ArrayList<>();
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
-        new SSLConfigurationReloader(settings, environment, getSslService(), resourceWatcherService);
+        new SSLConfigurationReloader(environment, getSslService(), resourceWatcherService);
 
         setLicenseService(new LicenseService(settings, clusterService, getClock(),
                 environment, resourceWatcherService, getLicenseState()));

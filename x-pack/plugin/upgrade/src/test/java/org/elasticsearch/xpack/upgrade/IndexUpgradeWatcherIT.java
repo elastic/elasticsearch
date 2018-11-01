@@ -304,10 +304,9 @@ public class IndexUpgradeWatcherIT extends IndexUpgradeIntegTestCase {
     private void triggerClusterStateEvent() {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
         Client client = clientWithOrigin(internalCluster().getInstance(Client.class, internalCluster().getMasterName()), WATCHER_ORIGIN);
-        Settings settings = internalCluster().getInstance(Settings.class, internalCluster().getMasterName());
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, internalCluster().getMasterName());
         WatcherIndexTemplateRegistry registry =
-                new WatcherIndexTemplateRegistry(settings, clusterService, threadPool, client);
+                new WatcherIndexTemplateRegistry(clusterService, threadPool, client);
 
         ClusterState state = clusterService.state();
         ClusterChangedEvent event = new ClusterChangedEvent("whatever", state, state);

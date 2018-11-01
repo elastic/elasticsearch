@@ -76,6 +76,7 @@ import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
@@ -409,8 +410,14 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         Version indexVersion = context.mapperService().getIndexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
-        Query query = toQuery(queryShardContext, isMapUnmappedFieldAsText(), queryBuilder);
-        processQuery(query, context);
+        QueryBuilder queryBuilderForProcessing = rewrite(queryBuilder);
+        if (queryBuilderForProcessing != null) {
+            Query query = toQuery(queryShardContext, isMapUnmappedFieldAsText(), queryBuilderForProcessing);
+            processQuery(query, context);
+        } else {
+            FieldType pft = (FieldType) this.fieldType();
+            context.doc().add(new Field(pft.extractionResultField.name(), EXTRACTION_FAILED, extractionResultField.fieldType()));
+        }
     }
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
@@ -563,6 +570,90 @@ public class PercolatorFieldMapper extends FieldMapper {
             for (QueryBuilder innerQueryBuilder : disMaxQueryBuilder.innerQueries()) {
                 verifyQuery(innerQueryBuilder);
             }
+        }
+    }
+
+    static QueryBuilder rewrite(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof BoolQueryBuilder) {
+            BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
+            BoolQueryBuilder newBoolQueryBuilder = new BoolQueryBuilder();
+            newBoolQueryBuilder.minimumShouldMatch(boolQueryBuilder.minimumShouldMatch());
+            newBoolQueryBuilder.adjustPureNegative(boolQueryBuilder.adjustPureNegative());
+
+            for (QueryBuilder clause : boolQueryBuilder.filter()) {
+                QueryBuilder result = rewrite(clause);
+                if (result != null) {
+                    newBoolQueryBuilder.filter(result);
+                }
+            }
+
+            for (QueryBuilder clause : boolQueryBuilder.must()) {
+                QueryBuilder result = rewrite(clause);
+                if (result != null) {
+                    newBoolQueryBuilder.must(result);
+                }
+            }
+
+            for (QueryBuilder clause : boolQueryBuilder.should()) {
+                QueryBuilder result = rewrite(clause);
+                if (result != null) {
+                    newBoolQueryBuilder.should(result);
+                }
+            }
+
+            for (QueryBuilder clause : boolQueryBuilder.mustNot()) {
+                QueryBuilder result = rewrite(clause);
+                if (result != null) {
+                    newBoolQueryBuilder.mustNot(result);
+                }
+            }
+
+            return newBoolQueryBuilder;
+        } else if (queryBuilder instanceof ConstantScoreQueryBuilder) {
+            QueryBuilder innerQuery = rewrite(((ConstantScoreQueryBuilder) queryBuilder).innerQuery());
+            if (innerQuery != null) {
+                return queryBuilder;
+            }  else {
+                return null;
+            }
+        } else if (queryBuilder instanceof FunctionScoreQueryBuilder) {
+            QueryBuilder innerQuery =  rewrite(((FunctionScoreQueryBuilder) queryBuilder).query());
+            if (innerQuery != null) {
+                return queryBuilder;
+            } else {
+                return null;
+            }
+        } else if (queryBuilder instanceof BoostingQueryBuilder) {
+            QueryBuilder negativeQuery = rewrite(((BoostingQueryBuilder) queryBuilder).negativeQuery());
+            QueryBuilder positiveQuery = rewrite(((BoostingQueryBuilder) queryBuilder).positiveQuery());
+            if (negativeQuery != null && positiveQuery != null) {
+                return null;
+            } else {
+                return queryBuilder;
+            }
+        } else if (queryBuilder instanceof DisMaxQueryBuilder) {
+            DisMaxQueryBuilder disMaxQueryBuilder = (DisMaxQueryBuilder) queryBuilder;
+
+            DisMaxQueryBuilder newDisMaxQueryBuilder = new DisMaxQueryBuilder();
+            newDisMaxQueryBuilder.tieBreaker(disMaxQueryBuilder.tieBreaker());
+            for (QueryBuilder innerQueryBuilder : disMaxQueryBuilder.innerQueries()) {
+                QueryBuilder result = rewrite(innerQueryBuilder);
+                if (result != null) {
+                    newDisMaxQueryBuilder.add(result);
+                }
+            }
+
+            return newDisMaxQueryBuilder;
+        } else if (queryBuilder instanceof RangeQueryBuilder) {
+            RangeQueryBuilder rangeQueryBuilder = (RangeQueryBuilder) queryBuilder;
+            if ((rangeQueryBuilder.from() != null && rangeQueryBuilder.from().toString().contains("now")) ||
+                (rangeQueryBuilder.to() != null && rangeQueryBuilder.to().toString().contains("now"))) {
+                return null;
+            } else {
+                return queryBuilder;
+            }
+        } else {
+            return queryBuilder;
         }
     }
 

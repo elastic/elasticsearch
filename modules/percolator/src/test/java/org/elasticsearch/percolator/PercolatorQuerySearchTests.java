@@ -47,7 +47,12 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
@@ -219,6 +224,51 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .get();
         assertHitCount(response, 1);
         assertSearchHits(response, "1");
+    }
+
+    public void testRangeQueriesWithNow() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .addMapping("_doc", "field1", "type=keyword", "field2", "type=date", "query", "type=percolator")
+        );
+
+        client().prepareIndex("test", "_doc", "1")
+            .setSource(jsonBuilder().startObject().field("query", rangeQuery("field2").from("now-3s").to("now+3s")).endObject())
+            .get();
+        client().prepareIndex("test", "_doc", "2")
+            .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                .filter(termQuery("field1", "value"))
+                .filter(rangeQuery("field2").from("now-3s").to("now+3s"))
+            ).endObject())
+            .get();
+
+
+        Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "1==1", Collections.emptyMap());
+        client().prepareIndex("test", "_doc", "3")
+            .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                .filter(scriptQuery(script))
+                .filter(rangeQuery("field2").from("now-3s").to("now+3s"))
+            ).endObject())
+            .get();
+        client().admin().indices().prepareRefresh().get();
+
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
+            .field("field1", "value")
+            .field("field2", System.currentTimeMillis())
+            .endObject());
+        SearchResponse response = client().prepareSearch()
+            .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
+            .get();
+        assertHitCount(response, 3);
+
+        Thread.sleep(5000);
+        source = BytesReference.bytes(jsonBuilder().startObject()
+            .field("field1", "value")
+            .field("field2", System.currentTimeMillis())
+            .endObject());
+        response = client().prepareSearch()
+            .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
+            .get();
+        assertHitCount(response, 3);
     }
 
 }

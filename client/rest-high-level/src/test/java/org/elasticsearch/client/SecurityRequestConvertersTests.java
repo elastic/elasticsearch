@@ -36,6 +36,7 @@ import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
+import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -66,14 +67,15 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         } else {
             metadata = null;
         }
+        final User user = new User(username, roles, metadata, fullName, email);
 
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
 
-        PutUserRequest putUserRequest = new PutUserRequest(username, password, roles, fullName, email, enabled, metadata, refreshPolicy);
+        PutUserRequest putUserRequest = new PutUserRequest(user, password, enabled, refreshPolicy);
         Request request = SecurityRequestConverters.putUser(putUserRequest);
         assertEquals(HttpPut.METHOD_NAME, request.getMethod());
-        assertEquals("/_xpack/security/user/" + putUserRequest.getUsername(), request.getEndpoint());
+        assertEquals("/_xpack/security/user/" + putUserRequest.getUser().getUsername(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(putUserRequest, request.getEntity());
     }

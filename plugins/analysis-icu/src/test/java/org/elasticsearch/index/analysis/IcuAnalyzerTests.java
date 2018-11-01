@@ -30,6 +30,8 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class IcuAnalyzerTests extends BaseTokenStreamTestCase {
 
     public void testMixedAlphabetTokenization() throws IOException {
@@ -73,6 +75,22 @@ public class IcuAnalyzerTests extends BaseTokenStreamTestCase {
         Analyzer analyzer = new IcuAnalyzerProvider(idxSettings, null, "icu", settings).get();
         assertAnalyzesTo(analyzer, input,
             new String[]{"1", "2", "3", "1", "2", "3", "1/4", "1/3", "3/8", "1", "2", "3", "1", "2", "3"});
+    }
+
+    public void testBadSettings() {
+
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("mode", "wrong")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new IcuAnalyzerProvider(idxSettings, null, "icu", settings);
+        });
+
+        assertThat(e.getMessage(), containsString("Unknown mode [wrong] in analyzer [icu], expected one of [compose, decompose]"));
+
     }
 
 }

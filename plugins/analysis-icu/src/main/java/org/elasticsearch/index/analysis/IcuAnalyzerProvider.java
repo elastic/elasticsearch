@@ -38,13 +38,13 @@ public class IcuAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer>
     public IcuAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         String method = settings.get("method", "nfkc_cf");
-        String mode = settings.get("mode");
+        String mode = settings.get("mode", "compose");
         if (!"compose".equals(mode) && !"decompose".equals(mode)) {
-            mode = "compose";
+            throw new IllegalArgumentException("Unknown mode [" + mode + "] in analyzer [" + name + "], expected one of [compose, decompose]");
         }
         Normalizer2 normalizer = Normalizer2.getInstance(
             null, method, "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE);
-        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(normalizer, settings);
+        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, normalizer, settings);
     }
 
     @Override

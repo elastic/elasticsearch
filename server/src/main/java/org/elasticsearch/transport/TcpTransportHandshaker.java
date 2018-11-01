@@ -134,7 +134,7 @@ class TcpTransportHandshaker {
         }
 
         void handleLocalException(TransportException e) {
-            if (pendingHandshakes.remove(requestId) != null && isDone.compareAndSet(false, true)) {
+            if (removeHandlerForHandshake(requestId) != null && isDone.compareAndSet(false, true)) {
                 listener.onFailure(e);
             }
         }

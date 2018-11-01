@@ -1628,8 +1628,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public void onResponse(Void v) {
-            assert pendingConnections.get() != 0 : "Should not called onResponse when the pending connections is 0.";
-            if (pendingConnections.get() != FAILED && pendingConnections.decrementAndGet() == 0) {
+            assert pendingConnections.get() != 0 : "Should not call onResponse when the pending connections is 0.";
+            // Returns true if all connections have completed successfully
+            if (setConnectSuccess()) {
                 final TcpChannel handshakeChannel = channels.get(0);
                 try {
                     executeHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout(), new ActionListener<Version>() {
@@ -1671,6 +1672,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             if (setFailed()) {
                 CloseableChannel.closeChannels(channels, false);
                 listener.onFailure(new ConnectTransportException(node, "connect_timeout[" + connectionProfile.getConnectTimeout()  + "]"));
+            }
+        }
+
+        private boolean setConnectSuccess() {
+            while (true) {
+                int pendingConnections = this.pendingConnections.get();
+                if (pendingConnections == FAILED) {
+                    return false;
+                } else {
+                    int newValue = pendingConnections - 1;
+                    if (this.pendingConnections.compareAndSet(pendingConnections, newValue)) {
+                        return newValue == 0;
+                    }
+                }
             }
         }
 

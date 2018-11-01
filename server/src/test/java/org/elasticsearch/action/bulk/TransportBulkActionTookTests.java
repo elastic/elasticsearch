@@ -97,7 +97,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
+        IndexNameExpressionResolver resolver = new Resolver();
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
 
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
@@ -205,10 +205,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
     }
 
     static class Resolver extends IndexNameExpressionResolver {
-        Resolver(Settings settings) {
-            super(settings);
-        }
-
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();

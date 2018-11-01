@@ -68,11 +68,11 @@ public final class TransportPutFollowAction
                 clusterService,
                 threadPool,
                 actionFilters,
-                indexNameExpressionResolver,
-                PutFollowAction.Request::new);
+                PutFollowAction.Request::new,
+                indexNameExpressionResolver);
         this.client = client;
         this.allocationService = allocationService;
-        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
 

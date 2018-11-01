@@ -35,7 +35,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,9 +63,8 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
     private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
 
     @Inject
-    public LocalAllocateDangledIndices(Settings settings, TransportService transportService, ClusterService clusterService,
+    public LocalAllocateDangledIndices(TransportService transportService, ClusterService clusterService,
                                        AllocationService allocationService, MetaDataIndexUpgradeService metaDataIndexUpgradeService) {
-        super(settings);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.allocationService = allocationService;

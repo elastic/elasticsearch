@@ -69,8 +69,7 @@ public class TaskResultsService extends AbstractComponent {
     private final ClusterService clusterService;
 
     @Inject
-    public TaskResultsService(Settings settings, Client client, ClusterService clusterService) {
-        super(settings);
+    public TaskResultsService(Client client, ClusterService clusterService) {
         this.client = client;
         this.clusterService = clusterService;
     }

@@ -102,3 +102,8 @@ status 200 - OK is now returned instead at all times.
 The Put User API response was changed in 6.5.0 to add the `created` field
 outside of the user object where it previously had been. In 7.0.0 the user
 object has been removed in favor of the top level `created` field.
+
+[float]
+==== Source filtering url parameters `_source_include` and `_source_exclude` have been removed
+
+The deprecated in 6.x url parameters are now removed. Use `_source_includes` and `_source_excludes` instead.

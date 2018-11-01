@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -57,7 +56,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexNameExpressionResolverTests extends ESTestCase {
-    private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+    private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
     public void testIndexOptionsStrict() {
         MetaData.Builder mdBuilder = MetaData.builder()

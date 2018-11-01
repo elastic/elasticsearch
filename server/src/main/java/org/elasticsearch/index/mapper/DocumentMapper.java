@@ -72,8 +72,9 @@ public class DocumentMapper implements ToXContentFragment {
             this.rootObjectMapper = builder.build(builderContext);
 
             final String type = rootObjectMapper.name();
-            DocumentMapper existingMapper = mapperService.documentMapper(type);
-            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : mapperService.mapperRegistry.getMetadataMapperParsers().entrySet()) {
+            final DocumentMapper existingMapper = mapperService.documentMapper(type);
+            final Map<String, TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers();
+            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
                 final String name = entry.getKey();
                 final MetadataFieldMapper existingMetadataMapper = existingMapper == null
                         ? null

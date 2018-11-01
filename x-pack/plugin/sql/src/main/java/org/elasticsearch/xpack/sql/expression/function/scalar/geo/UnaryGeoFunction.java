@@ -10,8 +10,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -42,13 +41,12 @@ public abstract class UnaryGeoFunction extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return field().dataType().isGeo() ? TypeResolution.TYPE_RESOLVED : new TypeResolution(
-            "'%s' requires a geo type, received %s", operation(), field().dataType().esType);
+        return Expressions.typeMustBeGeo(field(), operation().toString(), Expressions.ParamOrdinal.DEFAULT);
     }
 
     @Override
-    protected final Pipe makePipe() {
-        return new UnaryPipe(location(), this, Expressions.pipe(field()), new GeoProcessor(operation()));
+    protected Processor makeProcessor() {
+        return new GeoProcessor(operation());
     }
 
     protected abstract GeoProcessor.GeoOperation operation();

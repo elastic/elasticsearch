@@ -42,13 +42,13 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
     private final boolean readOnly;
 
     public FsBlobStore(Settings settings, Path path) throws IOException {
-        super(settings);
         this.path = path;
         this.readOnly = settings.getAsBoolean("readonly", false);
         if (!this.readOnly) {
             Files.createDirectories(path);
         }
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.fs.buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
+        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.fs.buffer_size",
+            new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
     }
 
     @Override

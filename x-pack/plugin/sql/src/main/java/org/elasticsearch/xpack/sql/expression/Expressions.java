@@ -5,20 +5,31 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 public final class Expressions {
+
+    public enum ParamOrdinal {
+        DEFAULT,
+        FIRST,
+        SECOND,
+        THIRD,
+        FOURTH
+    }
 
     private Expressions() {}
 
@@ -126,21 +137,55 @@ public final class Expressions {
         throw new SqlIllegalArgumentException("Cannot create pipe for {}", e);
     }
 
-    public static TypeResolution typeMustBe(Expression e, Predicate<Expression> predicate, String message) {
-        return predicate.test(e) ? TypeResolution.TYPE_RESOLVED : new TypeResolution(message);
+    public static TypeResolution typeMustBeBoolean(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, dt -> dt == DataType.BOOLEAN, operationName, paramOrd, "boolean");
     }
 
-    public static TypeResolution typeMustBeNumeric(Expression e) {
-        return e.dataType().isNumeric() ? TypeResolution.TYPE_RESOLVED : new TypeResolution(numericErrorMessage(e));
+    public static TypeResolution typeMustBeInteger(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, dt -> dt.isInteger, operationName, paramOrd, "integer");
     }
 
-    public static TypeResolution typeMustBeNumericOrDate(Expression e) {
-        return e.dataType().isNumeric() || e.dataType() == DataType.DATE ?
+    public static TypeResolution typeMustBeNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, DataType::isNumeric, operationName, paramOrd, "numeric");
+    }
+
+    public static TypeResolution typeMustBeString(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, DataType::isString, operationName, paramOrd, "string");
+    }
+
+    public static TypeResolution typeMustBeDate(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, dt -> dt == DataType.DATE, operationName, paramOrd, "date");
+    }
+
+    public static TypeResolution typeMustBeNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, dt -> dt.isNumeric() || dt == DataType.DATE, operationName, paramOrd, "numeric", "date");
+    }
+
+    public static TypeResolution typeMustBeGeo(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return typeMustBe(e, DataType::isGeo, operationName, paramOrd, "geo_point", "geo_shape");
+    }
+
+    private static TypeResolution typeMustBe(Expression e,
+                                             Predicate<DataType> predicate,
+                                             String operationName,
+                                             ParamOrdinal pOrd,
+                                             String... acceptedTypes) {
+
+        return predicate.test(e.dataType()) || DataTypes.isNull(e.dataType())?
             TypeResolution.TYPE_RESOLVED :
-            new TypeResolution(numericErrorMessage(e));
+            new TypeResolution(incorrectTypeErrorMessage(e, operationName, pOrd, acceptedTypes));
+
     }
 
-    private static String numericErrorMessage(Expression e) {
-        return "Argument required to be numeric ('" + Expressions.name(e) + "' of type '" + e.dataType().esType + "')";
+    private static String incorrectTypeErrorMessage(Expression e,
+                                                    String operationName,
+                                                    ParamOrdinal paramOrd,
+                                                    String... acceptedTypes) {
+        return String.format(Locale.ROOT, "[%s]%s argument must be [%s], found value [%s] type [%s]",
+            operationName,
+            paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : " " + paramOrd.name().toLowerCase(Locale.ROOT),
+            Strings.arrayToDelimitedString(acceptedTypes, " or "),
+            Expressions.name(e),
+            e.dataType().esType);
     }
 }

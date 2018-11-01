@@ -22,7 +22,6 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -46,9 +45,8 @@ public final class IndexWarmer extends AbstractComponent {
 
     private final List<Listener> listeners;
 
-    IndexWarmer(Settings settings, ThreadPool threadPool, IndexFieldDataService indexFieldDataService,
+    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService,
                 Listener... listeners) {
-        super(settings);
         ArrayList<Listener> list = new ArrayList<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
         list.add(new FieldDataWarmer(executor, indexFieldDataService));

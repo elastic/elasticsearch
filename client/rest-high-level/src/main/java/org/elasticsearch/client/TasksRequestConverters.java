@@ -24,7 +24,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 
-public class TasksRequestConverters {
+final class TasksRequestConverters {
+
+    private TasksRequestConverters() {}
 
     static Request cancelTasks(CancelTasksRequest cancelTasksRequest) {
         Request request = new Request(HttpPost.METHOD_NAME, "/_tasks/_cancel");

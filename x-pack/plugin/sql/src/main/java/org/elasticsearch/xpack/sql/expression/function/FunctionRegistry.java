@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
@@ -85,6 +86,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Arrays;
@@ -207,13 +209,16 @@ public class FunctionRegistry {
                 def(Space.class, Space::new),
                 def(Substring.class, Substring::new),
                 def(UCase.class, UCase::new));
+
         // Geo Functions
         addToMap(def(StAswkt.class, StAswkt::new));
+        // DataType conversion
+        addToMap(def(Cast.class, Cast::new, "CONVERT"));
         // Special
         addToMap(def(Score.class, Score::new));
     }
 
-    protected void addToMap(FunctionDefinition...functions) {
+    void addToMap(FunctionDefinition...functions) {
         // temporary map to hold [function_name/alias_name : function instance]
         Map<String, FunctionDefinition> batchMap = new HashMap<>();
         for (FunctionDefinition f : functions) {
@@ -433,6 +438,24 @@ public class FunctionRegistry {
 
     interface FourParametersFunctionBuilder<T> {
         T build(Location location, Expression source, Expression exp1, Expression exp2, Expression exp3);
+    }
+
+    /**
+     * Special method to create function definition for {@link Cast} as its
+     * signature is not compatible with {@link UnresolvedFunction}
+     *
+     * @return Cast function definition
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    private static <T extends Function> FunctionDefinition def(Class<T> function,
+                                                               CastFunctionBuilder<T> ctorRef,
+                                                               String... aliases) {
+        FunctionBuilder builder = (location, children, distinct, tz) ->
+            ctorRef.build(location, children.get(0), children.get(0).dataType());
+        return def(function, builder, false, aliases);
+    }
+    private interface CastFunctionBuilder<T> {
+        T build(Location location, Expression expression, DataType dataType);
     }
 
     private static String normalize(String name) {

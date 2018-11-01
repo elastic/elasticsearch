@@ -21,6 +21,10 @@ public final class Version implements Comparable<Version> {
     private static final Pattern pattern =
             Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
 
+    public Version(int major, int minor, int revision) {
+        this(major, minor, revision, "", false);
+    }
+
     public Version(int major, int minor, int revision, String suffix, boolean snapshot) {
         Objects.requireNonNull(major, "major version can't be null");
         Objects.requireNonNull(minor, "minor version can't be null");
@@ -31,25 +35,8 @@ public final class Version implements Comparable<Version> {
         this.snapshot = snapshot;
         this.suffix = suffix == null ? "" : suffix;
 
-        int suffixOffset = 0;
-        if (this.suffix.isEmpty()) {
-            // no suffix will be considered smaller, uncomment to change that
-            // suffixOffset = 100;
-        } else {
-            if (this.suffix.contains("alpha")) {
-                suffixOffset += parseSuffixNumber(this.suffix.substring(6));
-            } else if (this.suffix.contains("beta")) {
-                suffixOffset += 25 + parseSuffixNumber(this.suffix.substring(5));
-            } else if (this.suffix.contains("rc")) {
-                suffixOffset += 50 + parseSuffixNumber(this.suffix.substring(3));
-            }
-            else {
-                throw new IllegalArgumentException("Suffix must contain one of: alpha, beta or rc");
-            }
-        }
-
         // currently snapshot is not taken into account
-        this.id = major * 10000000 + minor * 100000 + revision * 1000 + suffixOffset * 10 /*+ (snapshot ? 1 : 0)*/;
+        this.id = major * 10000000 + minor * 100000 + revision * 1000;
     }
 
     private static int parseSuffixNumber(String substring) {
@@ -136,10 +123,7 @@ public final class Version implements Comparable<Version> {
         Version version = (Version) o;
         return major == version.major &&
                 minor == version.minor &&
-                revision == version.revision &&
-                id == version.id &&
-                snapshot == version.snapshot &&
-                Objects.equals(suffix, version.suffix);
+                revision == version.revision;
     }
 
     @Override
@@ -176,4 +160,5 @@ public final class Version implements Comparable<Version> {
     public int compareTo(Version other) {
         return Integer.compare(getId(), other.getId());
     }
+
 }

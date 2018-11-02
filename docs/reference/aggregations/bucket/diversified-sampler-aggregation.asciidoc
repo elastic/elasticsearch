@@ -108,7 +108,7 @@ POST /stackoverflow/_search?size=0
                 "max_docs_per_value" : 3,
                 "script" : {
                     "lang": "painless",
-                    "source": "doc['tags'].values.hashCode()"
+                    "source": "doc['tags'].hashCode()"
                 }
             },
             "aggs": {

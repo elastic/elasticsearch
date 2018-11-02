@@ -45,6 +45,13 @@ public class RolloverStep extends AsyncWaitStep {
             return;
         }
 
+        if (indexMetaData.getAliases().containsKey(rolloverAlias) == false) {
+            listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
+                "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
+                indexMetaData.getIndex().getName())));
+            return;
+        }
+
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverAlias, null);
         if (maxAge != null) {
             rolloverRequest.addMaxIndexAgeCondition(maxAge);

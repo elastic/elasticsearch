@@ -20,7 +20,7 @@ public class RestDeleteLifecycleAction extends BaseRestHandler {
 
     public RestDeleteLifecycleAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, "/_ilm/{name}", this);
+        controller.registerHandler(RestRequest.Method.DELETE, "/_ilm/policy/{name}", this);
     }
 
     @Override

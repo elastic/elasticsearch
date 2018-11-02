@@ -59,7 +59,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field("policy_stats", policyStats);
         }
     }
-    
+
     public List<PolicyStats> getPolicyStats() {
         return policyStats;
     }
@@ -170,25 +170,25 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Phase.MINIMUM_AGE.getPreferredName(), minimumAge.getMillis());
+            builder.field(Phase.MIN_AGE.getPreferredName(), minimumAge.getMillis());
             builder.field(Phase.ACTIONS_FIELD.getPreferredName(), actionNames);
             builder.endObject();
             return builder;
         }
-        
+
         public String[] getActionNames() {
             return actionNames;
         }
-        
+
         public TimeValue getAfter() {
             return minimumAge;
         }
-        
+
         @Override
         public int hashCode() {
             return Objects.hash(Arrays.hashCode(actionNames), minimumAge);
         }
-        
+
         @Override
         public boolean equals(Object obj) {
             if (obj == null) {

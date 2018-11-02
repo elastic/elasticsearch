@@ -49,7 +49,7 @@ public class ShrinkStep extends AsyncActionStep {
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, indexMetaData.getNumberOfReplicas())
             .put(LifecycleSettings.LIFECYCLE_NAME, lifecycle)
-            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_name", (String) null) // need to remove the single shard
+            .put(IndexMetaData.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null) // need to remove the single shard
                                                                                              // allocation so replicas can be allocated
             .build();
 
@@ -71,7 +71,7 @@ public class ShrinkStep extends AsyncActionStep {
     public int hashCode() {
         return Objects.hash(super.hashCode(), numberOfShards, shrunkIndexPrefix);
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -81,8 +81,8 @@ public class ShrinkStep extends AsyncActionStep {
             return false;
         }
         ShrinkStep other = (ShrinkStep) obj;
-        return super.equals(obj) && 
-                Objects.equals(numberOfShards, other.numberOfShards) && 
+        return super.equals(obj) &&
+                Objects.equals(numberOfShards, other.numberOfShards) &&
                 Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 

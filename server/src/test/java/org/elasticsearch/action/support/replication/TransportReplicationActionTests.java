@@ -167,7 +167,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
+        shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
         action = new TestAction(Settings.EMPTY, "internal:testAction", transportService, clusterService, shardStateAction, threadPool);
     }
 
@@ -1114,7 +1114,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                    ThreadPool threadPool) {
             super(settings, actionName, transportService, clusterService, mockIndicesService(clusterService), threadPool,
                 shardStateAction,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
                 Request::new, Request::new, ThreadPool.Names.SAME);
         }
 
@@ -1123,7 +1123,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                    ThreadPool threadPool, boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
             super(settings, actionName, transportService, clusterService, mockIndicesService(clusterService), threadPool,
                 shardStateAction,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
+                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
                 Request::new, Request::new, ThreadPool.Names.SAME);
         }
 

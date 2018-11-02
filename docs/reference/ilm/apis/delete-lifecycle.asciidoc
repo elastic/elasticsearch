@@ -10,7 +10,7 @@ Deletes an existing lifecycle policy
 
 ==== Request
 
-`DELETE _ilm/<policy>`
+`DELETE _ilm/policy/<policy>`
 
 ==== Description
 
@@ -43,12 +43,12 @@ The following example deletes an existing policy named `my_policy`:
 
 [source,js]
 --------------------------------------------------
-PUT _ilm/my_policy
+PUT _ilm/policy/my_policy
 {
   "policy": {
     "phases": {
       "warm": {
-        "minimum_age": "10d",
+        "min_age": "10d",
         "actions": {
           "forcemerge": {
             "max_num_segments": 1
@@ -56,7 +56,7 @@ PUT _ilm/my_policy
         }
       },
       "delete": {
-        "minimum_age": "30d",
+        "min_age": "30d",
         "actions": {
           "delete": {}
         }
@@ -72,7 +72,7 @@ PUT _ilm/my_policy
 
 [source,js]
 --------------------------------------------------
-DELETE _ilm/my_policy
+DELETE _ilm/policy/my_policy
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

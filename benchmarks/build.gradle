@@ -33,7 +33,7 @@ dependencies {
         exclude group: 'net.sf.jopt-simple', module: 'jopt-simple'
     }
     compile "org.openjdk.jmh:jmh-core:$versions.jmh"
-    compile "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
+    annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
     // Dependencies of JMH
     runtime 'net.sf.jopt-simple:jopt-simple:4.6'
     runtime 'org.apache.commons:commons-math3:3.2'

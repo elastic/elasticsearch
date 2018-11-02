@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.watcher.condition;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.watcher.common.xcontent.XContentUtils;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.XContentUtils;
+import org.elasticsearch.common.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.time.Clock;

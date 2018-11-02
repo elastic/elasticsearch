@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
@@ -48,14 +50,19 @@ public class TransportGetAutoFollowPatternAction
 
     @Override
     protected GetAutoFollowPatternAction.Response newResponse() {
-        return new GetAutoFollowPatternAction.Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected GetAutoFollowPatternAction.Response read(StreamInput in) throws IOException {
+        return new GetAutoFollowPatternAction.Response(in);
     }
 
     @Override
     protected void masterOperation(GetAutoFollowPatternAction.Request request,
                                    ClusterState state,
                                    ActionListener<GetAutoFollowPatternAction.Response> listener) throws Exception {
-        Map<String, AutoFollowPattern> autoFollowPatterns = getAutoFollowPattern(state.metaData(), request.getLeaderClusterAlias());
+        Map<String, AutoFollowPattern> autoFollowPatterns = getAutoFollowPattern(state.metaData(), request.getName());
         listener.onResponse(new GetAutoFollowPatternAction.Response(autoFollowPatterns));
     }
 
@@ -64,20 +71,20 @@ public class TransportGetAutoFollowPatternAction
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
-    static Map<String, AutoFollowPattern> getAutoFollowPattern(MetaData metaData, String leaderClusterAlias) {
+    static Map<String, AutoFollowPattern> getAutoFollowPattern(MetaData metaData, String name) {
         AutoFollowMetadata autoFollowMetadata = metaData.custom(AutoFollowMetadata.TYPE);
         if (autoFollowMetadata == null) {
-            throw new ResourceNotFoundException("no auto-follow patterns for cluster alias [{}] found", leaderClusterAlias);
+            throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", name);
         }
 
-        if (leaderClusterAlias == null) {
+        if (name == null) {
             return autoFollowMetadata.getPatterns();
         }
 
-        AutoFollowPattern autoFollowPattern = autoFollowMetadata.getPatterns().get(leaderClusterAlias);
+        AutoFollowPattern autoFollowPattern = autoFollowMetadata.getPatterns().get(name);
         if (autoFollowPattern == null) {
-            throw new ResourceNotFoundException("no auto-follow patterns for cluster alias [{}] found", leaderClusterAlias);
+            throw new ResourceNotFoundException("auto-follow pattern [{}] is missing", name);
         }
-        return Collections.singletonMap(leaderClusterAlias, autoFollowPattern);
+        return Collections.singletonMap(name, autoFollowPattern);
     }
 }

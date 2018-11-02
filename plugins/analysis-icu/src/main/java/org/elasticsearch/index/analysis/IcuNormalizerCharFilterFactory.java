@@ -49,7 +49,7 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory im
         }
         Normalizer2 normalizer = Normalizer2.getInstance(
             null, method, "compose".equals(mode) ? Normalizer2.Mode.COMPOSE : Normalizer2.Mode.DECOMPOSE);
-        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(normalizer, settings);
+        this.normalizer = IcuNormalizerTokenFilterFactory.wrapWithUnicodeSetFilter(indexSettings, normalizer, settings);
     }
 
     @Override

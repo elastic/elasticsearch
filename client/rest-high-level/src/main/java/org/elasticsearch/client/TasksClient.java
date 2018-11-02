@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.tasks.GetTaskRequest;
 import org.elasticsearch.client.tasks.GetTaskResponse;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.Optional;

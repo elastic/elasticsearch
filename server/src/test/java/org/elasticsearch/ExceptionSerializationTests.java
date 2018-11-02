@@ -355,7 +355,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            randomFrom(Version.V_7_0_0_alpha1));
+            Version.V_7_0_0_alpha1);
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
         assertEquals(0, ex.getBytesWanted());

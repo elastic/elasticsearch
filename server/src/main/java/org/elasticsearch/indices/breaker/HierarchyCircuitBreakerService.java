@@ -181,7 +181,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     private void setAccountingBreakerLimit(ByteSizeValue newAccountingMax, Double newAccountingOverhead) {
         BreakerSettings newAccountingSettings = new BreakerSettings(CircuitBreaker.ACCOUNTING, newAccountingMax.getBytes(),
-            newAccountingOverhead, HierarchyCircuitBreakerService.this.inFlightRequestsSettings.getType());
+            newAccountingOverhead, HierarchyCircuitBreakerService.this.accountingSettings.getType(), this.accountingSettings.getDurability());
         registerBreaker(newAccountingSettings);
         HierarchyCircuitBreakerService.this.accountingSettings = newAccountingSettings;
         logger.info("Updated breaker settings for accounting requests: {}", newAccountingSettings);

@@ -82,6 +82,16 @@ public class DeterministicTaskQueue extends AbstractComponent {
         }
     }
 
+    public void runAllTasksInTimeOrder() {
+        while (hasDeferredTasks() || hasRunnableTasks()) {
+            if (hasRunnableTasks()) {
+                runRandomTask();
+            } else {
+                advanceTime();
+            }
+        }
+    }
+
     /**
      * @return whether there are any runnable tasks.
      */

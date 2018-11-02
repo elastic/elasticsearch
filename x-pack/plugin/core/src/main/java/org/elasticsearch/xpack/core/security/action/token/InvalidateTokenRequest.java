@@ -22,31 +22,70 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public final class InvalidateTokenRequest extends ActionRequest {
 
     public enum Type {
-        ACCESS_TOKEN,
-        REFRESH_TOKEN
+        ACCESS_TOKEN("token"),
+        REFRESH_TOKEN("refresh_token");
+
+        private final String value;
+
+        Type(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public static Type fromString(String tokenType) {
+            if (tokenType != null) {
+                for (Type type : values()) {
+                    if (type.getValue().equals(tokenType)) {
+                        return type;
+                    }
+                }
+            }
+            return null;
+        }
     }
 
     private String tokenString;
     private Type tokenType;
+    private String realmName;
 
     public InvalidateTokenRequest() {}
 
     /**
-     * @param tokenString the string representation of the token
+     * @param tokenString the string representation of the token to be invalidated
+     * @param tokenType the type of the token to be invalidated
+     * @param realmName the name of the realm for which all tokens will be invalidated
      */
+    public InvalidateTokenRequest(String tokenString, String tokenType, String realmName) {
+        this.tokenString = tokenString;
+        this.tokenType = Type.fromString(tokenType);
+        this.realmName = realmName;
+    }
+
     public InvalidateTokenRequest(String tokenString, Type type) {
         this.tokenString = tokenString;
         this.tokenType = type;
+        this.realmName = null;
     }
+
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.isNullOrEmpty(tokenString)) {
-            validationException = addValidationError("token string must be provided", null);
-        }
-        if (tokenType == null) {
-            validationException = addValidationError("token type must be provided", validationException);
+        if (Strings.isNullOrEmpty(realmName) == false) {
+            if (Strings.isNullOrEmpty(tokenString) == false) {
+                validationException = addValidationError("token string must not be provided when realm name is specified", null);
+            }
+        } else {
+            if (Strings.isNullOrEmpty(tokenString)) {
+                validationException = addValidationError("token string must be provided when realm name is not specified", null);
+            }
+            if (tokenType == null) {
+                validationException =
+                    addValidationError("token type must be provided when realm name is not specified", validationException);
+            }
         }
         return validationException;
     }
@@ -67,6 +106,14 @@ public final class InvalidateTokenRequest extends ActionRequest {
         this.tokenType = tokenType;
     }
 
+    public String getRealmName() {
+        return realmName;
+    }
+
+    public void setRealmName(String realmName) {
+        this.realmName = realmName;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -74,8 +121,12 @@ public final class InvalidateTokenRequest extends ActionRequest {
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeVInt(tokenType.ordinal());
         } else if (tokenType == Type.REFRESH_TOKEN) {
-            throw new IllegalArgumentException("refresh token invalidation cannot be serialized with version [" + out.getVersion() +
-                    "]");
+            throw new IllegalArgumentException("refresh token invalidation cannot be serialized with version [" + out.getVersion() + "]");
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+            out.writeString(realmName);
+        } else {
+            throw new IllegalArgumentException("realm token invalidation cannot be serialized with version [" + out.getVersion() + "]");
         }
     }
 
@@ -87,6 +138,9 @@ public final class InvalidateTokenRequest extends ActionRequest {
             tokenType = Type.values()[in.readVInt()];
         } else {
             tokenType = Type.ACCESS_TOKEN;
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            realmName = in.readString();
         }
     }
 }

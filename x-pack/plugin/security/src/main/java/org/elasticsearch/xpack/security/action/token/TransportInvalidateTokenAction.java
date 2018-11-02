@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.action.token;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -36,7 +37,9 @@ public final class TransportInvalidateTokenAction extends HandledTransportAction
     protected void doExecute(Task task, InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {
         final ActionListener<Boolean> invalidateListener =
                 ActionListener.wrap(created -> listener.onResponse(new InvalidateTokenResponse(created)), listener::onFailure);
-        if (request.getTokenType() == InvalidateTokenRequest.Type.ACCESS_TOKEN) {
+        if (Strings.hasText(request.getRealmName())) {
+            tokenService.invalidateActiveTokensForRealm(request.getRealmName(), invalidateListener);
+        } else if (request.getTokenType() == InvalidateTokenRequest.Type.ACCESS_TOKEN) {
             tokenService.invalidateAccessToken(request.getTokenString(), invalidateListener);
         } else {
             assert request.getTokenType() == InvalidateTokenRequest.Type.REFRESH_TOKEN;

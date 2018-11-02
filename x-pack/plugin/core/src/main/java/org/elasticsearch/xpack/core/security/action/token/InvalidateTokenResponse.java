@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Response for a invalidation of a token.
+ * Response for a invalidation of one or multiple tokens.
  */
 public final class InvalidateTokenResponse extends ActionResponse {
 

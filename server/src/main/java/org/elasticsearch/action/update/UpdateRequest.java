@@ -726,7 +726,22 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             return this;
         }
         String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        int depth = 0;
+        while (token != null) {
+            token = parser.nextToken();
+            // have to track depth to avoid premature end of parsing due to nested objects as
+            // update request could have item ( script / scripted_upsert / upsert / doc etc ) at any nested level
+            if (token == XContentParser.Token.START_OBJECT) {
+                depth++;
+            } else if (token == XContentParser.Token.END_OBJECT) {
+                currentFieldName = null;
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+                continue;
+            }
+
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if ("script".equals(currentFieldName)) {
@@ -757,6 +772,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 }
             } else if ("_source".equals(currentFieldName)) {
                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
+            }
+
+            // copyCurrentStructure / SomeObject.fromXContent moves current token to END_OBJECT
+            if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
+                depth--;
             }
         }
         if (script != null) {

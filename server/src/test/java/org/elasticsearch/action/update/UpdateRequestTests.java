@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -62,8 +63,10 @@ import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class UpdateRequestTests extends ESTestCase {
@@ -273,6 +276,39 @@ public class UpdateRequestTests extends ESTestCase {
         Map<String, Object> doc = request.doc().sourceAsMap();
         assertThat(doc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
+    }
+
+    public void testFromXContentBothScriptAndNestedDocs() throws Exception {
+        // related to https://github.com/elastic/elasticsearch/issues/34069
+        UpdateRequest request = new UpdateRequest("test", "type1", "1")
+            .fromXContent(
+                createParser(JsonXContent.jsonXContent,
+                    new BytesArray("{\"any_odd_name_for_update\":{\"doc\":{\"message\":\"set by update:doc\"}},"
+                        + "\"script\":{\"source\":\"ctx._source.message = 'set by script'\"}}")));
+
+        assertThat(request.doc(), notNullValue());
+        assertThat(request.script(), notNullValue());
+
+        ActionRequestValidationException validate = request.validate();
+        assertThat(validate, notNullValue());
+        assertThat(validate.validationErrors(), not(empty()));
+        assertThat(String.valueOf(validate.validationErrors()),
+            validate.validationErrors(), contains("can't provide both script and doc"));
+
+        request = new UpdateRequest("test", "type1", "1")
+            .fromXContent(
+                createParser(JsonXContent.jsonXContent,
+                    new BytesArray("{\"whatever\": {\"script\":{\"source\":\"ctx._source.message = 'set by script'\"}},"
+                        + "\"nested_update1\":{\"nested_update2\":{\"doc\":{\"message\":\"set by update:doc\"}}}}")));
+
+        assertThat(request.doc(), notNullValue());
+        assertThat(request.script(), notNullValue());
+
+        validate = request.validate();
+        assertThat(validate, notNullValue());
+        assertThat(validate.validationErrors(), not(empty()));
+        assertThat(String.valueOf(validate.validationErrors()),
+            validate.validationErrors(), contains("can't provide both script and doc"));
     }
 
     // Related to issue 15338

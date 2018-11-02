@@ -32,9 +32,9 @@ import java.util.function.Function;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public abstract class AcknowledgedResponse implements ToXContentObject {
+    private final boolean acknowledged;
 
     protected static final String PARSE_FIELD_NAME = "acknowledged";
-    private final boolean acknowledged;
 
     public AcknowledgedResponse(final boolean acknowledged) {
         this.acknowledged = acknowledged;
@@ -83,4 +83,5 @@ public abstract class AcknowledgedResponse implements ToXContentObject {
     protected String getFieldName() {
         return PARSE_FIELD_NAME;
     }
+
 }

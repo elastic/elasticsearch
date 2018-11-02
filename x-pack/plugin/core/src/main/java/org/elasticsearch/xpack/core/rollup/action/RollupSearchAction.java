@@ -30,7 +30,11 @@ public class RollupSearchAction extends Action<SearchRequest, SearchResponse, Ro
         return new SearchResponse();
     }
 
-    static class RequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, RequestBuilder> {
+    public static class RequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, RequestBuilder> {
+        public RequestBuilder(ElasticsearchClient client, SearchRequest searchRequest) {
+            super(client, INSTANCE, searchRequest);
+        }
+
         RequestBuilder(ElasticsearchClient client) {
             super(client, INSTANCE, new SearchRequest());
         }

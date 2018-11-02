@@ -120,7 +120,11 @@ subprojects {
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
       if (version.before('6.3.0')) {
-        mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${version}"
+          String depVersion = version;
+          if (project.bwcVersions.unreleased.contains(version)) {
+              depVersion += "-SNAPSHOT"
+          }
+          mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${depVersion}"
       }
       String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/elasticsearch-users'
       setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
@@ -299,7 +303,7 @@ subprojects {
   // basic integ tests includes testing bwc against the most recent version
   task integTest {
     if (project.bwc_tests_enabled) {
-      for (final def version : bwcVersions.snapshotsWireCompatible) {
+      for (final def version : bwcVersions.unreleasedWireCompatible) {
         dependsOn "v${version}#bwcTest"
       }
     }

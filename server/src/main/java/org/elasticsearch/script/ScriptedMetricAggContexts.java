@@ -22,42 +22,35 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public class ScriptedMetricAggContexts {
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(ScriptedMetricAggContexts.class));
 
-    // Public for access from tests
-    public static final String AGG_PARAM_DEPRECATION_WARNING =
-        "params._agg/_aggs for scripted metric aggregations are deprecated, use state/states (not in params) instead. " +
-        "Use -Des.aggregations.enable_scripted_metric_agg_param=false to disable.";
-
-    public static boolean deprecatedAggParamEnabled() {
-        boolean enabled = Boolean.parseBoolean(
-            System.getProperty("es.aggregations.enable_scripted_metric_agg_param", "true"));
-
-        if (enabled) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog("enable_scripted_metric_agg_param", AGG_PARAM_DEPRECATION_WARNING);
+    public abstract static class InitScript {
+        private static final Map<String, String> DEPRECATIONS;
+        static {
+            Map<String, String> deprecations = new HashMap<>();
+            deprecations.put(
+                "_agg",
+                "Accessing variable [_agg] via [params._agg] from within a scripted metric agg init script " +
+                    "is deprecated in favor of using [state]."
+            );
+            DEPRECATIONS = Collections.unmodifiableMap(deprecations);
         }
 
-        return enabled;
-    }
-
-    private abstract static class ParamsAndStateBase {
         private final Map<String, Object> params;
         private final Object state;
 
-        ParamsAndStateBase(Map<String, Object> params, Object state) {
-            this.params = params;
+        public InitScript(Map<String, Object> params, Object state) {
+            this.params = new ParameterMap(params, DEPRECATIONS);
             this.state = state;
         }
 
@@ -67,12 +60,6 @@ public class ScriptedMetricAggContexts {
 
         public Object getState() {
             return state;
-        }
-    }
-
-    public abstract static class InitScript extends ParamsAndStateBase {
-        public InitScript(Map<String, Object> params, Object state) {
-            super(params, state);
         }
 
         public abstract void execute();
@@ -85,14 +72,51 @@ public class ScriptedMetricAggContexts {
         public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_init", Factory.class);
     }
 
-    public abstract static class MapScript extends ParamsAndStateBase {
+    public abstract static class MapScript {
+        private static final Map<String, String> DEPRECATIONS;
+
+        static {
+            Map<String, String> deprecations = new HashMap<>();
+            deprecations.put(
+                "doc",
+                "Accessing variable [doc] via [params.doc] from within a scripted metric agg map script " +
+                    "is deprecated in favor of directly accessing [doc]."
+            );
+            deprecations.put(
+                "_doc",
+                "Accessing variable [doc] via [params._doc] from within a scripted metric agg map script " +
+                    "is deprecated in favor of directly accessing [doc]."
+            );
+            deprecations.put(
+                "_agg",
+                "Accessing variable [_agg] via [params._agg] from within a scripted metric agg map script " +
+                    "is deprecated in favor of using [state]."
+            );
+            DEPRECATIONS = Collections.unmodifiableMap(deprecations);
+        }
+
+        private final Map<String, Object> params;
+        private final Object state;
         private final LeafSearchLookup leafLookup;
         private Scorer scorer;
 
         public MapScript(Map<String, Object> params, Object state, SearchLookup lookup, LeafReaderContext leafContext) {
-            super(params, state);
-
+            this.state = state;
             this.leafLookup = leafContext == null ? null : lookup.getLeafSearchLookup(leafContext);
+            if (leafLookup != null) {
+                params = new HashMap<>(params); // copy params so we aren't modifying input
+                params.putAll(leafLookup.asMap()); // add lookup vars
+                params = new ParameterMap(params, DEPRECATIONS); // wrap with deprecations
+            }
+            this.params = params;
+        }
+
+        public Map<String, Object> getParams() {
+            return params;
+        }
+
+        public Object getState() {
+            return state;
         }
 
         // Return the doc as a map (instead of LeafDocLookup) in order to abide by type whitelisting rules for
@@ -138,9 +162,32 @@ public class ScriptedMetricAggContexts {
         public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs_map", Factory.class);
     }
 
-    public abstract static class CombineScript extends ParamsAndStateBase {
+    public abstract static class CombineScript {
+        private static final Map<String, String> DEPRECATIONS;
+        static {
+            Map<String, String> deprecations = new HashMap<>();
+            deprecations.put(
+                "_agg",
+                "Accessing variable [_agg] via [params._agg] from within a scripted metric agg combine script " +
+                    "is deprecated in favor of using [state]."
+            );
+            DEPRECATIONS = Collections.unmodifiableMap(deprecations);
+        }
+
+        private final Map<String, Object> params;
+        private final Object state;
+
         public CombineScript(Map<String, Object> params, Object state) {
-            super(params, state);
+            this.params = new ParameterMap(params, DEPRECATIONS);
+            this.state = state;
+        }
+
+        public Map<String, Object> getParams() {
+            return params;
+        }
+
+        public Object getState() {
+            return state;
         }
 
         public abstract Object execute();
@@ -154,11 +201,22 @@ public class ScriptedMetricAggContexts {
     }
 
     public abstract static class ReduceScript {
+        private static final Map<String, String> DEPRECATIONS;
+        static {
+            Map<String, String> deprecations = new HashMap<>();
+            deprecations.put(
+                "_aggs",
+                "Accessing variable [_aggs] via [params._aggs] from within a scripted metric agg reduce script " +
+                    "is deprecated in favor of using [state]."
+            );
+            DEPRECATIONS = Collections.unmodifiableMap(deprecations);
+        }
+
         private final Map<String, Object> params;
         private final List<Object> states;
 
         public ReduceScript(Map<String, Object> params, List<Object> states) {
-            this.params = params;
+            this.params = new ParameterMap(params, DEPRECATIONS);
             this.states = states;
         }
 

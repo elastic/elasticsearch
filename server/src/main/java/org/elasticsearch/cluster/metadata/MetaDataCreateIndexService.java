@@ -105,6 +105,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     public static final int MAX_INDEX_NAME_BYTES = 255;
 
+    private final Settings settings;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
@@ -127,6 +128,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             final NamedXContentRegistry xContentRegistry,
             final boolean forbidPrivateIndexSettings) {
         super(settings);
+        this.settings = settings;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;
@@ -169,7 +171,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
         if (index.contains(":")) {
             deprecationLogger.deprecated("index or alias name [" + index +
-                            "] containing ':' is deprecated and will not be supported in Elasticsearch 7.0+");
+                            "] containing ':' is deprecated. Elasticsearch 7.x will read, " +
+                            "but not allow creation of new indices containing ':'");
         }
         if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
             throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");

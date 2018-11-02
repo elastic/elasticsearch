@@ -48,7 +48,7 @@ import static java.util.stream.Collectors.toSet;
  * Deletes indices.
  */
 public class MetaDataDeleteIndexService extends AbstractComponent {
-
+    private final Settings settings;
     private final ClusterService clusterService;
 
     private final AllocationService allocationService;
@@ -56,6 +56,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
     @Inject
     public MetaDataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
+        this.settings = settings;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
     }

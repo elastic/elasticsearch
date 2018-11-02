@@ -14,6 +14,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
@@ -32,7 +33,12 @@ public class CcrStatsAction extends Action<CcrStatsAction.Request, CcrStatsActio
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -57,15 +63,19 @@ public class CcrStatsAction extends Action<CcrStatsAction.Request, CcrStatsActio
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private AutoFollowStats autoFollowStats;
-        private FollowStatsAction.StatsResponses followStats;
+        private final AutoFollowStats autoFollowStats;
+        private final FollowStatsAction.StatsResponses followStats;
 
         public Response(AutoFollowStats autoFollowStats, FollowStatsAction.StatsResponses followStats) {
             this.autoFollowStats = Objects.requireNonNull(autoFollowStats);
             this.followStats = Objects.requireNonNull(followStats);
         }
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
+            autoFollowStats = new AutoFollowStats(in);
+            followStats = new FollowStatsAction.StatsResponses();
+            followStats.readFrom(in);
         }
 
         public AutoFollowStats getAutoFollowStats() {
@@ -74,14 +84,6 @@ public class CcrStatsAction extends Action<CcrStatsAction.Request, CcrStatsActio
 
         public FollowStatsAction.StatsResponses getFollowStats() {
             return followStats;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            autoFollowStats = new AutoFollowStats(in);
-            followStats = new FollowStatsAction.StatsResponses();
-            followStats.readFrom(in);
         }
 
         @Override

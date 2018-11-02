@@ -1683,11 +1683,12 @@ public final class InternalTestCluster extends TestCluster {
         }
     };
 
+
     /**
      * Restarts all nodes in the cluster. It first stops all nodes and then restarts all the nodes again.
      */
     public void fullRestart() throws Exception {
-        fullRestart(EMPTY_CALLBACK);
+        fullRestart(new FullRestartCallback());
     }
 
     /**
@@ -1731,7 +1732,7 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Restarts all nodes in the cluster. It first stops all nodes and then restarts all the nodes again.
      */
-    public synchronized void fullRestart(RestartCallback callback) throws Exception {
+    public synchronized void fullRestart(FullRestartCallback callback) throws Exception {
         int numNodesRestarted = 0;
         Map<Set<Role>, List<NodeAndClient>> nodesByRoles = new HashMap<>();
         Set[] rolesOrderedByOriginalStartupOrder =  new Set[nextNodeId.get()];
@@ -1748,6 +1749,8 @@ public final class InternalTestCluster extends TestCluster {
             rolesOrderedByOriginalStartupOrder[nodeAndClient.nodeAndClientId] = discoveryNode.getRoles();
             nodesByRoles.computeIfAbsent(discoveryNode.getRoles(), k -> new ArrayList<>()).add(nodeAndClient);
         }
+
+        callback.onAllNodesStopped(nodes.values().stream().map(nodeAndClient -> nodeAndClient.name).collect(Collectors.toList()));
 
         assert nodesByRoles.values().stream().collect(Collectors.summingInt(List::size)) == nodes.size();
 
@@ -2203,11 +2206,19 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    /**
+     * A class that is called during {@link #fullRestart(FullRestartCallback)}
+     * to execute actions at certain stages of the restart.
+     */
+    public static class FullRestartCallback extends RestartCallback {
+        public void onAllNodesStopped(List<String> nodeNames) throws Exception {
+
+        }
+    }
 
     /**
      * An abstract class that is called during {@link #rollingRestart(InternalTestCluster.RestartCallback)}
-     * and / or {@link #fullRestart(InternalTestCluster.RestartCallback)} to execute actions at certain
-     * stages of the restart.
+     * to execute actions at certain stages of the restart.
      */
     public static class RestartCallback {
 

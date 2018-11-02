@@ -54,9 +54,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
-import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableSet;
-
 public class GatewayMetaState extends AbstractComponent implements ClusterStateApplier {
 
     private final NodeEnvironment nodeEnv;
@@ -64,8 +61,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     @Nullable
     private volatile MetaData previousMetaData;
-
-    private volatile Set<Index> previouslyWrittenIndices = emptySet();
 
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
                             MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) throws IOException {
@@ -83,24 +78,31 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
                 ensureNoPre019State();
-                final MetaData metaData = metaStateService.loadFullState();
-                final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
+                final MetaData metaData = metaStateService.loadMetaData();
+
                 // We finished global state validation and successfully checked all indices for backward compatibility
                 // and found no non-upgradable indices, which means the upgrade can continue.
                 // Now it's safe to overwrite global and index metadata.
-                if (metaData != upgradedMetaData) {
+                if (metaData != null) {
+                    final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
                     if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
                         metaStateService.writeGlobalState("upgrade", upgradedMetaData);
+                    } else {
+                        metaStateService.writeGlobalState("startup", upgradedMetaData);
                     }
                     for (IndexMetaData indexMetaData : upgradedMetaData) {
                         if (metaData.hasIndexMetaData(indexMetaData) == false) {
                             metaStateService.writeIndex("upgrade", indexMetaData);
+                        } else {
+                            metaStateService.writeIndex("startup", indexMetaData);
                         }
                     }
+                    metaStateService.writeMetaState("startup");
                 }
+
                 long startNS = System.nanoTime();
-                metaStateService.loadFullState();
-                logger.debug("took {} to load state", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
+                metaStateService.loadMetaData();
+                logger.debug("took {} to load meta data", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
             } catch (Exception e) {
                 logger.error("failed to read local state, exiting...", e);
                 throw e;
@@ -108,8 +110,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         }
     }
 
-    public MetaData loadMetaState() throws IOException {
-        return metaStateService.loadFullState();
+    public MetaData loadMetaData() throws IOException {
+        MetaData metaData = metaStateService.loadMetaData();
+        return metaData == null ? MetaData.builder().build() : metaData;
     }
 
     @Override
@@ -119,68 +122,33 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         if (state.blocks().disableStatePersistence()) {
             // reset the current metadata, we need to start fresh...
             this.previousMetaData = null;
-            previouslyWrittenIndices = emptySet();
             return;
         }
 
         MetaData newMetaData = state.metaData();
         // we don't check if metaData changed, since we might be called several times and we need to check dangling...
-        Set<Index> relevantIndices = Collections.emptySet();
-        boolean success = true;
         // write the state if this node is a master eligible node or if it is a data node and has shards allocated on it
         if (state.nodes().getLocalNode().isMasterNode() || state.nodes().getLocalNode().isDataNode()) {
-            if (previousMetaData == null) {
-                try {
-                    // we determine if or if not we write meta data on data only nodes by looking at the shard routing
-                    // and only write if a shard of this index is allocated on this node
-                    // however, closed indices do not appear in the shard routing. if the meta data for a closed index is
-                    // updated it will therefore not be written in case the list of previouslyWrittenIndices is empty (because state
-                    // persistence was disabled or the node was restarted), see getRelevantIndicesOnDataOnlyNode().
-                    // we therefore have to check here if we have shards on disk and add their indices to the previouslyWrittenIndices list
-                    if (isDataOnlyNode(state)) {
-                        Set<Index> newPreviouslyWrittenIndices = new HashSet<>(previouslyWrittenIndices.size());
-                        for (IndexMetaData indexMetaData : newMetaData) {
-                            IndexMetaData indexMetaDataOnDisk = null;
-                            if (indexMetaData.getState().equals(IndexMetaData.State.CLOSE)) {
-                                indexMetaDataOnDisk = metaStateService.loadIndexState(indexMetaData.getIndex());
-                            }
-                            if (indexMetaDataOnDisk != null) {
-                                newPreviouslyWrittenIndices.add(indexMetaDataOnDisk.getIndex());
-                            }
-                        }
-                        newPreviouslyWrittenIndices.addAll(previouslyWrittenIndices);
-                        previouslyWrittenIndices = unmodifiableSet(newPreviouslyWrittenIndices);
-                    }
-                } catch (Exception e) {
-                    success = false;
-                }
-            }
-            // check if the global state changed?
-            if (previousMetaData == null || !MetaData.isGlobalStateEquals(previousMetaData, newMetaData)) {
-                try {
+            try {
+                // check if the global state changed?
+                if (previousMetaData == null || !MetaData.isGlobalStateEquals(previousMetaData, newMetaData)) {
                     metaStateService.writeGlobalState("changed", newMetaData);
-                } catch (Exception e) {
-                    success = false;
                 }
-            }
 
-
-            relevantIndices = getRelevantIndices(event.state(), event.previousState(), previouslyWrittenIndices);
-            final Iterable<IndexMetaWriteInfo> writeInfo = resolveStatesToBeWritten(previouslyWrittenIndices, relevantIndices,
-                previousMetaData, event.state().metaData());
-            // check and write changes in indices
-            for (IndexMetaWriteInfo indexMetaWrite : writeInfo) {
-                try {
-                    metaStateService.writeIndex(indexMetaWrite.reason, indexMetaWrite.newMetaData);
-                } catch (Exception e) {
-                    success = false;
+                Set<Index> previouslyWrittenIndices = metaStateService.getPrevioslyWrittenIndices();
+                Set<Index> relevantIndices = getRelevantIndices(event.state(), event.previousState(), previouslyWrittenIndices);
+                final Iterable<IndexMetaDataAction> actions = resolveStatesToBeWritten(previouslyWrittenIndices, relevantIndices,
+                        previousMetaData, event.state().metaData());
+                // check and write changes in indices
+                for (IndexMetaDataAction action : actions) {
+                    action.execute(metaStateService);
                 }
-            }
-        }
 
-        if (success) {
-            previousMetaData = newMetaData;
-            previouslyWrittenIndices = unmodifiableSet(relevantIndices);
+                metaStateService.writeMetaState("changed");
+                previousMetaData = newMetaData;
+            } catch (WriteStateException e) {
+                logger.error("Exception occurred", e);
+            }
         }
     }
 
@@ -309,25 +277,22 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
      * @param newMetaData                 The new metadata
      * @return iterable over all indices states that should be written to disk
      */
-    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> resolveStatesToBeWritten(Set<Index> previouslyWrittenIndices,
-                                                                                         Set<Index> potentiallyUnwrittenIndices,
-                                                                                         MetaData previousMetaData, MetaData newMetaData) {
-        List<GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new ArrayList<>();
+    public static Iterable<IndexMetaDataAction> resolveStatesToBeWritten(Set<Index> previouslyWrittenIndices,
+                                                                         Set<Index> potentiallyUnwrittenIndices,
+                                                                         MetaData previousMetaData, MetaData newMetaData) {
+        List<IndexMetaDataAction> actions = new ArrayList<>();
         for (Index index : potentiallyUnwrittenIndices) {
             IndexMetaData newIndexMetaData = newMetaData.getIndexSafe(index);
             IndexMetaData previousIndexMetaData = previousMetaData == null ? null : previousMetaData.index(index);
-            String writeReason = null;
             if (previouslyWrittenIndices.contains(index) == false || previousIndexMetaData == null) {
-                writeReason = "freshly created";
+                actions.add(new WriteNewIndex(newIndexMetaData));
             } else if (previousIndexMetaData.getVersion() != newIndexMetaData.getVersion()) {
-                writeReason = "version changed from [" + previousIndexMetaData.getVersion() + "] to [" +
-                    newIndexMetaData.getVersion() + "]";
-            }
-            if (writeReason != null) {
-                indicesToWrite.add(new GatewayMetaState.IndexMetaWriteInfo(newIndexMetaData, previousIndexMetaData, writeReason));
+                actions.add(new WriteChangedIndex(previousIndexMetaData, newIndexMetaData));
+            } else {
+                actions.add(new KeepIndex(index));
             }
         }
-        return indicesToWrite;
+        return actions;
     }
 
     public static Set<Index> getRelevantIndicesOnDataOnlyNode(ClusterState state, ClusterState previousState,
@@ -368,23 +333,49 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
     }
 
 
-    public static class IndexMetaWriteInfo {
-        final IndexMetaData newMetaData;
-        final String reason;
-        final IndexMetaData previousMetaData;
+    public interface IndexMetaDataAction {
+        void execute(MetaStateService metaStateService) throws WriteStateException;
+    }
 
-        public IndexMetaWriteInfo(IndexMetaData newMetaData, IndexMetaData previousMetaData, String reason) {
-            this.newMetaData = newMetaData;
-            this.reason = reason;
-            this.previousMetaData = previousMetaData;
+    public static class KeepIndex implements IndexMetaDataAction {
+        private final Index index;
+
+        public KeepIndex(Index index) {
+            this.index = index;
         }
 
-        public IndexMetaData getNewMetaData() {
-            return newMetaData;
+        @Override
+        public void execute(MetaStateService metaStateService) {
+            metaStateService.keepIndex(index);
+        }
+    }
+
+    public static class WriteNewIndex implements IndexMetaDataAction {
+        private IndexMetaData indexMetaData;
+
+        public WriteNewIndex(IndexMetaData indexMetaData) {
+            this.indexMetaData = indexMetaData;
         }
 
-        public String getReason() {
-            return reason;
+        @Override
+        public void execute(MetaStateService metaStateService) throws WriteStateException {
+            metaStateService.writeIndex("freshly created", indexMetaData);
+        }
+    }
+
+    public static class WriteChangedIndex implements IndexMetaDataAction {
+        private IndexMetaData oldIndexMetaData;
+        private IndexMetaData newIndexMetaData;
+
+        public WriteChangedIndex(IndexMetaData oldIndexMetaData, IndexMetaData newIndexMetaData) {
+            this.newIndexMetaData = newIndexMetaData;
+            this.oldIndexMetaData = oldIndexMetaData;
+        }
+
+        @Override
+        public void execute(MetaStateService metaStateService) throws WriteStateException {
+            metaStateService.writeIndex("version changed from [" + oldIndexMetaData.getVersion() + "] to [" +
+                    newIndexMetaData.getVersion() + "]", newIndexMetaData);
         }
     }
 }

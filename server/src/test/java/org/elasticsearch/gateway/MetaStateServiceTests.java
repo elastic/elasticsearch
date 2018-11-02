@@ -94,7 +94,7 @@ public class MetaStateServiceTests extends ESTestCase {
             metaStateService.writeGlobalState("test_write", metaData);
             metaStateService.writeIndex("test_write", index);
 
-            MetaData loadedState = metaStateService.loadFullState();
+            MetaData loadedState = metaStateService.loadMetaData();
             assertThat(loadedState.persistentSettings(), equalTo(metaData.persistentSettings()));
             assertThat(loadedState.hasIndex("test1"), equalTo(true));
             assertThat(loadedState.index("test1"), equalTo(index));

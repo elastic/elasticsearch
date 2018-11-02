@@ -188,15 +188,15 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         }
         Set<Index> newIndicesList = GatewayMetaState.getRelevantIndices(event.state(),event.previousState(), oldIndicesList);
         // third, get the actual write info
-        Iterator<GatewayMetaState.IndexMetaWriteInfo> indices = GatewayMetaState.resolveStatesToBeWritten(oldIndicesList, newIndicesList,
+        Iterator<GatewayMetaState.IndexMetaDataAction> actions = GatewayMetaState.resolveStatesToBeWritten(oldIndicesList, newIndicesList,
                 inMemoryMetaData, event.state().metaData()).iterator();
 
         if (expectMetaData) {
-            assertThat(indices.hasNext(), equalTo(true));
-            assertThat(indices.next().getNewMetaData().getIndex().getName(), equalTo("test"));
-            assertThat(indices.hasNext(), equalTo(false));
+            assertThat(actions.hasNext(), equalTo(true));
+            GatewayMetaState.IndexMetaDataAction action = actions.next();
+            assertTrue(action instanceof GatewayMetaState.WriteNewIndex || action instanceof GatewayMetaState.WriteChangedIndex);
         } else {
-            assertThat(indices.hasNext(), equalTo(false));
+            assertTrue(actions.hasNext() == false || actions.next() instanceof GatewayMetaState.KeepIndex);
         }
     }
 

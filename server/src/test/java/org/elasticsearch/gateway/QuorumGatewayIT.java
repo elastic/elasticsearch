@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster.RestartCallback;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.concurrent.TimeUnit;
 
@@ -64,7 +64,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2L);
         }
         logger.info("--> restart all nodes");
-        internalCluster().fullRestart(new RestartCallback() {
+        internalCluster().fullRestart(new InternalTestCluster.FullRestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 return null;

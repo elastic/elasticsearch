@@ -39,7 +39,7 @@ import org.elasticsearch.index.IndexSettings;
  */
 public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
+    private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(IcuNormalizerTokenFilterFactory.class));
 
     private final Normalizer2 normalizer;
@@ -67,7 +67,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
         String unicodeSetFilter = settings.get("unicodeSetFilter");
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
             if (unicodeSetFilter != null) {
-                DEPRECATION_LOGGER.deprecated("[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
+                deprecationLogger.deprecated("[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
             } else {
                 unicodeSetFilter = settings.get("unicode_set_filter");
             }

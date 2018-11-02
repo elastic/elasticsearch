@@ -1,6 +1,6 @@
 
 [[painless-bucket-selector-agg-context]]
-=== Bucket Selector aggregation context
+=== Bucket selector aggregation context
 
 Use a Painless script in an
 {ref}/search-aggregations-pipeline-bucket-selector-aggregation.html[`bucket_selector` aggregation]
@@ -26,18 +26,18 @@ The painless context in a `bucket_selector` aggregation provides a `params` map.
 user-specified custom values, as well as the values from other aggregations specified in the `buckets_path`
 property.
 
-For our example, we are going to find the `max` of each bucket, add in a user-defined "base" value, then keep all
-the buckets that are greater than `10`.
+Unlike some other aggregation contexts, the `bucket_selector` context must return a boolean `true` or `false`.
 
-Unlike some other aggregation contexts, the `bucket_selector` context must return a boolean `true`/`false`.
+This example finds the max of each bucket, adds a user-specified base_cost, and retains all of the
+buckets that are greater than `10`.
 
 [source,Painless]
 --------------------------------------------------
 params.max + params.base_cost > 10
 --------------------------------------------------
 
-Note how all the values are being pulled from the `params` map. Also note how the script is in the form of an expression,
-which returns `true`/`false`.  In context, the aggregation looks like this:
+Note that the values are extracted from the `params` map. The script is in the form of an expression
+that returns `true` or `false`.  In context, the aggregation looks like this:
 
 [source,js]
 --------------------------------------------------
@@ -76,7 +76,6 @@ GET /seats/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:seats]
-<1> the `buckets_path` points to the max aggregations (`max_cost`) and adds `max` variables
+<1> The `buckets_path` points to the max aggregations (`max_cost`) and adds `max` variables
 to the `params` map
-<2> the user-specified `base_cost` is added in the script's `params` section, which is also added to the
-`params` variable for use in the script.
+<2> The user-specified `base_cost` is also added to the `params` map

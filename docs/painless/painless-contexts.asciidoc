@@ -46,7 +46,7 @@ specialized code may define new ways to use a Painless script.
                                     | {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Elasticsearch Documentation]
 | Bucket aggregation                | <<painless-bucket-agg-context, Painless Documentation>>
                                     | {ref}/search-aggregations-pipeline-bucket-script-aggregation.html[Elasticsearch Documentation]
-| Bucket Selector aggregation       | <<painless-bucket-selector-agg-context, Painless Documentation>>
+| Bucket selector aggregation       | <<painless-bucket-selector-agg-context, Painless Documentation>>
                                     | {ref}/search-aggregations-pipeline-bucket-selector-aggregation.html[Elasticsearch Documentation]
 | Watcher condition                 | <<painless-watcher-condition-context, Painless Documentation>>
                                     | {xpack-ref}/condition-script.html[Elasticsearch Documentation]

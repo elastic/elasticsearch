@@ -18,7 +18,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;

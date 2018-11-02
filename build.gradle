@@ -39,7 +39,7 @@ if (properties.get("org.elasticsearch.acceptScanTOS", "false") == "true") {
 // common maven publishing configuration
 subprojects {
   group = 'org.elasticsearch'
-  version = VersionProperties.elasticsearch.toString()
+  version = VersionProperties.elasticsearch
   description = "Elasticsearch subproject ${project.path}"
 }
 
@@ -282,7 +282,7 @@ subprojects {
     // other packages (e.g org.elasticsearch.client) will point to server rather than
     // their own artifacts.
     if (project.plugins.hasPlugin(BuildPlugin) || project.plugins.hasPlugin(PluginBuildPlugin)) {
-      String artifactsHost = VersionProperties.elasticsearch.isSnapshot() ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
+      String artifactsHost = VersionProperties.elasticsearch.endsWith("-SNAPSHOT") ? "https://snapshots.elastic.co" : "https://artifacts.elastic.co"
       Closure sortClosure = { a, b -> b.group <=> a.group }
       Closure depJavadocClosure = { shadowed, dep ->
         if (dep.group == null || false == dep.group.startsWith('org.elasticsearch')) {

@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -23,8 +22,7 @@ class MlInitializationService extends AbstractComponent implements ClusterStateL
 
     private volatile MlDailyMaintenanceService mlDailyMaintenanceService;
 
-    MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client) {
-        super(settings);
+    MlInitializationService(ThreadPool threadPool, ClusterService clusterService, Client client) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.client = client;

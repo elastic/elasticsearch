@@ -4,6 +4,7 @@ import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.AntFixture
 import org.elasticsearch.gradle.test.ClusterConfiguration
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 
 import java.lang.reflect.Field
 
@@ -68,11 +69,14 @@ bundlePlugin {
   }
 }
 
-additionalTest('testRepositoryCreds'){
+task testRepositoryCreds(type: RandomizedTestingTask) {
   include '**/RepositoryCredentialsTests.class'
   include '**/S3BlobStoreRepositoryTests.class'
   systemProperty 'es.allow_insecure_settings', 'true'
+  classpath = tasks.test.classpath
+  testClassesDirs = tasks.test.testClassesDirs
 }
+project.check.dependsOn(testRepositoryCreds)
 
 test {
   // these are tested explicitly in separate test tasks
@@ -198,14 +202,11 @@ if (useFixture && minioDistribution) {
 
     doLast {
       // get free port
-      for (int port = 60920; port < 60940; port++) {
-        try {
-          javax.net.ServerSocketFactory.getDefault().createServerSocket(port, 1, InetAddress.getByName(minioAddress)).close()
-          minioPort = port
-          break
-        } catch (BindException e) {
-          logger.info("Port " + port + " for Minio process is already taken", e)
-        }
+      ServerSocket serverSocket = new ServerSocket(0, 1, InetAddress.getByName(minioAddress))
+      try {
+        minioPort = serverSocket.localPort
+      } finally {
+        serverSocket.close()
       }
       if (minioPort == 0) {
         throw new GradleException("Could not find a free port for Minio")

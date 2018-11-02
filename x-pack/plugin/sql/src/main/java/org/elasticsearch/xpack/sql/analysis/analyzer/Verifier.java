@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
+import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Exists;
@@ -18,11 +19,13 @@ import org.elasticsearch.xpack.sql.expression.function.FunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -40,7 +43,9 @@ import java.util.function.Consumer;
 
 import static java.lang.String.format;
 
-abstract class Verifier {
+final class Verifier {
+
+    private Verifier() {}
 
     static class Failure {
         private final Node<?> source;
@@ -188,6 +193,8 @@ abstract class Verifier {
 
                 Set<Failure> localFailures = new LinkedHashSet<>();
 
+                validateInExpression(p, localFailures);
+
                 if (!groupingFailures.contains(p)) {
                     checkGroupBy(p, localFailures, resolvedFunctions, groupingFailures);
                 }
@@ -232,8 +239,17 @@ abstract class Verifier {
             Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
         if (p instanceof OrderBy) {
             OrderBy o = (OrderBy) p;
-            if (o.child() instanceof Aggregate) {
-                Aggregate a = (Aggregate) o.child();
+            LogicalPlan child = o.child();
+
+            if (child instanceof Project) {
+                child = ((Project) child).child();
+            }
+            if (child instanceof Filter) {
+                child = ((Filter) child).child();
+            }
+
+            if (child instanceof Aggregate) {
+                Aggregate a = (Aggregate) child;
 
                 Map<Expression, Node<?>> missing = new LinkedHashMap<>();
                 o.order().forEach(oe -> {
@@ -244,9 +260,25 @@ abstract class Verifier {
                         return;
                     }
 
-                    // make sure to compare attributes directly
-                    if (Expressions.anyMatch(a.groupings(),
-                            g -> e.semanticEquals(e instanceof Attribute ? Expressions.attribute(g) : g))) {
+                    // take aliases declared inside the aggregates which point to the grouping (but are not included in there)
+                    // to correlate them to the order
+                    List<Expression> groupingAndMatchingAggregatesAliases = new ArrayList<>(a.groupings());
+
+                    a.aggregates().forEach(as -> {
+                        if (as instanceof Alias) {
+                            Alias al = (Alias) as;
+                            if (Expressions.anyMatch(a.groupings(), g -> Expressions.equalsAsAttribute(al.child(), g))) {
+                                groupingAndMatchingAggregatesAliases.add(al);
+                            }
+                        }
+                    });
+
+                    // Make sure you can apply functions on top of the grouped by expressions in the ORDER BY:
+                    // e.g.: if "GROUP BY f2(f1(field))" you can "ORDER BY f4(f3(f2(f1(field))))"
+                    //
+                    // Also, make sure to compare attributes directly
+                    if (e.anyMatch(expression -> Expressions.anyMatch(groupingAndMatchingAggregatesAliases,
+                        g -> expression.semanticEquals(expression instanceof Attribute ? Expressions.attribute(g) : g)))) {
                         return;
                     }
 
@@ -268,7 +300,6 @@ abstract class Verifier {
         }
         return true;
     }
-
 
     private static boolean checkGroupByHaving(LogicalPlan p, Set<Failure> localFailures,
             Set<LogicalPlan> groupingFailures, Map<String, Function> functions) {
@@ -487,5 +518,20 @@ abstract class Verifier {
             localFailures.add(
                     fail(nested.get(0), "HAVING isn't (yet) compatible with nested fields " + new AttributeSet(nested).names()));
         }
+    }
+
+    private static void validateInExpression(LogicalPlan p, Set<Failure> localFailures) {
+        p.forEachExpressions(e ->
+            e.forEachUp((In in) -> {
+                    DataType dt = in.value().dataType();
+                    for (Expression value : in.list()) {
+                        if (!in.value().dataType().isCompatibleWith(value.dataType())) {
+                            localFailures.add(fail(value, "expected data type [%s], value provided is of type [%s]",
+                                dt, value.dataType()));
+                            return;
+                        }
+                    }
+                },
+                In.class));
     }
 }

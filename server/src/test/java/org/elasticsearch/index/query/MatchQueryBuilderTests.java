@@ -408,29 +408,18 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
         expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
     }
-
-    // nocommit - fix
+    
     private static class MockGraphAnalyzer extends Analyzer {
-        Tokenizer tokenizer;
+
         CannedBinaryTokenStream tokenStream;
 
         MockGraphAnalyzer(CannedBinaryTokenStream.BinaryToken[] tokens) {
             this.tokenStream = new CannedBinaryTokenStream(tokens);
-            this.tokenizer = new Tokenizer(tokenStream.getAttributeFactory()) {
-                @Override
-                public boolean incrementToken() throws IOException {
-                    if (tokenizer.incrementToken() == false) {
-                        return false;
-                    }
-                    this.restoreState(tokenStream.captureState());
-                    return true;
-                }
-            };
         }
 
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
-            return new TokenStreamComponents(tokenizer);
+            return new TokenStreamComponents(r -> {}, tokenStream);
         }
     }
 

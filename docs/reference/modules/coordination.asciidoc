@@ -306,11 +306,16 @@ the `GET /_cluster/bootstrap` API:
 
 [source,js]
 --------------------------------------------------
-# Immediately return a bootstrap configuration based on the nodes discovered so far
+# Immediately return a bootstrap configuration based on the nodes
+# discovered so far.
 GET /_cluster/bootstrap
-# Wait for up to 60 seconds until the node has discovered at least 3 nodes,
-# before returning a bootstrap configuration
-GET /_cluster/bootstrap?wait_for_nodes=3&timeout=60s
+# Return a bootstrap configuration of at least three nodes, or return an
+# error if fewer than three nodes have been discovered.
+GET /_cluster/bootstrap?wait_for_nodes=3
+# Return a bootstrap configuration of at least three nodes, waiting for
+# up to a minute for this many nodes to be discovered before returning
+# an error.
+GET /_cluster/bootstrap?wait_for_nodes=3&timeout=1m
 --------------------------------------------------
 // CONSOLE
 

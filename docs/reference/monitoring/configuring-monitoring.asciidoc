@@ -22,13 +22,37 @@ To learn about monitoring in general, see
 
 . Configure your cluster to collect monitoring data:
 
-.. Verify that the `xpack.monitoring.enabled`, 
-`xpack.monitoring.collection.enabled`, and 
-`xpack.monitoring.elasticsearch.collection.enabled` settings are `true` on each
-node in the cluster. By default `xpack.monitoring.collection.enabled` is disabled
-(`false`), and that overrides `xpack.monitoring.elasticsearch.collection.enabled`,
-which defaults to being enabled (`true`). Both settings can be set dynamically
-at runtime. For more information, see <<monitoring-settings>>.
+.. Verify that the `xpack.monitoring.enabled` setting is `true`, which is its 
+default value, on each node in the cluster. For more information, see 
+<<monitoring-settings>>. 
+
+.. Set the `xpack.monitoring.collection.enabled` and 
+`xpack.monitoring.elasticsearch.collection.enabled` settings to `true` on each
+node in the cluster. 
++ 
+--
+For example, you can use the following APIs to review and change these 
+cluster-wide settings:
+
+[source,js]
+----------------------------------
+GET _cluster/settings
+
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.monitoring.collection.enabled": true,
+    "xpack.monitoring.elasticsearch.collection.enabled": true
+  }
+}
+----------------------------------
+// CONSOLE
+
+By default `xpack.monitoring.collection.enabled` is disabled (`false`) and that 
+overrides `xpack.monitoring.elasticsearch.collection.enabled`, which by default 
+is enabled (`true`). For more information, see <<monitoring-settings>> and 
+<<cluster-update-settings>>.
+--
 
 .. Optional: Specify which indices you want to monitor. 
 +

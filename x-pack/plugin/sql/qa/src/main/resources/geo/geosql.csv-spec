@@ -102,3 +102,32 @@ SELECT COUNT(city) count, CAST(SUBSTRING(ST_ASWKT(location), 8, 1) = '-' AS STRI
 9              |false
 6              |true
 ;
+
+selectFakeCoordinatesFromCityAndRegion
+SELECT region, city, ST_ASWKT(ST_WKTTOSQL(CONCAT(CONCAT(CONCAT(CONCAT('POINT (', CAST(LENGTH(city) AS STRING)), ' '), CAST(LENGTH(region) AS STRING)), ')'))) loc  FROM geo ORDER BY region, city;
+
+   region:s    |    city:s     |       loc:s
+Americas       |Chicago        |point (7.0 8.0)
+Americas       |Mountain View  |point (13.0 8.0)
+Americas       |New York       |point (8.0 8.0)
+Americas       |Phoenix        |point (7.0 8.0)
+Americas       |San Francisco  |point (13.0 8.0)
+Asia           |Hong Kong      |point (9.0 4.0)
+Asia           |Seoul          |point (5.0 4.0)
+Asia           |Singapore      |point (9.0 4.0)
+Asia           |Sydney         |point (6.0 4.0)
+Asia           |Tokyo          |point (5.0 4.0)
+Europe         |Amsterdam      |point (9.0 6.0)
+Europe         |Berlin         |point (6.0 6.0)
+Europe         |London         |point (6.0 6.0)
+Europe         |Munich         |point (6.0 6.0)
+Europe         |Paris          |point (5.0 6.0)
+;
+
+selectAllPointsGroupByHemisphereFromAsWKT
+SELECT COUNT(city) count, CAST(SUBSTRING(ST_ASWKT(ST_WKTTOSQL(UCASE(ST_ASWKT(location)))), 8, 1) = '-' AS STRING) west FROM "geo" GROUP BY west ORDER BY west;
+
+    count:l    |  west:s
+9              |false
+6              |true
+;

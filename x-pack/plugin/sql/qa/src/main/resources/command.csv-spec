@@ -101,6 +101,7 @@ SPACE           |SCALAR
 SUBSTRING       |SCALAR
 UCASE           |SCALAR
 ST_ASWKT        |SCALAR
+ST_WKTTOSQL     |SCALAR
 CAST            |SCALAR
 CONVERT         |SCALAR
 SCORE           |SCORE

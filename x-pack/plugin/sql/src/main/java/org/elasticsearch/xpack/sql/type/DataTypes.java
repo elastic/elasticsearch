@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.joda.time.DateTime;
 
 public final class DataTypes {
@@ -50,6 +51,9 @@ public final class DataTypes {
         }
         if (value instanceof String || value instanceof Character) {
             return DataType.KEYWORD;
+        }
+        if (value instanceof GeoShape) {
+            return DataType.GEO_SHAPE;
         }
         throw new SqlIllegalArgumentException("No idea what's the DataType for {}", value.getClass());
     }

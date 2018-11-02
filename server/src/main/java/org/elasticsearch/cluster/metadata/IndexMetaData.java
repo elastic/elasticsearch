@@ -1414,6 +1414,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         }
 
         @Override
+        protected boolean autoCleanup() {
+            return false;
+        }
+
+        @Override
         public IndexMetaData fromXContent(XContentParser parser) throws IOException {
             assert parser.getXContentRegistry() != NamedXContentRegistry.EMPTY
                     : "loading index metadata requires a working named xcontent registry";

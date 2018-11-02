@@ -135,9 +135,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                     metaStateService.writeGlobalState("changed", newMetaData);
                 }
 
-                Set<Index> previouslyWrittenIndices = metaStateService.getPrevioslyWrittenIndices();
+                Set<Index> previouslyWrittenIndices = metaStateService.getPreviouslyWrittenIndices();
                 Set<Index> relevantIndices = getRelevantIndices(event.state(), event.previousState(), previouslyWrittenIndices);
-                final Iterable<IndexMetaDataAction> actions = resolveStatesToBeWritten(previouslyWrittenIndices, relevantIndices,
+                final Iterable<IndexMetaDataAction> actions = resolveIndexMetaDataActions(previouslyWrittenIndices, relevantIndices,
                         previousMetaData, event.state().metaData());
                 // check and write changes in indices
                 for (IndexMetaDataAction action : actions) {
@@ -266,22 +266,27 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
     }
 
     /**
-     * Loads the current meta state for each index in the new cluster state and checks if it has to be persisted.
-     * Each index state that should be written to disk will be returned. This is only run for data only nodes.
-     * It will return only the states for indices that actually have a shard allocated on the current node.
+     * Figures out what to do with each relevant index. There are 3 options:
+     * <ol>
+     *     <li>{@link KeepIndex} - index is present in <code>previousMetaData</code> and <code>newMetaData</code> and index version is not
+     *     changed</li>
+     *     <li>{@link WriteNewIndex} - index is new and should be written to disk</li>
+     *     <li>{@link WriteChangedIndex} - index metadata has changed and should be written to disk</li>
+     * </ol>
+     * Note that for indices that are present in <code>previousMetaData</code>, but not in <code>newMetaData</code> no action is returned.
      *
      * @param previouslyWrittenIndices    A list of indices for which the state was already written before
-     * @param potentiallyUnwrittenIndices The list of indices for which state should potentially be written
+     * @param relevantIndices The list of indices for which state should potentially be written
      * @param previousMetaData            The last meta data we know of. meta data for all indices in previouslyWrittenIndices list is
      *                                    persisted now
      * @param newMetaData                 The new metadata
      * @return iterable over all indices states that should be written to disk
      */
-    public static Iterable<IndexMetaDataAction> resolveStatesToBeWritten(Set<Index> previouslyWrittenIndices,
-                                                                         Set<Index> potentiallyUnwrittenIndices,
-                                                                         MetaData previousMetaData, MetaData newMetaData) {
+    public static Iterable<IndexMetaDataAction> resolveIndexMetaDataActions(Set<Index> previouslyWrittenIndices,
+                                                                            Set<Index> relevantIndices,
+                                                                            MetaData previousMetaData, MetaData newMetaData) {
         List<IndexMetaDataAction> actions = new ArrayList<>();
-        for (Index index : potentiallyUnwrittenIndices) {
+        for (Index index : relevantIndices) {
             IndexMetaData newIndexMetaData = newMetaData.getIndexSafe(index);
             IndexMetaData previousIndexMetaData = previousMetaData == null ? null : previousMetaData.index(index);
             if (previouslyWrittenIndices.contains(index) == false || previousIndexMetaData == null) {

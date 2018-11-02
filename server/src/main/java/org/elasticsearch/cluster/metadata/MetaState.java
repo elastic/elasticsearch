@@ -174,6 +174,11 @@ public class MetaState implements ToXContentFragment {
     public static final MetaDataStateFormat<MetaState> FORMAT = new MetaDataStateFormat<MetaState>(META_STATE_FILE_PREFIX) {
 
         @Override
+        protected boolean autoCleanup() {
+            return false;
+        }
+
+        @Override
         public void toXContent(XContentBuilder builder, MetaState state) throws IOException {
             state.toXContent(builder, METASTATE_FORMAT_PARAMS);
         }

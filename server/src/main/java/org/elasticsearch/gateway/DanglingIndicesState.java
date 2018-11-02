@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 
@@ -41,6 +42,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -54,18 +56,18 @@ import static java.util.Collections.unmodifiableMap;
 public class DanglingIndicesState extends AbstractComponent implements ClusterStateListener {
 
     private final NodeEnvironment nodeEnv;
-    private final MetaStateService metaStateService;
     private final LocalAllocateDangledIndices allocateDangledIndices;
 
     private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public DanglingIndicesState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
+    public DanglingIndicesState(Settings settings, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
                                 LocalAllocateDangledIndices allocateDangledIndices, ClusterService clusterService) {
         super(settings);
         this.nodeEnv = nodeEnv;
-        this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
+        this.xContentRegistry = xContentRegistry;
         clusterService.addListener(this);
     }
 
@@ -117,6 +119,30 @@ public class DanglingIndicesState extends AbstractComponent implements ClusterSt
     }
 
     /**
+     * Loads all indices states available on disk
+     */
+    private List<IndexMetaData> loadIndicesStates(Predicate<String> excludeIndexPathIdsPredicate) throws IOException {
+        List<IndexMetaData> indexMetaDataList = new ArrayList<>();
+        for (String indexFolderName : nodeEnv.availableIndexFolders(excludeIndexPathIdsPredicate)) {
+            assert excludeIndexPathIdsPredicate.test(indexFolderName) == false :
+                    "unexpected folder " + indexFolderName + " which should have been excluded";
+            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, xContentRegistry,
+                    nodeEnv.resolveIndexFolder(indexFolderName));
+            if (indexMetaData != null) {
+                final String indexPathId = indexMetaData.getIndex().getUUID();
+                if (indexFolderName.equals(indexPathId)) {
+                    indexMetaDataList.add(indexMetaData);
+                } else {
+                    throw new IllegalStateException("[" + indexFolderName + "] invalid index folder name, rename to [" + indexPathId + "]");
+                }
+            } else {
+                logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
+            }
+        }
+        return indexMetaDataList;
+    }
+
+    /**
      * Finds new dangling indices by iterating over the indices and trying to find indices
      * that have state on disk, but are not part of the provided meta data, or not detected
      * as dangled already.
@@ -128,7 +154,7 @@ public class DanglingIndicesState extends AbstractComponent implements ClusterSt
         }
         excludeIndexPathIds.addAll(danglingIndices.keySet().stream().map(Index::getUUID).collect(Collectors.toList()));
         try {
-            final List<IndexMetaData> indexMetaDataList = metaStateService.loadIndicesStates(excludeIndexPathIds::contains);
+            final List<IndexMetaData> indexMetaDataList = loadIndicesStates(excludeIndexPathIds::contains);
             Map<Index, IndexMetaData> newIndices = new HashMap<>(indexMetaDataList.size());
             final IndexGraveyard graveyard = metaData.indexGraveyard();
             for (IndexMetaData indexMetaData : indexMetaDataList) {

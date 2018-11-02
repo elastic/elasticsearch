@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class SeqNoStats implements ToXContentFragment, Writeable {
 
@@ -95,10 +96,7 @@ public class SeqNoStats implements ToXContentFragment, Writeable {
 
     @Override
     public int hashCode() {
-        int result = Long.hashCode(maxSeqNo);
-        result = 31 * result + Long.hashCode(localCheckpoint);
-        result = 31 * result + Long.hashCode(globalCheckpoint);
-        return result;
+        return Objects.hash(maxSeqNo, localCheckpoint, globalCheckpoint);
     }
 
     @Override

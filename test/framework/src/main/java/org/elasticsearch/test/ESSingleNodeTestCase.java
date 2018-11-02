@@ -125,7 +125,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertAcked(client().admin().indices().prepareDelete("*").get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         Settings.Builder unexpectedPersistentSettingsBuilder = Settings.builder().put(metaData.persistentSettings());
-        unexpectedPersistentSettingsBuilder.remove(Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey());
         Settings unexpectedPersistentSettings = unexpectedPersistentSettingsBuilder.build();
         assertThat("test leaves persistent cluster metadata behind: " + unexpectedPersistentSettings.keySet(),
                 unexpectedPersistentSettings.size(), equalTo(0));

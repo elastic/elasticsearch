@@ -318,8 +318,8 @@ the `GET /_cluster/bootstrap_configuration` API.  This API returns a
 properly-constructed bootstrap configuration that is ready to pass back to the
 `POST /_cluster/bootstrap_configuration` API. It includes all of the
 master-eligible nodes that the handling node has discovered via the
-gossip-based discovery protocol, and can return an error if fewer nodes have
-been discovered than expected.
+gossip-based discovery protocol, and returns an error if fewer nodes have been
+discovered than required:
 
 [source,js]
 --------------------------------------------------

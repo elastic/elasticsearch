@@ -92,8 +92,8 @@ public class AuthenticateResponseTests extends ESTestCase {
 
     private AuthenticateResponse copy(AuthenticateResponse response) {
         final User originalUser = response.getUser();
-        final User copyUser = new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(), originalUser.getFullName(),
-                originalUser.getEmail());
+        final User copyUser = new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
+                originalUser.getFullName(), originalUser.getEmail());
         return new AuthenticateResponse(copyUser, response.enabled());
     }
 
@@ -101,8 +101,8 @@ public class AuthenticateResponseTests extends ESTestCase {
         final User originalUser = response.getUser();
         switch (randomIntBetween(1, 6)) {
             case 1:
-            return new AuthenticateResponse(new User(originalUser.getUsername() + "wrong", originalUser.getRoles(), originalUser.getMetadata(),
-                    originalUser.getFullName(), originalUser.getEmail()), response.enabled());
+            return new AuthenticateResponse(new User(originalUser.getUsername() + "wrong", originalUser.getRoles(),
+                    originalUser.getMetadata(), originalUser.getFullName(), originalUser.getEmail()), response.enabled());
             case 2:
                 final Collection<String> wrongRoles = new ArrayList<>(originalUser.getRoles());
                 wrongRoles.add(randomAlphaOfLengthBetween(1, 4));

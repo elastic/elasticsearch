@@ -58,14 +58,11 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final String email = randomBoolean() ? null : randomAlphaOfLengthBetween(12, 24);
         final String fullName = randomBoolean() ? null : randomAlphaOfLengthBetween(7, 14);
         final boolean enabled = randomBoolean();
-        final Map<String, Object> metadata;
+        final Map<String, Object> metadata = new HashMap<>();
         if (randomBoolean()) {
-            metadata = new HashMap<>();
             for (int i = 0; i < randomIntBetween(0, 10); i++) {
                 metadata.put(String.valueOf(i), randomAlphaOfLengthBetween(1, 12));
             }
-        } else {
-            metadata = null;
         }
         final User user = new User(username, roles, metadata, fullName, email);
 

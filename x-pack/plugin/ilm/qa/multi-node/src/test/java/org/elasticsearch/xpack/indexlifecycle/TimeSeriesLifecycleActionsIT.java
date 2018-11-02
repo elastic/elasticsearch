@@ -221,7 +221,8 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             logger.info(secondIndex + ": " + getStepKeyForIndex(secondIndex));
             assertThat(getStepKeyForIndex(originalIndex), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME)));
             assertThat(getFailedStepForIndex(originalIndex), equalTo("update-rollover-lifecycle-date"));
-            assertThat(getReasonForIndex(originalIndex), equalTo("index [" + originalIndex + "] has not rolled over yet"));
+            assertThat(getReasonForIndex(originalIndex), equalTo("no rollover info found for [" + originalIndex + "], either the index " +
+                "has not yet rolled over or a subsequent index was created outside of Index Lifecycle Management"));
         });
     }
 

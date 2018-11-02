@@ -32,7 +32,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.LazyInitializable;
 
@@ -53,10 +52,6 @@ public class GoogleCloudStorageService extends AbstractComponent {
      * latest settings.
      */
     private final AtomicReference<Map<String, LazyInitializable<Storage, IOException>>> clientsCache = new AtomicReference<>(emptyMap());
-
-    public GoogleCloudStorageService(final Settings settings) {
-        super(settings);
-    }
 
     /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to

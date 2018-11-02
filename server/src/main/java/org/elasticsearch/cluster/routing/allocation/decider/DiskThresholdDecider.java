@@ -73,7 +73,6 @@ public class DiskThresholdDecider extends AllocationDecider {
     private final DiskThresholdSettings diskThresholdSettings;
 
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
     }
 

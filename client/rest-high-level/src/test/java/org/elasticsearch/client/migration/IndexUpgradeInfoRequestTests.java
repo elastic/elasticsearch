@@ -23,8 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 
 public class IndexUpgradeInfoRequestTests extends ESTestCase {
 
-    // TODO: add to cross XPack-HLRC serialization test
-
     public void testNullIndices() {
         expectThrows(NullPointerException.class, () -> new IndexUpgradeInfoRequest((String[])null));
         expectThrows(NullPointerException.class, () -> new IndexUpgradeInfoRequest().indices((String[])null));

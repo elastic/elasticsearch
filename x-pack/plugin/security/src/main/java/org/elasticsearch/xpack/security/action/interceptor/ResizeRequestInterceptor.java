@@ -10,7 +10,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -29,9 +28,8 @@ public final class ResizeRequestInterceptor extends AbstractComponent implements
     private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
 
-    public ResizeRequestInterceptor(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState,
+    public ResizeRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState,
                                     AuditTrailService auditTrailService) {
-        super(settings);
         this.threadContext = threadPool.getThreadContext();
         this.licenseState = licenseState;
         this.auditTrailService = auditTrailService;

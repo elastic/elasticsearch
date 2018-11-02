@@ -27,10 +27,12 @@ import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -111,6 +113,10 @@ public final class InternalSqlScriptUtils {
 
     public static Boolean notNull(Object expression) {
         return IsNotNullProcessor.apply(expression);
+    }
+
+    public static Boolean in(Object value, List<Object> values) {
+        return InProcessor.apply(value, values);
     }
 
     //

@@ -3,12 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
+package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
@@ -31,16 +29,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ExtractedFieldsTests extends ESTestCase {
+public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
     private ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
 
     public void testInvalidConstruction() {
-        expectThrows(IllegalArgumentException.class, () -> new ExtractedFields(timeField, Collections.emptyList()));
+        expectThrows(IllegalArgumentException.class, () -> new TimeBasedExtractedFields(timeField, Collections.emptyList()));
     }
 
     public void testTimeFieldOnly() {
-        ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField));
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
 
         assertThat(extractedFields.getAllFields(), equalTo(Arrays.asList(timeField)));
         assertThat(extractedFields.timeField(), equalTo("time"));
@@ -56,7 +54,7 @@ public class ExtractedFieldsTests extends ESTestCase {
         ExtractedField scriptField2 = ExtractedField.newField("scripted2", ExtractedField.ExtractionMethod.SCRIPT_FIELD);
         ExtractedField sourceField1 = ExtractedField.newField("src1", ExtractedField.ExtractionMethod.SOURCE);
         ExtractedField sourceField2 = ExtractedField.newField("src2", ExtractedField.ExtractionMethod.SOURCE);
-        ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField,
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField,
                 docValue1, docValue2, scriptField1, scriptField2, sourceField1, sourceField2));
 
         assertThat(extractedFields.getAllFields().size(), equalTo(7));
@@ -67,31 +65,31 @@ public class ExtractedFieldsTests extends ESTestCase {
     }
 
     public void testTimeFieldValue() {
-        final long millis = randomLong();
-        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new DateTime(millis)).build();
-        final ExtractedFields extractedFields = new ExtractedFields(timeField, Collections.singletonList(timeField));
+        long millis = randomLong();
+        SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new DateTime(millis)).build();
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
         assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
     }
 
     public void testStringTimeFieldValue() {
-        final long millis = randomLong();
-        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
-        final ExtractedFields extractedFields = new ExtractedFields(timeField, Collections.singletonList(timeField));
+        long millis = randomLong();
+        SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", Long.toString(millis)).build();
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
         assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
     }
 
     public void testPre6xTimeFieldValue() {
         // Prior to 6.x, timestamps were simply `long` milliseconds-past-the-epoch values
-        final long millis = randomLong();
-        final SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", millis).build();
-        final ExtractedFields extractedFields = new ExtractedFields(timeField, Collections.singletonList(timeField));
+        long millis = randomLong();
+        SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", millis).build();
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
         assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
     }
 
     public void testTimeFieldValueGivenEmptyArray() {
         SearchHit hit = new SearchHitBuilder(1).addField("time", Collections.emptyList()).build();
 
-        ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField));
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
 
         expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit));
     }
@@ -99,7 +97,7 @@ public class ExtractedFieldsTests extends ESTestCase {
     public void testTimeFieldValueGivenValueHasTwoElements() {
         SearchHit hit = new SearchHitBuilder(1).addField("time", Arrays.asList(1L, 2L)).build();
 
-        ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField));
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
 
         expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit));
     }
@@ -107,7 +105,7 @@ public class ExtractedFieldsTests extends ESTestCase {
     public void testTimeFieldValueGivenValueIsString() {
         SearchHit hit = new SearchHitBuilder(1).addField("time", "a string").build();
 
-        ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField));
+        TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Arrays.asList(timeField));
 
         expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit));
     }
@@ -137,7 +135,7 @@ public class ExtractedFieldsTests extends ESTestCase {
         when(fieldCapabilitiesResponse.getField("value")).thenReturn(valueCaps);
         when(fieldCapabilitiesResponse.getField("airline")).thenReturn(airlineCaps);
 
-        ExtractedFields extractedFields = ExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(),
+        TimeBasedExtractedFields extractedFields = TimeBasedExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(),
                 fieldCapabilitiesResponse);
 
         assertThat(extractedFields.timeField(), equalTo("time"));
@@ -175,7 +173,7 @@ public class ExtractedFieldsTests extends ESTestCase {
         when(fieldCapabilitiesResponse.getField("airport")).thenReturn(text);
         when(fieldCapabilitiesResponse.getField("airport.keyword")).thenReturn(keyword);
 
-        ExtractedFields extractedFields = ExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(),
+        TimeBasedExtractedFields extractedFields = TimeBasedExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(),
                 fieldCapabilitiesResponse);
 
         assertThat(extractedFields.timeField(), equalTo("time"));
@@ -209,10 +207,9 @@ public class ExtractedFieldsTests extends ESTestCase {
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getField("time")).thenReturn(timeCaps);
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> ExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(), fieldCapabilitiesResponse));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("datafeed [feed] cannot retrieve time field [time] because it is not aggregatable"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TimeBasedExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(), fieldCapabilitiesResponse));
+        assertThat(e.getMessage(), equalTo("cannot retrieve time field [time] because it is not aggregatable"));
     }
 
     public void testBuildGivenTimeFieldIsNotAggregatableInSomeIndices() {
@@ -231,10 +228,9 @@ public class ExtractedFieldsTests extends ESTestCase {
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getField("time")).thenReturn(timeCaps);
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> ExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(), fieldCapabilitiesResponse));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("datafeed [feed] cannot retrieve time field [time] because it is not aggregatable"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TimeBasedExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(), fieldCapabilitiesResponse));
+        assertThat(e.getMessage(), equalTo("cannot retrieve time field [time] because it is not aggregatable"));
     }
 
     public void testBuildGivenFieldWithoutMappings() {
@@ -252,10 +248,9 @@ public class ExtractedFieldsTests extends ESTestCase {
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getField("time")).thenReturn(timeCaps);
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> ExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(), fieldCapabilitiesResponse));
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(e.getMessage(), equalTo("datafeed [feed] cannot retrieve field [value] because it has no mappings"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> TimeBasedExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(), fieldCapabilitiesResponse));
+        assertThat(e.getMessage(), equalTo("cannot retrieve field [value] because it has no mappings"));
     }
 
     private static FieldCapabilities createFieldCaps(boolean isAggregatable) {

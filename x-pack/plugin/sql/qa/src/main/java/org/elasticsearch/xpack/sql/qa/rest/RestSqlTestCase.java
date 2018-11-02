@@ -202,7 +202,7 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
     @Override
     public void testSelectInvalidSql() {
         String mode = randomFrom("jdbc", "plain");
-        expectBadRequest(() -> runSql(mode, "SELECT * FRO"), containsString("1:8: Cannot determine columns for *"));
+        expectBadRequest(() -> runSql(mode, "SELECT * FRO"), containsString("1:8: Cannot determine columns for [*]"));
     }
 
     @Override
@@ -515,7 +515,8 @@ public abstract class RestSqlTestCase extends ESRestTestCase implements ErrorsTe
         @SuppressWarnings("unchecked")
         Map<String, Object> filterScript = (Map<String, Object>) bucketSelector.get("script");
         assertEquals(3, filterScript.size());
-        assertEquals("InternalSqlScriptUtils.gt(params.a0,params.v0)", filterScript.get("source"));
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(params.a0,params.v0))",
+            filterScript.get("source"));
         assertEquals("painless", filterScript.get("lang"));
         @SuppressWarnings("unchecked")
         Map<String, Object> filterScriptParams = (Map<String, Object>) filterScript.get("params");

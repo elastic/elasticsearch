@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
+package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
@@ -18,7 +18,7 @@ import java.util.Objects;
  * Represents a field to be extracted by the datafeed.
  * It encapsulates the extraction logic.
  */
-abstract class ExtractedField {
+public abstract class ExtractedField {
 
     public enum ExtractionMethod {
         SOURCE, DOC_VALUE, SCRIPT_FIELD

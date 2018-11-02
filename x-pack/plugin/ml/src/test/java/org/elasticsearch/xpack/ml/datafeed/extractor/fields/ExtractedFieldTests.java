@@ -3,11 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
+package org.elasticsearch.xpack.ml.datafeed.extractor.fields;
 
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.joda.time.DateTime;
 

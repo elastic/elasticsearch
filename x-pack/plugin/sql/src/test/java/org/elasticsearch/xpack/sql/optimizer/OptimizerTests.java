@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.sql.expression.predicate.In;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
@@ -345,7 +345,7 @@ public class OptimizerTests extends ESTestCase {
     public void testConstantFoldingIn_RightValueIsNull() {
         In in = new In(EMPTY, getFieldAttribute(), Arrays.asList(NULL, NULL));
         Literal result= (Literal) new ConstantFolding().rule(in);
-        assertEquals(false, result.value());
+        assertNull(result.value());
     }
 
     public void testConstantFoldingIn_LeftValueIsNull() {

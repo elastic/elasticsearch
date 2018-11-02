@@ -48,8 +48,7 @@ public class FsService extends AbstractComponent {
             Property.NodeScope);
 
     public FsService(final Settings settings, final NodeEnvironment nodeEnvironment, ClusterInfoService clusterInfoService) {
-        super(settings);
-        this.probe = new FsProbe(settings, nodeEnvironment);
+        this.probe = new FsProbe(nodeEnvironment);
         this.clusterInfoService = clusterInfoService;
         refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         logger.debug("using refresh_interval [{}]", refreshInterval);

@@ -107,9 +107,9 @@ public class In extends NamedExpression implements ScriptWeaver {
     @Override
     public ScriptTemplate asScript() {
         ScriptTemplate leftScript = asScript(value);
-        // remove duplicates
+
+        // fold & remove duplicates
         List<Object> values = new ArrayList<>(new LinkedHashSet<>(Foldables.valuesOf(list, value.dataType())));
-        values.removeIf(Objects::isNull);
 
         return new ScriptTemplate(
             formatTemplate(String.format(Locale.ROOT, "{sql}.in(%s, {})", leftScript.template())),
@@ -141,6 +141,6 @@ public class In extends NamedExpression implements ScriptWeaver {
 
         In other = (In) obj;
         return Objects.equals(value, other.value)
-                && Objects.equals(list, other.list);
+            && Objects.equals(list, other.list);
     }
 }

@@ -327,7 +327,7 @@ public class PercolatorFieldMapper extends FieldMapper {
                         extractedTerms.add(builder.toBytesRef());
                     }
                 }
-                if (info.getPointDataDimensionCount() == 1) { // not != 0 because range fields are not supported
+                if (info.getPointIndexDimensionCount() == 1) { // not != 0 because range fields are not supported
                     PointValues values = reader.getPointValues(info.name);
                     List<byte[]> encodedPointValues = new ArrayList<>();
                     encodedPointValues.add(values.getMinPackedValue().clone());

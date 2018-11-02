@@ -207,6 +207,12 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                            .status(),
                    is(RestStatus.CREATED));
 
+        final Settings settings = Settings.builder()
+            .put("cluster.metadata.display_name", "my cluster")
+            .build();
+
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+
         whenExportersAreReady(() -> {
             final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
 
@@ -377,6 +383,12 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(clusterState.remove("master_node"), notNullValue());
         assertThat(clusterState.remove("nodes"), notNullValue());
         assertThat(clusterState.keySet(), empty());
+
+
+        final Map<String, Object> clusterSettings = (Map<String, Object>) source.get("cluster_settings");
+        assertThat(clusterSettings, notNullValue());
+        assertThat(clusterSettings.remove("cluster"), notNullValue());
+        assertThat(clusterSettings.keySet(), empty());
     }
 
     /**

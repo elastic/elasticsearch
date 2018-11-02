@@ -437,6 +437,50 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(expandedJobsBuilders, hasSize(3));
     }
 
+    public void testExpandJobsIdsWithoutMissingCheck() throws Exception {
+        putJob(createJob("tom", null));
+        putJob(createJob("dick", null));
+        putJob(createJob("harry", Collections.singletonList("harry-group")));
+        putJob(createJob("harry-jnr", Collections.singletonList("harry-group")));
+
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+
+        SortedSet<String> expandedIds = blockingCall(actionListener ->
+                jobConfigProvider.expandJobsIdsWithoutMissingCheck("dick,john", false, actionListener));
+        assertEquals(new TreeSet<>(Collections.singletonList("dick")), expandedIds);
+
+        expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIdsWithoutMissingCheck("foo*", true, actionListener));
+        assertThat(expandedIds, empty());
+
+        expandedIds = blockingCall(actionListener ->
+                jobConfigProvider.expandJobsIdsWithoutMissingCheck("harry-group,dave", false, actionListener));
+        assertEquals(new TreeSet<>(Arrays.asList("harry", "harry-jnr")), expandedIds);
+    }
+
+    public void testExpandJobsWithoutMissingCheck() throws Exception {
+        putJob(createJob("tom", null));
+        putJob(createJob("dick", null));
+        putJob(createJob("harry", Collections.singletonList("harry-group")));
+        putJob(createJob("harry-jnr", Collections.singletonList("harry-group")));
+
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+
+        List<Job.Builder> expandedJobsBuilders =
+                blockingCall(actionListener -> jobConfigProvider.expandJobsWithoutMissingcheck("dick,john", true, actionListener));
+        List<String> expandedJobIds = expandedJobsBuilders.stream().map(Job.Builder::build).map(Job::getId).collect(Collectors.toList());
+        assertThat(expandedJobIds, contains("dick"));
+
+        expandedJobsBuilders = blockingCall(actionListener ->
+                jobConfigProvider.expandJobsWithoutMissingcheck("foo*", true, actionListener));
+        expandedJobIds = expandedJobsBuilders.stream().map(Job.Builder::build).map(Job::getId).collect(Collectors.toList());
+        assertThat(expandedJobIds, empty());
+
+        expandedJobsBuilders = blockingCall(actionListener ->
+                jobConfigProvider.expandJobsWithoutMissingcheck("harry-group,dave", true, actionListener));
+        expandedJobIds = expandedJobsBuilders.stream().map(Job.Builder::build).map(Job::getId).collect(Collectors.toList());
+        assertThat(expandedJobIds, contains("harry", "harry-jnr"));
+    }
+
     public void testExpandGroups() throws Exception {
         putJob(createJob("apples", Collections.singletonList("fruit")));
         putJob(createJob("pears", Collections.singletonList("fruit")));

@@ -98,17 +98,12 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
                                                             ClusterState clusterState) {
 
         Map<String, DatafeedConfig> configById = new HashMap<>();
-        try {
-            MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-            Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(datafeedExpression, allowNoDatafeeds);
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+        Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(datafeedExpression);
 
-            for (String expandedDatafeedId : expandedDatafeedIds) {
-                configById.put(expandedDatafeedId, mlMetadata.getDatafeed(expandedDatafeedId));
-            }
-        } catch (Exception e){
-            // ignore
+        for (String expandedDatafeedId : expandedDatafeedIds) {
+            configById.put(expandedDatafeedId, mlMetadata.getDatafeed(expandedDatafeedId));
         }
-
         return configById;
     }
 

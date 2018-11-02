@@ -72,6 +72,7 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -175,11 +176,11 @@ public class JobManager extends AbstractComponent {
      * @param jobsListener The jobs listener
      */
     public void expandJobs(String expression, boolean allowNoJobs, ActionListener<QueryPage<Job>> jobsListener) {
-        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, allowNoJobs, clusterService.state());
-        ExpandedIdsMatcher idsMatcher = new ExpandedIdsMatcher(expression, allowNoJobs);
-        idsMatcher.filterMatchedIds(clusterStateJobs.keySet());
+        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(expression, clusterService.state());
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(expression, allowNoJobs);
+        requiredMatches.filterMatchedIds(clusterStateJobs.keySet());
 
-        jobConfigProvider.expandJobs(expression, allowNoJobs, false, ActionListener.wrap(
+        jobConfigProvider.expandJobsWithoutMissingcheck(expression, false, ActionListener.wrap(
                 jobBuilders -> {
                     // Check for duplicate jobs
                     for (Job.Builder jb : jobBuilders) {
@@ -196,35 +197,26 @@ public class JobManager extends AbstractComponent {
                         jobs.add(jb.build());
                     }
 
-                    jobs.addAll(clusterStateJobs.values());
-                    Collections.sort(jobs, Comparator.comparing(Job::getId));
-                    jobsListener.onResponse(new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
-                },
-                e -> {
-                    if (e instanceof ResourceNotFoundException) {
-                        // Check if we found the jobs that satisfy expression in the clusterstate
-                        if (idsMatcher.hasUnmatchedIds() == false) {
-                            List<Job> jobs = new ArrayList<>(clusterStateJobs.values());
-                            Collections.sort(jobs, Comparator.comparing(Job::getId));
-                            jobsListener.onResponse(new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
-                            return;
-                        }
+                    requiredMatches.filterMatchedIds(jobs.stream().map(Job::getId).collect(Collectors.toList()));
+
+                    if (requiredMatches.hasUnmatchedIds()) {
+                        jobsListener.onFailure(ExceptionsHelper.missingJobException(requiredMatches.unmatchedIdsString()));
+                    } else {
+                        jobs.addAll(clusterStateJobs.values());
+                        Collections.sort(jobs, Comparator.comparing(Job::getId));
+                        jobsListener.onResponse(new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
                     }
-                    jobsListener.onFailure(e);
-                }
+                },
+                jobsListener::onFailure
         ));
     }
 
-    private Map<String, Job> expandJobsFromClusterState(String expression, boolean allowNoJobs, ClusterState clusterState) {
+    private Map<String, Job> expandJobsFromClusterState(String expression, ClusterState clusterState) {
         Map<String, Job> jobIdToJob = new HashMap<>();
-        try {
-            Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
-            MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-            for (String expandedJobId : expandedJobIds) {
-                jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
-            }
-        } catch (Exception e) {
-            // ignore exception thrown if no job Id matches expression
+        Set<String> expandedJobIds = MlMetadata.getMlMetadata(clusterState).expandJobIds(expression);
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+        for (String expandedJobId : expandedJobIds) {
+            jobIdToJob.put(expandedJobId, mlMetadata.getJobs().get(expandedJobId));
         }
         return jobIdToJob;
     }
@@ -237,11 +229,11 @@ public class JobManager extends AbstractComponent {
      * @param jobsListener The jobs listener
      */
     public void expandJobIds(String expression, boolean allowNoJobs, ActionListener<SortedSet<String>> jobsListener) {
-        Set<String> clusterStateJobIds = expandJobIdsFromClusterState(expression, allowNoJobs, clusterService.state());
-        ExpandedIdsMatcher idsMatcher = new ExpandedIdsMatcher(expression, allowNoJobs);
-        idsMatcher.filterMatchedIds(clusterStateJobIds);
+        Set<String> clusterStateJobIds = MlMetadata.getMlMetadata(clusterService.state()).expandJobIds(expression);
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(expression, allowNoJobs);
+        requiredMatches.filterMatchedIds(clusterStateJobIds);
 
-        jobConfigProvider.expandJobsIds(expression, allowNoJobs, false, ActionListener.wrap(
+        jobConfigProvider.expandJobsIdsWithoutMissingCheck(expression, false, ActionListener.wrap(
                 jobIds -> {
                     // Check for duplicate job Ids
                     jobIds.forEach(id -> {
@@ -252,29 +244,16 @@ public class JobManager extends AbstractComponent {
                         }
                     });
 
-                    jobIds.addAll(clusterStateJobIds);
-                    jobsListener.onResponse(jobIds);
-                },
-                e -> {
-                    if (e instanceof ResourceNotFoundException) {
-                        // Check if we found the job Ids that satisfy expression in the clusterstate
-                        if (idsMatcher.hasUnmatchedIds() == false) {
-                            jobsListener.onResponse(new TreeSet<>(clusterStateJobIds));
-                            return;
-                        }
+                    requiredMatches.filterMatchedIds(jobIds);
+                    if (requiredMatches.hasUnmatchedIds()) {
+                        jobsListener.onFailure(ExceptionsHelper.missingJobException(requiredMatches.unmatchedIdsString()));
+                    } else {
+                        jobIds.addAll(clusterStateJobIds);
+                        jobsListener.onResponse(new TreeSet<>(jobIds));
                     }
-                    jobsListener.onFailure(e);
-                }
+                },
+                jobsListener::onFailure
         ));
-    }
-
-    private Set<String> expandJobIdsFromClusterState(String expression, boolean allowNoJobs, ClusterState clusterState) {
-        try {
-            return MlMetadata.getMlMetadata(clusterState).expandJobIds(expression, allowNoJobs);
-        } catch (Exception e) {
-            // ignore exception thrown if no job Id matches expression
-        }
-        return Collections.emptySet();
     }
 
     /**
@@ -588,8 +567,8 @@ public class JobManager extends AbstractComponent {
         jobConfigProvider.expandGroupIds(calendarJobIds, ActionListener.wrap(
                 expandedIds -> {
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                        // Merge the expended group members with the request Ids.
-                        // Ids that aren't jobs will be filtered by isJobOpen()
+                        // Merge the expended group members with the request Ids which
+                        // which are job ids rather than group Ids.
                         expandedIds.addAll(calendarJobIds);
 
                         for (String jobId : expandedIds) {

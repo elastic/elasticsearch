@@ -351,17 +351,9 @@ public class DatafeedConfigProvider {
      * @param listener The expanded datafeed IDs listener
      */
     public void expandDatafeedIds(String expression, boolean allowNoDatafeeds, ActionListener<SortedSet<String>> listener) {
-        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
-        sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
-        sourceBuilder.fetchSource(false);
-        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+        SearchRequest searchRequest = buildExpandDatafeedIdsSearch(expression);
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder).request();
-
-        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(expression, allowNoDatafeeds);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
                 ActionListener.<SearchResponse>wrap(
@@ -387,6 +379,45 @@ public class DatafeedConfigProvider {
     }
 
     /**
+     * Similar to {@link #expandDatafeedIds(String, boolean, ActionListener)} but no error
+     * is generated if there are missing Ids. Whatever Ids match will be returned.
+     *
+     * This method is only for use when combining datafeed Ids from multiple sources, its usage
+     * should be limited.
+     *
+     * @param expression the expression to resolve
+     * @param listener The expanded datafeed IDs listener
+     */
+    public void expandDatafeedIdsWithoutMissingCheck(String expression, ActionListener<SortedSet<String>> listener) {
+        SearchRequest searchRequest = buildExpandDatafeedIdsSearch(expression);
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            SortedSet<String> datafeedIds = new TreeSet<>();
+                            SearchHit[] hits = response.getHits().getHits();
+                            for (SearchHit hit : hits) {
+                                datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
+                            }
+                            listener.onResponse(datafeedIds);
+                        },
+                        listener::onFailure)
+                , client::search);
+    }
+
+    private SearchRequest buildExpandDatafeedIdsSearch(String expression) {
+        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
+        sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
+        sourceBuilder.fetchSource(false);
+        sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), DocValueFieldsContext.USE_DEFAULT_FORMAT);
+
+        return client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(sourceBuilder).request();
+    }
+
+    /**
      * The same logic as {@link #expandDatafeedIds(String, boolean, ActionListener)} but
      * the full datafeed configuration is returned.
      *
@@ -398,7 +429,7 @@ public class DatafeedConfigProvider {
      *                     wildcard then setting this true will not suppress the exception
      * @param listener The expanded datafeed config listener
      */
-    // NORELEASE datafeed configs should be paged or have a mechanism to return all jobs if there are many of them
+    // NORELEASE datafeed configs should be paged or have a mechanism to return all configs if there are many of them
     public void expandDatafeedConfigs(String expression, boolean allowNoDatafeeds, ActionListener<List<DatafeedConfig.Builder>> listener) {
         String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
@@ -441,6 +472,51 @@ public class DatafeedConfigProvider {
                 , client::search);
 
     }
+
+    /**
+     * The same logic as {@link #expandDatafeedIdsWithoutMissingCheck(String, ActionListener)}
+     * but the full datafeed configuration is returned.
+     *
+     * This method is only for use when combining datafeeds from multiple sources, its usage
+     * should be limited.
+     *
+     * @param expression the expression to resolve
+     * @param listener The expanded datafeed config listener
+     */
+    // NORELEASE datafeed configs should be paged or have a mechanism to return all configs if there are many of them
+    public void expandDatafeedConfigsWithoutMissingCheck(String expression, ActionListener<List<DatafeedConfig.Builder>> listener) {
+        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
+        sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
+
+        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSource(sourceBuilder).request();
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
+                ActionListener.<SearchResponse>wrap(
+                        response -> {
+                            List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
+                            Set<String> datafeedIds = new HashSet<>();
+                            SearchHit[] hits = response.getHits().getHits();
+                            for (SearchHit hit : hits) {
+                                try {
+                                    BytesReference source = hit.getSourceRef();
+                                    DatafeedConfig.Builder datafeed = parseLenientlyFromSource(source);
+                                    datafeeds.add(datafeed);
+                                    datafeedIds.add(datafeed.getId());
+                                } catch (IOException e) {
+                                    // TODO A better way to handle this rather than just ignoring the error?
+                                    logger.error("Error parsing datafeed configuration [" + hit.getId() + "]", e);
+                                }
+                            }
+                            listener.onResponse(datafeeds);
+                        },
+                        listener::onFailure)
+                , client::search);
+
+    }
+
 
     private QueryBuilder buildDatafeedIdQuery(String [] tokens) {
         QueryBuilder datafeedQuery = new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE);

@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
@@ -68,11 +67,11 @@ public class TransportIndicesShardStoresAction
     private final TransportNodesListGatewayStartedShards listShardStoresInfo;
 
     @Inject
-    public TransportIndicesShardStoresAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportIndicesShardStoresAction(TransportService transportService, ClusterService clusterService,
                                              ThreadPool threadPool, ActionFilters actionFilters,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              TransportNodesListGatewayStartedShards listShardStoresInfo) {
-        super(settings, IndicesShardStoresAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(IndicesShardStoresAction.NAME, transportService, clusterService, threadPool, actionFilters,
             IndicesShardStoresRequest::new, indexNameExpressionResolver);
         this.listShardStoresInfo = listShardStoresInfo;
     }

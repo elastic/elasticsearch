@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -298,15 +297,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         private final IndicesService indicesService;
 
         @Inject
-        public TransportAction(Settings settings,
-                               ThreadPool threadPool,
+        public TransportAction(ThreadPool threadPool,
                                ClusterService clusterService,
                                TransportService transportService,
                                ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver,
                                IndicesService indicesService) {
-            super(settings, NAME, threadPool, clusterService, transportService, actionFilters,
-                    indexNameExpressionResolver, Request::new, ThreadPool.Names.SEARCH);
+            super(NAME, threadPool, clusterService, transportService, actionFilters,
+                indexNameExpressionResolver, Request::new, ThreadPool.Names.SEARCH);
             this.indicesService = indicesService;
         }
 

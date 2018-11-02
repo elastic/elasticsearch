@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -54,10 +53,10 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     private final JobManager jobManager;
 
     @Inject
-    public TransportUpdateFilterAction(Settings settings, TransportService transportService, ActionFilters actionFilters, Client client,
+    public TransportUpdateFilterAction(TransportService transportService, ActionFilters actionFilters, Client client,
                                        JobManager jobManager) {
-        super(settings, UpdateFilterAction.NAME, transportService, actionFilters,
-                (Supplier<UpdateFilterAction.Request>) UpdateFilterAction.Request::new);
+        super(UpdateFilterAction.NAME, transportService, actionFilters,
+            (Supplier<UpdateFilterAction.Request>) UpdateFilterAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
     }

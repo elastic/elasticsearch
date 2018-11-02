@@ -1322,11 +1322,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public static final MetaDataStateFormat<MetaData> FORMAT = new MetaDataStateFormat<MetaData>(GLOBAL_STATE_FILE_PREFIX) {
 
         @Override
-        protected boolean autoCleanup() {
-            return false;
-        }
-
-        @Override
         public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
             Builder.toXContent(state, builder, FORMAT_PARAMS);
         }

@@ -183,17 +183,18 @@ public abstract class MetaDataStateFormat<T> {
      * it's target filename of the pattern {@code {prefix}{version}.st}.
      * If this method returns without exception there is a guarantee that state is persisted to the disk and loadLatestState will return
      * it.<br>
-     * If {@link #autoCleanup()} returns false, this method does not perform cleanup of old state files,
+     * If <code>cleanup</code> is false, this method does not perform cleanup of old state files,
      * because one write could be a part of larger transaction.
      * If this write succeeds, but some further write fails, you may want to rollback the transaction and keep old file around.
      * After transaction is finished use {@link #cleanupOldFiles(long, Path[])} for the clean-up.
      *
      * @param state     the state object to write
+     * @param cleanup   whether to perform auto cleanup.
      * @param locations the locations where the state should be written to.
      * @throws WriteStateException if some exception during writing state occurs. See also {@link WriteStateException#isDirty()}.
      * @return generation of newly written state.
      */
-    public final long write(final T state, final Path... locations) throws WriteStateException {
+    public final long write(final T state, boolean cleanup, final Path... locations) throws WriteStateException {
         if (locations == null) {
             throw new IllegalArgumentException("Locations must not be null");
         }
@@ -234,7 +235,7 @@ public abstract class MetaDataStateFormat<T> {
             }
         }
 
-        if (autoCleanup()) {
+        if (cleanup) {
             cleanupOldFiles(maxStateId, locations);
         }
 
@@ -291,12 +292,6 @@ public abstract class MetaDataStateFormat<T> {
         return new SimpleFSDirectory(dir);
     }
 
-    /**
-     * Whether to perform autoCleanup of old state files after successful {@link #write(Object, Path...)}.
-     */
-    protected boolean autoCleanup() {
-        return true;
-    }
 
     /**
      * Clean ups all state files not matching passed generation.

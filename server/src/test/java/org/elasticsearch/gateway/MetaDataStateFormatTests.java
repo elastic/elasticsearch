@@ -103,7 +103,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
                 randomDouble(), randomBoolean());
-        format.write(state, dirs);
+        format.write(state, true, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -118,7 +118,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
         DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
                 randomDouble(), randomBoolean());
-        format.write(state2, dirs);
+        format.write(state2, true, dirs);
 
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -145,7 +145,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
                 randomDouble(), randomBoolean());
-        format.write(state, dirs);
+        format.write(state, true, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -169,7 +169,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format("foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(),
                 randomDouble(), randomBoolean());
-        format.write(state, dirs);
+        format.write(state, true, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -247,7 +247,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             dirs[i] = createTempDir();
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
             for (int j = 0; j < numStates; j++) {
-                format.write(meta.get(j), dirs[i]);
+                format.write(meta.get(j), true, dirs[i]);
                 if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily
                     // need here....
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j + ".st");
@@ -298,7 +298,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         format.noFailures();
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                 randomDouble(), randomBoolean());
-        format.write(state, paths);
+        format.write(state, true, paths);
         assertEquals(state, format.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths));
         ensureOnlyOneStateFile(paths);
         return state;
@@ -323,7 +323,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                     Format.FAIL_FSYNC_TMP_FILE, Format.FAIL_RENAME_TMP_FILE);
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                     randomDouble(), randomBoolean());
-            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.write(newState, path));
+            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.write(newState, true, path));
             assertFalse(ex.isDirty());
 
             format.noFailures();
@@ -346,7 +346,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                     randomDouble(), randomBoolean());
             possibleStates.add(newState);
-            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.write(newState, path));
+            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.write(newState, true, path));
             assertTrue(ex.isDirty());
 
             format.noFailures();
@@ -369,7 +369,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             format.failOnMethods(Format.FAIL_OPEN_STATE_FILE_WHEN_COPYING);
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                     randomDouble(), randomBoolean());
-            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.write(newState, paths));
+            WriteStateException ex = expectThrows(WriteStateException.class, () -> format.write(newState, true, paths));
             assertFalse(ex.isDirty());
 
             format.noFailures();
@@ -395,7 +395,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             DummyState newState = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 100), randomInt(), randomLong(),
                     randomDouble(), randomBoolean());
             try {
-                format.write(newState, paths);
+                format.write(newState, true, paths);
                 possibleStates.clear();
                 possibleStates.add(newState);
             } catch (WriteStateException e) {

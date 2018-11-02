@@ -83,7 +83,7 @@ public class MetaStateService extends AbstractComponent {
      * This method should be called if index metadata has not changed and index is not removed.
      */
     void keepIndex(Index index) {
-        logger.info("[{}] keep index", index);
+        logger.trace("[{}] keep index", index);
         newIndices.put(index, currentMetaState.getIndices().get(index));
     }
 
@@ -94,10 +94,10 @@ public class MetaStateService extends AbstractComponent {
      */
     public void writeIndex(String reason, IndexMetaData indexMetaData) throws WriteStateException {
         final Index index = indexMetaData.getIndex();
-        logger.info("[{}] writing state, reason [{}]", index, reason);
+        logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            long generation = IndexMetaData.FORMAT.write(indexMetaData, nodeEnv.indexPaths(indexMetaData.getIndex()));
-            logger.info("[{}] state written", index);
+            long generation = IndexMetaData.FORMAT.write(indexMetaData, false, nodeEnv.indexPaths(indexMetaData.getIndex()));
+            logger.trace("[{}] state written", index);
             newIndices.put(indexMetaData.getIndex(), generation);
             cleanupActions.add(() -> IndexMetaData.FORMAT.cleanupOldFiles(generation, nodeEnv.indexPaths(index)));
         } catch (WriteStateException ex) {
@@ -110,10 +110,10 @@ public class MetaStateService extends AbstractComponent {
      * Writes the global state, *without* the indices states.
      */
     void writeGlobalState(String reason, MetaData metaData) throws WriteStateException {
-        logger.info("[_global] writing state, reason [{}]", reason);
+        logger.trace("[_global] writing state, reason [{}]", reason);
         try {
-            globalGeneration = MetaData.FORMAT.write(metaData, nodeEnv.nodeDataPaths());
-            logger.info("[_global] state written (generation: {})", globalGeneration);
+            globalGeneration = MetaData.FORMAT.write(metaData, false, nodeEnv.nodeDataPaths());
+            logger.trace("[_global] state written (generation: {})", globalGeneration);
             cleanupActions.add(() -> MetaData.FORMAT.cleanupOldFiles(globalGeneration, nodeEnv.nodeDataPaths()));
         } catch (WriteStateException ex) {
             resetState();
@@ -124,10 +124,10 @@ public class MetaStateService extends AbstractComponent {
     public void writeMetaState(String reason) throws WriteStateException {
         assert globalGeneration != -1;
         MetaState metaState = new MetaState(globalGeneration, newIndices);
-        logger.info("[_meta] writing state, reason [{}], globalGen {}, {}", reason, globalGeneration, nodeEnv.nodeDataPaths());
+        logger.trace("[_meta] writing state, reason [{}], globalGen [{}]", reason, globalGeneration);
         try {
-            long generation = MetaState.FORMAT.write(metaState, nodeEnv.nodeDataPaths());
-            logger.info("[_meta] state written [{}] {} (generation: {})", this, reason, generation);
+            long generation = MetaState.FORMAT.write(metaState, false, nodeEnv.nodeDataPaths());
+            logger.trace("[_meta] state written (generation: {})", generation);
             cleanupActions.add(() -> MetaState.FORMAT.cleanupOldFiles(generation, nodeEnv.nodeDataPaths()));
             cleanupActions.forEach(Runnable::run);
             this.currentMetaState = metaState;
@@ -156,8 +156,7 @@ public class MetaStateService extends AbstractComponent {
         if (globalMetaData != null) {
             metaDataBuilder = MetaData.builder(globalMetaData);
         } else {
-            throw new IOException("failed to find global metadata [generation: " + metaState.getGlobalStateGeneration() + "], " + nodeEnv
-                    .nodeDataPaths()[0]);
+            throw new IOException("failed to find global metadata [generation: " + metaState.getGlobalStateGeneration() + "]");
         }
         for (Map.Entry<Index, Long> entry : metaState.getIndices().entrySet()) {
             Index index = entry.getKey();
@@ -168,8 +167,8 @@ public class MetaStateService extends AbstractComponent {
             if (indexMetaData != null) {
                 metaDataBuilder.put(indexMetaData, false);
             } else {
-                throw new IOException("failed to find metadata for existing index " + index.getName() + " [location: " + indexFolderName +
-                        ", generation: " + generation + "]");
+                throw new IOException("failed to find metadata for existing index [location: " + indexFolderName + ", generation: " +
+                        generation + "]");
             }
         }
         return new Tuple<>(metaState, metaDataBuilder.build());

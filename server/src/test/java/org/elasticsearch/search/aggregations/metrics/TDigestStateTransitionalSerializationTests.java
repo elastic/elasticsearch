@@ -8,7 +8,9 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * This test verifies behavior around the switch from AVLTree to MergingTree TDigest implementations.  During a rolling upgrade, a cluster
@@ -26,26 +28,79 @@ public class TDigestStateTransitionalSerializationTests extends ESTestCase {
 
     private List<Double> sampleData;
 
+    private double getCompression() {
+        return 100;
+    }
+
+    private enum DistributionMode {
+        RANDOM {
+            public List<Double> generatePopulation(int populationSize) {
+                List<Double> sampleData = new ArrayList<>(populationSize);
+                for (int i = 0; i < populationSize; i++) {
+                    sampleData.add(randomDouble());
+                }
+                return sampleData;
+            }
+        },
+        GAUSSIAN {
+            public List<Double> generatePopulation(int populationSize) {
+                List<Double> sampleData = new ArrayList<>(populationSize);
+                for (int i = 0; i < populationSize; i++) {
+                    sampleData.add(random().nextGaussian());
+                }
+                return sampleData;
+            }
+        },
+        SEQUENTIAL {
+            public List<Double> generatePopulation(int populationSize) {
+                List<Double> sampleData = new ArrayList<>(populationSize);
+                for (int i = 0; i < populationSize; i++) {
+                    sampleData.add((double) i);
+                }
+                return sampleData;
+
+            }
+        },
+        REPEATING {
+            public List<Double> generatePopulation(int populationSize) {
+                List<Double> sampleData = new ArrayList<>(populationSize);
+                double nextVal = randomDouble();
+                for (int i = 0; i < populationSize; i++) {
+                    sampleData.add(nextVal);
+                    if (randomInt(10) < 9) {
+                        nextVal = randomDouble();
+                    }
+                }
+                return sampleData;
+            }
+        };
+
+        abstract public List<Double> generatePopulation(int populationSize);
+
+        static public Set<DistributionMode> allModes() {
+            return EnumSet.of(RANDOM, GAUSSIAN, SEQUENTIAL, REPEATING);
+        }
+    }
+
     @Before
     public void setup() {
-        sampleData = new ArrayList<>(POPULATION_SIZE);
-        for (int i = 0; i < POPULATION_SIZE; i++) {
-            sampleData.add(randomDouble());
-        }
-        Collections.sort(sampleData);
+        DistributionMode mode = randomFrom(DistributionMode.allModes());
+        sampleData = mode.generatePopulation(POPULATION_SIZE);
     }
 
     @Test
     public void testAVLToMerge() throws IOException {
         // Not totally sure random compression is the right choice here
-        LegacyTDigestState legacy = new LegacyTDigestState(5);
+        LegacyTDigestState legacy = new LegacyTDigestState(getCompression());
         for (Double value : sampleData) {
             legacy.add(value);
         }
+        // Note - sort the data after adding it to the t-digest, because insertion order matters for t-digest
+        Collections.sort(sampleData);
         BytesStreamOutput ser = new BytesStreamOutput();
         LegacyTDigestState.write(legacy, ser);
         TDigestState modern = TDigestState.read(ser.bytes().streamInput());
-        int q = randomInt(POPULATION_SIZE - 1);
+        int q = randomIntBetween((int) Math.floor(0.9 * POPULATION_SIZE), POPULATION_SIZE - 1);
         double quantile = (double) q / POPULATION_SIZE;
 
         double actual_value = sampleData.get(q);
@@ -61,14 +116,16 @@ public class TDigestStateTransitionalSerializationTests extends ESTestCase {
     @Test
     public void testMergeToAVL() throws IOException {
         // Not totally sure random compression is the right choice here
-        TDigestState modern = new TDigestState(5);
+        TDigestState modern = new TDigestState(getCompression());
         for (Double value : sampleData) {
             modern.add(value);
         }
+        // Note - sort the data after adding it to the t-digest, because insertion order matters for t-digest
+        Collections.sort(sampleData);
         BytesStreamOutput ser = new BytesStreamOutput();
         TDigestState.write(modern, ser);
         LegacyTDigestState legacy = LegacyTDigestState.read(ser.bytes().streamInput());
-        int q = randomInt(POPULATION_SIZE - 1);
+        int q = randomIntBetween((int) Math.floor(0.9 * POPULATION_SIZE), POPULATION_SIZE - 1);
         double quantile = (double) q / POPULATION_SIZE;
 
         double actual_value = sampleData.get(q);

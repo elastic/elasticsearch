@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,8 +19,7 @@ import static org.elasticsearch.xpack.core.ccr.action.PutFollowAction.Request;
 
 public class RestPutFollowAction extends BaseRestHandler {
 
-    public RestPutFollowAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutFollowAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/{index}/_ccr/follow", this);
     }
 

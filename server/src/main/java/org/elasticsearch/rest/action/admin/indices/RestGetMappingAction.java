@@ -31,7 +31,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -61,8 +60,7 @@ public class RestGetMappingAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestGetMappingAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    public RestGetMappingAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestGetMappingAction(final RestController controller) {
         controller.registerHandler(GET, "/_mapping", this);
         controller.registerHandler(GET, "/_mappings", this);
         controller.registerHandler(GET, "/{index}/{type}/_mapping", this);

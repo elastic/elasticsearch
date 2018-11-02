@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -19,8 +18,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutLicenseAction extends XPackRestHandler {
 
-    public RestPutLicenseAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutLicenseAction(RestController controller) {
         controller.registerHandler(POST, URI_BASE + "/license", this);
         controller.registerHandler(PUT, URI_BASE + "/license", this);
     }

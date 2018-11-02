@@ -23,7 +23,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -39,8 +38,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateAction extends BaseRestHandler {
 
-    public RestUpdateAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestUpdateAction(RestController controller) {
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
     }
 

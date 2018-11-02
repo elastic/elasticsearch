@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.indices.forcemerge;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -36,7 +35,7 @@ import static org.mockito.Mockito.mock;
 public class RestForceMergeActionTests extends ESTestCase {
 
     public void testBodyRejection() throws Exception {
-        final RestForceMergeAction handler = new RestForceMergeAction(Settings.EMPTY, mock(RestController.class));
+        final RestForceMergeAction handler = new RestForceMergeAction(mock(RestController.class));
         String json = JsonXContent.contentBuilder().startObject().field("max_num_segments", 1).endObject().toString();
         final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
             .withContent(new BytesArray(json), XContentType.JSON).build();

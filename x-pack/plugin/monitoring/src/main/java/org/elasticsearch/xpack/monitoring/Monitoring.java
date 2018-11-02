@@ -165,7 +165,7 @@ public class Monitoring extends Plugin implements ActionPlugin {
         if (false == enabled) {
             return emptyList();
         }
-        return singletonList(new RestMonitoringBulkAction(settings, restController));
+        return singletonList(new RestMonitoringBulkAction(restController));
     }
 
     @Override

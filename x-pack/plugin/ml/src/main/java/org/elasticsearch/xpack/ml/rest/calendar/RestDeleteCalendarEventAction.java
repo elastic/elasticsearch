@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -20,8 +19,7 @@ import java.io.IOException;
 
 public class RestDeleteCalendarEventAction extends BaseRestHandler {
 
-    public RestDeleteCalendarEventAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteCalendarEventAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE,
                 MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/events/{" +
                         ScheduledEvent.EVENT_ID.getPreferredName() + "}", this);

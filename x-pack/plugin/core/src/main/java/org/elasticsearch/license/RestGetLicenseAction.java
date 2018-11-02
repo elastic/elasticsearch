@@ -6,7 +6,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
@@ -29,8 +28,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetLicenseAction extends XPackRestHandler {
 
     @Inject
-    public RestGetLicenseAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetLicenseAction(RestController controller) {
         controller.registerHandler(GET,  URI_BASE + "/license", this);
     }
 

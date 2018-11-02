@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -25,8 +24,7 @@ import java.io.IOException;
 
 public class RestDeleteJobAction extends BaseRestHandler {
 
-    public RestDeleteJobAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteJobAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE, MachineLearning.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
     }

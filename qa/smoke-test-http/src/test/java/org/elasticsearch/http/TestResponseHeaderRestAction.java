@@ -19,7 +19,6 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -30,8 +29,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 public class TestResponseHeaderRestAction extends BaseRestHandler {
-    public TestResponseHeaderRestAction(Settings settings, RestController controller) {
-        super(settings);
+    public TestResponseHeaderRestAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/_protected", this);
     }
 

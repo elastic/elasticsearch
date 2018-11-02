@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -40,8 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Rest action for computing a score explanation for specific documents.
  */
 public class RestExplainAction extends BaseRestHandler {
-    public RestExplainAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestExplainAction(RestController controller) {
         controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }

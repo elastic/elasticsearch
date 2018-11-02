@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -34,8 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 
-    public RestSqlQueryAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestSqlQueryAction(RestController controller) {
         controller.registerHandler(GET, Protocol.SQL_QUERY_REST_ENDPOINT, this);
         controller.registerHandler(POST, Protocol.SQL_QUERY_REST_ENDPOINT, this);
     }

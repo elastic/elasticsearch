@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -26,8 +25,7 @@ public class RestFlushJobAction extends BaseRestHandler {
     private final String DEFAULT_ADVANCE_TIME = "";
     private final String DEFAULT_SKIP_TIME = "";
 
-    public RestFlushJobAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestFlushJobAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush", this);
     }

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -18,8 +17,7 @@ import org.elasticsearch.xpack.rollup.Rollup;
 public class RestGetRollupJobsAction extends BaseRestHandler {
     public static final ParseField ID = new ParseField("id");
 
-    public RestGetRollupJobsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetRollupJobsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, Rollup.BASE_PATH + "job/{id}/", this);
     }
 

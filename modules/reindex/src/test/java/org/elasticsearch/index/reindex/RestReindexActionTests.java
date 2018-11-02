@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -150,7 +149,7 @@ public class RestReindexActionTests extends ESTestCase {
     }
 
     public void testPipelineQueryParameterIsError() throws IOException {
-        RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class));
+        RestReindexAction action = new RestReindexAction(mock(RestController.class));
 
         FakeRestRequest.Builder request = new FakeRestRequest.Builder(xContentRegistry());
         try (XContentBuilder body = JsonXContent.contentBuilder().prettyPrint()) {
@@ -175,14 +174,14 @@ public class RestReindexActionTests extends ESTestCase {
 
     public void testSetScrollTimeout() throws IOException {
         {
-            RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class));
+            RestReindexAction action = new RestReindexAction(mock(RestController.class));
             FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
             requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
             ReindexRequest request = action.buildRequest(requestBuilder.build());
             assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT, request.getScrollTime());
         }
         {
-            RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class));
+            RestReindexAction action = new RestReindexAction(mock(RestController.class));
             FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
             requestBuilder.withParams(singletonMap("scroll", "10m"));
             requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);

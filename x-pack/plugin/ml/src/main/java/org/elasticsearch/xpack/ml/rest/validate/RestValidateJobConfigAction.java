@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.validate;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -19,8 +18,7 @@ import java.io.IOException;
 
 public class RestValidateJobConfigAction extends BaseRestHandler {
 
-    public RestValidateJobConfigAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestValidateJobConfigAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "anomaly_detectors/_validate", this);
     }
 

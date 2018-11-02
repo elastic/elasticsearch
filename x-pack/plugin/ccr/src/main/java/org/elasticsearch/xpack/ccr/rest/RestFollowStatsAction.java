@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,8 +18,7 @@ import java.io.IOException;
 
 public class RestFollowStatsAction extends BaseRestHandler {
 
-    public RestFollowStatsAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestFollowStatsAction(final RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/{index}/_ccr/stats", this);
     }
 

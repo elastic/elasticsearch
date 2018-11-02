@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -18,8 +17,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction.Request;
 import java.io.IOException;
 
 public class RestDeprecationInfoAction extends BaseRestHandler {
-    public RestDeprecationInfoAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeprecationInfoAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/_xpack/migration/deprecations", this);
         controller.registerHandler(RestRequest.Method.GET, "/{index}/_xpack/migration/deprecations", this);
     }

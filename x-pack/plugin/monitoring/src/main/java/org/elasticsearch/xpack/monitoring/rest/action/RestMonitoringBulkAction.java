@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -41,8 +40,7 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
 
     private final Map<MonitoredSystem, List<String>> supportedApiVersions;
 
-    public RestMonitoringBulkAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestMonitoringBulkAction(RestController controller) {
         controller.registerHandler(POST, URI_BASE + "/_bulk", this);
         controller.registerHandler(PUT, URI_BASE + "/_bulk", this);
         controller.registerHandler(POST, URI_BASE + "/{type}/_bulk", this);

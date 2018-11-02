@@ -32,7 +32,6 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
      * @param licenseState the license state that will be used to determine if security is licensed
      */
     protected SecurityBaseRestHandler(Settings settings, XPackLicenseState licenseState) {
-        super(settings);
         this.settings = settings;
         this.licenseState = licenseState;
     }

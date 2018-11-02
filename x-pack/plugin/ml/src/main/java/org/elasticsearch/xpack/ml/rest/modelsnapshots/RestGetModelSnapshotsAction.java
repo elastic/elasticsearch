@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -32,8 +31,7 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
     private final String DEFAULT_END = null;
     private final boolean DEFAULT_DESC_ORDER = true;
 
-    public RestGetModelSnapshotsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetModelSnapshotsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/{" + Request.SNAPSHOT_ID.getPreferredName() + "}", this);
         // endpoints that support body parameters must also accept POST

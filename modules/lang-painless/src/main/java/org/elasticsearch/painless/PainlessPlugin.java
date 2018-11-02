@@ -122,6 +122,6 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        return Collections.singletonList(new PainlessExecuteAction.RestAction(settings, restController));
+        return Collections.singletonList(new PainlessExecuteAction.RestAction(restController));
     }
 }

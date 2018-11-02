@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -36,8 +35,7 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteAction extends BaseRestHandler {
-    public RestDeleteAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteAction(RestController controller) {
         controller.registerHandler(DELETE, "/{index}/{type}/{id}", this);
     }
 

@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSetti
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -41,8 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestReloadSecureSettingsAction extends BaseRestHandler {
 
-    public RestReloadSecureSettingsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestReloadSecureSettingsAction(RestController controller) {
         controller.registerHandler(POST, "/_nodes/reload_secure_settings", this);
         controller.registerHandler(POST, "/_nodes/{nodeId}/reload_secure_settings", this);
     }

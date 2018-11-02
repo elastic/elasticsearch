@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -44,8 +43,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestNodesUsageAction extends BaseRestHandler {
 
     @Inject
-    public RestNodesUsageAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestNodesUsageAction(RestController controller) {
         controller.registerHandler(GET, "/_nodes/usage", this);
         controller.registerHandler(GET, "/_nodes/{nodeId}/usage", this);
 

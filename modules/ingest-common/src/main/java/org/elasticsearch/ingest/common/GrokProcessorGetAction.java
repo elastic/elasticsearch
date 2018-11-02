@@ -31,7 +31,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -129,8 +128,7 @@ public class GrokProcessorGetAction extends Action<GrokProcessorGetAction.Respon
     }
 
     public static class RestAction extends BaseRestHandler {
-        public RestAction(Settings settings, RestController controller) {
-            super(settings);
+        public RestAction(RestController controller) {
             controller.registerHandler(GET, "/_ingest/processor/grok", this);
         }
 

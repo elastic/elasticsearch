@@ -41,7 +41,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testOneUnconsumedParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -67,7 +67,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testMultipleUnconsumedParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -94,7 +94,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testUnconsumedParametersDidYouMean() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -141,7 +141,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testUnconsumedResponseParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 request.param("consumed");
@@ -170,7 +170,7 @@ public class BaseRestHandlerTests extends ESTestCase {
 
     public void testDefaultResponseParameters() throws Exception {
         final AtomicBoolean executed = new AtomicBoolean();
-        BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY) {
+        BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
                 return channel -> executed.set(true);

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ssl.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -28,8 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  */
 public class RestGetCertificateInfoAction extends BaseRestHandler {
 
-    public RestGetCertificateInfoAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetCertificateInfoAction(RestController controller) {
         controller.registerHandler(GET, "/_xpack/ssl/certificates", this);
     }
 

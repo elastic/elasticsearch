@@ -74,10 +74,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class RestIndicesActionTests extends ESTestCase {
 
     public void testBuildTable() {
-        final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
         final RestController restController = new RestController(Collections.emptySet(), null, null, null, usageService);
-        final RestIndicesAction action = new RestIndicesAction(settings, restController, new IndexNameExpressionResolver());
+        final RestIndicesAction action = new RestIndicesAction(restController, new IndexNameExpressionResolver());
 
         // build a (semi-)random table
         final int numIndices = randomIntBetween(0, 5);

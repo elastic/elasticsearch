@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -38,12 +37,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
-    public RestIndexAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestIndexAction(RestController controller) {
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
         controller.registerHandler(PUT, "/{index}/{type}/{id}", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}", this);
-        CreateHandler createHandler = new CreateHandler(settings);
+        CreateHandler createHandler = new CreateHandler();
         controller.registerHandler(PUT, "/{index}/{type}/{id}/_create", createHandler);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
@@ -54,8 +52,7 @@ public class RestIndexAction extends BaseRestHandler {
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings) {
-            super(settings);
+        protected CreateHandler() {
         }
 
         @Override

@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,10 +49,9 @@ import static org.mockito.Mockito.mock;
 public class RestRecoveryActionTests extends ESTestCase {
 
     public void testRestRecoveryAction() {
-        final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
         final RestController restController = new RestController(Collections.emptySet(), null, null, null, usageService);
-        final RestRecoveryAction action = new RestRecoveryAction(settings, restController);
+        final RestRecoveryAction action = new RestRecoveryAction(restController);
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;

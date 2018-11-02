@@ -131,7 +131,7 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         final String repositoryName = "testInsecureRepositoryCredentials";
         createAndCheckTestRepository(repositoryName);
         final NodeClient nodeClient = internalCluster().getInstance(NodeClient.class);
-        final RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(Settings.EMPTY, mock(RestController.class),
+        final RestGetRepositoriesAction getRepoAction = new RestGetRepositoriesAction(mock(RestController.class),
                 internalCluster().getInstance(SettingsFilter.class));
         final RestRequest getRepoRequest = new FakeRestRequest();
         getRepoRequest.params().put("repository", repositoryName);

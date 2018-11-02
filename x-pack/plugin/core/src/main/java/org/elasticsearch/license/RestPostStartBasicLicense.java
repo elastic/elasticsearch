@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -22,8 +21,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartBasicLicense extends XPackRestHandler {
 
-    RestPostStartBasicLicense(Settings settings, RestController controller) {
-        super(settings);
+    RestPostStartBasicLicense(RestController controller) {
         controller.registerHandler(POST, URI_BASE + "/license/start_basic", this);
     }
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -30,8 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestAckWatchAction extends WatcherRestHandler {
 
-    public RestAckWatchAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestAckWatchAction(RestController controller) {
         controller.registerHandler(POST, URI_BASE + "/watch/{id}/_ack", this);
         controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_ack", this);
         controller.registerHandler(POST, URI_BASE + "/watch/{id}/_ack/{actions}", this);

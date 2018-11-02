@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -21,8 +20,7 @@ import java.io.IOException;
 
 public class RestUpdateModelSnapshotAction extends BaseRestHandler {
 
-    public RestUpdateModelSnapshotAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestUpdateModelSnapshotAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "anomaly_detectors/{"
                 + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshotField.SNAPSHOT_ID +"}/_update",
                 this);

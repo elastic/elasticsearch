@@ -51,7 +51,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -595,8 +594,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
     static class RestAction extends BaseRestHandler {
 
-        RestAction(Settings settings, RestController controller) {
-            super(settings);
+        RestAction(RestController controller) {
             controller.registerHandler(GET, "/_scripts/painless/_execute", this);
             controller.registerHandler(POST, "/_scripts/painless/_execute", this);
         }

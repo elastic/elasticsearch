@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.filter;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,8 +18,7 @@ import java.io.IOException;
 
 public class RestDeleteFilterAction extends BaseRestHandler {
 
-    public RestDeleteFilterAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteFilterAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE,
                 MachineLearning.BASE_PATH + "filters/{" + Request.FILTER_ID.getPreferredName() + "}", this);
     }

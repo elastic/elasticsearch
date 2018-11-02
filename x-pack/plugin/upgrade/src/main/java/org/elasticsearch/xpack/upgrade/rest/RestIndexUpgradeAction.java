@@ -9,7 +9,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -32,8 +31,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RestIndexUpgradeAction extends BaseRestHandler {
-    public RestIndexUpgradeAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestIndexUpgradeAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, "_xpack/migration/upgrade/{index}", this);
     }
 

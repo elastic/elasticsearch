@@ -9,7 +9,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,8 +18,7 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 public class RestGetRollupIndexCapsAction extends BaseRestHandler {
     public static final ParseField INDEX = new ParseField("index");
 
-    public RestGetRollupIndexCapsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetRollupIndexCapsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/{index}/_xpack/rollup/data", this);
     }
 

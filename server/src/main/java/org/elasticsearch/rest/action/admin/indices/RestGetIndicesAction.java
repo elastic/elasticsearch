@@ -40,12 +40,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
  * The REST handler for get index and head index APIs.
  */
 public class RestGetIndicesAction extends BaseRestHandler {
-
-
-    public RestGetIndicesAction(
-            final Settings settings,
-            final RestController controller) {
-        super(settings);
+    public RestGetIndicesAction(final RestController controller) {
         controller.registerHandler(GET, "/{index}", this);
         controller.registerHandler(HEAD, "/{index}", this);
     }

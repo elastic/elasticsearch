@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,8 +18,7 @@ import static org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAct
 
 public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
 
-    public RestDeleteAutoFollowPatternAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteAutoFollowPatternAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE, "/_ccr/auto_follow/{name}", this);
     }
 

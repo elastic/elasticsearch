@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.core.XPackClient;
@@ -17,9 +16,7 @@ public abstract class XPackRestHandler extends BaseRestHandler {
 
     protected static String URI_BASE = "/_xpack";
 
-    public XPackRestHandler(Settings settings) {
-        super(settings);
-    }
+    protected XPackRestHandler() {}
 
     @Override
     public final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {

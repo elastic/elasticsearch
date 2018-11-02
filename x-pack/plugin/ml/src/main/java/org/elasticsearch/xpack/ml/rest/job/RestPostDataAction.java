@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -22,8 +21,7 @@ public class RestPostDataAction extends BaseRestHandler {
     private static final String DEFAULT_RESET_START = "";
     private static final String DEFAULT_RESET_END = "";
 
-    public RestPostDataAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPostDataAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_data", this);
     }

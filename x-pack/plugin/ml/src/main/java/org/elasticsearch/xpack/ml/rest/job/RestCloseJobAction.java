@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -21,8 +20,7 @@ import java.io.IOException;
 
 public class RestCloseJobAction extends BaseRestHandler {
 
-    public RestCloseJobAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestCloseJobAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_close", this);
     }

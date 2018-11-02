@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -18,8 +17,7 @@ import java.io.IOException;
 
 public class RestDeleteExpiredDataAction extends BaseRestHandler {
 
-    public RestDeleteExpiredDataAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteExpiredDataAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE, MachineLearning.BASE_PATH + "_delete_expired_data", this);
     }
 

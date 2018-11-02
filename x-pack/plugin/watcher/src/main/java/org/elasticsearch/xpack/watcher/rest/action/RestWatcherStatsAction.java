@@ -9,7 +9,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
@@ -27,8 +26,7 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
     private static final Logger logger = LogManager.getLogger(RestWatcherStatsAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
-    public RestWatcherStatsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestWatcherStatsAction(RestController controller) {
         controller.registerHandler(GET, URI_BASE + "/stats", this);
         controller.registerHandler(GET, URI_BASE + "/stats/{metric}", this);
     }

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,8 +18,7 @@ import java.io.IOException;
 
 public class RestRollupSearchAction extends BaseRestHandler {
 
-    public RestRollupSearchAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestRollupSearchAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "_rollup_search", this);
         controller.registerHandler(RestRequest.Method.POST, "_rollup_search", this);
         controller.registerHandler(RestRequest.Method.GET, "{index}/_rollup_search", this);

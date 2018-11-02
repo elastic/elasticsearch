@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,8 +47,7 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
             WatchField.METADATA.getPreferredName(), WatchField.STATUS.getPreferredName(),
             WatchField.VERSION.getPreferredName());
 
-    public RestExecuteWatchAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestExecuteWatchAction(RestController controller) {
         controller.registerHandler(POST, URI_BASE + "/watch/{id}/_execute", this);
         controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_execute", this);
         controller.registerHandler(POST, URI_BASE + "/watch/_execute", this);

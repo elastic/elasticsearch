@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -23,8 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 
 public class RestSqlClearCursorAction extends BaseRestHandler {
-    public RestSqlClearCursorAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestSqlClearCursorAction(RestController controller) {
         controller.registerHandler(POST, Protocol.CLEAR_CURSOR_REST_ENDPOINT, this);
     }
 

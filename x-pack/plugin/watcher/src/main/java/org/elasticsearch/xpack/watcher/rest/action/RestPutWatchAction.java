@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
@@ -32,8 +31,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestPutWatchAction extends WatcherRestHandler implements RestRequestFilter {
 
-    public RestPutWatchAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutWatchAction(RestController controller) {
         controller.registerHandler(POST, URI_BASE + "/watch/{id}", this);
         controller.registerHandler(PUT, URI_BASE + "/watch/{id}", this);
     }

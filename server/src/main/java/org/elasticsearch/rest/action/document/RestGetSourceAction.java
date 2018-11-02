@@ -24,7 +24,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -48,8 +47,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
  */
 public class RestGetSourceAction extends BaseRestHandler {
 
-    public RestGetSourceAction(final Settings settings, final RestController controller) {
-        super(settings);
+    public RestGetSourceAction(final RestController controller) {
         controller.registerHandler(GET, "/{index}/{type}/{id}/_source", this);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
     }

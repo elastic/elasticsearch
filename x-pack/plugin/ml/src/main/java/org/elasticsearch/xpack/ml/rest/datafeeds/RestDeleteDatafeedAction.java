@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -20,8 +19,7 @@ import java.io.IOException;
 
 public class RestDeleteDatafeedAction extends BaseRestHandler {
 
-    public RestDeleteDatafeedAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteDatafeedAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE, MachineLearning.BASE_PATH + "datafeeds/{"
                 + DatafeedConfig.ID.getPreferredName() + "}", this);
     }

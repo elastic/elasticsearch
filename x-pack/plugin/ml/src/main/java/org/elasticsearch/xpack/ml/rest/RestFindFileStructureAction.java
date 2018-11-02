@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.rest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -27,8 +26,7 @@ public class RestFindFileStructureAction extends BaseRestHandler {
 
     private static final TimeValue DEFAULT_TIMEOUT = new TimeValue(25, TimeUnit.SECONDS);
 
-    public RestFindFileStructureAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestFindFileStructureAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "find_file_structure", this);
     }
 

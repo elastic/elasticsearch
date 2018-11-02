@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -37,8 +36,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RestCreateIndexAction extends BaseRestHandler {
-    public RestCreateIndexAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestCreateIndexAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
     }
 

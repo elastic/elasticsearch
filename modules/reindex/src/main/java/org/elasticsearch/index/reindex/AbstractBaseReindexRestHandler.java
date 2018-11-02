@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -43,8 +42,7 @@ public abstract class AbstractBaseReindexRestHandler<
 
     private final A action;
 
-    protected AbstractBaseReindexRestHandler(Settings settings, A action) {
-        super(settings);
+    protected AbstractBaseReindexRestHandler(A action) {
         this.action = action;
     }
 

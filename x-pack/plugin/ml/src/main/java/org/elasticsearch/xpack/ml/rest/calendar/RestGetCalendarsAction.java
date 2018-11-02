@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -22,8 +21,7 @@ import java.io.IOException;
 
 public class RestGetCalendarsAction extends BaseRestHandler {
 
-    public RestGetCalendarsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetCalendarsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "calendars/{" +
                         Calendar.ID.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH + "calendars/", this);

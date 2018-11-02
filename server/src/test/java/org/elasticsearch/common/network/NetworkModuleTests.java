@@ -97,9 +97,6 @@ public class NetworkModuleTests extends ESTestCase {
 
 
     static class FakeRestHandler extends BaseRestHandler {
-        FakeRestHandler() {
-            super(null);
-        }
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException { return channel -> {}; }
         @Override
@@ -109,9 +106,6 @@ public class NetworkModuleTests extends ESTestCase {
     }
 
     static class FakeCatRestHandler extends AbstractCatAction {
-        FakeCatRestHandler() {
-            super(null);
-        }
         @Override
         protected RestChannelConsumer doCatRequest(RestRequest request, NodeClient client) { return channel -> {}; }
         @Override

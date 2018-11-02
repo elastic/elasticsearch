@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.results;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -22,8 +21,7 @@ import java.io.IOException;
 
 public class RestGetCategoriesAction extends BaseRestHandler {
 
-    public RestGetCategoriesAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetCategoriesAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categories/{"
                 + Request.CATEGORY_ID.getPreferredName() + "}", this);

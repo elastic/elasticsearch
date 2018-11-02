@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.rollup.rest;
 
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,8 +18,7 @@ import java.io.IOException;
 
 public class RestPutRollupJobAction extends BaseRestHandler {
 
-    public RestPutRollupJobAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutRollupJobAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, Rollup.BASE_PATH +  "job/{id}/", this);
     }
 

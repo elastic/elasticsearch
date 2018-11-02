@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -22,8 +21,7 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
 
     private final boolean DELETE_INTERVENING_DEFAULT = false;
 
-    public RestRevertModelSnapshotAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestRevertModelSnapshotAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/model_snapshots/{" +
                         RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName() + "}/_revert", this);

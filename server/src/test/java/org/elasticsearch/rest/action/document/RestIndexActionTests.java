@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
 
@@ -30,8 +28,7 @@ import static org.mockito.Mockito.mock;
 public class RestIndexActionTests extends ESTestCase {
 
     public void testCreateOpTypeValidation() throws Exception {
-        Settings settings = settings(Version.CURRENT).build();
-        RestIndexAction.CreateHandler create = new RestIndexAction(settings, mock(RestController.class)).new CreateHandler(settings);
+        RestIndexAction.CreateHandler create = new RestIndexAction(mock(RestController.class)).new CreateHandler();
 
         String opType = randomFrom("CREATE", null);
         create.validateOpType(opType);

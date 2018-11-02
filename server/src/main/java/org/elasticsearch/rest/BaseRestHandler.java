@@ -26,8 +26,8 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
@@ -58,8 +58,14 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
     private final LongAdder usageCount = new LongAdder();
 
+    /**
+     * @deprecated use the no-args ctor
+     */
+    @Deprecated
     protected BaseRestHandler(Settings settings) {
-        // TODO drop settings from ctor
+    }
+
+    protected BaseRestHandler() {
     }
 
     public final long getUsageCount() {

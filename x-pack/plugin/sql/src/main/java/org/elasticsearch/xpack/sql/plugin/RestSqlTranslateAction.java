@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -25,8 +24,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * REST action for translating SQL queries into ES requests
  */
 public class RestSqlTranslateAction extends BaseRestHandler {
-    public RestSqlTranslateAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestSqlTranslateAction(RestController controller) {
         controller.registerHandler(GET, "/_xpack/sql/translate", this);
         controller.registerHandler(POST, "/_xpack/sql/translate", this);
     }

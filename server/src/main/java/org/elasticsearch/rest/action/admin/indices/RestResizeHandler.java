@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -39,10 +38,6 @@ import java.io.IOException;
 public abstract class RestResizeHandler extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestResizeHandler.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-
-    RestResizeHandler(final Settings settings) {
-        super(settings);
-    }
 
     @Override
     public abstract String getName();
@@ -80,8 +75,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     public static class RestShrinkIndexAction extends RestResizeHandler {
 
-        public RestShrinkIndexAction(final Settings settings, final RestController controller) {
-            super(settings);
+        public RestShrinkIndexAction(final RestController controller) {
             controller.registerHandler(RestRequest.Method.PUT, "/{index}/_shrink/{target}", this);
             controller.registerHandler(RestRequest.Method.POST, "/{index}/_shrink/{target}", this);
         }
@@ -100,8 +94,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
     public static class RestSplitIndexAction extends RestResizeHandler {
 
-        public RestSplitIndexAction(final Settings settings, final RestController controller) {
-            super(settings);
+        public RestSplitIndexAction(final RestController controller) {
             controller.registerHandler(RestRequest.Method.PUT, "/{index}/_split/{target}", this);
             controller.registerHandler(RestRequest.Method.POST, "/{index}/_split/{target}", this);
         }

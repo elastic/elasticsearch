@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.indexlifecycle.action;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.indexlifecycle.ExplainLifecycleRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -21,8 +20,7 @@ import java.io.IOException;
 
 public class RestExplainLifecycleAction extends BaseRestHandler {
 
-    public RestExplainLifecycleAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestExplainLifecycleAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, "/{index}/_ilm/explain", this);
     }
 

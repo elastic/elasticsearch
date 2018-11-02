@@ -39,10 +39,15 @@ import static org.elasticsearch.rest.action.cat.RestTable.buildHelpWidths;
 import static org.elasticsearch.rest.action.cat.RestTable.pad;
 
 public abstract class AbstractCatAction extends BaseRestHandler {
-
-    public AbstractCatAction(Settings settings) {
-        super(settings);
+    /**
+     * @deprecated Use {@link #AbstractCatAction()}
+     */
+    @Deprecated
+    protected AbstractCatAction(Settings settings) {
+        this();
     }
+
+    protected AbstractCatAction() {}
 
     protected abstract RestChannelConsumer doCatRequest(RestRequest request, NodeClient client);
 

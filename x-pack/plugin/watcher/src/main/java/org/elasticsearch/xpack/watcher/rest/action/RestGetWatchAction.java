@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -25,8 +24,7 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetWatchAction extends WatcherRestHandler {
-    public RestGetWatchAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetWatchAction(RestController controller) {
         controller.registerHandler(GET, URI_BASE + "/watch/{id}", this);
     }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
@@ -32,7 +31,7 @@ import static org.mockito.Mockito.mock;
 
 public class RestDeleteByQueryActionTests extends ESTestCase {
     public void testParseEmpty() throws IOException {
-        RestDeleteByQueryAction action = new RestDeleteByQueryAction(Settings.EMPTY, mock(RestController.class));
+        RestDeleteByQueryAction action = new RestDeleteByQueryAction(mock(RestController.class));
         DeleteByQueryRequest request = action.buildRequest(new FakeRestRequest.Builder(new NamedXContentRegistry(emptyList()))
                 .build());
         assertEquals(AbstractBulkByScrollRequest.SIZE_ALL_MATCHES, request.getSize());

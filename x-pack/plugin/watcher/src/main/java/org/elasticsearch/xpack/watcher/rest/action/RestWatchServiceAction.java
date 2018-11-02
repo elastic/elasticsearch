@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -17,10 +16,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestWatchServiceAction extends WatcherRestHandler {
 
-    public RestWatchServiceAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestWatchServiceAction(RestController controller) {
         controller.registerHandler(POST, URI_BASE + "/_start", this);
-        controller.registerHandler(POST, URI_BASE + "/_stop", new StopRestHandler(settings));
+        controller.registerHandler(POST, URI_BASE + "/_stop", new StopRestHandler());
     }
 
     @Override
@@ -34,11 +32,6 @@ public class RestWatchServiceAction extends WatcherRestHandler {
     }
 
     private static class StopRestHandler extends WatcherRestHandler {
-
-        StopRestHandler(Settings settings) {
-            super(settings);
-        }
-
         @Override
         public String getName() {
             return "xpack_watcher_stop_service_action";

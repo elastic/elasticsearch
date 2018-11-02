@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -43,8 +42,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestValidateQueryAction extends BaseRestHandler {
-    public RestValidateQueryAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestValidateQueryAction(RestController controller) {
         controller.registerHandler(GET, "/_validate/query", this);
         controller.registerHandler(POST, "/_validate/query", this);
         controller.registerHandler(GET, "/{index}/_validate/query", this);

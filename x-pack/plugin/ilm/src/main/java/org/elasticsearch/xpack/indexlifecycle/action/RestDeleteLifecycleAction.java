@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.indexlifecycle.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -18,8 +17,7 @@ import java.io.IOException;
 
 public class RestDeleteLifecycleAction extends BaseRestHandler {
 
-    public RestDeleteLifecycleAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteLifecycleAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE, "/_ilm/policy/{name}", this);
     }
 

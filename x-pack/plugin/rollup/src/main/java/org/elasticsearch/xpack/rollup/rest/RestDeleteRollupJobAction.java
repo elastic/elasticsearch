@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -22,8 +21,7 @@ import java.io.IOException;
 public class RestDeleteRollupJobAction extends BaseRestHandler {
     public static final ParseField ID = new ParseField("id");
 
-    public RestDeleteRollupJobAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteRollupJobAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.DELETE, Rollup.BASE_PATH +  "job/{id}/", this);
     }
 

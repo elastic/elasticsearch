@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -19,8 +18,7 @@ import static org.elasticsearch.xpack.core.ccr.action.PauseFollowAction.Request;
 
 public class RestPauseFollowAction extends BaseRestHandler {
 
-    public RestPauseFollowAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPauseFollowAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_ccr/pause_follow", this);
     }
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -22,8 +21,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestPostStartTrialLicense extends XPackRestHandler {
 
-    RestPostStartTrialLicense(Settings settings, RestController controller) {
-        super(settings);
+    RestPostStartTrialLicense(RestController controller) {
         controller.registerHandler(POST, URI_BASE + "/license/start_trial", this);
     }
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -18,8 +17,7 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteLicenseAction extends XPackRestHandler {
-    public RestDeleteLicenseAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestDeleteLicenseAction(RestController controller) {
         controller.registerHandler(DELETE, URI_BASE + "/license", this);
     }
 

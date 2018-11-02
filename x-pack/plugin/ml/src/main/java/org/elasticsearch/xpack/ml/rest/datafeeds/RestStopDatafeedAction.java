@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,8 +25,7 @@ import java.io.IOException;
 
 public class RestStopDatafeedAction extends BaseRestHandler {
 
-    public RestStopDatafeedAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestStopDatafeedAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.POST, MachineLearning.BASE_PATH + "datafeeds/{"
                 + DatafeedConfig.ID.getPreferredName() + "}/_stop", this);
     }

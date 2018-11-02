@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestController;
@@ -39,7 +38,7 @@ public class RestExecuteWatchActionTests extends ESTestCase {
                     ExecuteWatchRequestBuilder builder = new ExecuteWatchRequestBuilder(client);
                     when(watcherClient.prepareExecuteWatch()).thenReturn(builder);
 
-                    RestExecuteWatchAction restExecuteWatchAction = new RestExecuteWatchAction(Settings.EMPTY, restController);
+                    RestExecuteWatchAction restExecuteWatchAction = new RestExecuteWatchAction(restController);
                     restExecuteWatchAction.doPrepareRequest(createFakeRestRequest(randomId, recordExecution, ignoreCondition,
                             debugCondition), watcherClient);
 

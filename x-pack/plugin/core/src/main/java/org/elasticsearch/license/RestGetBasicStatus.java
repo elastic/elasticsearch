@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -22,8 +21,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetBasicStatus extends XPackRestHandler {
 
-    RestGetBasicStatus(Settings settings, RestController controller) {
-        super(settings);
+    RestGetBasicStatus(RestController controller) {
         controller.registerHandler(GET, URI_BASE + "/license/basic_status", this);
     }
 

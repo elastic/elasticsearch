@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -39,8 +38,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
             LogManager.getLogger(RestPutIndexTemplateAction.class));
 
-    public RestPutIndexTemplateAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutIndexTemplateAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT, "/_template/{name}", this);
         controller.registerHandler(RestRequest.Method.POST, "/_template/{name}", this);
     }

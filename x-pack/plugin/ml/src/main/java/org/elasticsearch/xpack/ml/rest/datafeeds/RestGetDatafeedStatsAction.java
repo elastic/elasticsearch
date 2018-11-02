@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -20,8 +19,7 @@ import java.io.IOException;
 
 public class RestGetDatafeedStatsAction extends BaseRestHandler {
 
-    public RestGetDatafeedStatsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetDatafeedStatsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH
                 + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stats", this);
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH

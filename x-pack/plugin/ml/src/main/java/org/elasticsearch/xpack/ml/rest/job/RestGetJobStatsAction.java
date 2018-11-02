@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.rest.job;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -21,8 +20,7 @@ import java.io.IOException;
 
 public class RestGetJobStatsAction extends BaseRestHandler {
 
-    public RestGetJobStatsAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestGetJobStatsAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH
                 + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats", this);
         controller.registerHandler(RestRequest.Method.GET, MachineLearning.BASE_PATH

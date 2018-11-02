@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -29,11 +28,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * The rest action to de/activate a watch
  */
 public class RestActivateWatchAction extends WatcherRestHandler {
-    public RestActivateWatchAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestActivateWatchAction(RestController controller) {
         controller.registerHandler(POST, URI_BASE + "/watch/{id}/_activate", this);
         controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_activate", this);
-        final DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler(settings);
+        final DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler();
         controller.registerHandler(POST, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler);
         controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler);
     }
@@ -58,11 +56,6 @@ public class RestActivateWatchAction extends WatcherRestHandler {
     }
 
     private static class DeactivateRestHandler extends WatcherRestHandler {
-
-        DeactivateRestHandler(Settings settings) {
-            super(settings);
-        }
-
         @Override
         public String getName() {
             return "xpack_watcher_deactivate_watch_action";

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.rest.filter;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -20,8 +19,7 @@ import java.io.IOException;
 
 public class RestPutFilterAction extends BaseRestHandler {
 
-    public RestPutFilterAction(Settings settings, RestController controller) {
-        super(settings);
+    public RestPutFilterAction(RestController controller) {
         controller.registerHandler(RestRequest.Method.PUT,
                 MachineLearning.BASE_PATH + "filters/{" + MlFilter.ID.getPreferredName() + "}", this);
     }

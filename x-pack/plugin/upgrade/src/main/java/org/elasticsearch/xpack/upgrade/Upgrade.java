@@ -78,8 +78,8 @@ public class Upgrade extends Plugin implements ActionPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
-                new RestIndexUpgradeInfoAction(settings, restController),
-                new RestIndexUpgradeAction(settings, restController)
+                new RestIndexUpgradeInfoAction(restController),
+                new RestIndexUpgradeAction(restController)
         );
     }
 

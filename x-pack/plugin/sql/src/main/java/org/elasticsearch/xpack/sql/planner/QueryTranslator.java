@@ -31,8 +31,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
+import org.elasticsearch.xpack.sql.expression.predicate.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Bina
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
@@ -108,7 +109,8 @@ final class QueryTranslator {
             new Ranges(),
             new BinaryLogic(),
             new Nots(),
-            new Nulls(),
+            new IsNullTranslator(),
+            new IsNotNullTranslator(),
             new Likes(),
             new StringQueries(),
             new Matches(),
@@ -495,20 +497,41 @@ final class QueryTranslator {
         }
     }
 
-    static class Nulls extends ExpressionTranslator<IsNotNull> {
+    static class IsNotNullTranslator extends ExpressionTranslator<IsNotNull> {
 
         @Override
-        protected QueryTranslation asQuery(IsNotNull inn, boolean onAggs) {
+        protected QueryTranslation asQuery(IsNotNull isNotNull, boolean onAggs) {
             Query query = null;
             AggFilter aggFilter = null;
 
             if (onAggs) {
-                aggFilter = new AggFilter(inn.id().toString(), inn.asScript());
+                aggFilter = new AggFilter(isNotNull.id().toString(), isNotNull.asScript());
             } else {
-                query = new ExistsQuery(inn.location(), nameOf(inn.field()));
+                query = new ExistsQuery(isNotNull.location(), nameOf(isNotNull.field()));
                 // query directly on the field
-                if (inn.field() instanceof NamedExpression) {
-                    query = wrapIfNested(query, inn.field());
+                if (isNotNull.field() instanceof NamedExpression) {
+                    query = wrapIfNested(query, isNotNull.field());
+                }
+            }
+
+            return new QueryTranslation(query, aggFilter);
+        }
+    }
+
+    static class IsNullTranslator extends ExpressionTranslator<IsNull> {
+
+        @Override
+        protected QueryTranslation asQuery(IsNull isNull, boolean onAggs) {
+            Query query = null;
+            AggFilter aggFilter = null;
+
+            if (onAggs) {
+                aggFilter = new AggFilter(isNull.id().toString(), isNull.asScript());
+            } else {
+                query = new NotQuery(isNull.location(), new ExistsQuery(isNull.location(), nameOf(isNull.field())));
+                // query directly on the field
+                if (isNull.field() instanceof NamedExpression) {
+                    query = wrapIfNested(query, isNull.field());
                 }
             }
 

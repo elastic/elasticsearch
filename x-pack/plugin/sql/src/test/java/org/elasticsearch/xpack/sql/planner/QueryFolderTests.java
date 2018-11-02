@@ -65,6 +65,14 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
     }
 
+    public void testFoldingOfIsNull() {
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE (keyword IS NOT NULL) IS NULL");
+        assertEquals(LocalExec.class, p.getClass());
+        LocalExec ee = (LocalExec) p;
+        assertEquals(1, ee.output().size());
+        assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
+    }
+
     public void testFoldingOfIsNotNull() {
         PhysicalPlan p = plan("SELECT keyword FROM test WHERE (keyword IS NULL) IS NOT NULL");
         assertEquals(EsQueryExec.class, p.getClass());

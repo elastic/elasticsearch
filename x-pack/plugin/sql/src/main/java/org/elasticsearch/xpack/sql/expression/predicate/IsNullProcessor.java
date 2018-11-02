@@ -11,15 +11,15 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 
-public class IsNotNullProcessor implements Processor {
-    
-    static final IsNotNullProcessor INSTANCE = new IsNotNullProcessor();
+public class IsNullProcessor implements Processor {
 
-    public static final String NAME = "isnotnull";
+    static final IsNullProcessor INSTANCE = new IsNullProcessor();
 
-    private IsNotNullProcessor() {}
+    public static final String NAME = "isnull";
 
-    public IsNotNullProcessor(StreamInput in) throws IOException {}
+    private IsNullProcessor() {}
+
+    public IsNullProcessor(StreamInput in) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -35,12 +35,12 @@ public class IsNotNullProcessor implements Processor {
     }
 
     public static Boolean apply(Object input) {
-        return input != null ? Boolean.TRUE : Boolean.FALSE;
+        return input == null ? Boolean.TRUE : Boolean.FALSE;
     }
 
     @Override
     public int hashCode() {
-        return IsNotNullProcessor.class.hashCode();
+        return IsNullProcessor.class.hashCode();
     }
 
     @Override

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
+import org.elasticsearch.xpack.sql.expression.predicate.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
@@ -125,8 +126,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new CombineProjections(),
                 // folding
                 new ReplaceFoldableAttributes(),
-                new FoldNull(),
                 new ConstantFolding(),
+                new FoldNull(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -1132,8 +1133,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     return new Literal(e.location(), Expressions.name(e), Boolean.TRUE, DataType.BOOLEAN);
                 }
             }
-            // see https://github.com/elastic/elasticsearch/issues/34876
-            // similar for IsNull once it gets introduced
+            if (e instanceof IsNull) {
+                if (((IsNull) e).field().nullable() == false) {
+                    return new Literal(e.location(), Expressions.name(e), Boolean.FALSE, DataType.BOOLEAN);
+                }
+            }
 
             if (e instanceof In) {
                 In in = (In) e;

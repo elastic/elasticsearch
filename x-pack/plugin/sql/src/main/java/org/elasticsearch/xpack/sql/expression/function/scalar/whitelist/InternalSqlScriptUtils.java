@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunc
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNullProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.IsNullProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
@@ -111,7 +112,11 @@ public final class InternalSqlScriptUtils {
         return NotProcessor.apply(expression);
     }
 
-    public static Boolean notNull(Object expression) {
+    public static Boolean isNull(Object expression) {
+        return IsNullProcessor.apply(expression);
+    }
+
+    public static Boolean isNotNull(Object expression) {
         return IsNotNullProcessor.apply(expression);
     }
 

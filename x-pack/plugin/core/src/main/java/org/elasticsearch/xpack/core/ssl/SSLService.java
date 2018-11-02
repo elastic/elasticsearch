@@ -88,7 +88,6 @@ public class SSLService extends AbstractComponent {
      * for use later
      */
     public SSLService(Settings settings, Environment environment) {
-        super(settings);
         this.settings = settings;
         this.env = environment;
         this.globalSSLConfiguration = new SSLConfiguration(settings.getByPrefix(XPackSettings.GLOBAL_SSL_PREFIX));
@@ -98,7 +97,6 @@ public class SSLService extends AbstractComponent {
 
     private SSLService(Settings settings, Environment environment, SSLConfiguration globalSSLConfiguration,
                        Map<String, SSLConfiguration> sslConfigurations, Map<SSLConfiguration, SSLContextHolder> sslContexts) {
-        super(settings);
         this.settings = settings;
         this.env = environment;
         this.globalSSLConfiguration = globalSSLConfiguration;

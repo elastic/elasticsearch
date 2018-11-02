@@ -76,15 +76,6 @@ public class Loggers {
         return ESLoggerFactory.getLogger(prefix, parentLogger.getName() + s);
     }
 
-    /**
-     * Get or build a logger.
-     * @deprecated Prefer {@link LogManager#getLogger}
-     */
-    @Deprecated
-    public static Logger getLogger(Class<?> clazz) {
-        return ESLoggerFactory.getLogger(null, clazz);
-    }
-
     private static String formatPrefix(String... prefixes) {
         String prefix = null;
         if (prefixes != null && prefixes.length > 0) {

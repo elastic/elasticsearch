@@ -88,7 +88,6 @@ public class NativeUsersStore extends AbstractComponent {
     private final SecurityIndexManager securityIndex;
 
     public NativeUsersStore(Settings settings, Client client, SecurityIndexManager securityIndex) {
-        super(settings);
         this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;

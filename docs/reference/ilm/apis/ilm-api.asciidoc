@@ -34,7 +34,6 @@ include::get-lifecycle.asciidoc[]
 include::delete-lifecycle.asciidoc[]
 
 include::move-to-step.asciidoc[]
-include::set-policy.asciidoc[]
 include::remove-policy.asciidoc[]
 include::retry-policy.asciidoc[]
 

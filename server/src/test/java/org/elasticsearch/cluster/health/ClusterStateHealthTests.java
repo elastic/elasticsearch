@@ -77,7 +77,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ClusterStateHealthTests extends ESTestCase {
-    private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+    private final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
 
     private static ThreadPool threadPool;
 

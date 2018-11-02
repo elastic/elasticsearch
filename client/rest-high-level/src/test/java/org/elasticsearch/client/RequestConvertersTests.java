@@ -56,6 +56,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestConverters.EndpointBuilder;
+import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -966,6 +967,72 @@ public class RequestConvertersTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> new SearchRequest((String[]) null));
         expectThrows(NullPointerException.class, () -> new SearchRequest().indices((String[]) null));
         expectThrows(NullPointerException.class, () -> new SearchRequest().types((String[]) null));
+    }
+
+     public void testCountNotNullSource() throws IOException {
+        //as we create SearchSourceBuilder in CountRequest constructor
+        CountRequest countRequest = new CountRequest();
+        Request request = RequestConverters.count(countRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_count", request.getEndpoint());
+        assertNotNull(request.getEntity());
+    }
+
+    public void testCount() throws Exception {
+        String[] indices = randomIndicesNames(0, 5);
+        CountRequest countRequest = new CountRequest(indices);
+
+        int numTypes = randomIntBetween(0, 5);
+        String[] types = new String[numTypes];
+        for (int i = 0; i < numTypes; i++) {
+            types[i] = "type-" + randomAlphaOfLengthBetween(2, 5);
+        }
+        countRequest.types(types);
+
+        Map<String, String> expectedParams = new HashMap<>();
+        setRandomCountParams(countRequest, expectedParams);
+        setRandomIndicesOptions(countRequest::indicesOptions, countRequest::indicesOptions, expectedParams);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        if (frequently()) {
+            if (randomBoolean()) {
+                searchSourceBuilder.minScore(randomFloat());
+            }
+        }
+        countRequest.source(searchSourceBuilder);
+        Request request = RequestConverters.count(countRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        String type = String.join(",", types);
+        if (Strings.hasLength(type)) {
+            endpoint.add(type);
+        }
+        endpoint.add("_count");
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(searchSourceBuilder, request.getEntity());
+    }
+
+    public void testCountNullIndicesAndTypes() {
+        expectThrows(NullPointerException.class, () -> new CountRequest((String[]) null));
+        expectThrows(NullPointerException.class, () -> new CountRequest().indices((String[]) null));
+        expectThrows(NullPointerException.class, () -> new CountRequest().types((String[]) null));
+    }
+
+    private static void setRandomCountParams(CountRequest countRequest,
+                                             Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            countRequest.routing(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("routing", countRequest.routing());
+        }
+        if (randomBoolean()) {
+            countRequest.preference(randomAlphaOfLengthBetween(3, 10));
+            expectedParams.put("preference", countRequest.preference());
+        }
     }
 
     public void testMultiSearch() throws IOException {

@@ -39,7 +39,6 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
 import org.elasticsearch.search.DocValueFormat;
@@ -79,10 +78,10 @@ public class QueryPhase implements SearchPhase {
     private final SuggestPhase suggestPhase;
     private RescorePhase rescorePhase;
 
-    public QueryPhase(Settings settings) {
+    public QueryPhase() {
         this.aggregationPhase = new AggregationPhase();
-        this.suggestPhase = new SuggestPhase(settings);
-        this.rescorePhase = new RescorePhase(settings);
+        this.suggestPhase = new SuggestPhase();
+        this.rescorePhase = new RescorePhase();
     }
 
     @Override

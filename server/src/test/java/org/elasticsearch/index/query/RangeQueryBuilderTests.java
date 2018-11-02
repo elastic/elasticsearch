@@ -76,8 +76,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 break;
             case 1:
                 // use mapped date field, using date string representation
-                ZonedDateTime start = Instant.now().minusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
-                ZonedDateTime end = Instant.now().plusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
+                Instant now = Instant.now();
+                ZonedDateTime start = now.minusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
+                ZonedDateTime end = now.plusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
                 query = new RangeQueryBuilder(randomFrom(
                     DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, DATE_ALIAS_FIELD_NAME));
                 query.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start));
@@ -176,7 +177,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
                 fromInMillis = queryBuilder.from() == null ? null :
                     ((DateFieldMapper.DateFieldType) mappedFieldType).parseToMilliseconds(queryBuilder.from(),
-                        queryBuilder.includeLower(),
+                        !queryBuilder.includeLower(),
                         queryBuilder.getDateTimeZone(),
                         queryBuilder.getForceDateParser(), context.getQueryShardContext());
                 toInMillis = queryBuilder.to() == null ? null :

@@ -95,15 +95,15 @@ Plugins::
 Analysis::
 * Deprecates the standard filter {pull}33468[#33468]
 
-Geo::
-* Make Geo Context Mapping Parsing More Strict (6.x version) {pull}32862[#32862] (issue: {issue}32821[#32821])
-
 Scripting::
 * Scripting: Conditionally use java time api in scripting {pull}31441[#31441]
 
 Search::
 * Deprecate negative query boost (#34486) {pull}34512[#34512] (issues: {issue}33309[#33309], {issue}34486[#34486])
 * Deprecate negative `weight` in Function Score Query {pull}33624[#33624] (issue: {issue}31927[#31927])
+
+Suggesters::
+* Make Geo Context Mapping Parsing More Strict (6.x version) {pull}32862[#32862] (issue: {issue}32821[#32821])
 
 
 
@@ -124,11 +124,11 @@ Audit::
 
 Authentication::
 * Allow User/Password realms to disable authc {pull}34033[#34033] (issue: {issue}33292[#33292])
-* Add support for "authorization_realms" {pull}33262[#33262]
 
 Authorization::
 * [X-Pack] Beats centralized management: security role + licensing {pull}34305[#34305] (issues: {issue}30493[#30493], {issue}30520[#30520])
 * Add get-user-privileges API {pull}33928[#33928] (issue: {issue}32777[#32777])
+* Add support for "authorization_realms" {pull}33262[#33262]
 
 CCR::
 * [CCR] Added auto follow patterns feature {pull}33118[#33118] (issue: {issue}33007[#33007])
@@ -194,12 +194,8 @@ Authorization::
 * [Kerberos] Add authorization realms support to Kerberos realm {pull}32392[#32392]
 * [X-Pack] Beats centralized management: security role + licensing {pull}30520[#30520] (issue: {issue}30493[#30493])
 
-Beats::
+Beats Plugin::
 * [Monitoring] Update beats template to include apm-server metrics {pull}33286[#33286]
-
-CCR::
-* Fill LocalCheckpointTracker with Lucene commit {pull}34474[#34474] (issues: {issue}0[#0], {issue}2[#2], {issue}33656[#33656])
-* Integrates soft-deletes into Elasticsearch {pull}33222[#33222] (issues: {issue}29530[#29530], {issue}30086[#30086], {issue}30120[#30120], {issue}30335[#30335], {issue}30522[#30522], {issue}31106[#31106])
 
 CRUD::
 * Verify primary mode usage with assertions {pull}32667[#32667] (issues: {issue}10708[#10708], {issue}25692[#25692], {issue}32442[#32442])
@@ -222,10 +218,11 @@ Distributed::
 * Expose whether or not the global checkpoint updated {pull}32659[#32659] (issue: {issue}32651[#32651])
 * Include translog path in error message when translog is corrupted {pull}32251[#32251] (issue: {issue}24929[#24929])
 
-Docs::
+Docs Infrastructure::
 * Docs: Allow snippets to have line continuation {pull}32649[#32649]
 
 Engine::
+* Fill LocalCheckpointTracker with Lucene commit {pull}34474[#34474] (issues: {issue}0[#0], {issue}2[#2], {issue}33656[#33656])
 * Lock down Engine.Searcher {pull}34363[#34363] (issue: {issue}34357[#34357])
 * Fold EngineSearcher into Engine.Searcher {pull}34082[#34082]
 * Build DocStats from SegmentInfos in ReadOnlyEngine {pull}34079[#34079] (issue: {issue}33903[#33903])
@@ -235,7 +232,6 @@ Engine::
 * Allow engine to recover from translog upto a seqno {pull}33032[#33032] (issue: {issue}32867[#32867])
 
 ILM::
-* HLRC: Add ILM Retry {pull}33990[#33990] (issue: {issue}33100[#33100])
 * 6.x - HLRC: Add ILM Status to HLRC (#33283) {pull}33448[#33448] (issue: {issue}33283[#33283])
 
 Index APIs::
@@ -378,12 +374,17 @@ Recovery::
 * Restore local history from translog on promotion {pull}33616[#33616] (issues: {issue}32867[#32867], {issue}33473[#33473])
 * Reset replica engine to global checkpoint on promotion {pull}33473[#33473] (issue: {issue}32867[#32867])
 * Bootstrap a new history_uuid when force allocating a stale primary {pull}33432[#33432] (issue: {issue}26712[#26712])
+* Integrates soft-deletes into Elasticsearch {pull}33222[#33222] (issues: {issue}29530[#29530], {issue}30086[#30086], {issue}30120[#30120], {issue}30335[#30335], {issue}30522[#30522], {issue}31106[#31106])
 
 Rollup::
 * [Rollup] Add support for date histo `format` when searching {pull}34537[#34537] (issue: {issue}34391[#34391])
 * [Rollup] Only allow aggregating on multiples of configured interval {pull}32052[#32052]
 
 SQL::
+* SQL: Optimizer rule for folding nullable expressions {pull}35080[#35080] (issue: {issue}34826[#34826])
+* SQL: Improve painless script generated from `IN` {pull}35055[#35055] (issue: {issue}34750[#34750])
+* SQL: Implement CAST between STRING and IP {pull}34949[#34949] (issue: {issue}34799[#34799])
+* SQL: Fix function args verification and error msgs {pull}34926[#34926] (issues: {issue}33469[#33469], {issue}34752[#34752])
 * SQL: Introduce ODBC mode, similar to JDBC {pull}34825[#34825] (issue: {issue}34720[#34720])
 * SQL: Introduce support for IP fields {pull}34758[#34758] (issue: {issue}32499[#32499])
 * SQL: Implement null handling for `IN(v1, v2, ...)` {pull}34750[#34750] (issue: {issue}34582[#34582])
@@ -430,6 +431,7 @@ Search::
 * Ignore script fields when size is 0 {pull}31917[#31917] (issue: {issue}31824[#31824])
 
 Security::
+* Generate non-encrypted license public key {pull}34626[#34626]
 * Security: don't call prepare index for reads {pull}34568[#34568] (issues: {issue}33205[#33205], {issue}34246[#34246])
 * Enable security automaton caching {pull}34028[#34028]
 * Add Debug/Trace logging to token service {pull}34022[#34022]
@@ -474,6 +476,7 @@ ZenDiscovery::
 
 Aggregations::
 * Fix handling of empty keyword in terms aggregation {pull}34457[#34457] (issue: {issue}34434[#34434])
+* Check self references in metric agg after last doc collection (#33593) {pull}34001[#34001]
 * Unmapped aggs should not run pipelines if they delegate reduction {pull}33528[#33528] (issue: {issue}33514[#33514])
 * For filters aggregations, make sure that rewrites preserve other_bucket. {pull}32921[#32921] (issue: {issue}32834[#32834])
 
@@ -529,6 +532,7 @@ Geo::
 * Use the determinant formula for calculating the orientation of a polygon {pull}27967[#27967]
 
 Index APIs::
+* Make XContentBuilder in AliasActions build `is_write_index` field {pull}35071[#35071]
 * Do not update number of replicas on no indices {pull}34481[#34481]
 * [Security] Get Alias API wildcard exclusion with Security {pull}34144[#34144] (issues: {issue}33518[#33518], {issue}33805[#33805])
 * Allow to clear the fielddata cache per field {pull}33807[#33807] (issue: {issue}33798[#33798])
@@ -558,9 +562,9 @@ Machine Learning::
 * Handle pre-6.x time fields {pull}34373[#34373]
 * [ML] Get job stats request should filter non-ML job tasks {pull}33516[#33516] (issue: {issue}33515[#33515])
 * [ML] Prevent NPE parsing the stop datafeed request. {pull}33347[#33347]
+* [ML] fix updating opened jobs scheduled events (#31651) {pull}32881[#32881] (issue: {issue}31651[#31651])
 * Clear Job#finished_time when it is opened (#32605) {pull}32755[#32755]
 * [ML] Fix thread leak when waiting for job flush (#32196) {pull}32541[#32541] (issue: {issue}32196[#32196])
-* [ML] Adding an open job to a group does not update autodetect with related scheduled events {pull}31651[#31651]
 
 Mapping::
 * Fix field mapping updates with similarity {pull}33634[#33634] (issue: {issue}33611[#33611])
@@ -588,11 +592,15 @@ Packaging::
 REST API::
 * Core: Fix IndicesSegmentResponse.toXcontent() serialization {pull}33414[#33414] (issue: {issue}29120[#29120])
 
+Ranking::
+* Fix a bug in function_score queries where we use the wrong boost_mode. {pull}35148[#35148] (issue: {issue}35123[#35123])
+
 Recovery::
 * Resync fails to notify on unavaiable exceptions {pull}33615[#33615] (issues: {issue}31179[#31179], {issue}33613[#33613])
 * Ensure to generate identical NoOp for the same failure {pull}33141[#33141] (issue: {issue}32986[#32986])
 
 Rollup::
+* [Rollup] Proactively resolve index patterns in RollupSearch endoint {pull}34930[#34930] (issue: {issue}34828[#34828])
 * Address BWC bug due to default metrics in (#34764) {pull}34810[#34810] (issue: {issue}34764[#34764])
 * Allowing {index}/_xpack/rollup/data to accept comma delimited list {pull}34115[#34115]
 * [Rollup] Fix Caps Comparator to handle calendar/fixed time {pull}33336[#33336] (issue: {issue}32052[#32052])
@@ -601,6 +609,15 @@ Rollup::
 * [Rollup] Improve ID scheme for rollup documents {pull}32558[#32558] (issue: {issue}32372[#32372])
 
 SQL::
+* SQL: handle wildcard expansion on incorrect fields {pull}35134[#35134] (issue: {issue}35092[#35092])
+* SQL: Register missing processors {pull}35121[#35121] (issue: {issue}35119[#35119])
+* SQL: Fix NPE thrown if HAVING filter evals to null {pull}35108[#35108] (issue: {issue}35107[#35107])
+* SQL: Proper handling of nested fields at the beginning of the columns list {pull}35068[#35068] (issue: {issue}32951[#32951])
+* SQL: Fix incorrect AVG data type {pull}34948[#34948] (issue: {issue}33773[#33773])
+* SQL: Add `CAST` and `CONVERT` to `SHOW FUNCTIONS` {pull}34940[#34940] (issue: {issue}34939[#34939])
+* SQL: Handle aggregation for null group {pull}34916[#34916] (issue: {issue}34896[#34896])
+* SQL: Provide null-safe scripts for Not and Neg {pull}34877[#34877] (issue: {issue}34848[#34848])
+* SQL: Return error with ORDER BY on non-grouped. {pull}34855[#34855] (issue: {issue}34590[#34590])
 * SQL: Fix queries with filter resulting in NO_MATCH {pull}34812[#34812] (issue: {issue}34613[#34613])
 * SQL: Fix edge case: `<field> IN (null)` {pull}34802[#34802] (issue: {issue}34750[#34750])
 * SQL: Verifier allows aliases aggregates for sorting {pull}34773[#34773] (issue: {issue}34607[#34607])

@@ -229,8 +229,8 @@ created in error or were only required temporarily:
 
 [source,js]
 --------------------------------------------------
-# Allow the selected nodes back into the voting configuration by removing their
-# tombstones
+# Allow the selected nodes back into the voting configuration by
+# removing their tombstones
 DELETE /_nodes/node_name/withdraw_vote
 # Remove all voting tombstones
 DELETE /_nodes/_all/withdraw_vote

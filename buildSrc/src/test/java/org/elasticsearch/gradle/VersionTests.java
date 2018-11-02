@@ -33,11 +33,11 @@ public class VersionTests extends GradleUnitTestCase {
     public ExpectedException expectedEx = ExpectedException.none();
 
     public void testVersionParsing() {
-        assertVersionEquals("7.0.1", 7, 0, 1, "", false);
-        assertVersionEquals("7.0.1-alpha2", 7, 0, 1, "-alpha2", false);
-        assertVersionEquals("5.1.2-rc3", 5, 1, 2, "-rc3", false);
-        assertVersionEquals("6.1.2-SNAPSHOT", 6, 1, 2, "", true);
-        assertVersionEquals("6.1.2-beta1-SNAPSHOT", 6, 1, 2, "-beta1", true);
+        assertVersionEquals("7.0.1", 7, 0, 1);
+        assertVersionEquals("7.0.1-alpha2", 7, 0, 1);
+        assertVersionEquals("5.1.2-rc3", 5, 1, 2);
+        assertVersionEquals("6.1.2-SNAPSHOT", 6, 1, 2);
+        assertVersionEquals("6.1.2-beta1-SNAPSHOT", 6, 1, 2);
     }
 
     public void testCompareWithStringVersions() {
@@ -74,21 +74,12 @@ public class VersionTests extends GradleUnitTestCase {
     }
 
     public void testToString() {
-        assertEquals("7.0.1", new Version(7, 0, 1, null, false).toString());
+        assertEquals("7.0.1", new Version(7, 0, 1).toString());
     }
 
     public void testCompareVersions() {
-        assertEquals(0, new Version(7, 0, 0, null, true).compareTo(
-            new Version(7, 0, 0, null, true)
-        ));
-        assertEquals(0, new Version(7, 0, 0, null, true).compareTo(
-            new Version(7, 0, 0, "", true)
-        ));
-
-        assertEquals(
-            0,
-            new Version(7, 0, 0, "-alpha1", false).compareTo(
-            new Version(7, 0, 0, "", true))
+        assertEquals(0,
+            new Version(7, 0, 0).compareTo(new Version(7, 0, 0))
         );
     }
 
@@ -108,17 +99,11 @@ public class VersionTests extends GradleUnitTestCase {
         assertEquals(smaller + " should be smaller than " + bigger, -1, smaller.compareTo(bigger));
     }
 
-    private void assertVersionEquals(String stringVersion, int major, int minor, int revision, String sufix, boolean snapshot) {
+    private void assertVersionEquals(String stringVersion, int major, int minor, int revision) {
         Version version = Version.fromString(stringVersion);
         assertEquals(major, version.getMajor());
         assertEquals(minor, version.getMinor());
         assertEquals(revision, version.getRevision());
-        if (snapshot) {
-            assertTrue("Expected version to be a snapshot but it was not", version.isSnapshot());
-        } else {
-            assertFalse("Expected version not to be a snapshot but it was", version.isSnapshot());
-        }
-        assertEquals(sufix, version.getSuffix());
     }
 
 }

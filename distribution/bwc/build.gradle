@@ -129,10 +129,10 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
             baseDir += project == 'zip' ? '/archives' : '/packages'
             // add oss variant first
             projectDirs.add("${baseDir}/oss-${project}")
-            artifactFiles.add(file("${checkoutDir}/${baseDir}/oss-${project}/build/distributions/elasticsearch-oss-${bwcVersion}.${project}"))
+            artifactFiles.add(file("${checkoutDir}/${baseDir}/oss-${project}/build/distributions/elasticsearch-oss-${bwcVersion}-SNAPSHOT.${project}"))
         }
         projectDirs.add("${baseDir}/${project}")
-        artifactFiles.add(file("${checkoutDir}/${baseDir}/${project}/build/distributions/elasticsearch-${bwcVersion}.${project}"))
+        artifactFiles.add(file("${checkoutDir}/${baseDir}/${project}/build/distributions/elasticsearch-${bwcVersion}-SNAPSHOT.${project}"))
     }
 
     task buildBwcVersion(type: Exec) {

@@ -51,8 +51,12 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
             request.includeCurrentWatches(true);
             request.includeQueuedWatches(true);
         } else {
-            request.includeCurrentWatches(metrics.contains("queued_watches"));
-            request.includeQueuedWatches(metrics.contains("pending_watches"));
+            request.includeCurrentWatches(metrics.contains("current_watches"));
+            request.includeQueuedWatches(metrics.contains("queued_watches") || metrics.contains("pending_watches"));
+        }
+
+        if (metrics.contains("pending_watches")) {
+            deprecationLogger.deprecated("The pending_watches parameter is deprecated, use queued_watches instead");
         }
 
 

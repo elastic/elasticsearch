@@ -84,7 +84,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
                     builder.indexOptions(nodeIndexOptionValue(fieldNode));
                     iterator.remove();
                 } else if ("fields".equals(fieldName)) {
-                    parseMultiField(builder, name, parserContext, fieldName, fieldNode)
+                    parseMultiField(builder, name, parserContext, fieldName, fieldNode);
                     iterator.remove();
                 }
             }

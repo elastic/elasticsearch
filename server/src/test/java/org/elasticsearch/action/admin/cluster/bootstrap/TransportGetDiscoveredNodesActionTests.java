@@ -212,7 +212,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         final AtomicBoolean responseReceived = new AtomicBoolean();
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setWaitForNodes(2);
+        getDiscoveredNodesRequest.setMinimumNodeCount(2);
         transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequest,
             new ActionListener<GetDiscoveredNodesResponse>() {
                 @Override
@@ -293,7 +293,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         final GetDiscoveredNodesRequest getDiscoveredNodesRequestWithTimeout = new GetDiscoveredNodesRequest();
         getDiscoveredNodesRequestWithTimeout.setTimeout(TimeValue.timeValueSeconds(60));
-        getDiscoveredNodesRequestWithTimeout.setWaitForNodes(2);
+        getDiscoveredNodesRequestWithTimeout.setMinimumNodeCount(2);
         transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequestWithTimeout,
             new ActionListener<GetDiscoveredNodesResponse>() {
                 @Override
@@ -311,7 +311,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         responseReceived.set(false);
         final GetDiscoveredNodesRequest getDiscoveredNodesRequestWithoutTimeout = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequestWithoutTimeout.setWaitForNodes(2);
+        getDiscoveredNodesRequestWithoutTimeout.setMinimumNodeCount(2);
         transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequestWithoutTimeout,
             new ActionListener<GetDiscoveredNodesResponse>() {
                 @Override

@@ -32,21 +32,21 @@ import java.io.IOException;
  */
 public class GetDiscoveredNodesRequest extends ActionRequest {
 
-    private int waitForNodes = 1;
+    private int minimumNodeCount = 1;
     private TimeValue timeout = TimeValue.ZERO;
 
     /**
      * Sometimes it is useful only to receive a successful response after discovering a certain number of master-eligible nodes. This
      * parameter controls this behaviour.
      *
-     * @param waitForNodes the minimum number of nodes to have discovered before this request will receive a successful response. Must be at
-     *                     least 1.
+     * @param minimumNodeCount the minimum number of nodes to have discovered before this request will receive a successful response. Must
+     *                         be at least 1.
      */
-    public void setWaitForNodes(int waitForNodes) {
-        if (waitForNodes < 1) {
-            throw new IllegalArgumentException("always finds at least one node, waiting for [" + waitForNodes + "] is not allowed");
+    public void setMinimumNodeCount(int minimumNodeCount) {
+        if (minimumNodeCount < 1) {
+            throw new IllegalArgumentException("always finds at least one node, waiting for [" + minimumNodeCount + "] is not allowed");
         }
-        this.waitForNodes = waitForNodes;
+        this.minimumNodeCount = minimumNodeCount;
     }
 
     /**
@@ -55,8 +55,8 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
      *
      * @return the minimum number of nodes to have discovered before this request will receive a successful response.
      */
-    public int getWaitForNodes() {
-        return waitForNodes;
+    public int getMinimumNodeCount() {
+        return minimumNodeCount;
     }
 
     /**
@@ -86,8 +86,8 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         final ActionRequestValidationException actionRequestValidationException = new ActionRequestValidationException();
 
-        assert waitForNodes > 0 : waitForNodes;
-        if (timeout.compareTo(TimeValue.ZERO) > 0 && waitForNodes <= 1) {
+        assert minimumNodeCount > 0 : minimumNodeCount;
+        if (timeout.compareTo(TimeValue.ZERO) > 0 && minimumNodeCount <= 1) {
             actionRequestValidationException.addValidationError(
                 "always discovers at least one node, so a timeout of [" + timeout + "] is unnecessary");
         }
@@ -98,21 +98,21 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        setWaitForNodes(in.readInt());
+        setMinimumNodeCount(in.readInt());
         setTimeout(in.readTimeValue());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(getWaitForNodes());
+        out.writeInt(getMinimumNodeCount());
         out.writeTimeValue(getTimeout());
     }
 
     @Override
     public String toString() {
         return "GetDiscoveredNodesRequest{" +
-            "waitForNodes=" + waitForNodes +
+            "minimumNodeCount=" + minimumNodeCount +
             ", timeout=" + timeout +
             '}';
     }

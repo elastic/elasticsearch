@@ -21,9 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CannedBinaryTokenStream;
-import org.apache.lucene.analysis.MockTokenizer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -52,7 +49,6 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

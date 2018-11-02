@@ -28,7 +28,6 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

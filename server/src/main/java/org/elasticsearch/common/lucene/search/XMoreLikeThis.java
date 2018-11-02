@@ -42,8 +42,6 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.MultiFields;
-import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;

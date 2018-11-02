@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -43,7 +42,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
-import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;

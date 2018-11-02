@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.codecs.TermStats;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;

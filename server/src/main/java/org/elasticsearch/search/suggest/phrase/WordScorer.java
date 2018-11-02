@@ -19,7 +19,6 @@
 package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;

@@ -179,6 +179,7 @@ public class WatchBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testWatcherRestart() throws Exception {
         executeUpgradeIfNeeded();
+        ensureWatcherStarted();
 
         executeAgainstRandomNode(client -> assertOK(client.performRequest("POST", "/_xpack/watcher/_stop")));
         ensureWatcherStopped();

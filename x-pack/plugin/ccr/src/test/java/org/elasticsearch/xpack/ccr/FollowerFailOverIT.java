@@ -6,17 +6,19 @@
 
 package org.elasticsearch.xpack.ccr;
 
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -48,15 +50,15 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 while (stopped.get() == false) {
-                    try {
-                        if (frequently()) {
-                            String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 10)); // sometimes update
-                            leaderClient().prepareIndex("leader-index", "doc", id).setSource("{\"f\":" + id + "}", XContentType.JSON).get();
-                        } else {
-                            String id = Integer.toString(between(0, docID.get()));
-                            leaderClient().prepareDelete("leader-index", "doc", id).get();
-                        }
-                    } catch (NodeClosedException ignored) {
+                    if (frequently()) {
+                        String id = Integer.toString(frequently() ? docID.incrementAndGet() : between(0, 10)); // sometimes update
+                        IndexResponse indexResponse = leaderClient().prepareIndex("leader-index", "doc", id)
+                            .setSource("{\"f\":" + id + "}", XContentType.JSON).get();
+                        logger.info("--> index id={} seq_no={}", indexResponse.getId(), indexResponse.getSeqNo());
+                    } else {
+                        String id = Integer.toString(between(0, docID.get()));
+                        DeleteResponse deleteResponse = leaderClient().prepareDelete("leader-index", "doc", id).get();
+                        logger.info("--> delete id={} seq_no={}", deleteResponse.getId(), deleteResponse.getSeqNo());
                     }
                 }
             });
@@ -69,6 +71,7 @@ public class FollowerFailOverIT extends CcrIntegTestCase {
         follow.getFollowRequest().setMaxWriteRequestOperationCount(randomIntBetween(32, 2048));
         follow.getFollowRequest().setMaxWriteRequestSize(new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         follow.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
+        logger.info("--> follow params {}", Strings.toString(follow.getFollowRequest()));
         followerClient().execute(PutFollowAction.INSTANCE, follow).get();
         ensureFollowerGreen("follower-index");
         atLeastDocsIndexed(followerClient(), "follower-index", between(20, 60));

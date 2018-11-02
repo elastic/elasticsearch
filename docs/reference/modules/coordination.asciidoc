@@ -283,10 +283,19 @@ of its master-eligible nodes via the `POST /_cluster/bootstrap` API:
 --------------------------------------------------
 POST /_cluster/bootstrap
 {
-  "master_nodes":[
-    {"id":"gAMDNeJRTX6A_VelgSb84g","name":"master-a"},
-    {"id":"t3LZCVGxTf-idQIC8z4A1A","name":"master-b"},
-    {"id":"GfwXZYVVSFCOWNT0zcDixQ","name":"master-c"}
+  "master_nodes": [
+    {
+      "id": "gAMDNeJRTX6A_VelgSb84g",
+      "name": "master-a"
+    },
+    {
+      "id": "t3LZCVGxTf-idQIC8z4A1A",
+      "name": "master-b"
+    },
+    {
+      "id": "GfwXZYVVSFCOWNT0zcDixQ",
+      "name": "master-c"
+    }
   ]
 }
 --------------------------------------------------
@@ -331,10 +340,16 @@ including their IDs too:
 --------------------------------------------------
 POST /_cluster/bootstrap
 {
-  "master_nodes":[
-    {"name":"master-a"},
-    {"name":"master-b"},
-    {"name":"master-c"}
+  "master_nodes": [
+    {
+      "name": "master-a"
+    },
+    {
+      "name": "master-b"
+    },
+    {
+      "name": "master-c"
+    }
   ]
 }
 --------------------------------------------------

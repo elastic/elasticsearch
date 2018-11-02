@@ -24,7 +24,7 @@ import java.util.Set;
 public class TDigestStateTransitionalSerializationTests extends ESTestCase {
 
     private static final int POPULATION_SIZE = 1000;
-    private static final double TOLERANCE = 0.01;
+    private static final double TOLERANCE = 0.05;
 
     private List<Double> sampleData;
 

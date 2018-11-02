@@ -3,6 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -337,7 +338,7 @@ public final class TokenService extends AbstractComponent {
         }, listener::onFailure));
     }
 
-    /*
+    /**
      * Asynchronously decodes the string representation of a {@link UserToken}. The process for
      * this is asynchronous as we may need to compute a key, which can be computationally expensive
      * so this should not block the current thread, which is typically a network thread. A second

@@ -1,5 +1,5 @@
 [[painless-bucket-script-agg-context]]
-=== Bucket Script aggregation context
+=== Bucket script aggregation context
 
 Use a Painless script in an
 {ref}/search-aggregations-pipeline-bucket-script-aggregation.html[`bucket_script` pipeline aggregation]
@@ -28,15 +28,15 @@ The painless context in a `bucket_script` aggregation provides a `params` map.  
 user-specified custom values, as well as the values from other aggregations specified in the `buckets_path`
 property.
 
-For our example, we are going to take the values from a `min` and `max` aggregation, subtract them to find
-the difference, then add in a "base cost" from a user-specified value.  The script looks like this:
+This example takes the values from a min and max aggregation, calculates the difference,
+and adds the user-specified base_cost to the result:
 
 [source,Painless]
 --------------------------------------------------
 (params.max - params.min) + params.base_cost
 --------------------------------------------------
 
-Note how all the values are being pulled from the `params` map.  In context, the aggregation looks like this:
+Note that the values are extracted from the `params` map.  In context, the aggregation looks like this:
 
 [source,js]
 --------------------------------------------------
@@ -81,7 +81,6 @@ GET /seats/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:seats]
-<1> the `buckets_path` points to two aggregations (`min_cost`, `max_cost`) and adds `min`/`max` variables
+<1> The `buckets_path` points to two aggregations (`min_cost`, `max_cost`) and adds `min`/`max` variables
 to the `params` map
-<2> the user-specified `base_cost` is added in the script's `params` section, which is also added to the
-`params` variable for use in the script.
+<2> The user-specified `base_cost` is also added to the script's `params` map

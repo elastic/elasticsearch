@@ -75,7 +75,6 @@ public class HttpClient extends AbstractComponent implements Closeable {
     private final CryptoService cryptoService;
 
     public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService) {
-        super(settings);
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
         this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);

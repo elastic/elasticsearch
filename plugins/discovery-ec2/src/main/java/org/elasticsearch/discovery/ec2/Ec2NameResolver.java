@@ -23,7 +23,6 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
-import org.elasticsearch.common.settings.Settings;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -77,13 +76,6 @@ class Ec2NameResolver extends AbstractComponent implements CustomNameResolver {
             this.configName = configName;
             this.ec2Name = ec2Name;
         }
-    }
-
-    /**
-     * Construct a {@link CustomNameResolver}.
-     */
-    Ec2NameResolver(Settings settings) {
-        super(settings);
     }
 
     /**

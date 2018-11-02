@@ -83,7 +83,6 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                                               SecurityContext securityContext,
                                               DestructiveOperations destructiveOperations,
                                               ClusterService clusterService) {
-        super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;

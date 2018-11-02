@@ -111,8 +111,8 @@ class ClusterFormationTasks {
         for (int i = 0; i < config.numNodes; i++) {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
             // for each of those nodes we might have a different configuration
-            final Configuration distro
-            final String elasticsearchVersion
+            Configuration distro
+            String elasticsearchVersion
             if (i < config.numBwcNodes) {
                 elasticsearchVersion = config.bwcVersion.toString()
                 if (project.bwcVersions.unreleased.contains(config.bwcVersion)) {
@@ -595,7 +595,7 @@ class ClusterFormationTasks {
     }
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, String pluginName, String prefix) {
-        final FileCollection pluginZip;
+        FileCollection pluginZip;
         if (node.nodeVersion != Version.fromString(VersionProperties.elasticsearch)) {
             pluginZip = project.configurations.getByName(pluginBwcConfigurationName(prefix, pluginName))
         } else {

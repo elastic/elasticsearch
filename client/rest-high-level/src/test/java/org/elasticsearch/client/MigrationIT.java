@@ -80,8 +80,7 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
                 Response response = client().performRequest(new Request("GET", "/_tasks/" + upgrade.getTask().toString()));
                 return (boolean) entityAsMap(response).get("completed");
             } catch (IOException e) {
-                e.printStackTrace();
-                fail();
+                fail(e.getMessage());
                 return false;
             }
         };

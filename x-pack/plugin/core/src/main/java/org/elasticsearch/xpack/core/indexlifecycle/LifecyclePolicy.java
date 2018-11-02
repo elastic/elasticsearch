@@ -252,17 +252,10 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      * @throws IllegalArgumentException if the name is invalid
      */
     public static void validatePolicyName(String policy) {
-        if (!Strings.validFileName(policy)) {
-            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain the following characters " +
-                Strings.INVALID_FILENAME_CHARS);
+        if (policy.contains(",")) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain ','");
         }
-        if (policy.contains("#")) {
-            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain '#'");
-        }
-        if (policy.contains(":")) {
-            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain ':'");
-        }
-        if (policy.charAt(0) == '_' || policy.charAt(0) == '-' || policy.charAt(0) == '+') {
+        if (policy.charAt(0) == '_') {
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not start with '_', '-', or '+'");
         }
         int byteCount = 0;
@@ -275,9 +268,6 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         if (byteCount > MAX_INDEX_NAME_BYTES) {
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: name is too long, (" + byteCount + " > " +
                 MAX_INDEX_NAME_BYTES + ")");
-        }
-        if (policy.equals(".") || policy.equals("..")) {
-            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not be '.' or '..'");
         }
     }
 

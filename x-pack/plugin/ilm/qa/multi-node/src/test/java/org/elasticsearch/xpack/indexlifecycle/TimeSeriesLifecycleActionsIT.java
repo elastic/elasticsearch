@@ -36,7 +36,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -370,29 +369,12 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
     public void testInvalidPolicyNames() throws UnsupportedEncodingException {
         ResponseException ex;
-        for (Character badChar : Strings.INVALID_FILENAME_CHARS) {
-            policy = URLEncoder.encode(randomAlphaOfLengthBetween(0,10) + badChar + randomAlphaOfLengthBetween(0,10), "UTF-8");
-            ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
-            assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
-        }
 
-        policy = randomAlphaOfLengthBetween(0,10) + ":" + randomAlphaOfLengthBetween(0,10);
+        policy = randomAlphaOfLengthBetween(0,10) + "," + randomAlphaOfLengthBetween(0,10);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
-        assertThat(ex.getMessage(), containsString("invalid policy name"));
+        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+
         policy = "_" + randomAlphaOfLengthBetween(1, 20);
-        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
-        assertThat(ex.getMessage(), containsString("invalid policy name"));
-        policy = "-" + randomAlphaOfLengthBetween(1, 20);
-        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
-        assertThat(ex.getMessage(), containsString("invalid policy name"));
-        policy = "+" + randomAlphaOfLengthBetween(1, 20);
-        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
-        assertThat(ex.getMessage(), containsString("invalid policy name"));
-
-        policy = ".";
-        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
-        assertThat(ex.getMessage(), containsString("invalid policy name"));
-        policy = "..";
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
         assertThat(ex.getMessage(), containsString("invalid policy name"));
 

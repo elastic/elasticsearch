@@ -80,7 +80,12 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         return this;
     }
 
-    public PutUserRequestBuilder passwordHash(char[] passwordHash) {
+    public PutUserRequestBuilder passwordHash(char[] passwordHash, Hasher configuredHasher) {
+        final Hasher resolvedHasher = Hasher.resolveFromHash(passwordHash);
+        if (resolvedHasher.equals(configuredHasher) == false) {
+            throw new IllegalArgumentException("Provided password hash uses [" + resolvedHasher
+                + "] but the configured hashing algorithm is [" + configuredHasher + "]");
+        }
         request.passwordHash(passwordHash);
         return this;
     }
@@ -120,7 +125,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                 } else if (User.Fields.PASSWORD_HASH.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         char[] passwordChars = parser.text().toCharArray();
-                        passwordHash(passwordChars);
+                        passwordHash(passwordChars, hasher);
                     } else {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
@@ -176,5 +181,4 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
             return this;
         }
     }
-
 }

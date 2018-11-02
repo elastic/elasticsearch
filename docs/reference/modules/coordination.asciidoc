@@ -302,7 +302,11 @@ WARNING: You must pass exactly the same bootstrap configuration to each call to
 during bootstrapping and therefore to avoid the risk of data loss.
 
 The simplest and safest way to construct a bootstrap configuration is to use
-the `GET /_cluster/bootstrap` API:
+the `GET /_cluster/bootstrap` API.  This API returns a properly-constructed
+bootstrap configuration that is ready to pass back to the `POST
+/_cluster/bootstrap` API. It includes all of the master-eligible nodes that the
+handling node has discovered via the gossip-based discovery protocol, and can
+return an error if fewer nodes have been discovered than expected.
 
 [source,js]
 --------------------------------------------------
@@ -318,12 +322,6 @@ GET /_cluster/bootstrap?wait_for_nodes=3
 GET /_cluster/bootstrap?wait_for_nodes=3&timeout=1m
 --------------------------------------------------
 // CONSOLE
-
-This API returns a properly-constructed bootstrap configuration that is ready
-to pass back to the `POST /_cluster/bootstrap` API. It includes all of the
-master-eligible nodes that the handling node has discovered via the
-gossip-based discovery protocol, and returns an error if fewer nodes have been
-discovered than expected.
 
 It is also possible to construct a bootstrap configuration manually and to
 specify the initial set of nodes in terms of their names alone, rather than

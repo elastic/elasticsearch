@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
@@ -48,7 +50,12 @@ public class TransportGetAutoFollowPatternAction
 
     @Override
     protected GetAutoFollowPatternAction.Response newResponse() {
-        return new GetAutoFollowPatternAction.Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected GetAutoFollowPatternAction.Response read(StreamInput in) throws IOException {
+        return new GetAutoFollowPatternAction.Response(in);
     }
 
     @Override

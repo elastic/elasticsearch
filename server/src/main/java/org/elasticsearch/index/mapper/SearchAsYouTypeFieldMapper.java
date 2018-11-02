@@ -110,7 +110,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
         }
     }
 
-    private static class SearchAsYouTypeAnalyzer extends AnalyzerWrapper {
+    public static class SearchAsYouTypeAnalyzer extends AnalyzerWrapper {
 
         private final Analyzer delegate;
         private final boolean withEdgeNgram;
@@ -137,9 +137,13 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper implements ArrayValu
             }
             return new TokenStreamComponents(components.getTokenizer(), filter);
         }
+
+        public boolean isWithEdgeNgram() {
+            return withEdgeNgram;
+        }
     }
 
-    private static final class SearchAsYouTypeFieldType extends TermBasedFieldType {
+    public static final class SearchAsYouTypeFieldType extends TermBasedFieldType {
         SearchAsYouTypeFieldType(SearchAsYouTypeFieldType ref) {
             super(ref);
         }

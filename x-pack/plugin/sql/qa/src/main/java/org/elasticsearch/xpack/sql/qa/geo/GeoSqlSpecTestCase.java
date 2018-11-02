@@ -3,12 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.qa.sql.geo;
+package org.elasticsearch.xpack.sql.qa.geo;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.xpack.qa.sql.jdbc.LocalH2;
-import org.elasticsearch.xpack.qa.sql.jdbc.SpecBaseIntegrationTestCase;
+import org.elasticsearch.xpack.sql.qa.jdbc.LocalH2;
+import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.h2gis.ext.H2GISExtension;
 import org.junit.Before;

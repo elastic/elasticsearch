@@ -4,9 +4,9 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.qa.sql.nosecurity;
+package org.elasticsearch.xpack.sql.qa.single_node;
 
-import org.elasticsearch.xpack.qa.sql.geo.GeoSqlSpecTestCase;
+import org.elasticsearch.xpack.sql.qa.geo.GeoSqlSpecTestCase;
 
 public class GeoJdbcSqlSpecIT extends GeoSqlSpecTestCase {
     public GeoJdbcSqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, String query) {

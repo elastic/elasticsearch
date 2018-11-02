@@ -1,0 +1,36 @@
+//
+// Commands on OGC data
+//
+
+showTables
+SHOW TABLES "ogc";
+
+ name:s        | type:s
+ogc       |BASE TABLE
+;
+
+// DESCRIBE
+
+describe
+DESCRIBE "ogc";
+
+       column:s      |   type:s  | mapping:s
+address              | VARCHAR   | TEXT
+address.keyword      | VARCHAR   | KEYWORD
+aliases              | VARCHAR   | TEXT
+aliases.keyword      | VARCHAR   | KEYWORD
+boundary             | OTHER     | GEO_SHAPE
+centerline           | OTHER     | GEO_SHAPE
+centerlines          | OTHER     | GEO_SHAPE
+fid                  | INTEGER   | INTEGER
+footprint            | OTHER     | GEO_SHAPE
+name                 | VARCHAR   | TEXT
+name.keyword         | VARCHAR   | KEYWORD
+neatline             | OTHER     | GEO_SHAPE
+num_lanes            |INTEGER    | INTEGER
+ogc_type             | VARCHAR   | KEYWORD
+position             | OTHER     | GEO_SHAPE
+shore                | OTHER     | GEO_SHAPE
+shores               | OTHER     | GEO_SHAPE
+type                 | VARCHAR   | KEYWORD
+;

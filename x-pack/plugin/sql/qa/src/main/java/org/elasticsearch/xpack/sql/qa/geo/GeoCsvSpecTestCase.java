@@ -4,12 +4,12 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.qa.sql.geo;
+package org.elasticsearch.xpack.sql.qa.geo;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.CsvTestCase;
-import org.elasticsearch.xpack.qa.sql.jdbc.SpecBaseIntegrationTestCase;
+import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
+import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.junit.Before;
 
@@ -19,9 +19,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
-import static org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.csvConnection;
-import static org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.executeCsvQuery;
-import static org.elasticsearch.xpack.qa.sql.jdbc.CsvTestUtils.specParser;
+import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.csvConnection;
+import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
+import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
 
 /**
  * Tests comparing sql queries executed against our jdbc client

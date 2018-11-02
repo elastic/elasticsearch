@@ -125,16 +125,28 @@ public class FieldHitExtractor implements HitExtractor {
             return null;
         }
         if (dataType == DataType.GEO_POINT) {
+            Object value;
+            if (values instanceof List && ((List<?>) values).size() == 1) {
+                    value = ((List<?>) values).get(0);
+            } else {
+                value = values;
+            }
             try {
-                return GeoUtils.parseGeoPoint(values, true);
+                return GeoUtils.parseGeoPoint(value, true);
             } catch (ElasticsearchParseException ex) {
                 throw new SqlIllegalArgumentException("Cannot parse geo_point value (returned by [{}])", fieldName);
             }
 
         }
         if (dataType == DataType.GEO_SHAPE) {
+            Object value;
+            if (values instanceof List && ((List<?>) values).size() == 1) {
+                value = ((List<?>) values).get(0);
+            } else {
+                value = values;
+            }
             try {
-                return new GeoShape(values);
+                return new GeoShape(value);
             } catch (IOException ex) {
                 throw new SqlIllegalArgumentException("Cannot read geo_shape value (returned by [{}])", fieldName);
             }

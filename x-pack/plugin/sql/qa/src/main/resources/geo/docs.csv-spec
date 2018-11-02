@@ -13,6 +13,6 @@ selectAsWKT
 SELECT city, ST_ASWKT(location) location FROM "geo" WHERE city = 'Amsterdam';
 
      city:s    |     location:s
-Amsterdam      |point (4.850312 52.347557)
+Amsterdam      |point (4.850311987102032 52.347556999884546)
 // end::aswkt
 ;

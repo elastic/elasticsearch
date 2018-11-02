@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.qa.sql.geo;
+package org.elasticsearch.xpack.sql.qa.geo;
 
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
@@ -19,7 +19,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.qa.sql.jdbc.SqlSpecTestCase;
+import org.elasticsearch.xpack.sql.qa.jdbc.SqlSpecTestCase;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -28,8 +28,8 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.qa.sql.jdbc.DataLoader.createString;
-import static org.elasticsearch.xpack.qa.sql.jdbc.DataLoader.readFromJarUrl;
+import static org.elasticsearch.xpack.sql.qa.jdbc.DataLoader.createString;
+import static org.elasticsearch.xpack.sql.qa.jdbc.DataLoader.readFromJarUrl;
 
 public class GeoDataLoader {
 

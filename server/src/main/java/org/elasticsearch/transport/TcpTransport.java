@@ -179,6 +179,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public static final Setting<Settings> DEFAULT_FEATURES_SETTING = Setting.groupSetting(FEATURE_PREFIX + ".", Setting.Property.NodeScope);
     private final String[] features;
 
+    protected final Settings settings;
     private final CircuitBreakerService circuitBreakerService;
     protected final ThreadPool threadPool;
     private final BigArrays bigArrays;
@@ -216,6 +217,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                         NetworkService networkService) {
         super(settings);
+        this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;

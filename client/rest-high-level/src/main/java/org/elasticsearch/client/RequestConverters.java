@@ -84,6 +84,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.util.List;
 import java.util.Locale;
 import java.util.StringJoiner;
 
@@ -1007,7 +1008,12 @@ final class RequestConverters {
             return this;
         }
 
-        EndpointBuilder addPathPartAsIs(String... parts) {
+        EndpointBuilder addCommaSeparatedPathParts(List<String> parts) {
+            addPathPart(String.join(",", parts));
+            return this;
+        }
+
+        EndpointBuilder addPathPartAsIs(String ... parts) {
             for (String part : parts) {
                 if (Strings.hasLength(part)) {
                     joiner.add(part);

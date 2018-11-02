@@ -171,8 +171,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -241,8 +241,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).put("index.number_of_routing_shards", targetShards).build()))
             .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -375,9 +375,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                         .build();
 
         final AllocationService service = new AllocationService(
-                Settings.builder().build(),
-                new AllocationDeciders(Settings.EMPTY,
-                Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+                new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
                 new TestGatewayAllocator(),
                 new BalancedShardsAllocator(Settings.EMPTY),
                 EmptyClusterInfoService.INSTANCE);

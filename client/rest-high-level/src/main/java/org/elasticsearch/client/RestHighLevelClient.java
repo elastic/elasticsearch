@@ -101,6 +101,7 @@ public class RestHighLevelClient implements Closeable {
     private final MigrationClient migrationClient;
     private final MachineLearningClient machineLearningClient;
     private final SecurityClient securityClient;
+    private final IndexLifecycleClient ilmClient;
     private final RollupClient rollupClient;
     private final RestRequestActions requestActions;
 
@@ -142,6 +143,7 @@ public class RestHighLevelClient implements Closeable {
         migrationClient = buildSubClient(MigrationClient::new);
         machineLearningClient = buildSubClient(MachineLearningClient::new);
         securityClient = buildSubClient(SecurityClient::new);
+        ilmClient = buildSubClient(IndexLifecycleClient::new);
         rollupClient = buildSubClient(RollupClient::new);
     }
 
@@ -273,6 +275,17 @@ public class RestHighLevelClient implements Closeable {
      * Licensing APIs on elastic.co</a> for more information.
      */
     public LicenseClient license() { return licenseClient; }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for
+     * accessing the Elastic Index Lifecycle APIs.
+     * <p>
+     * See the <a href="http://FILL-ME-IN-WE-HAVE-NO-DOCS-YET.com"> X-Pack APIs
+     * on elastic.co</a> for more information.
+     */
+    public IndexLifecycleClient indexLifecycle() {
+        return ilmClient;
+    }
 
     /**
      * Provides methods for accessing the Elastic Licensed Licensing APIs that

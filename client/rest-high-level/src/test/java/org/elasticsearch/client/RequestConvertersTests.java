@@ -1595,6 +1595,24 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
+    static IndicesOptions setRandomIndicesOptions(IndicesOptions indicesOptions, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+        }
+        expectedParams.put("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));
+        expectedParams.put("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
+        if (indicesOptions.expandWildcardsOpen() && indicesOptions.expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "open,closed");
+        } else if (indicesOptions.expandWildcardsOpen()) {
+            expectedParams.put("expand_wildcards", "open");
+        } else if (indicesOptions.expandWildcardsClosed()) {
+            expectedParams.put("expand_wildcards", "closed");
+        } else {
+            expectedParams.put("expand_wildcards", "none");
+        }
+        return indicesOptions;
+    }
+
     static void setRandomIncludeDefaults(GetIndexRequest request, Map<String, String> expectedParams) {
         if (randomBoolean()) {
             boolean includeDefaults = randomBoolean();
@@ -1645,6 +1663,17 @@ public class RequestConvertersTests extends ESTestCase {
         }
     }
 
+    static void setRandomTimeoutTimeValue(Consumer<TimeValue> setter, TimeValue defaultTimeout,
+                                                  Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            TimeValue timeout = TimeValue.parseTimeValue(randomTimeValue(), "random_timeout");
+            setter.accept(timeout);
+            expectedParams.put("timeout", timeout.getStringRep());
+        } else {
+            expectedParams.put("timeout", defaultTimeout.getStringRep());
+        }
+    }
+
     static void setRandomMasterTimeout(MasterNodeRequest<?> request, Map<String, String> expectedParams) {
         setRandomMasterTimeout(request::masterNodeTimeout, expectedParams);
     }
@@ -1662,6 +1691,16 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("master_timeout", masterTimeout);
         } else {
             expectedParams.put("master_timeout", MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT.getStringRep());
+        }
+    }
+
+    static void setRandomMasterTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
+        if (randomBoolean()) {
+            TimeValue masterTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_master_timeout");
+            setter.accept(masterTimeout);
+            expectedParams.put("master_timeout", masterTimeout.getStringRep());
+        } else {
+            expectedParams.put("master_timeout", defaultTimeout.getStringRep());
         }
     }
 

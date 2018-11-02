@@ -32,6 +32,9 @@ import static org.hamcrest.Matchers.containsString;
 
 /**
  * Test for EC2 network.host settings.
+ * <p>
+ * Warning: This test doesn't assert that the exceptions are thrown.
+ * They aren't.
  */
 public class Ec2NetworkTests extends ESTestCase {
     /**
@@ -42,10 +45,11 @@ public class Ec2NetworkTests extends ESTestCase {
                 .put("network.host", "_ec2_")
                 .build();
 
-        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver(nodeSettings)));
+        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
             networkService.resolveBindHostAddresses(null);
+            // note: this can succeed and the test can pass
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-ipv4"));
         }
@@ -59,10 +63,11 @@ public class Ec2NetworkTests extends ESTestCase {
                 .put("network.host", "_ec2:publicIp_")
                 .build();
 
-        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver(nodeSettings)));
+        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
             networkService.resolveBindHostAddresses(null);
+            // note: this can succeed and the test can pass
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("public-ipv4"));
         }
@@ -76,10 +81,11 @@ public class Ec2NetworkTests extends ESTestCase {
                 .put("network.host", "_ec2:privateIp_")
                 .build();
 
-        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver(nodeSettings)));
+        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
             networkService.resolveBindHostAddresses(null);
+            // note: this can succeed and the test can pass
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-ipv4"));
         }
@@ -93,10 +99,11 @@ public class Ec2NetworkTests extends ESTestCase {
                 .put("network.host", "_ec2:privateIpv4_")
                 .build();
 
-        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver(nodeSettings)));
+        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
             networkService.resolveBindHostAddresses(null);
+            // note: this can succeed and the test can pass
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-ipv4"));
         }
@@ -110,10 +117,11 @@ public class Ec2NetworkTests extends ESTestCase {
                 .put("network.host", "_ec2:privateDns_")
                 .build();
 
-        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver(nodeSettings)));
+        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
             networkService.resolveBindHostAddresses(null);
+            // note: this can succeed and the test can pass
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("local-hostname"));
         }
@@ -127,10 +135,11 @@ public class Ec2NetworkTests extends ESTestCase {
                 .put("network.host", "_ec2:publicIpv4_")
                 .build();
 
-        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver(nodeSettings)));
+        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
             networkService.resolveBindHostAddresses(null);
+            // note: this can succeed and the test can pass
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("public-ipv4"));
         }
@@ -144,10 +153,11 @@ public class Ec2NetworkTests extends ESTestCase {
                 .put("network.host", "_ec2:publicDns_")
                 .build();
 
-        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver(nodeSettings)));
+        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
         // TODO we need to replace that with a mock. For now we check the URL we are supposed to reach.
         try {
             networkService.resolveBindHostAddresses(null);
+            // note: this can succeed and the test can pass
         } catch (IOException e) {
             assertThat(e.getMessage(), containsString("public-hostname"));
         }
@@ -158,11 +168,7 @@ public class Ec2NetworkTests extends ESTestCase {
      * network.host: _local_
      */
     public void testNetworkHostCoreLocal() throws IOException {
-        Settings nodeSettings = Settings.builder()
-                .put("network.host", "_local_")
-                .build();
-
-        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver(nodeSettings)));
+        NetworkService networkService = new NetworkService(Collections.singletonList(new Ec2NameResolver()));
         InetAddress[] addresses = networkService.resolveBindHostAddresses(null);
         assertThat(addresses, arrayContaining(networkService.resolveBindHostAddresses(new String[] { "_local_" })));
     }

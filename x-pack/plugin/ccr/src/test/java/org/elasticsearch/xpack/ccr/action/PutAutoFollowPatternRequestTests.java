@@ -123,4 +123,33 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         validationException = request.validate();
         assertThat(validationException, nullValue());
     }
+
+    public void testValidateName() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setRemoteCluster("_alias");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+
+        request.setName("name1,name2");
+        ActionRequestValidationException validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("name must not contain a ','"));
+
+        request.setName("_name");
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("name must not start with '_'"));
+
+        StringBuilder stringBuilder = new StringBuilder();
+        for (int i = 0; i < 256; i++) {
+            stringBuilder.append('x');
+        }
+        request.setName(stringBuilder.toString());
+        validationException = request.validate();
+        assertThat(validationException, notNullValue());
+        assertThat(validationException.getMessage(), containsString("name is too long (256 > 255)"));
+
+        request.setName("name");
+        validationException = request.validate();
+        assertThat(validationException, nullValue());
+    }
 }

@@ -88,7 +88,8 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ccr-pause-follow-request
 
         // tag::ccr-pause-follow-execute
-        PauseFollowResponse response = client.ccr().pauseFollow(request, RequestOptions.DEFAULT);
+        PauseFollowResponse response =
+            client.ccr().pauseFollow(request, RequestOptions.DEFAULT);
         // end::ccr-pause-follow-execute
 
         // tag::ccr-pause-follow-response
@@ -96,7 +97,8 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ccr-pause-follow-response
 
         // tag::ccr-pause-follow-execute-listener
-        ActionListener<PauseFollowResponse> listener = new ActionListener<PauseFollowResponse>() {
+        ActionListener<PauseFollowResponse> listener =
+            new ActionListener<PauseFollowResponse>() {
             @Override
             public void onResponse(PauseFollowResponse response) {
                 boolean acknowledged = response.isAcknowledged(); // <1>
@@ -123,7 +125,8 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::ccr-pause-follow-execute-async
-        client.ccr().pauseFollowAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        client.ccr()
+            .pauseFollowAsync(request, RequestOptions.DEFAULT, listener); // <1>
         // end::ccr-pause-follow-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));

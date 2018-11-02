@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-public class IsNotNull extends UnaryScalarFunction {
+public class IsNotNull extends UnaryScalarFunction implements UnaryScalarFunction.UnaryNegateable {
 
     public IsNotNull(Location location, Expression field) {
         super(location, field);
@@ -56,7 +56,7 @@ public class IsNotNull extends UnaryScalarFunction {
     }
 
     @Override
-    public String name() {
-        return functionArgs() + " IS NOT NULL";
+    public UnaryScalarFunction negate() {
+        return new IsNull(location(), field());
     }
 }

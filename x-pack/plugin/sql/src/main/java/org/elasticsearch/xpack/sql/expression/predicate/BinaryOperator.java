@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
  */
 public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U, R>> extends BinaryPredicate<T, U, R, F> {
 
-    public interface Negateable {
+    public interface BinaryNegateable {
         BinaryOperator<?, ?, ?, ?> negate();
     }
 

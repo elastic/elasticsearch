@@ -36,8 +36,9 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction.UnaryNegateable;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
+import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.BinaryNegateable;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNull;
@@ -127,11 +128,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // folding
                 new ReplaceFoldableAttributes(),
                 new ConstantFolding(),
-                new FoldNull(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
                 new BinaryComparisonSimplification(),
+                // need to occur after simplification
+                new FoldNull(),
                 // needs to occur before BinaryComparison combinations (see class)
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
@@ -1282,8 +1284,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return TRUE;
             }
 
-            if (c instanceof Negateable) {
-                return ((Negateable) c).negate();
+            if (c instanceof BinaryNegateable) {
+                return ((BinaryNegateable) c).negate();
+            }
+            if (c instanceof UnaryNegateable) {
+                return ((UnaryNegateable) c).negate();
             }
 
             if (c instanceof Not) {

@@ -433,6 +433,12 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(FIVE, eq.right());
     }
 
+    public void testBoolSimplifyNotIsNullAndNotIsNotNull() {
+        BooleanSimplification simplification = new BooleanSimplification();
+        assertTrue(simplification.rule(new Not(EMPTY, new IsNull(EMPTY, ONE))) instanceof IsNotNull);
+        assertTrue(simplification.rule(new Not(EMPTY, new IsNotNull(EMPTY, ONE))) instanceof IsNull);
+    }
+
     public void testBoolSimplifyOr() {
         BooleanSimplification simplification = new BooleanSimplification();
 

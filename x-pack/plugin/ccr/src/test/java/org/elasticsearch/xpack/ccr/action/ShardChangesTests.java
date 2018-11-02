@@ -112,7 +112,8 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         request.setMaxOperationCount(1);
 
         Exception e = expectThrows(ElasticsearchException.class, () -> client().execute(ShardChangesAction.INSTANCE, request).actionGet());
-        assertThat(e.getMessage(), equalTo("operations are missing; maybe increase [index.soft_deletes.retention.operations]?"));
+        assertThat(e.getMessage(), equalTo("Operations are no longer available for replicating. Maybe increase the retention setting " +
+            "[index.soft_deletes.retention.operations]?"));
     }
 
 }

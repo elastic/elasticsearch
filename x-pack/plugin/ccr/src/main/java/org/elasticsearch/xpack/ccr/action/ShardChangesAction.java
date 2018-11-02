@@ -371,7 +371,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             ActionListener<Response> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof IllegalStateException && cause.getMessage().contains("Not all operations between from_seqno [")) {
-                    String message = "operations are missing; maybe increase [" +
+                    String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
                         IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
                     listener.onFailure(new ElasticsearchException(message, e));
                 } else {

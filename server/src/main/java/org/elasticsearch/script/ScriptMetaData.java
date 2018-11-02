@@ -68,7 +68,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
          *                 is no existing {@link ScriptMetaData}.
          */
         public Builder(ScriptMetaData previous) {
-            this.scripts = previous == null ? new HashMap<>() :new HashMap<>(previous.scripts);
+            this.scripts = previous == null ? new HashMap<>() : new HashMap<>(previous.scripts);
         }
 
         /**

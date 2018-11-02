@@ -424,6 +424,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
 
         ScriptMetaData scriptMetadata = clusterState.metaData().custom(ScriptMetaData.TYPE);
+
+        if (scriptMetadata == null) {
+            return Collections.emptyMap();
+        }
+
         return scriptMetadata.getStoredScripts();
     }
 

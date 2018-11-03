@@ -18,13 +18,10 @@
  */
 package org.elasticsearch.client.migration;
 
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.TaskId;
 
@@ -34,7 +31,7 @@ import java.util.Objects;
 /**
  * Response object that contains the taskID from submitted IndexUpgradeRequest
  */
-public class IndexUpgradeSubmissionResponse extends ActionResponse implements ToXContentObject {
+public class IndexUpgradeSubmissionResponse {
 
     private static final ParseField TASK = new ParseField("task");
 
@@ -55,7 +52,6 @@ public class IndexUpgradeSubmissionResponse extends ActionResponse implements To
     IndexUpgradeSubmissionResponse(@Nullable TaskId task) {
         this.task = task;
     }
-
 
     /**
      * Get the task id
@@ -82,15 +78,5 @@ public class IndexUpgradeSubmissionResponse extends ActionResponse implements To
 
         IndexUpgradeSubmissionResponse that = (IndexUpgradeSubmissionResponse) other;
         return Objects.equals(task, that.task);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (task != null) {
-            builder.field(TASK.getPreferredName(), task.toString());
-        }
-        builder.endObject();
-        return builder;
     }
 }

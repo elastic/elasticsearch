@@ -29,6 +29,10 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * A request for performing Upgrade on Index
+ * Part of Migration API
+ */
 public class IndexUpgradeRequest extends MasterNodeReadRequest<IndexUpgradeRequest> implements IndicesRequest {
 
     private String[] indices ;

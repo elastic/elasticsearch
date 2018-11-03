@@ -112,7 +112,7 @@ public class MigrationClientDocumentationIT extends ESRestHighLevelClientTestCas
             BulkByScrollResponse response = client.migration().upgrade(request, RequestOptions.DEFAULT);
             // end::upgrade-execute
 
-        }catch(ElasticsearchStatusException e){
+        } catch (ElasticsearchStatusException e) {
             assertThat(e.getMessage(), containsString("cannot be upgraded"));
         }
     }
@@ -147,7 +147,7 @@ public class MigrationClientDocumentationIT extends ESRestHighLevelClientTestCas
 
     }
 
-    public void testUpgradeWithTaskApi() throws IOException, InterruptedException {
+    public void testUpgradeWithTaskApi() throws IOException {
         createIndex("test", Settings.EMPTY);
         RestHighLevelClient client = highLevelClient();
         // tag::upgrade-task-api

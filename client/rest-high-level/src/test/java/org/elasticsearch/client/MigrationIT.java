@@ -19,13 +19,12 @@
 
 package org.elasticsearch.client;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.client.migration.IndexUpgradeRequest;
 import org.elasticsearch.client.migration.IndexUpgradeSubmissionResponse;
-
+import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.util.function.BooleanSupplier;
@@ -48,7 +47,7 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testUpgrade() throws IOException {
+    public void testUpgradeWhenIndexCannotBeUpgraded() throws IOException {
         createIndex("test", Settings.EMPTY);
 
         ThrowingRunnable execute = () -> execute(new IndexUpgradeRequest("test"),
@@ -74,6 +73,10 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
         awaitBusy(hasUpgradeCompleted);
     }
 
+    /**
+     * Using low-level api as high-level-rest-client's getTaskById work is in progress.
+     * TODO revisit once that work is finished
+     */
     private BooleanSupplier checkCompletionStatus(IndexUpgradeSubmissionResponse upgrade) {
         return () -> {
             try {

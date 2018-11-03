@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: foo
@@ -77,8 +79,6 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
-                - agg: "max"
-                - agg: "min"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -126,8 +126,6 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
-                - agg: "max"
-                - agg: "min"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -140,8 +138,6 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
-                - agg: "max"
-                - agg: "min"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -190,8 +186,6 @@ setup:
                 - agg: "date_histogram"
                   interval: "1h"
                   time_zone: "UTC"
-                - agg: "max"
-                - agg: "min"
               value_field:
                 - agg: "min"
                 - agg: "max"
@@ -265,8 +259,6 @@ setup:
                   - agg: "date_histogram"
                     interval: "1h"
                     time_zone: "UTC"
-                  - agg: "max"
-                  - agg: "min"
                 value_field:
                   - agg: "min"
                   - agg: "max"
@@ -279,8 +271,6 @@ setup:
                   - agg: "date_histogram"
                     interval: "1h"
                     time_zone: "UTC"
-                  - agg: "max"
-                  - agg: "min"
                 value_field:
                   - agg: "min"
                   - agg: "max"
@@ -295,8 +285,6 @@ setup:
                   - agg: "date_histogram"
                     interval: "1h"
                     time_zone: "UTC"
-                  - agg: "max"
-                  - agg: "min"
                 value_field:
                   - agg: "min"
                   - agg: "max"
@@ -374,8 +362,6 @@ setup:
             - agg: "date_histogram"
               interval: "1h"
               time_zone: "UTC"
-            - agg: "max"
-            - agg: "min"
             value_field:
             - agg: "min"
             - agg: "max"
@@ -388,8 +374,6 @@ setup:
             - agg: "date_histogram"
               interval: "1h"
               time_zone: "UTC"
-            - agg: "max"
-            - agg: "min"
             value_field:
             - agg: "min"
             - agg: "max"
@@ -404,8 +388,6 @@ setup:
             - agg: "date_histogram"
               interval: "1h"
               time_zone: "UTC"
-            - agg: "max"
-            - agg: "min"
             value_field:
             - agg: "min"
             - agg: "max"
@@ -479,8 +461,6 @@ setup:
                   - agg: "date_histogram"
                     interval: "1h"
                     time_zone: "UTC"
-                  - agg: "max"
-                  - agg: "min"
                 value_field:
                   - agg: "min"
                   - agg: "max"

@@ -107,6 +107,14 @@ Regexp Query request has been limited to 1000. This default maximum can be chang
 for a particular index with the index setting `index.max_regex_length`.
 
 [float]
+==== Limiting the number of auto-expanded fields
+
+Executing queries that use automatic expansion of fields (e.g. `query_string`, `simple_query_string`
+or `multi_match`) can have performance issues for indices with a large numbers of fields.
+To safeguard against this, a hard limit of 1024 fields has been introduced for queries
+using the "all fields" mode ("default_field": "*") or other fieldname expansions (e.g. "foo*").
+
+[float]
 ==== Invalid `_search` request body
 
 Search requests with extra content after the main object will no longer be accepted

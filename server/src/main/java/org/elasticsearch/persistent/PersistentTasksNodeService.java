@@ -27,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.tasks.Task;
@@ -57,11 +56,9 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
     private final TaskManager taskManager;
     private final NodePersistentTasksExecutor nodePersistentTasksExecutor;
 
-    public PersistentTasksNodeService(Settings settings,
-                                      PersistentTasksService persistentTasksService,
+    public PersistentTasksNodeService(PersistentTasksService persistentTasksService,
                                       PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
                                       TaskManager taskManager, NodePersistentTasksExecutor nodePersistentTasksExecutor) {
-        super(settings);
         this.persistentTasksService = persistentTasksService;
         this.persistentTasksExecutorRegistry = persistentTasksExecutorRegistry;
         this.taskManager = taskManager;

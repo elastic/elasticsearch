@@ -416,7 +416,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            void prepareTargetForTranslog(final boolean fileBasedRecovery, final int totalTranslogOps) throws IOException {
+            void prepareTargetForTranslog(final boolean fileBasedRecovery, final int totalTranslogOps, long maxSeqNo) throws IOException {
                 prepareTargetForTranslogCalled.set(true);
             }
 

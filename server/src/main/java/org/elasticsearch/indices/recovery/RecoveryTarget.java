@@ -361,9 +361,14 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
+    public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, long maxSeqNo) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
         indexShard().openEngineAndSkipTranslogRecovery();
+        // We must disable msu optimization for all operations that potentially exist in the index commit because the LocalCheckpointTracker
+        // does not fully reflect the state of an index commit until the recovery is finished. Since the max_seq_no of the primary
+        // is at least the max_seq_no of the index commit so we can bootstrap it to the max_seq_no_of_updates of this replica before
+        // adding this replica to the replication group or replaying translog operations from the primary.
+        indexShard().advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNo);
     }
 
     @Override

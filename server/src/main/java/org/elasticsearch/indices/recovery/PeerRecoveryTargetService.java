@@ -402,9 +402,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         @Override
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel,
                                     Task task) throws Exception {
-            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
-            )) {
-                recoveryRef.target().prepareForTranslogOperations(request.isFileBasedRecovery(), request.totalTranslogOps());
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+                recoveryRef.target().prepareForTranslogOperations(
+                    request.isFileBasedRecovery(), request.totalTranslogOps(), request.maxSeqNo());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

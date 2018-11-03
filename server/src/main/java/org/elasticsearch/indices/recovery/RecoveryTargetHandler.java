@@ -32,10 +32,11 @@ public interface RecoveryTargetHandler {
 
     /**
      * Prepares the target to receive translog operations, after all file have been copied
-     *  @param fileBasedRecovery whether or not this call is part of an file based recovery
-     * @param totalTranslogOps    total translog operations expected to be sent
+     * @param fileBasedRecovery whether or not this call is part of an file based recovery
+     * @param totalTranslogOps  total translog operations expected to be sent
+     * @param maxSeqNo          the maximum sequence number on the primary
      */
-    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException;
+    void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, long maxSeqNo) throws IOException;
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and

@@ -38,7 +38,8 @@ public class Version {
 
     static byte[] from(String ver) {
         String[] parts = ver.split("[.-]");
-        if (parts.length == 3 || parts.length == 4) {
+        // Allow for optional snapshot and qualifier
+        if (parts.length >= 3 || parts.length < 6) {
             return new byte[] { Byte.parseByte(parts[0]), Byte.parseByte(parts[1]), Byte.parseByte(parts[2]) };
         }
         else {

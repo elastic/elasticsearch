@@ -1,3 +1,27 @@
+//
+// SELECT with = and !=
+equalsAndNotEqualsSelectClause
+SELECT 4 = 4, NOT 4 = 4, 4 != 4, NOT 4 != 4, 3 = 4, NOT 3 = 4, 3 != 4, NOT 3 != 4, 1 = null, NOT null = 1, 1 != null, NOT 1 != null;
+
+  4 = 4 |  NOT 4 = 4 |  4 != 4 |  NOT 4 != 4 |  3 = 4 |  NOT 3 = 4 |  3 != 4 |  NOT 3 != 4 |  1 = null |  NOT null = 1 |  1 != null |  NOT 1 != null
+--------+------------+---------+-------------+--------+------------+---------+-------------+-----------+---------------+------------+---------------
+true    |false       | false   | true        | false  | true       | true    | false       | null      | null          | null       | null
+;
+      
+      
+equalsAndNotEqualsSelectClauseWithTableColumns
+SELECT languages = 2, NOT languages = 2, languages != 2, NOT languages != 2, languages != null, NOT null != languages
+FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020) ORDER BY emp_no ;
+
+2
+1
+null
+languages = 2 |  NOT languages = 2 |  languages != 2 |  NOT languages != 4 |  languages != null |  NOT null != languages
+--------------+--------------------+-----------------+---------------------+--------------------+-----------------------
+true          |false               |false            |true                 |null                |null
+false         |true                |true             |false                |null                |null
+null          |null                |null             |null                 |null                |null
+
 // SELECT with IN
 inWithLiterals
 SELECT 1 IN (1, 2, 3), 1 IN (2, 3);

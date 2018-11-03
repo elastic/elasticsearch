@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.core.StringStartsWith.startsWith;
+import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
 

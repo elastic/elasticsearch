@@ -58,6 +58,7 @@ import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -483,7 +484,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
         }
         for (IndexShard followingShard : follower) {
-            assertThat(followingShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
+            assertThat(followingShard.getMaxSeqNoOfUpdatesOrDeletes(),
+                greaterThanOrEqualTo(leader.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
             List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
                 .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
             assertThat(docAndSeqNosOnFollower, equalTo(docAndSeqNosOnLeader));

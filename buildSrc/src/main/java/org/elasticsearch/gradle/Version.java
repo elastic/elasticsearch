@@ -12,28 +12,17 @@ public final class Version implements Comparable<Version> {
     private final int minor;
     private final int revision;
     private final int id;
-    private final boolean snapshot;
-    /**
-     * Suffix on the version name.
-     */
-    private final String suffix;
 
     private static final Pattern pattern =
             Pattern.compile("(\\d)+\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+)?(-SNAPSHOT)?");
 
     public Version(int major, int minor, int revision) {
-        this(major, minor, revision, "", false);
-    }
-
-    public Version(int major, int minor, int revision, String suffix, boolean snapshot) {
         Objects.requireNonNull(major, "major version can't be null");
         Objects.requireNonNull(minor, "minor version can't be null");
         Objects.requireNonNull(revision, "revision version can't be null");
         this.major = major;
         this.minor = minor;
         this.revision = revision;
-        this.snapshot = snapshot;
-        this.suffix = suffix == null ? "" : suffix;
 
         // currently snapshot is not taken into account
         this.id = major * 10000000 + minor * 100000 + revision * 1000;
@@ -58,17 +47,13 @@ public final class Version implements Comparable<Version> {
         return new Version(
                 Integer.parseInt(matcher.group(1)),
                 parseSuffixNumber(matcher.group(2)),
-                parseSuffixNumber(matcher.group(3)),
-                matcher.group(4),
-                matcher.group(5) != null
+                parseSuffixNumber(matcher.group(3))
         );
     }
 
     @Override
     public String toString() {
-        final String snapshotStr = snapshot ? "-SNAPSHOT" : "";
-        return String.valueOf(getMajor()) + "." + String.valueOf(getMinor()) + "." + String.valueOf(getRevision()) +
-                (suffix == null ? "" : suffix) + snapshotStr;
+        return String.valueOf(getMajor()) + "." + String.valueOf(getMinor()) + "." + String.valueOf(getRevision());
     }
 
     public boolean before(Version compareTo) {
@@ -103,19 +88,6 @@ public final class Version implements Comparable<Version> {
         return after(fromString(compareTo));
     }
 
-    public boolean onOrBeforeIncludingSuffix(Version otherVersion) {
-        if (id != otherVersion.getId()) {
-            return id < otherVersion.getId();
-        }
-
-        if (suffix.equals("")) {
-            return otherVersion.getSuffix().equals("");
-        }
-
-
-        return otherVersion.getSuffix().equals("") || suffix.compareTo(otherVersion.getSuffix()) < 0;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -128,8 +100,7 @@ public final class Version implements Comparable<Version> {
 
     @Override
     public int hashCode() {
-
-        return Objects.hash(major, minor, revision, id, snapshot, suffix);
+        return Objects.hash(major, minor, revision, id);
     }
 
     public int getMajor() {
@@ -146,14 +117,6 @@ public final class Version implements Comparable<Version> {
 
     protected int getId() {
         return id;
-    }
-
-    public boolean isSnapshot() {
-        return snapshot;
-    }
-
-    public String getSuffix() {
-        return suffix;
     }
 
     @Override

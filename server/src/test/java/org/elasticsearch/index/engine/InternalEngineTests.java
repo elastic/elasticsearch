@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -5047,6 +5046,60 @@ public class InternalEngineTests extends EngineTestCase {
         }
         engine.refresh("test");
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(engine.getLocalCheckpoint()));
+    }
+
+    public void testLuceneSnapshotRefreshesOnlyOnce() throws Exception {
+        final MapperService mapperService = createMapperService("test");
+        final long maxSeqNo = randomLongBetween(10, 50);
+        final AtomicLong refreshCounter = new AtomicLong();
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(),
+                 null,
+                 new ReferenceManager.RefreshListener() {
+                     @Override
+                     public void beforeRefresh() throws IOException {
+                         refreshCounter.incrementAndGet();
+                     }
+
+                     @Override
+                     public void afterRefresh(boolean didRefresh) throws IOException {
+
+                     }
+                 }, null, () -> SequenceNumbers.NO_OPS_PERFORMED))) {
+            for (long seqNo = 0; seqNo <= maxSeqNo; seqNo++) {
+                final ParsedDocument doc = testParsedDocument("id_" + seqNo, null, testDocumentWithTextField("test"),
+                    new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                engine.index(replicaIndexForDoc(doc, 1, seqNo, randomBoolean()));
+            }
+
+            final long initialRefreshCount = refreshCounter.get();
+            final Thread[] snapshotThreads = new Thread[between(1, 3)];
+            CountDownLatch latch = new CountDownLatch(1);
+            for (int i = 0; i < snapshotThreads.length; i++) {
+                final long min = randomLongBetween(0, maxSeqNo - 5);
+                final long max = randomLongBetween(min, maxSeqNo);
+                snapshotThreads[i] = new Thread(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError(e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        latch.await();
+                        Translog.Snapshot changes = engine.newChangesSnapshot("test", mapperService, min, max, true);
+                        changes.close();
+                    }
+                });
+                snapshotThreads[i].start();
+            }
+            latch.countDown();
+            for (Thread thread : snapshotThreads) {
+                thread.join();
+            }
+            assertThat(refreshCounter.get(), equalTo(initialRefreshCount + 1L));
+            assertThat(engine.lastRefreshedCheckpoint(), equalTo(maxSeqNo));
+        }
     }
 
     public void testAcquireSearcherOnClosingEngine() throws Exception {

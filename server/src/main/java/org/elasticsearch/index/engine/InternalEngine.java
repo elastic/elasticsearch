@@ -2563,12 +2563,19 @@ public class InternalEngine extends Engine {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
     }
 
+
+    private final Object refreshIfNeededMutex = new Object();
+
     /**
      * Refresh this engine **internally** iff the requesting seq_no is greater than the last refreshed checkpoint.
      */
     protected final void refreshIfNeeded(String source, long requestingSeqNo) {
         if (lastRefreshedCheckpoint() < requestingSeqNo) {
-            refresh(source, SearcherScope.INTERNAL);
+            synchronized (refreshIfNeededMutex) {
+                if (lastRefreshedCheckpoint() < requestingSeqNo) {
+                    refresh(source, SearcherScope.INTERNAL);
+                }
+            }
         }
     }
 

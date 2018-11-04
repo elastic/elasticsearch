@@ -47,6 +47,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -144,6 +145,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         private final ActionListener<Response> listener;
         private final Request request;
         private volatile ClusterStateObserver observer;
+        private volatile long relativeTimeoutTimeMillis;
         private final Task task;
 
         AsyncSingleAction(Task task, Request request, ActionListener<Response> listener) {
@@ -159,6 +161,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             ClusterState state = clusterService.state();
             this.observer
                 = new ClusterStateObserver(state, clusterService, request.masterNodeTimeout(), logger, threadPool.getThreadContext());
+            relativeTimeoutTimeMillis = threadPool.relativeTimeInMillis() + request.masterNodeTimeout().millis();
             doStart(state);
         }
 
@@ -217,7 +220,9 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         final String actionName = getMasterActionName(masterNode);
+                        final long remainingTimeMillis = relativeTimeoutTimeMillis - threadPool.relativeTimeInMillis();
                         transportService.sendRequest(masterNode, actionName, request,
+                            TransportRequestOptions.builder().withTimeout(remainingTimeMillis).build(),
                             new ActionListenerResponseHandler<Response>(listener, TransportMasterNodeAction.this::read) {
                                 @Override
                                 public void handleException(final TransportException exp) {

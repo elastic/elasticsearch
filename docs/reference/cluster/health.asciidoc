@@ -113,9 +113,9 @@ The cluster health API accepts the following request parameters:
     the wait_for_XXX are provided. Defaults to `30s`.
 
 `master_timeout`::
-    A time based parameter controlling how long to wait if the master has not been
-    discovered yet or disconnected.
-    If not provided, uses the same value as `timeout`.
+    A time based parameter controlling how long to wait if the master has not
+    been discovered yet, is disconnected, or does not respond. If not provided,
+    uses the same value as `timeout`.
 
 `local`::
     If `true` returns the local node information and does not provide

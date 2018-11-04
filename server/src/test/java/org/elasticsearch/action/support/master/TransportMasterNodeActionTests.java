@@ -49,6 +49,7 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -177,8 +178,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         new Action(Settings.EMPTY, "internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
-                    throws Exception {
+            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (masterOperationFailure) {
                     listener.onFailure(exception);
                 } else {
@@ -294,7 +294,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         listener.get();
     }
 
-    public void testMasterNotAvailable() throws ExecutionException, InterruptedException {
+    public void testMasterNotAvailable() throws InterruptedException {
         Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(0));
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
@@ -336,7 +336,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     public void testDelegateToFailingMaster() throws ExecutionException, InterruptedException {
         boolean failsWithConnectTransportException = randomBoolean();
         boolean rejoinSameMaster = failsWithConnectTransportException && randomBoolean();
-        Request request = new Request().masterNodeTimeout(TimeValue.timeValueSeconds(failsWithConnectTransportException ? 60 : 0));
+        Request request = new Request();
         DiscoveryNode masterNode = this.remoteNode;
         setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, masterNode, allNodes))
             .version(randomIntBetween(0, 10))); // use a random base version so it can go down when simulating a restart.
@@ -417,7 +417,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         new Action(Settings.EMPTY, "internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
                 // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
                 setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
                 Exception failure = randomBoolean()
@@ -436,5 +436,28 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         transport.handleResponse(capturedRequest.requestId, response);
         assertTrue(listener.isDone());
         assertThat(listener.get(), equalTo(response));
+    }
+
+    public void testActionTimesOutIfMasterDoesNotRespond() {
+        Request request = new Request().masterNodeTimeout(TimeValue.timeValueMillis(10));
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        new Action(Settings.EMPTY, "internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
+                // does not respond
+            }
+        }.execute(request, listener);
+
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
+        assertTrue(capturedRequest.node.isMasterNode());
+        assertThat(capturedRequest.request, equalTo(request));
+        assertThat(capturedRequest.action, equalTo("internal:testAction"));
+
+        final ExecutionException exception = expectThrows(ExecutionException.class, listener::get);
+        assertThat(exception.getCause(), instanceOf(ReceiveTimeoutTransportException.class));
     }
 }

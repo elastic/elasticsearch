@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -35,15 +34,12 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     private final ShardId shardId;
     private final int totalTranslogOps;
     private final boolean fileBasedRecovery;
-    private final long maxSeqNo;
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps,
-                                                boolean fileBasedRecovery, long maxSeqNo) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps, boolean fileBasedRecovery) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.totalTranslogOps = totalTranslogOps;
         this.fileBasedRecovery = fileBasedRecovery;
-        this.maxSeqNo = maxSeqNo;
     }
 
     RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
@@ -58,11 +54,6 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
             fileBasedRecovery = in.readBoolean();
         } else {
             fileBasedRecovery = true;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            maxSeqNo = in.readZLong();
-        } else {
-            maxSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
     }
 
@@ -85,11 +76,6 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         return fileBasedRecovery;
     }
 
-    /** Returns the max sequence number of the primary */
-    public long maxSeqNo() {
-        return maxSeqNo;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -101,9 +87,6 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         }
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeBoolean(fileBasedRecovery);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeZLong(maxSeqNo);
         }
     }
 }

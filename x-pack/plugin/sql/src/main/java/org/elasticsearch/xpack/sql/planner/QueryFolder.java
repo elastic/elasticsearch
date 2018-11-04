@@ -164,6 +164,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 QueryContainer qContainer = exec.queryContainer();
 
                 QueryTranslation qt = toQuery(plan.condition(), plan.isHaving());
+                if (qt.query == null && qt.aggFilter == null) {
+                    return new LocalExec(plan.location(), new EmptyExecutable(plan.output()));
+                }
 
                 Query query = null;
                 if (qContainer.query() != null || qt.query != null) {

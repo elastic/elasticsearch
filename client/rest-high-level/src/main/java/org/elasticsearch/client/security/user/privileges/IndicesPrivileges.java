@@ -21,10 +21,11 @@ package org.elasticsearch.client.security.user.privileges;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
@@ -35,7 +36,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -54,9 +54,7 @@ public final class IndicesPrivileges implements ToXContentObject {
         new ConstructingObjectParser<>("indices_privileges", false, constructorObjects -> {
                 int i = 0;
                 final Collection<String> indices = (Collection<String>) constructorObjects[i++];
-                final Collection<String> privilegeNames = (Collection<String>) constructorObjects[i++];
-                final Collection<IndexPrivilege> privileges = privilegeNames.stream().map(IndexPrivilege::fromString)
-                        .collect(Collectors.toList());
+                final Collection<String> privileges = (Collection<String>) constructorObjects[i++];
                 final Tuple<Collection<String>, Collection<String>> fields =
                         (Tuple<Collection<String>, Collection<String>>) constructorObjects[i++];
                 final String query = (String) constructorObjects[i];
@@ -82,15 +80,15 @@ public final class IndicesPrivileges implements ToXContentObject {
     }
 
     private final Set<String> indices;
-    private final Set<IndexPrivilege> privileges;
-    // '*' means all fields (default value), empty means no fields
-    private final Set<String> grantedFields;
-    // empty means no field is denied
-    private final Set<String> deniedFields;
+    private final Set<String> privileges;
+    // null or singleton '*' means all fields are granted, empty means no fields are granted
+    private final @Nullable Set<String> grantedFields;
+    // null or empty means no fields are denied
+    private final @Nullable Set<String> deniedFields;
     // missing query means all documents, i.e. no restrictions
     private final @Nullable String query;
 
-    private IndicesPrivileges(Collection<String> indices, Collection<IndexPrivilege> privileges, @Nullable Collection<String> grantedFields,
+    private IndicesPrivileges(Collection<String> indices, Collection<String> privileges, @Nullable Collection<String> grantedFields,
             @Nullable Collection<String> deniedFields, @Nullable String query) {
         // we do all null checks inside the constructor
         if (null == indices || indices.isEmpty()) {
@@ -101,12 +99,10 @@ public final class IndicesPrivileges implements ToXContentObject {
         }
         this.indices = Collections.unmodifiableSet(new HashSet<>(indices));
         this.privileges = Collections.unmodifiableSet(new HashSet<>(privileges));
-        // all fields granted unless otherwise specified
-        this.grantedFields = Collections
-                .unmodifiableSet(grantedFields != null ? new HashSet<>(grantedFields) : Collections.singleton("*"));
-        // no fields are denied unless otherwise specified
-        this.deniedFields = Collections
-                .unmodifiableSet(deniedFields != null ? new HashSet<>(deniedFields) : Collections.emptySet());
+        // unspecified granted fields means no restriction
+        this.grantedFields = grantedFields == null ? null : Collections.unmodifiableSet(new HashSet<>(grantedFields));
+        // unspecified denied fields means no restriction
+        this.deniedFields = deniedFields == null ? null : Collections.unmodifiableSet(new HashSet<>(deniedFields));
         this.query = query;
     }
 
@@ -114,15 +110,15 @@ public final class IndicesPrivileges implements ToXContentObject {
         return this.indices;
     }
 
-    public Set<IndexPrivilege> getPrivileges() {
+    public Set<String> getPrivileges() {
         return this.privileges;
     }
 
-    public Set<String> getGrantedFields() {
+    public @Nullable Set<String> getGrantedFields() {
         return this.grantedFields;
     }
 
-    public Set<String> getDeniedFields() {
+    public @Nullable Set<String> getDeniedFields() {
         return this.deniedFields;
     }
 
@@ -135,16 +131,16 @@ public final class IndicesPrivileges implements ToXContentObject {
     }
 
     public boolean isUsingFieldLevelSecurity() {
-        return hasDeniedFields() || hasGrantedFields();
+        return limitsGrantedFields() || limitsDeniedFields();
     }
 
-    private boolean hasDeniedFields() {
-        return false == deniedFields.isEmpty();
+    private boolean limitsDeniedFields() {
+        return deniedFields != null && false == deniedFields.isEmpty();
     }
 
-    private boolean hasGrantedFields() {
+    private boolean limitsGrantedFields() {
         // we treat just '*' as no FLS since that's what the UI defaults to
-        if (grantedFields.size() == 1 && grantedFields.iterator().next().equals("*")) {
+        if (grantedFields == null || (grantedFields.size() == 1 && grantedFields.iterator().next().equals("*"))) {
             return false;
         }
         return true;
@@ -159,8 +155,11 @@ public final class IndicesPrivileges implements ToXContentObject {
             return false;
         }
         IndicesPrivileges that = (IndicesPrivileges) o;
-        return indices.equals(that.indices) && privileges.equals(that.privileges) && grantedFields.equals(that.grantedFields)
-                && deniedFields.equals(that.deniedFields) && Objects.equals(query, that.query);
+        return indices.equals(that.indices)
+                && privileges.equals(that.privileges)
+                && Objects.equals(grantedFields, that.grantedFields)
+                && Objects.equals(deniedFields, that.deniedFields)
+                && Objects.equals(query, that.query);
     }
 
     @Override
@@ -170,18 +169,11 @@ public final class IndicesPrivileges implements ToXContentObject {
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append("[");
-        sb.append(NAMES.getPreferredName()).append("=[").append(Strings.collectionToCommaDelimitedString(indices)).append("], ");
-        sb.append(PRIVILEGES.getPreferredName()).append("=[").append(Strings.collectionToCommaDelimitedString(privileges)).append("], ");
-        sb.append(FIELD_PERMISSIONS).append("=[");
-        sb.append(GRANT_FIELDS).append("=[").append(Strings.collectionToCommaDelimitedString(grantedFields)).append("], ");
-        sb.append(EXCEPT_FIELDS).append("=[").append(Strings.collectionToCommaDelimitedString(deniedFields)).append("]");
-        sb.append("]");
-        if (query != null) {
-            sb.append(", ").append(QUERY.getPreferredName()).append("=[").append(query).append("]");
+        try {
+            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
+        } catch (IOException e) {
+            throw new RuntimeException("Unexpected", e);
         }
-        sb.append("]");
-        return sb.toString();
     }
 
     @Override
@@ -189,11 +181,17 @@ public final class IndicesPrivileges implements ToXContentObject {
         builder.startObject();
         builder.field(NAMES.getPreferredName(), indices);
         builder.field(PRIVILEGES.getPreferredName(), privileges);
-        builder.startObject(FIELD_PERMISSIONS.getPreferredName());
-        builder.field(GRANT_FIELDS.getPreferredName(), grantedFields);
-        builder.field(EXCEPT_FIELDS.getPreferredName(), deniedFields);
-        builder.endObject();
-        if (query != null) {
+        if (isUsingFieldLevelSecurity()) {
+            builder.startObject(FIELD_PERMISSIONS.getPreferredName());
+            if (limitsGrantedFields()) {
+                builder.field(GRANT_FIELDS.getPreferredName(), grantedFields);
+            }
+            if (limitsDeniedFields()) {
+                builder.field(EXCEPT_FIELDS.getPreferredName(), deniedFields);
+            }
+            builder.endObject();
+        }
+        if (isUsingDocumentLevelSecurity()) {
             builder.field("query", query);
         }
         return builder.endObject();
@@ -210,7 +208,7 @@ public final class IndicesPrivileges implements ToXContentObject {
     public static final class Builder {
 
         private @Nullable Collection<String> indices = null;
-        private @Nullable Collection<IndexPrivilege> privileges = null;
+        private @Nullable Collection<String> privileges = null;
         private @Nullable Collection<String> grantedFields = null;
         private @Nullable Collection<String> deniedFields = null;
         private @Nullable String query = null;
@@ -218,35 +216,27 @@ public final class IndicesPrivileges implements ToXContentObject {
         private Builder() {
         }
 
-        public Builder indices(@Nullable String... indices) {
-            if (indices == null) {
-                // null is a no-op to be programmer friendly
-                return this;
-            }
-            return indices(Arrays.asList(indices));
+        public Builder indices(String... indices) {
+            return indices(Arrays.asList(Objects.requireNonNull(indices, "indices required")));
         }
         
-        public Builder indices(@Nullable Collection<String> indices) {
-            this.indices = indices;
+        public Builder indices(Collection<String> indices) {
+            this.indices = Objects.requireNonNull(indices, "indices required");
             return this;
         }
 
-        public Builder privileges(@Nullable IndexPrivilege... privileges) {
-            if (privileges == null) {
-                // null is a no-op to be programmer friendly
-                return this;
-            }
-            return privileges(Arrays.asList(privileges));
+        public Builder privileges(String... privileges) {
+            return privileges(Arrays.asList(Objects.requireNonNull(privileges, "privileges required")));
         }
 
-        public Builder privileges(@Nullable Collection<IndexPrivilege> privileges) {
-            this.privileges = privileges;
+        public Builder privileges(Collection<String> privileges) {
+            this.privileges = Objects.requireNonNull(privileges, "privileges required");
             return this;
         }
 
         public Builder grantedFields(@Nullable String... grantedFields) {
             if (grantedFields == null) {
-                // null is a no-op to be programmer friendly
+                this.grantedFields = null;
                 return this;
             }
             return grantedFields(Arrays.asList(grantedFields));
@@ -259,17 +249,13 @@ public final class IndicesPrivileges implements ToXContentObject {
 
         public Builder deniedFields(@Nullable String... deniedFields) {
             if (deniedFields == null) {
-                // null is a no-op to be programmer friendly
+                this.deniedFields = null;
                 return this;
             }
             return deniedFields(Arrays.asList(deniedFields));
         }
 
         public Builder deniedFields(@Nullable Collection<String> deniedFields) {
-            if (deniedFields == null) {
-                // null is a no-op to be programmer friendly
-                return this;
-            }
             this.deniedFields = deniedFields;
             return this;
         }

@@ -19,16 +19,16 @@
 
 package org.elasticsearch.client.security.user.privileges;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -64,7 +64,6 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
     private final Set<String> resources;
 
     private ApplicationResourcePrivileges(String application, Collection<String> privileges, Collection<String> resources) {
-        // we do all null checks inside the constructor
         if (Strings.isNullOrEmpty(application)) {
             throw new IllegalArgumentException("application privileges must have an application name");
         }
@@ -100,7 +99,9 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
             return false;
         }
         ApplicationResourcePrivileges that = (ApplicationResourcePrivileges) o;
-        return application.equals(that.application) && privileges.equals(that.privileges) && resources.equals(that.resources);
+        return application.equals(that.application)
+                && privileges.equals(that.privileges)
+                && resources.equals(that.resources);
     }
 
     @Override
@@ -110,11 +111,11 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append("[");
-                sb.append(APPLICATION.getPreferredName()).append("=[").append(application).append("], ");
-                sb.append(PRIVILEGES.getPreferredName()).append("=[").append(Strings.collectionToCommaDelimitedString(privileges)).append("], ");
-                sb.append(RESOURCES.getPreferredName()).append("=[").append(Strings.collectionToCommaDelimitedString(resources)).append("]]");
-        return sb.toString();
+        try {
+            return XContentHelper.toXContent(this, XContentType.JSON, true).utf8ToString();
+        } catch (IOException e) {
+            throw new RuntimeException("Unexpected", e);
+        }
     }
 
     @Override
@@ -130,53 +131,4 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static final class Builder {
-
-        private @Nullable String application = null;
-        private @Nullable Collection<String> privileges = null;
-        private @Nullable Collection<String> resources = null;
-
-        private Builder() {
-        }
-
-        public Builder application(@Nullable String appName) {
-            this.application = appName;
-            return this;
-        }
-
-        public Builder resources(@Nullable String... resources) {
-            if (resources == null) {
-                // null is a no-op to be programmer friendly
-                return this;
-            }
-            return resources(Arrays.asList(resources));
-        }
-
-        public Builder resources(@Nullable Collection<String> resources) {
-            this.resources = resources;
-            return this;
-        }
-
-        public Builder privileges(@Nullable String... privileges) {
-            if (privileges == null) {
-                // null is a no-op to be programmer friendly
-                return this;
-            }
-            return privileges(Arrays.asList(privileges));
-        }
-
-        public Builder privileges(@Nullable Collection<String> privileges) {
-            this.privileges = privileges;
-            return this;
-        }
-
-        public ApplicationResourcePrivileges build() {
-            return new ApplicationResourcePrivileges(application, privileges, resources);
-        }
-
-    }
 }

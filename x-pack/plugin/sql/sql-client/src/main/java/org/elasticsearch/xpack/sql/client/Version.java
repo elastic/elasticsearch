@@ -39,11 +39,11 @@ public class Version {
     static byte[] from(String ver) {
         String[] parts = ver.split("[.-]");
         // Allow for optional snapshot and qualifier
-        if (parts.length >= 3 || parts.length < 6) {
-            return new byte[] { Byte.parseByte(parts[0]), Byte.parseByte(parts[1]), Byte.parseByte(parts[2]) };
+        if (parts.length < 3 || parts.length > 5) {
+            throw new IllegalArgumentException("Invalid version " + ver);
         }
         else {
-            throw new IllegalArgumentException("Invalid version " + ver);
+            return new byte[] { Byte.parseByte(parts[0]), Byte.parseByte(parts[1]), Byte.parseByte(parts[2]) };
         }
     }
 

@@ -197,7 +197,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Line 1:52: Comparisons against variables are not (currently) supported; " +
-                "offender [keyword] in [keyword IN(foo, bar, keyword)]", ex.getMessage());
+                "offender [keyword] in [keyword IN (foo, bar, keyword)]", ex.getMessage());
     }
 
     public void testTranslateInExpression_WhereClause_Painless() {

@@ -97,7 +97,7 @@ final class Bootstrap {
     public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Bootstrap.class);
 
-        // check if the user is running as root, and bail
+        // check if the user is running as root, and fail
         if (Natives.definitelyRunningAsRoot()) {
             throw new RuntimeException("can not run elasticsearch as root");
         }

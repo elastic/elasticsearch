@@ -59,7 +59,7 @@ public class BootstrapConfigurationTests extends ESTestCase {
         final List<DiscoveryNode> discoveryNodes = randomDiscoveryNodes();
         final DiscoveryNode expectedNode = randomFrom(discoveryNodes);
         final ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> new NodeDescription(randomAlphaOfLength(10), expectedNode.getName()).resolve(discoveryNodes));
+            () -> new NodeDescription(randomAlphaOfLength(11), expectedNode.getName()).resolve(discoveryNodes));
         assertThat(e.getMessage(), startsWith("node id mismatch comparing "));
     }
 
@@ -67,7 +67,7 @@ public class BootstrapConfigurationTests extends ESTestCase {
         final List<DiscoveryNode> discoveryNodes = randomDiscoveryNodes();
         final DiscoveryNode expectedNode = randomFrom(discoveryNodes);
         final ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> new NodeDescription(expectedNode.getId(), randomAlphaOfLength(10)).resolve(discoveryNodes));
+            () -> new NodeDescription(expectedNode.getId(), randomAlphaOfLength(11)).resolve(discoveryNodes));
         assertThat(e.getMessage(), startsWith("node name mismatch comparing "));
     }
 
@@ -126,9 +126,15 @@ public class BootstrapConfigurationTests extends ESTestCase {
 
     private NodeDescription mutate(NodeDescription original) {
         if (randomBoolean()) {
-            return new NodeDescription(original.getId(), randomAlphaOfLength(10));
+            return new NodeDescription(original.getId(), randomAlphaOfLength(21 - original.getName().length()));
         } else {
-            return new NodeDescription(original.getId() == null || randomBoolean() ? randomAlphaOfLength(10) : null, original.getName());
+            if (original.getId() == null) {
+                return new NodeDescription(randomAlphaOfLength(10), original.getName());
+            } else if (randomBoolean()) {
+                return new NodeDescription(randomAlphaOfLength(21 - original.getId().length()), original.getName());
+            } else {
+                return new NodeDescription(null, original.getName());
+            }
         }
     }
 

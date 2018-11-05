@@ -76,8 +76,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
         updates.addedAllocationIds.add(startedShard.allocationId().getId());
         if (startedShard.primary()
             // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
-            && (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
-            || initializingShard.recoverySource() instanceof RecoverySource.SnapshotRecoverySource)) {
+            && (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE)) {
             updates.removedAllocationIds.add(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID);
         }
     }

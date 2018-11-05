@@ -45,7 +45,6 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,11 +72,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     private final Client client;
 
     @Inject
-    public TransportRolloverAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportRolloverAction(TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                    MetaDataIndexAliasesService indexAliasesService, Client client) {
-        super(settings, RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+        super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             RolloverRequest::new);
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;

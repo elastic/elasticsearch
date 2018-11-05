@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,10 +44,10 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportMultiTermVectorsAction(Settings settings, TransportService transportService,
-                                           ClusterService clusterService, TransportShardMultiTermsVectorAction shardAction,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiTermVectorsAction.NAME, transportService, actionFilters, MultiTermVectorsRequest::new);
+    public TransportMultiTermVectorsAction(TransportService transportService, ClusterService clusterService,
+                                           TransportShardMultiTermsVectorAction shardAction, ActionFilters actionFilters,
+                                           IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(MultiTermVectorsAction.NAME, transportService, actionFilters, MultiTermVectorsRequest::new);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

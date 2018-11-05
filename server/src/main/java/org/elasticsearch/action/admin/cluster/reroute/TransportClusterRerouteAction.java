@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -43,10 +42,10 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     private final AllocationService allocationService;
 
     @Inject
-    public TransportClusterRerouteAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportClusterRerouteAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(ClusterRerouteAction.NAME, transportService, clusterService, threadPool, actionFilters,
               indexNameExpressionResolver, ClusterRerouteRequest::new);
         this.allocationService = allocationService;
     }

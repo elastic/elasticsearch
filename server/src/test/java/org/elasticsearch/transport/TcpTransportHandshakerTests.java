@@ -108,7 +108,8 @@ public class TcpTransportHandshakerTests extends ESTestCase {
     public void testSendRequestThrowsException() throws IOException {
         PlainActionFuture<Version> versionFuture = PlainActionFuture.newFuture();
         long reqId = randomLongBetween(1, 10);
-        doThrow(new IOException("boom")).when(requestSender).sendRequest(node, channel, reqId, Version.CURRENT.minimumCompatibilityVersion());
+        Version compatibilityVersion = Version.CURRENT.minimumCompatibilityVersion();
+        doThrow(new IOException("boom")).when(requestSender).sendRequest(node, channel, reqId, compatibilityVersion);
 
         handshaker.sendHandshake(reqId, node, channel, new TimeValue(30, TimeUnit.SECONDS), versionFuture);
 

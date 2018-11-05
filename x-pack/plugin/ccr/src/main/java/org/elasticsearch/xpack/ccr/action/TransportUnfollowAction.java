@@ -30,10 +30,10 @@ import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowAction.Request, AcknowledgedResponse> {
 
     @Inject
-    public TransportUnfollowAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportUnfollowAction(TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, UnfollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(UnfollowAction.NAME, transportService, clusterService, threadPool, actionFilters,
             UnfollowAction.Request::new, indexNameExpressionResolver);
     }
 

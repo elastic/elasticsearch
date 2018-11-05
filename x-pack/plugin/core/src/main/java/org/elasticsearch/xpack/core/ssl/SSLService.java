@@ -7,11 +7,12 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -58,7 +59,9 @@ import java.util.stream.Collectors;
  * Provides access to {@link SSLEngine} and {@link SSLSocketFactory} objects based on a provided configuration. All
  * configurations loaded by this service must be configured on construction.
  */
-public class SSLService extends AbstractComponent {
+public class SSLService {
+
+    private static final Logger logger = LogManager.getLogger(SSLService.class);
 
     private final Settings settings;
 

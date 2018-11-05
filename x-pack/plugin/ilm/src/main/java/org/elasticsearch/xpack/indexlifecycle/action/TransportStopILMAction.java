@@ -17,21 +17,19 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
-import org.elasticsearch.xpack.core.indexlifecycle.StopILMRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.indexlifecycle.OperationMode;
+import org.elasticsearch.xpack.core.indexlifecycle.StopILMRequest;
 import org.elasticsearch.xpack.core.indexlifecycle.action.StopILMAction;
 import org.elasticsearch.xpack.indexlifecycle.OperationModeUpdateTask;
 
 public class TransportStopILMAction extends TransportMasterNodeAction<StopILMRequest, AcknowledgedResponse> {
 
     @Inject
-    public TransportStopILMAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                  ThreadPool threadPool, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, StopILMAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+    public TransportStopILMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(StopILMAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 StopILMRequest::new);
     }
 

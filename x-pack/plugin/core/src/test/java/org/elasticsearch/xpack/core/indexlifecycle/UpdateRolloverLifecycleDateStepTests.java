@@ -87,7 +87,8 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
         IllegalStateException exceptionThrown = expectThrows(IllegalStateException.class,
             () -> step.performAction(indexMetaData.getIndex(), clusterState));
         assertThat(exceptionThrown.getMessage(),
-            equalTo("index [" + indexMetaData.getIndex().getName() + "] has not rolled over yet"));
+            equalTo("no rollover info found for [" + indexMetaData.getIndex().getName() + "], either the index " +
+                "has not yet rolled over or a subsequent index was created outside of Index Lifecycle Management"));
     }
 
     public void testPerformActionWithNoRolloverAliasSetting() {

@@ -1574,11 +1574,7 @@ public class RestHighLevelClient implements Closeable {
     
     /**
      * Async request which returns empty Optionals in the case of 404s or parses entity into an Optional
-     * 
-     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
-    @Deprecated
     protected final <Req extends Validatable, Resp> void performRequestAsyncAndParseOptionalEntity(Req request,
             CheckedFunction<Req, Request, IOException> requestConverter,
             RequestOptions options,
@@ -1597,7 +1593,6 @@ public class RestHighLevelClient implements Closeable {
             return;
         }
         req.setOptions(options);
-
         ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseEntity(response.getEntity(), 
                 entityParser), listener);
         client.performRequestAsync(req, responseListener);        
@@ -1622,7 +1617,7 @@ public class RestHighLevelClient implements Closeable {
                 if (exception instanceof ResponseException) {
                     ResponseException responseException = (ResponseException) exception;
                     Response response = responseException.getResponse();
-                    if (404 ==response.getStatusLine().getStatusCode()) {
+                    if (404 == response.getStatusLine().getStatusCode()) {
                             actionListener.onResponse(Optional.empty());
                     } else {
                         actionListener.onFailure(parseResponseException(responseException));

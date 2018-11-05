@@ -48,7 +48,7 @@ bundlePlugin {
   }
 }
 
-task writeJavaPolicy {
+task writeTestJavaPolicy {
   doLast {
     final File tmp = file("${buildDir}/tmp")
     if (tmp.exists() == false && tmp.mkdirs() == false) {
@@ -65,7 +65,7 @@ task writeJavaPolicy {
 }
 
 test {
-  dependsOn writeJavaPolicy
+  dependsOn writeTestJavaPolicy
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
   

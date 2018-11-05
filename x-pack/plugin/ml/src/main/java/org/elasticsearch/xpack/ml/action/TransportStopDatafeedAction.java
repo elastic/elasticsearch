@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigReader;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
 import java.io.IOException;
@@ -115,7 +116,8 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                         new ActionListenerResponseHandler<>(listener, StopDatafeedAction.Response::new));
             }
         } else {
-            datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds(), ActionListener.wrap(
+            DatafeedConfigReader datafeedConfigReader = new DatafeedConfigReader(datafeedConfigProvider);
+            datafeedConfigReader.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds(), state, ActionListener.wrap(
                     expandedIds -> {
                         PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
 

@@ -106,6 +106,13 @@ public class JobManager extends AbstractComponent {
     public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
                       ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
                       Client client, UpdateJobProcessNotifier updateJobProcessNotifier) {
+        this(environment, settings, jobResultsProvider, clusterService, auditor, threadPool, client,
+                updateJobProcessNotifier, new JobConfigProvider(client));
+    }
+
+    JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
+                      ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
+                      Client client, UpdateJobProcessNotifier updateJobProcessNotifier, JobConfigProvider jobConfigProvider) {
         this.settings = settings;
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
@@ -114,7 +121,7 @@ public class JobManager extends AbstractComponent {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.updateJobProcessNotifier = updateJobProcessNotifier;
-        this.jobConfigProvider = new JobConfigProvider(client);
+        this.jobConfigProvider = jobConfigProvider;
 
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
         clusterService.getClusterSettings()
@@ -126,7 +133,21 @@ public class JobManager extends AbstractComponent {
     }
 
     public void jobExists(String jobId, ActionListener<Boolean> listener) {
-        jobConfigProvider.jobExists(jobId, true, listener);
+        jobConfigProvider.jobExists(jobId, true, ActionListener.wrap(
+                jobFound -> {
+                    if (jobFound) {
+                        listener.onResponse(Boolean.TRUE);
+                    } else {
+                        // Look in the clusterstate for the job config
+                        if (MlMetadata.getMlMetadata(clusterService.state()).getJobs().containsKey(jobId)) {
+                            listener.onResponse(Boolean.TRUE);
+                        } else {
+                            listener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                        }
+                    }
+                },
+                listener::onFailure
+        ));
     }
 
     /**

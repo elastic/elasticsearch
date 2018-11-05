@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.job.config.RuleScope;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
+import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.MockClientBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
@@ -63,6 +64,7 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -76,6 +78,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -431,6 +435,73 @@ public class JobManagerTests extends ESTestCase {
                 fail(e.toString());
             }
         });
+    }
+
+    public void testJobExists_GivenMissingJob() {
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+
+        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
+                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        doAnswer(invocationOnMock -> {
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            listener.onResponse(false);
+            return null;
+        }).when(jobConfigProvider).jobExists(anyString(), anyBoolean(), any());
+
+        JobManager jobManager = new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
+                auditor, threadPool, mock(Client.class), updateJobProcessNotifier, jobConfigProvider);
+
+        AtomicBoolean jobExistsHolder = new AtomicBoolean();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        jobManager.jobExists("non-job", ActionListener.wrap(
+                jobExistsHolder::set,
+                exceptionHolder::set
+        ));
+
+        assertFalse(jobExistsHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
+    }
+
+    public void testJobExists_GivenJobIsInClusterState() {
+        Job csJobFoo1 = buildJobBuilder("cs-job").build();
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(csJobFoo1, false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        JobConfigProvider jobConfigProvider = mock(JobConfigProvider.class);
+
+        ClusterSettings clusterSettings = new ClusterSettings(environment.settings(),
+                Collections.singleton(MachineLearningField.MAX_MODEL_MEMORY_LIMIT));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+
+        doAnswer(invocationOnMock -> {
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            listener.onResponse(false);
+            return null;
+        }).when(jobConfigProvider).jobExists(anyString(), anyBoolean(), any());
+
+        JobManager jobManager = new JobManager(environment, environment.settings(), jobResultsProvider, clusterService,
+                auditor, threadPool, mock(Client.class), updateJobProcessNotifier, jobConfigProvider);
+
+        AtomicBoolean jobExistsHolder = new AtomicBoolean();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        jobManager.jobExists("cs-job", ActionListener.wrap(
+                jobExistsHolder::set,
+                exceptionHolder::set
+        ));
+
+        assertTrue(jobExistsHolder.get());
+        assertNull(exceptionHolder.get());
     }
 
     public void testPutJob_ThrowsIfJobExistsInClusterState() throws IOException {

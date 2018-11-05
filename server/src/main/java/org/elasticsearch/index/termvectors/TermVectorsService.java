@@ -154,9 +154,6 @@ public class TermVectorsService  {
     }
 
     public static Fields fields(IndexReader reader) {
-        if (reader.numDocs() == 0) {
-            return null;
-        }
         return new Fields() {
             @Override
             public Iterator<String> iterator() {

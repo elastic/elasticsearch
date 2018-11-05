@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -28,8 +27,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -71,7 +68,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class AllocationIdIT extends ESIntegTestCase {
@@ -112,7 +108,6 @@ public class AllocationIdIT extends ESIntegTestCase {
         createIndex(indexName);
         final int numDocs = indexDocs(indexName, "foo", "bar");
         final IndexSettings indexSettings = getIndexSettings(indexName, node1);
-        final String primaryNodeId = getNodeIdByName(node1);
         final Set<String> allocationIds = getAllocationIds(indexName);
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
         final Path indexPath = getIndexPath(node1, shardId);
@@ -142,7 +137,7 @@ public class AllocationIdIT extends ESIntegTestCase {
 
         // allocate stale primary
         client(node1).admin().cluster().prepareReroute()
-            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true))
+            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true))
             .get();
 
         // allocation fails due to corruption marker
@@ -172,7 +167,7 @@ public class AllocationIdIT extends ESIntegTestCase {
 
         // no any valid shard is there; have to invoke AllocateStalePrimary again
         client().admin().cluster().prepareReroute()
-            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, primaryNodeId, true))
+            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true))
             .get();
 
         ensureYellow(indexName);
@@ -219,21 +214,6 @@ public class AllocationIdIT extends ESIntegTestCase {
         }
 
         return numDocs;
-    }
-
-    private String getNodeIdByName(String nodeName) {
-        String primaryNodeId = null;
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DiscoveryNodes nodes = state.nodes();
-        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.getNodes()) {
-            final String name = cursor.value.getName();
-            if (name.equals(nodeName)) {
-                primaryNodeId = cursor.key;
-                break;
-            }
-        }
-        assertThat(primaryNodeId, notNullValue());
-        return primaryNodeId;
     }
 
     private Path getIndexPath(String nodeName, ShardId shardId) {

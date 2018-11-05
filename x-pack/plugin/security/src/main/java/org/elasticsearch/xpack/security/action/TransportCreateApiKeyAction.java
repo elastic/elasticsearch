@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -35,10 +34,9 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportCreateApiKeyAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
-                                       ApiKeyService apiKeyService, CompositeRolesStore compositeRolesStore, SecurityContext context) {
-        super(settings, CreateApiKeyAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<CreateApiKeyRequest>) CreateApiKeyRequest::new);
+    public TransportCreateApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService,
+                                       CompositeRolesStore compositeRolesStore, SecurityContext context) {
+        super(CreateApiKeyAction.NAME, transportService, actionFilters, (Writeable.Reader<CreateApiKeyRequest>) CreateApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
         this.compositeRolesStore = compositeRolesStore;
         this.securityContext = context;

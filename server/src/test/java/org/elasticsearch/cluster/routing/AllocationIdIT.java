@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -139,9 +138,6 @@ public class AllocationIdIT extends ESIntegTestCase {
         try(Store store = new Store(shardId, indexSettings, new SimpleFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.removeCorruptionMarker();
         }
-
-        // open index; no any reasons to wait 30 sec as no any health shard for that
-        client(node1).admin().indices().prepareOpen(indexName).setTimeout(TimeValue.timeValueSeconds(5)).get();
 
         // index is red: no any shard is allocated (allocation id is a fake id that does not match to anything)
         checkHealthStatus(indexName, ClusterHealthStatus.RED);

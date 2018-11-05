@@ -24,7 +24,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.elasticsearch.common.io.stream.Streamable.newWriteableReader;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BootstrapClusterRequestTests extends ESTestCase {

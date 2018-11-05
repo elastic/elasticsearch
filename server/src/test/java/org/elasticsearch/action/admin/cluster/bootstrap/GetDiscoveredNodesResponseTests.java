@@ -22,7 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.action.admin.cluster.bootstrap;
 
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -27,7 +25,6 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.Is.is;
 

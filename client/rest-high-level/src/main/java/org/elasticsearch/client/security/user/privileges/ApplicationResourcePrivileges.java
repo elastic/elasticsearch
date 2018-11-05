@@ -63,7 +63,7 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
     private final Set<String> privileges;
     private final Set<String> resources;
 
-    private ApplicationResourcePrivileges(String application, Collection<String> privileges, Collection<String> resources) {
+    public ApplicationResourcePrivileges(String application, Collection<String> privileges, Collection<String> resources) {
         if (Strings.isNullOrEmpty(application)) {
             throw new IllegalArgumentException("application privileges must have an application name");
         }

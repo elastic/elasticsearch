@@ -36,6 +36,7 @@ public final class TcpTransportChannel implements TransportChannel {
     private final AtomicBoolean released = new AtomicBoolean();
     private final String channelType;
     private final TcpChannel channel;
+    private final boolean compressResponse = false;
 
     TcpTransportChannel(TcpTransport transport, TcpChannel channel, String channelType, String action, long requestId, Version version,
                         Set<String> features, String profileName, long reservedBytes) {
@@ -63,6 +64,9 @@ public final class TcpTransportChannel implements TransportChannel {
     @Override
     public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
         try {
+            if (compressResponse) {
+                options = TransportResponseOptions.builder(options).withCompress(compressResponse).build();
+            }
             transport.sendResponse(version, features, channel, response, requestId, action, options);
         } finally {
             release(false);

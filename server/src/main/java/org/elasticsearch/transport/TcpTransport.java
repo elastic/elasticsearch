@@ -417,6 +417,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
+
+            if (compress) {
+                options = TransportRequestOptions.builder(options).withCompress(true).build();
+            }
             sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), (byte) 0);
         }
     }
@@ -867,16 +871,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     protected abstract void stopInternal();
 
-    public boolean canCompress(TransportRequest request) {
-        return compress && (!(request instanceof BytesTransportRequest));
+    private boolean canCompress(TransportRequest request) {
+        return request instanceof BytesTransportRequest == false;
     }
 
     private void sendRequestToChannel(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                                       final TransportRequest request, TransportRequestOptions options, Version channelVersion,
                                       byte status) throws IOException, TransportException {
-        if (compress) {
-            options = TransportRequestOptions.builder(options).withCompress(true).build();
-        }
 
         // only compress if asked and the request is not bytes. Otherwise only
         // the header part is compressed, and the "body" can't be extracted as compressed

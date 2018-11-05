@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
  * This class will search the buckets and indices over a given window to determine if any data is missing
  */
 public class DelayedDataDetector {
-    
+
     private static final String DATE_BUCKETS = "date_buckets";
     private final long bucketSpan;
     private final long window;

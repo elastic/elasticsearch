@@ -282,7 +282,6 @@ public class DatafeedManager extends AbstractComponent {
         private final ProblemTracker problemTracker;
         private final Consumer<Exception> handler;
         volatile Future<?> future;
-        volatile Future<?> futureDataCheck;
         private volatile boolean isRelocating;
 
         Holder(TransportStartDatafeedAction.DatafeedTask task, DatafeedConfig datafeed, DatafeedJob datafeedJob,
@@ -327,7 +326,6 @@ public class DatafeedManager extends AbstractComponent {
                             datafeed.getJobId(), acquired);
                     runningDatafeedsOnThisNode.remove(allocationId);
                     FutureUtils.cancel(future);
-                    FutureUtils.cancel(futureDataCheck);
                     auditor.info(datafeed.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_STOPPED));
                     handler.accept(e);
                     logger.info("[{}] datafeed [{}] for job [{}] has been stopped{}", source, datafeed.getId(), datafeed.getJobId(),
@@ -381,10 +379,6 @@ public class DatafeedManager extends AbstractComponent {
             } finally {
                 datafeedJobLock.unlock();
             }
-        }
-
-        private void executeMissingDataCheck() throws Exception {
-
         }
 
         private void closeJob() {

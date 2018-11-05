@@ -20,4 +20,13 @@
 esplugin {
     description 'Adds "built in" analyzers to Elasticsearch.'
     classname 'org.elasticsearch.analysis.common.CommonAnalysisPlugin'
+    extendedPlugins = ['lang-painless']
+}
+
+dependencies {
+    compileOnly project(':modules:lang-painless')
+}
+
+integTestCluster {
+    module project(':modules:lang-painless')
 }

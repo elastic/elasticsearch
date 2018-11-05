@@ -41,8 +41,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
     private final Setting<Integer> queueSizeSetting;
 
     /**
-     * Construct a fixed executor builder; the settings will have the
-     * key prefix "thread_pool." followed by the executor name.
+     * Construct a fixed executor builder; the settings will have the key prefix "thread_pool." followed by the executor name.
      *
      * @param settings  the node-level settings
      * @param name      the name of the executor
@@ -66,14 +65,13 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
         super(name);
         final String sizeKey = settingsKey(prefix, "size");
         this.sizeSetting =
-            new Setting<>(
-                sizeKey,
-                s -> Integer.toString(size),
-                s -> Setting.parseInt(s, 1, applyHardSizeLimit(settings, name), sizeKey),
-                Setting.Property.NodeScope);
+                new Setting<>(
+                        sizeKey,
+                        s -> Integer.toString(size),
+                        s -> Setting.parseInt(s, 1, applyHardSizeLimit(settings, name), sizeKey),
+                        Setting.Property.NodeScope);
         final String queueSizeKey = settingsKey(prefix, "queue_size");
-        this.queueSizeSetting =
-            Setting.intSetting(queueSizeKey, queueSize, Setting.Property.NodeScope);
+        this.queueSizeSetting = Setting.intSetting(queueSizeKey, queueSize, Setting.Property.NodeScope);
     }
 
     @Override

@@ -19,19 +19,17 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,8 +41,6 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestIndicesStatsAction extends BaseRestHandler {
     public RestIndicesStatsAction(Settings settings, RestController controller) {
@@ -63,24 +59,10 @@ public class RestIndicesStatsAction extends BaseRestHandler {
     static final Map<String, Consumer<IndicesStatsRequest>> METRICS;
 
     static {
-        final Map<String, Consumer<IndicesStatsRequest>> metrics = new HashMap<>();
-        metrics.put("docs", r -> r.docs(true));
-        metrics.put("store", r -> r.store(true));
-        metrics.put("indexing", r -> r.indexing(true));
-        metrics.put("search", r -> r.search(true));
-        metrics.put("suggest", r -> r.search(true));
-        metrics.put("get", r -> r.get(true));
-        metrics.put("merge", r -> r.merge(true));
-        metrics.put("refresh", r -> r.refresh(true));
-        metrics.put("flush", r -> r.flush(true));
-        metrics.put("warmer", r -> r.warmer(true));
-        metrics.put("query_cache", r -> r.queryCache(true));
-        metrics.put("segments", r -> r.segments(true));
-        metrics.put("fielddata", r -> r.fieldData(true));
-        metrics.put("completion", r -> r.completion(true));
-        metrics.put("request_cache", r -> r.requestCache(true));
-        metrics.put("recovery", r -> r.recovery(true));
-        metrics.put("translog", r -> r.translog(true));
+        Map<String, Consumer<IndicesStatsRequest>> metrics = new HashMap<>();
+        for (Flag flag : CommonStatsFlags.Flag.values()) {
+            metrics.put(flag.getRestName(), m -> m.flags().set(flag, true));
+        }
         METRICS = Collections.unmodifiableMap(metrics);
     }
 
@@ -141,16 +123,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
         }
 
-        return channel -> client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(IndicesStatsResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                buildBroadcastShardsHeader(builder, request, response);
-                response.toXContent(builder, request);
-                builder.endObject();
-                return new BytesRestResponse(OK, builder);
-            }
-        });
+        return channel -> client.admin().indices().stats(indicesStatsRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

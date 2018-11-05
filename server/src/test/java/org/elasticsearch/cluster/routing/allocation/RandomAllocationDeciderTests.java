@@ -86,7 +86,6 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         int nodeIdCounter = 0;
         int atMostNodes = scaledRandomIntBetween(Math.max(1, maxNumReplicas), 15);
         final boolean frequentNodes = randomBoolean();
-        AllocationService.CommandsResult routingResult;
         for (int i = 0; i < numIters; i++) {
             logger.info("Start iteration [{}]", i);
             ClusterState.Builder stateBuilder = ClusterState.builder(clusterState);

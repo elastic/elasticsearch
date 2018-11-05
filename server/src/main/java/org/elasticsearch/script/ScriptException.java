@@ -1,5 +1,14 @@
 package org.elasticsearch.script;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.rest.RestStatus;
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -25,13 +34,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-
 /**
  * Exception from a scripting engine.
  * <p>
@@ -49,11 +51,11 @@ public class ScriptException extends ElasticsearchException {
     private final List<String> scriptStack;
     private final String script;
     private final String lang;
-    
+
     /**
      * Create a new ScriptException.
-     * @param message A short and simple summary of what happened, such as "compile error". 
-     *                Must not be {@code null}. 
+     * @param message A short and simple summary of what happened, such as "compile error".
+     *                Must not be {@code null}.
      * @param cause The underlying cause of the exception. Must not be {@code null}.
      * @param scriptStack An implementation-specific "stacktrace" for the error in the script.
      *                Must not be {@code null}, but can be empty (though this should be avoided if possible).
@@ -85,7 +87,7 @@ public class ScriptException extends ElasticsearchException {
         out.writeString(script);
         out.writeString(lang);
     }
-    
+
     @Override
     protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("script_stack", scriptStack);
@@ -100,7 +102,7 @@ public class ScriptException extends ElasticsearchException {
     public List<String> getScriptStack() {
         return scriptStack;
     }
-    
+
     /**
      * Returns the identifier for which script.
      * @return script's name or source text that identifies the script.
@@ -108,7 +110,7 @@ public class ScriptException extends ElasticsearchException {
     public String getScript() {
         return script;
     }
-    
+
     /**
      * Returns the language of the script.
      * @return the {@code lang} parameter of the scripting engine.
@@ -117,7 +119,7 @@ public class ScriptException extends ElasticsearchException {
         return lang;
     }
 
-    /** 
+    /**
      * Returns a JSON version of this exception for debugging.
      */
     public String toJsonString() {
@@ -126,9 +128,14 @@ public class ScriptException extends ElasticsearchException {
             json.startObject();
             toXContent(json, ToXContent.EMPTY_PARAMS);
             json.endObject();
-            return json.string();
+            return Strings.toString(json);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

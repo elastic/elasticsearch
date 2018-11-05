@@ -26,7 +26,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * A request builder for multiple search requests.
  */
-public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse, MultiSearchRequestBuilder> {
+public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse> {
 
     public MultiSearchRequestBuilder(ElasticsearchClient client, MultiSearchAction action) {
         super(client, action, new MultiSearchRequest());

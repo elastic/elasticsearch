@@ -1,0 +1,15 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test Deprecations":
+  - do:
+      xpack.migration.deprecations:
+        index: "*"
+  - length: { cluster_settings: 0 }
+  - length: { node_settings: 0 }
+  - length: { index_settings: 0 }
+

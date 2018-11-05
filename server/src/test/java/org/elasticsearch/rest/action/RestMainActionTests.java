@@ -36,6 +36,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class RestMainActionTests extends ESTestCase {
@@ -44,12 +45,10 @@ public class RestMainActionTests extends ESTestCase {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
         final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        final boolean available = randomBoolean();
-        final RestStatus expectedStatus = available ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
         final Version version = Version.CURRENT;
         final Build build = Build.CURRENT;
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build, available);
+        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build);
         XContentBuilder builder = JsonXContent.contentBuilder();
         RestRequest restRequest = new FakeRestRequest() {
             @Override
@@ -60,7 +59,7 @@ public class RestMainActionTests extends ESTestCase {
 
         BytesRestResponse response = RestMainAction.convertMainResponse(mainResponse, restRequest, builder);
         assertNotNull(response);
-        assertEquals(expectedStatus, response.status());
+        assertThat(response.status(), equalTo(RestStatus.OK));
 
         // the empty responses are handled in the HTTP layer so we do
         // not assert on them here
@@ -70,13 +69,11 @@ public class RestMainActionTests extends ESTestCase {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
         final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
-        final boolean available = randomBoolean();
-        final RestStatus expectedStatus = available ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
         final Version version = Version.CURRENT;
         final Build build = Build.CURRENT;
         final boolean prettyPrint = randomBoolean();
 
-        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build, available);
+        final MainResponse mainResponse = new MainResponse(nodeName, version, clusterName, clusterUUID, build);
         XContentBuilder builder = JsonXContent.contentBuilder();
 
         Map<String, String> params = new HashMap<>();
@@ -87,7 +84,7 @@ public class RestMainActionTests extends ESTestCase {
 
         BytesRestResponse response = RestMainAction.convertMainResponse(mainResponse, restRequest, builder);
         assertNotNull(response);
-        assertEquals(expectedStatus, response.status());
+        assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.content().length(), greaterThan(0));
 
         XContentBuilder responseBuilder = JsonXContent.contentBuilder();
@@ -96,7 +93,7 @@ public class RestMainActionTests extends ESTestCase {
             responseBuilder.prettyPrint().lfAtEnd();
         }
         mainResponse.toXContent(responseBuilder, ToXContent.EMPTY_PARAMS);
-        BytesReference xcontentBytes = responseBuilder.bytes();
+        BytesReference xcontentBytes = BytesReference.bytes(responseBuilder);
         assertEquals(xcontentBytes, response.content());
     }
 }

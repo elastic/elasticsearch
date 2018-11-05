@@ -21,18 +21,27 @@ package org.elasticsearch.action.admin.indices.cache.clear;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
 
-import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 /**
- * The response of a refresh action.
- *
- *
+ * The response of a clear cache action.
  */
 public class ClearIndicesCacheResponse extends BroadcastResponse {
+
+    private static final ConstructingObjectParser<ClearIndicesCacheResponse, Void> PARSER = new ConstructingObjectParser<>("clear_cache",
+            true, arg -> {
+                BroadcastResponse response = (BroadcastResponse) arg[0];
+                return new ClearIndicesCacheResponse(response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
+                        Arrays.asList(response.getShardFailures()));
+            });
+
+    static {
+        declareBroadcastFields(PARSER);
+    }
 
     ClearIndicesCacheResponse() {
 
@@ -43,13 +52,7 @@ public class ClearIndicesCacheResponse extends BroadcastResponse {
         super(totalShards, successfulShards, failedShards, shardFailures);
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    public static ClearIndicesCacheResponse fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 }

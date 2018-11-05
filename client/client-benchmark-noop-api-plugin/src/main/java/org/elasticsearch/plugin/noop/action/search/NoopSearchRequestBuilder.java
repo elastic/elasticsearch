@@ -42,7 +42,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import java.util.Arrays;
 import java.util.List;
 
-public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse, NoopSearchRequestBuilder> {
+public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {
 
     public NoopSearchRequestBuilder(ElasticsearchClient client, NoopSearchAction action) {
         super(client, action, new SearchRequest());
@@ -142,7 +142,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * <tt>_local</tt> to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public NoopSearchRequestBuilder setPreference(String preference) {
@@ -188,7 +188,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
     }
 
     /**
-     * From index to start the search from. Defaults to <tt>0</tt>.
+     * From index to start the search from. Defaults to {@code 0}.
      */
     public NoopSearchRequestBuilder setFrom(int from) {
         sourceBuilder().from(from);
@@ -196,7 +196,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
     }
 
     /**
-     * The number of search hits to return. Defaults to <tt>10</tt>.
+     * The number of search hits to return. Defaults to {@code 10}.
      */
     public NoopSearchRequestBuilder setSize(int size) {
         sourceBuilder().size(size);
@@ -329,7 +329,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
      *
      * @see org.elasticsearch.search.sort.SortBuilders
      */
-    public NoopSearchRequestBuilder addSort(SortBuilder sort) {
+    public NoopSearchRequestBuilder addSort(SortBuilder<?> sort) {
         sourceBuilder().sort(sort);
         return this;
     }
@@ -349,7 +349,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
 
     /**
      * Applies when sorting, and controls if scores will be tracked as well. Defaults to
-     * <tt>false</tt>.
+     * {@code false}.
      */
     public NoopSearchRequestBuilder setTrackScores(boolean trackScores) {
         sourceBuilder().trackScores(trackScores);
@@ -415,7 +415,7 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
      * @param window   rescore window
      * @return this for chaining
      */
-    public NoopSearchRequestBuilder setRescorer(RescorerBuilder rescorer, int window) {
+    public NoopSearchRequestBuilder setRescorer(RescorerBuilder<?> rescorer, int window) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer.windowSize(window));
     }

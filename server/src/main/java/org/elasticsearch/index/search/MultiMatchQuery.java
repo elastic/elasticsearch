@@ -67,7 +67,9 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
-        Query result;
+        final Query result;
+        // reset query builder
+        queryBuilder = null;
         if (fieldNames.size() == 1) {
             Map.Entry<String, Float> fieldBoost = fieldNames.entrySet().iterator().next();
             Float boostValue = fieldBoost.getValue();
@@ -82,7 +84,7 @@ public class MultiMatchQuery extends MatchQuery {
                     queryBuilder = new QueryBuilder(tieBreaker);
                     break;
                 case CROSS_FIELDS:
-                    queryBuilder = new CrossFieldsQueryBuilder();
+                    queryBuilder = new CrossFieldsQueryBuilder(tieBreaker);
                     break;
                 default:
                     throw new IllegalStateException("No such type: " + type);
@@ -120,7 +122,7 @@ public class MultiMatchQuery extends MatchQuery {
 
         private Query combineGrouped(List<? extends Query> groupQuery) {
             if (groupQuery == null || groupQuery.isEmpty()) {
-                return  new MatchNoDocsQuery("[multi_match] list of group queries was empty");
+                return zeroTermsQuery();
             }
             if (groupQuery.size() == 1) {
                 return groupQuery.get(0);
@@ -152,8 +154,8 @@ public class MultiMatchQuery extends MatchQuery {
     final class CrossFieldsQueryBuilder extends QueryBuilder {
         private FieldAndFieldType[] blendedFields;
 
-        CrossFieldsQueryBuilder() {
-            super(0.0f);
+        CrossFieldsQueryBuilder(float tiebreaker) {
+            super(tiebreaker);
         }
 
         @Override
@@ -239,7 +241,7 @@ public class MultiMatchQuery extends MatchQuery {
             /**
              * We build phrase queries for multi-word synonyms when {@link QueryBuilder#autoGenerateSynonymsPhraseQuery} is true.
              */
-            return MultiMatchQuery.blendPhrase(query, blendedFields);
+            return MultiMatchQuery.blendPhrase(query, tieBreaker, blendedFields);
         }
     }
 
@@ -307,7 +309,7 @@ public class MultiMatchQuery extends MatchQuery {
      * Expand a {@link PhraseQuery} to multiple fields that share the same analyzer.
      * Returns a {@link DisjunctionMaxQuery} with a disjunction for each expanded field.
      */
-    static Query blendPhrase(PhraseQuery query, FieldAndFieldType... fields) {
+    static Query blendPhrase(PhraseQuery query, float tiebreaker, FieldAndFieldType... fields) {
         List<Query> disjunctions = new ArrayList<>();
         for (FieldAndFieldType field : fields) {
             int[] positions = query.getPositions();
@@ -322,7 +324,7 @@ public class MultiMatchQuery extends MatchQuery {
             }
             disjunctions.add(q);
         }
-        return new DisjunctionMaxQuery(disjunctions, 0.0f);
+        return new DisjunctionMaxQuery(disjunctions, tiebreaker);
     }
 
     @Override

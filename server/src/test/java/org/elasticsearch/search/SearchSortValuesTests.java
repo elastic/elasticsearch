@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,13 +46,13 @@ public class SearchSortValuesTests extends ESTestCase {
         List<Supplier<Object>> valueSuppliers = new ArrayList<>();
         // this should reflect all values that are allowed to go through the transport layer
         valueSuppliers.add(() -> null);
-        valueSuppliers.add(() -> randomInt());
-        valueSuppliers.add(() -> randomLong());
-        valueSuppliers.add(() -> randomDouble());
-        valueSuppliers.add(() -> randomFloat());
-        valueSuppliers.add(() -> randomByte());
-        valueSuppliers.add(() -> randomShort());
-        valueSuppliers.add(() -> randomBoolean());
+        valueSuppliers.add(ESTestCase::randomInt);
+        valueSuppliers.add(ESTestCase::randomLong);
+        valueSuppliers.add(ESTestCase::randomDouble);
+        valueSuppliers.add(ESTestCase::randomFloat);
+        valueSuppliers.add(ESTestCase::randomByte);
+        valueSuppliers.add(ESTestCase::randomShort);
+        valueSuppliers.add(ESTestCase::randomBoolean);
         valueSuppliers.add(() -> frequently() ? randomAlphaOfLengthBetween(1, 30) : randomRealisticUnicodeOfCodepointLength(30));
 
         int size = randomIntBetween(1, 20);
@@ -88,7 +89,7 @@ public class SearchSortValuesTests extends ESTestCase {
         builder.startObject();
         sortValues.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\"sort\":[1,\"foo\",3.0]}", builder.string());
+        assertEquals("{\"sort\":[1,\"foo\",3.0]}", Strings.toString(builder));
     }
 
     /**

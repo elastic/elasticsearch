@@ -125,5 +125,6 @@ more details on the different types of search that can be performed.
 
 |`allow_partial_search_results` |Set to `false` to return an overall failure if the request would produce
 partial results. Defaults to true, which will allow partial results in the case of timeouts
-or partial failures..
+or partial failures. This default can be controlled using the cluster-level setting
+`search.default_allow_partial_results`.
 |=======================================================================

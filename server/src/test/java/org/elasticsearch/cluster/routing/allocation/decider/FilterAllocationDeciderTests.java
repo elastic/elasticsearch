@@ -42,8 +42,8 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_SHRINK_SOURCE_NAME;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_SHRINK_SOURCE_UUID;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_RESIZE_SOURCE_NAME;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_RESIZE_SOURCE_UUID;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
@@ -63,7 +63,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
             "node2").build());
         RoutingTable routingTable = state.routingTable();
 
-        // we can initally only allocate on node2
+        // we can initially only allocate on node2
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
         assertEquals(routingTable.index("idx").shard(0).shards().get(0).currentNodeId(), "node2");
         routingTable = service.applyFailedShard(state, routingTable.index("idx").shard(0).shards().get(0), randomBoolean()).routingTable();
@@ -151,8 +151,8 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
                 .putInSyncAllocationIds(1, Collections.singleton("aid1"))
                 .build();
             metaData.put(sourceIndex, false);
-            indexSettings.put(INDEX_SHRINK_SOURCE_UUID.getKey(), sourceIndex.getIndexUUID());
-            indexSettings.put(INDEX_SHRINK_SOURCE_NAME.getKey(), sourceIndex.getIndex().getName());
+            indexSettings.put(INDEX_RESIZE_SOURCE_UUID.getKey(), sourceIndex.getIndexUUID());
+            indexSettings.put(INDEX_RESIZE_SOURCE_NAME.getKey(), sourceIndex.getIndex().getName());
         } else {
             sourceIndex = null;
         }

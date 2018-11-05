@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -70,7 +71,7 @@ public class ScriptTests extends ESTestCase {
                 builder.startObject();
                 builder.field("field", randomAlphaOfLengthBetween(1, 5));
                 builder.endObject();
-                script = builder.string();
+                script = Strings.toString(builder);
             }
         } else {
             script = randomAlphaOfLengthBetween(1, 5);
@@ -88,9 +89,11 @@ public class ScriptTests extends ESTestCase {
         Script expectedScript = createScript();
         try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
             expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            Settings settings = Settings.fromXContent(createParser(builder));
-            Script actualScript = Script.parse(settings);
-            assertThat(actualScript, equalTo(expectedScript));
+            try (XContentParser xParser = createParser(builder)) {
+                Settings settings = Settings.fromXContent(xParser);
+                Script actualScript = Script.parse(settings);
+                assertThat(actualScript, equalTo(expectedScript));
+            }
         }
     }
 }

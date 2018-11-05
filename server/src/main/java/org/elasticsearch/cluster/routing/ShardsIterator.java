@@ -45,7 +45,7 @@ public interface ShardsIterator extends Iterable<ShardRouting> {
     int sizeActive();
 
     /**
-     * Returns the next shard, or <tt>null</tt> if none available.
+     * Returns the next shard, or {@code null} if none available.
      */
     ShardRouting nextOrNull();
 

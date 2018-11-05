@@ -23,10 +23,12 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,6 +40,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -85,9 +88,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         internalCluster().startNode();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("appAccountIds").field("type", "text").endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         assertAcked(prepareCreate("test").addMapping("type1", mapping, XContentType.JSON));
 
         client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
@@ -154,9 +157,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     public void testSingleNodeNoFlush() throws Exception {
         internalCluster().startNode();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("field").field("type", "text").endObject().startObject("num").field("type", "integer").endObject().endObject()
-            .endObject().endObject().string();
+            .endObject().endObject());
         // note: default replica settings are tied to #data nodes-1 which is 0 here. We can do with 1 in this test.
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
@@ -395,7 +398,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .get();
 
         logger.info("--> indexing docs");
-        for (int i = 0; i < randomIntBetween(1, 1024); i++) {
+        int numDocs = randomIntBetween(1, 1024);
+        for (int i = 0; i < numDocs; i++) {
             client(primaryNode).prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
         }
 
@@ -417,12 +421,15 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         }
 
         logger.info("--> restart replica node");
+        boolean softDeleteEnabled = internalCluster().getInstance(IndicesService.class, primaryNode)
+            .indexServiceSafe(resolveIndex("test")).getShard(0).indexSettings().isSoftDeleteEnabled();
 
+        int moreDocs = randomIntBetween(1, 1024);
         internalCluster().restartNode(replicaNode, new RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // index some more documents; we expect to reuse the files that already exist on the replica
-                for (int i = 0; i < randomIntBetween(1, 1024); i++) {
+                for (int i = 0; i < moreDocs; i++) {
                     client(primaryNode).prepareIndex("test", "type").setSource("field", "value").execute().actionGet();
                 }
 
@@ -430,8 +437,12 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 client(primaryNode).admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
                     .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 0)
                 ).get();
                 client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
+                if (softDeleteEnabled) { // We need an extra flush to advance the min_retained_seqno of the SoftDeletesPolicy
+                    client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
+                }
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -551,9 +562,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         DiscoveryNode node = internalCluster().getInstance(ClusterService.class, nodeName).localNode();
 
         TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response;
-        response = internalCluster().getInstance(TransportNodesListGatewayStartedShards.class)
-            .execute(new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}))
-            .get();
+        response = ActionTestUtils.executeBlocking(internalCluster().getInstance(TransportNodesListGatewayStartedShards.class),
+            new TransportNodesListGatewayStartedShards.Request(shardId, new DiscoveryNode[]{node}));
 
         assertThat(response.getNodes(), hasSize(1));
         assertThat(response.getNodes().get(0).allocationId(), notNullValue());

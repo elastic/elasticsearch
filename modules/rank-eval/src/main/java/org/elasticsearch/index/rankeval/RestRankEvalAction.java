@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -29,8 +30,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -110,9 +109,9 @@ public class RestRankEvalAction extends BaseRestHandler {
     }
 
     private static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, XContentParser parser) {
-        List<String> indices = Arrays.asList(Strings.splitStringByCommaToArray(request.param("index")));
+        rankEvalRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+        rankEvalRequest.indicesOptions(IndicesOptions.fromRequest(request, rankEvalRequest.indicesOptions()));
         RankEvalSpec spec = RankEvalSpec.parse(parser);
-        spec.addIndices(indices);
         rankEvalRequest.setRankEvalSpec(spec);
     }
 

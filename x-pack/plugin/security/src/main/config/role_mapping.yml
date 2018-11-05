@@ -1,0 +1,14 @@
+# Role mapping configuration file which has elasticsearch roles as keys
+# that map to one or more user or group distinguished names
+
+#roleA:   this is an elasticsearch role
+#  - groupA-DN  this is a group distinguished name
+#  - groupB-DN
+#  - user1-DN   this is the full user distinguished name
+
+#power_user:
+#  - "cn=admins,dc=example,dc=com"
+#user:
+#  - "cn=users,dc=example,dc=com"
+#  - "cn=admins,dc=example,dc=com"
+#  - "cn=John Doe,cn=other users,dc=example,dc=com"

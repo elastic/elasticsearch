@@ -20,13 +20,13 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -81,11 +81,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
     public NodeAllocationResult(StreamInput in) throws IOException {
         node = new DiscoveryNode(in);
         shardStoreInfo = in.readOptionalWriteable(ShardStoreInfo::new);
-        if (in.getVersion().before(Version.V_5_2_1)) {
-            canAllocateDecision = Decision.readFrom(in);
-        } else {
-            canAllocateDecision = in.readOptionalWriteable(Decision::readFrom);
-        }
+        canAllocateDecision = in.readOptionalWriteable(Decision::readFrom);
         nodeDecision = AllocationDecision.readFrom(in);
         weightRanking = in.readVInt();
     }
@@ -94,15 +90,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
         out.writeOptionalWriteable(shardStoreInfo);
-        if (out.getVersion().before(Version.V_5_2_1)) {
-            if (canAllocateDecision == null) {
-                Decision.NO.writeTo(out);
-            } else {
-                canAllocateDecision.writeTo(out);
-            }
-        } else {
-            out.writeOptionalWriteable(canAllocateDecision);
-        }
+        out.writeOptionalWriteable(canAllocateDecision);
         nodeDecision.writeTo(out);
         out.writeVInt(weightRanking);
     }
@@ -289,7 +277,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
                     if (hasMatchingSyncId()) {
                         builder.field("matching_sync_id", true);
                     } else {
-                        builder.byteSizeField("matching_size_in_bytes", "matching_size", matchingBytes);
+                        builder.humanReadableField("matching_size_in_bytes", "matching_size", new ByteSizeValue(matchingBytes));
                     }
                 }
                 if (storeException != null) {

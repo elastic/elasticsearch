@@ -60,13 +60,16 @@ public class RestMainAction extends BaseRestHandler {
     }
 
     static BytesRestResponse convertMainResponse(MainResponse response, RestRequest request, XContentBuilder builder) throws IOException {
-        RestStatus status = response.isAvailable() ? RestStatus.OK : RestStatus.SERVICE_UNAVAILABLE;
-
         // Default to pretty printing, but allow ?pretty=false to disable
         if (request.hasParam("pretty") == false) {
             builder.prettyPrint().lfAtEnd();
         }
         response.toXContent(builder, request);
-        return new BytesRestResponse(status, builder);
+        return new BytesRestResponse(RestStatus.OK, builder);
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

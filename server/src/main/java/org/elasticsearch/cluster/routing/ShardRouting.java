@@ -19,14 +19,13 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
-import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
@@ -38,7 +37,7 @@ import java.util.List;
 
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
- * routings like id, state, version, etc.
+ * indexRoutings like id, state, version, etc.
  */
 public final class ShardRouting implements Writeable, ToXContentObject {
 
@@ -318,7 +317,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
         final RecoverySource recoverySource;
         if (active()) {
             if (primary()) {
-                recoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
+                recoverySource = ExistingStoreRecoverySource.INSTANCE;
             } else {
                 recoverySource = PeerRecoverySource.INSTANCE;
             }
@@ -477,7 +476,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             "ShardRouting is a relocation target but current node id isn't equal to source relocating node. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.shardId.equals(other.shardId) :
-            "ShardRouting is a relocation target but both routings are not of the same shard id. This [" + this + "], other [" + other + "]";
+            "ShardRouting is a relocation target but both indexRoutings are not of the same shard id. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.primary == other.primary :
             "ShardRouting is a relocation target but primary flag is different. This [" + this + "], target [" + other + "]";
@@ -504,7 +503,7 @@ public final class ShardRouting implements Writeable, ToXContentObject {
             "ShardRouting is a relocation source but relocating node isn't equal to other's current node. This [" + this + "], other [" + other + "]";
 
         assert b == false || this.shardId.equals(other.shardId) :
-            "ShardRouting is a relocation source but both routings are not of the same shard. This [" + this + "], target [" + other + "]";
+            "ShardRouting is a relocation source but both indexRoutings are not of the same shard. This [" + this + "], target [" + other + "]";
 
         assert b == false || this.primary == other.primary :
             "ShardRouting is a relocation source but primary flag is different. This [" + this + "], target [" + other + "]";

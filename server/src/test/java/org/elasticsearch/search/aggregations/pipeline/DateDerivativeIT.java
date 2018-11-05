@@ -27,8 +27,7 @@ import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.search.aggregations.pipeline.derivative.Derivative;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
@@ -45,7 +44,7 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
+import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -75,13 +74,13 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
     private static IndexRequestBuilder indexDoc(String idx, DateTime date, int value) throws Exception {
         return client().prepareIndex(idx, "type").setSource(
-                jsonBuilder().startObject().field("date", date).field("value", value).endObject());
+                jsonBuilder().startObject().timeField("date", date).field("value", value).endObject());
     }
 
     private IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
         return client().prepareIndex("idx", "type").setSource(
-                jsonBuilder().startObject().field("value", value).field("date", date(month, day)).startArray("dates")
-                        .value(date(month, day)).value(date(month + 1, day + 1)).endArray().endObject());
+                jsonBuilder().startObject().field("value", value).timeField("date", date(month, day)).startArray("dates")
+                        .timeValue(date(month, day)).timeValue(date(month + 1, day + 1)).endArray().endObject());
     }
 
     @Override

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.join.query;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -62,15 +62,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
             .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true);
 
-        if (legacy()) {
-            builder.put("index.version.created", Version.V_5_6_0);
-        }
-
         return builder.build();
-    }
-
-    protected boolean legacy() {
-        return false;
     }
 
     protected IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Object... fields) {
@@ -83,7 +75,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
 
     protected IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId,
                                                    XContentBuilder builder) throws IOException {
-        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, builder.string(), false);
+        Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(builder), false);
         return createIndexRequest(index, type, id, parentId, source);
     }
 
@@ -122,28 +114,19 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
 
     private IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Map<String, Object> source) {
         String name = type;
-        if (legacy() == false) {
-            type = "doc";
-        }
+        type = "doc";
 
         IndexRequestBuilder indexRequestBuilder = client().prepareIndex(index, type, id);
-        if (legacy()) {
-            if (parentId != null) {
-                indexRequestBuilder.setParent(parentId);
-            }
-            indexRequestBuilder.setSource(source);
+        Map<String, Object> joinField = new HashMap<>();
+        if (parentId != null) {
+            joinField.put("name", name);
+            joinField.put("parent", parentId);
+            indexRequestBuilder.setRouting(parentId);
         } else {
-            Map<String, Object> joinField = new HashMap<>();
-            if (parentId != null) {
-                joinField.put("name", name);
-                joinField.put("parent", parentId);
-                indexRequestBuilder.setRouting(parentId);
-            } else {
-                joinField.put("name", name);
-            }
-            source.put("join_field", joinField);
-            indexRequestBuilder.setSource(source);
+            joinField.put("name", name);
         }
+        source.put("join_field", joinField);
+        indexRequestBuilder.setSource(source);
         return indexRequestBuilder;
     }
 

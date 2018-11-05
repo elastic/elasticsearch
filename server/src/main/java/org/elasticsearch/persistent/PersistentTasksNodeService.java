@@ -19,7 +19,6 @@
 package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -51,12 +50,12 @@ import static java.util.Objects.requireNonNull;
  * non-transport client nodes in the cluster and monitors cluster state changes to detect started commands.
  */
 public class PersistentTasksNodeService extends AbstractComponent implements ClusterStateListener {
+
     private final Map<Long, AllocatedPersistentTask> runningTasks = new HashMap<>();
     private final PersistentTasksService persistentTasksService;
     private final PersistentTasksExecutorRegistry persistentTasksExecutorRegistry;
     private final TaskManager taskManager;
     private final NodePersistentTasksExecutor nodePersistentTasksExecutor;
-
 
     public PersistentTasksNodeService(Settings settings,
                                       PersistentTasksService persistentTasksService,
@@ -124,7 +123,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
 
             for (Long id : notVisitedTasks) {
                 AllocatedPersistentTask task = runningTasks.get(id);
-                if (task.getState() == AllocatedPersistentTask.State.COMPLETED) {
+                if (task.isCompleted()) {
                     // Result was sent to the caller and the caller acknowledged acceptance of the result
                     logger.trace("Found completed persistent task [{}] with id [{}] and allocation id [{}] - removing",
                             task.getAction(), task.getPersistentTaskId(), task.getAllocationId());
@@ -173,7 +172,7 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                     task.getPersistentTaskId(), task.getAllocationId());
             try {
                 runningTasks.put(taskInProgress.getAllocationId(), task);
-                nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), taskInProgress.getStatus(), task, executor);
+                nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), taskInProgress.getState(), task, executor);
             } catch (Exception e) {
                 // Submit task failure
                 task.markAsFailed(e);
@@ -197,7 +196,8 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         AllocatedPersistentTask task = runningTasks.remove(allocationId);
         if (task.markAsCancelled()) {
             // Cancel the local task using the task manager
-            persistentTasksService.sendTaskManagerCancellation(task.getId(), new ActionListener<CancelTasksResponse>() {
+            String reason = "task has been removed, cancelling locally";
+            persistentTasksService.sendCancelRequest(task.getId(), reason, new ActionListener<CancelTasksResponse>() {
                 @Override
                 public void onResponse(CancelTasksResponse cancelTasksResponse) {
                     logger.trace("Persistent task [{}] with id [{}] and allocation id [{}] was cancelled", task.getAction(),
@@ -207,16 +207,16 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
                 @Override
                 public void onFailure(Exception e) {
                     // There is really nothing we can do in case of failure here
-                    logger.warn((Supplier<?>) () ->
-                            new ParameterizedMessage("failed to cancel task [{}] with id [{}] and allocation id [{}]", task.getAction(),
-                                    task.getPersistentTaskId(), task.getAllocationId()), e);
+                    logger.warn(() -> new ParameterizedMessage(
+                        "failed to cancel task [{}] with id [{}] and allocation id [{}]",
+                        task.getAction(), task.getPersistentTaskId(), task.getAllocationId()), e);
                 }
             });
         }
     }
 
-
     public static class Status implements Task.Status {
+
         public static final String NAME = "persistent_executor";
 
         private final AllocatedPersistentTask.State state;
@@ -250,10 +250,6 @@ public class PersistentTasksNodeService extends AbstractComponent implements Clu
         @Override
         public String toString() {
             return Strings.toString(this);
-        }
-
-        public AllocatedPersistentTask.State getState() {
-            return state;
         }
 
         @Override

@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -147,11 +148,14 @@ public final class ProfileResult implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder = builder.startObject()
-                .field(TYPE.getPreferredName(), type)
-                .field(DESCRIPTION.getPreferredName(), description)
-                .timeValueField(NODE_TIME_RAW.getPreferredName(), NODE_TIME.getPreferredName(), getTime(), TimeUnit.NANOSECONDS)
-                .field(BREAKDOWN.getPreferredName(), timings);
+        builder.startObject();
+        builder.field(TYPE.getPreferredName(), type);
+        builder.field(DESCRIPTION.getPreferredName(), description);
+        if (builder.humanReadable()) {
+            builder.field(NODE_TIME.getPreferredName(), new TimeValue(getTime(), TimeUnit.NANOSECONDS).toString());
+        }
+        builder.field(NODE_TIME_RAW.getPreferredName(), getTime());
+        builder.field(BREAKDOWN.getPreferredName(), timings);
 
         if (!children.isEmpty()) {
             builder = builder.startArray(CHILDREN.getPreferredName());

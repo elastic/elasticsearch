@@ -73,7 +73,7 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
                 if (verifyResponse.failed()) {
                     listener.onFailure(new RepositoryVerificationException(request.name(), verifyResponse.failureDescription()));
                 } else {
-                    listener.onResponse(new VerifyRepositoryResponse(clusterService.getClusterName(), verifyResponse.nodes()));
+                    listener.onResponse(new VerifyRepositoryResponse(verifyResponse.nodes()));
                 }
             }
 

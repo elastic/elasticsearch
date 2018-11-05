@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
-import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -48,7 +48,8 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
         if (!this.readOnly) {
             Files.createDirectories(path);
         }
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.fs.buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
+        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.fs.buffer_size",
+            new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
     }
 
     @Override

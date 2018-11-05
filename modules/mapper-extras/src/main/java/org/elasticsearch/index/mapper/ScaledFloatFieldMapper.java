@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
@@ -157,10 +158,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                     builder.nullValue(ScaledFloatFieldMapper.parse(propNode));
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, "ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(propNode, name + ".ignore_malformed"));
                     iterator.remove();
                 } else if (propName.equals("coerce")) {
-                    builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
+                    builder.coerce(XContentMapValues.nodeBooleanValue(propNode, name + ".coerce"));
                     iterator.remove();
                 } else if (propName.equals("scaling_factor")) {
                     builder.scalingFactor(ScaledFloatFieldMapper.parse(propNode));

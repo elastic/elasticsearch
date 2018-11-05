@@ -87,7 +87,8 @@ final class ExpandSearchPhase extends SearchPhase {
                     groupQuery.must(origQuery);
                 }
                 for (InnerHitBuilder innerHitBuilder : innerHitBuilders) {
-                    SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder)
+                    CollapseBuilder innerCollapseBuilder = innerHitBuilder.getInnerCollapseBuilder();
+                    SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder)
                         .query(groupQuery)
                         .postFilter(searchRequest.source().postFilter());
                     SearchRequest groupRequest = buildExpandSearchRequest(searchRequest, sourceBuilder);
@@ -131,13 +132,11 @@ final class ExpandSearchPhase extends SearchPhase {
         if (orig.allowPartialSearchResults() != null){
             groupRequest.allowPartialSearchResults(orig.allowPartialSearchResults());
         }
-        if (orig.isMaxConcurrentShardRequestsSet()) {
-            groupRequest.setMaxConcurrentShardRequests(orig.getMaxConcurrentShardRequests());
-        }
+        groupRequest.setMaxConcurrentShardRequests(orig.getMaxConcurrentShardRequests());
         return groupRequest;
     }
 
-    private SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options) {
+    private SearchSourceBuilder buildExpandSearchSourceBuilder(InnerHitBuilder options, CollapseBuilder innerCollapseBuilder) {
         SearchSourceBuilder groupSource = new SearchSourceBuilder();
         groupSource.from(options.getFrom());
         groupSource.size(options.getSize());
@@ -153,7 +152,7 @@ final class ExpandSearchPhase extends SearchPhase {
             }
         }
         if (options.getDocValueFields() != null) {
-            options.getDocValueFields().forEach(groupSource::docValueField);
+            options.getDocValueFields().forEach(ff -> groupSource.docValueField(ff.field, ff.format));
         }
         if (options.getStoredFieldsContext() != null && options.getStoredFieldsContext().fieldNames() != null) {
             options.getStoredFieldsContext().fieldNames().forEach(groupSource::storedField);
@@ -169,6 +168,9 @@ final class ExpandSearchPhase extends SearchPhase {
         groupSource.explain(options.isExplain());
         groupSource.trackScores(options.isTrackScores());
         groupSource.version(options.isVersion());
+        if (innerCollapseBuilder != null) {
+            groupSource.collapse(innerCollapseBuilder);
+        }
         return groupSource;
     }
 }

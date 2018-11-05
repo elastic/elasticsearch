@@ -3,15 +3,10 @@
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-call "%~dp0elasticsearch-env.bat" || exit /b 1
-
-%JAVA% ^
-  %ES_JAVA_OPTS% ^
-  -Des.path.home="%ES_HOME%" ^
-  -Des.path.conf="%ES_PATH_CONF%" ^
-  -cp "%ES_CLASSPATH%" ^
-  org.elasticsearch.common.settings.KeyStoreCli ^
-  %*
+set ES_MAIN_CLASS=org.elasticsearch.common.settings.KeyStoreCli
+call "%~dp0elasticsearch-cli.bat" ^
+  %%* ^
+  || exit /b 1
 
 endlocal
 endlocal

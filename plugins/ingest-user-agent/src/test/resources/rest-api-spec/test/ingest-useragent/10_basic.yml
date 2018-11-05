@@ -1,4 +1,7 @@
 "ingest-user-agent plugin installed":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
     - do:
         cluster.state: {}
 
@@ -7,5 +10,5 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: ingest-user-agent }
-    - match:  { nodes.$master.ingest.processors.0.type: user_agent }
+    - contains:  { nodes.$master.plugins: { name: ingest-user-agent } }
+    - contains:  { nodes.$master.ingest.processors: { type: user_agent } }

@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -81,22 +82,22 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             assertThat("Breaker is not set to 0", node.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
 
-        String mapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type")
-                .startObject("properties")
-                .startObject("test-str")
-                .field("type", "keyword")
-                .field("doc_values", randomBoolean())
-                .endObject() // test-str
-                .startObject("test-num")
-                        // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
-                .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
-                .endObject() // test-num
-                .endObject() // properties
-                .endObject() // type
-                .endObject() // {}
-                .string();
+        String mapping = Strings // {}
+                .toString(XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("type")
+                        .startObject("properties")
+                        .startObject("test-str")
+                        .field("type", "keyword")
+                        .field("doc_values", randomBoolean())
+                        .endObject() // test-str
+                        .startObject("test-num")
+                                // I don't use randomNumericType() here because I don't want "byte", and I want "float" and "double"
+                        .field("type", randomFrom(Arrays.asList("float", "long", "double", "short", "integer")))
+                        .endObject() // test-num
+                        .endObject() // properties
+                        .endObject() // type
+                        .endObject());
         final double topLevelRate;
         final double lowLevelRate;
         if (frequently()) {

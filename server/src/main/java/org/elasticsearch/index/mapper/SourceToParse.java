@@ -42,8 +42,6 @@ public class SourceToParse {
 
     private String routing;
 
-    private String parentId;
-
     private XContentType xContentType;
 
     private SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType) {
@@ -70,15 +68,6 @@ public class SourceToParse {
 
     public String id() {
         return this.id;
-    }
-
-    public String parent() {
-        return this.parentId;
-    }
-
-    public SourceToParse parent(String parentId) {
-        this.parentId = parentId;
-        return this;
     }
 
     public String routing() {

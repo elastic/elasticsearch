@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -37,13 +36,11 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheReque
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -70,7 +67,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuil
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
@@ -91,7 +87,6 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBui
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
@@ -103,13 +98,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequestBuilder;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequestBuilder;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
@@ -119,6 +112,7 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -153,24 +147,31 @@ public interface IndicesAdminClient extends ElasticsearchClient {
 
 
     /**
-     * Types Exists.
+     * Types exists.
      *
+     * @deprecated Types are deprecated and are in the process of being removed.
      * @param request The types exists request
      * @return The result future
      */
+    @Deprecated
     ActionFuture<TypesExistsResponse> typesExists(TypesExistsRequest request);
 
     /**
-     * Types exists
+     * Types exists.
      *
+     * @deprecated Types are deprecated and are in the process of being removed.
      * @param request  The types exists
      * @param listener A listener to be notified with a result
      */
+    @Deprecated
     void typesExists(TypesExistsRequest request, ActionListener<TypesExistsResponse> listener);
 
     /**
-     * Indices exists.
+     * Types exists.
+     *
+     * @deprecated Types are deprecated and are in the process of being removed.
      */
+    @Deprecated
     TypesExistsRequestBuilder prepareTypesExists(String... index);
 
     /**
@@ -281,7 +282,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @return The result future
      * @see org.elasticsearch.client.Requests#deleteIndexRequest(String)
      */
-    ActionFuture<DeleteIndexResponse> delete(DeleteIndexRequest request);
+    ActionFuture<AcknowledgedResponse> delete(DeleteIndexRequest request);
 
     /**
      * Deletes an index based on the index name.
@@ -290,7 +291,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#deleteIndexRequest(String)
      */
-    void delete(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener);
+    void delete(DeleteIndexRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Deletes an index based on the index name.
@@ -306,7 +307,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @return The result future
      * @see org.elasticsearch.client.Requests#closeIndexRequest(String)
      */
-    ActionFuture<CloseIndexResponse> close(CloseIndexRequest request);
+    ActionFuture<AcknowledgedResponse> close(CloseIndexRequest request);
 
     /**
      * Closes an index based on the index name.
@@ -315,7 +316,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#closeIndexRequest(String)
      */
-    void close(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener);
+    void close(CloseIndexRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Closes one or more indices based on their index name.
@@ -524,7 +525,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @return A result future
      * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
      */
-    ActionFuture<PutMappingResponse> putMapping(PutMappingRequest request);
+    ActionFuture<AcknowledgedResponse> putMapping(PutMappingRequest request);
 
     /**
      * Add mapping definition for a type into one or more indices.
@@ -533,7 +534,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
      */
-    void putMapping(PutMappingRequest request, ActionListener<PutMappingResponse> listener);
+    void putMapping(PutMappingRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Add mapping definition for a type into one or more indices.
@@ -547,7 +548,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @return The result future
      * @see Requests#indexAliasesRequest()
      */
-    ActionFuture<IndicesAliasesResponse> aliases(IndicesAliasesRequest request);
+    ActionFuture<AcknowledgedResponse> aliases(IndicesAliasesRequest request);
 
     /**
      * Allows to add/remove aliases from indices.
@@ -556,7 +557,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      * @see Requests#indexAliasesRequest()
      */
-    void aliases(IndicesAliasesRequest request, ActionListener<IndicesAliasesResponse> listener);
+    void aliases(IndicesAliasesRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Allows to add/remove aliases from indices.
@@ -652,7 +653,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request the update settings request
      * @return The result future
      */
-    ActionFuture<UpdateSettingsResponse> updateSettings(UpdateSettingsRequest request);
+    ActionFuture<AcknowledgedResponse> updateSettings(UpdateSettingsRequest request);
 
     /**
      * Updates settings of one or more indices.
@@ -660,7 +661,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request  the update settings request
      * @param listener A listener to be notified with the response
      */
-    void updateSettings(UpdateSettingsRequest request, ActionListener<UpdateSettingsResponse> listener);
+    void updateSettings(UpdateSettingsRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Update indices settings.
@@ -701,12 +702,12 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Puts an index template.
      */
-    ActionFuture<PutIndexTemplateResponse> putTemplate(PutIndexTemplateRequest request);
+    ActionFuture<AcknowledgedResponse> putTemplate(PutIndexTemplateRequest request);
 
     /**
      * Puts an index template.
      */
-    void putTemplate(PutIndexTemplateRequest request, ActionListener<PutIndexTemplateResponse> listener);
+    void putTemplate(PutIndexTemplateRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Puts an index template.
@@ -718,12 +719,12 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Deletes index template.
      */
-    ActionFuture<DeleteIndexTemplateResponse> deleteTemplate(DeleteIndexTemplateRequest request);
+    ActionFuture<AcknowledgedResponse> deleteTemplate(DeleteIndexTemplateRequest request);
 
     /**
      * Deletes an index template.
      */
-    void deleteTemplate(DeleteIndexTemplateRequest request, ActionListener<DeleteIndexTemplateResponse> listener);
+    void deleteTemplate(DeleteIndexTemplateRequest request, ActionListener<AcknowledgedResponse> listener);
 
     /**
      * Deletes an index template.

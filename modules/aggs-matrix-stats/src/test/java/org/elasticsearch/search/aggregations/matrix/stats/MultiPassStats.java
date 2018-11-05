@@ -43,7 +43,6 @@ class MultiPassStats {
         this.fieldBKey = fieldBName;
     }
 
-    @SuppressWarnings("unchecked")
     void computeStats(final List<Double> fieldA, final List<Double> fieldB) {
         // set count
         count = fieldA.size();

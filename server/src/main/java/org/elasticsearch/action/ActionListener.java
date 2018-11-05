@@ -90,18 +90,12 @@ public interface ActionListener<Response> {
      * @param <Response> the type of the response
      * @return a bi consumer that will complete the wrapped listener
      */
-    static <Response> BiConsumer<Response, Throwable> toBiConsumer(ActionListener<Response> listener) {
+    static <Response> BiConsumer<Response, Exception> toBiConsumer(ActionListener<Response> listener) {
         return (response, throwable) -> {
             if (throwable == null) {
                 listener.onResponse(response);
             } else {
-                if (throwable instanceof Exception) {
-                    listener.onFailure((Exception) throwable);
-                } else if (throwable instanceof Error) {
-                    throw (Error) throwable;
-                } else {
-                    throw new AssertionError("Should have been either Error or Exception", throwable);
-                }
+                listener.onFailure(throwable);
             }
         };
     }

@@ -109,7 +109,7 @@ abstract class PainlessLexer extends Lexer {
    * See also
    * <a href="https://en.wikipedia.org/wiki/The_lexer_hack">The lexer hack</a>.
    */
-  protected abstract boolean isSimpleType(String name);
+  protected abstract boolean isType(String name);
 
   /**
    * Is the preceding {@code /} a the beginning of a regex (true) or a division
@@ -167,7 +167,7 @@ abstract class PainlessLexer extends Lexer {
   private boolean TYPE_sempred(RuleContext _localctx, int predIndex) {
     switch (predIndex) {
     case 2:
-      return  isSimpleType(getText()) ;
+      return  isType(getText()) ;
     }
     return true;
   }

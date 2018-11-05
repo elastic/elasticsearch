@@ -19,11 +19,11 @@
 
 package org.elasticsearch.plugins;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -37,10 +37,8 @@ import java.security.URIParameter;
 import java.security.UnresolvedPermission;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 class PluginSecurity {
@@ -48,8 +46,7 @@ class PluginSecurity {
     /**
      * prints/confirms policy exceptions with the user
      */
-    static void confirmPolicyExceptions(Terminal terminal, Set<String> permissions,
-                                        boolean needsNativeController, boolean batch) throws UserException {
+    static void confirmPolicyExceptions(Terminal terminal, Set<String> permissions, boolean batch) throws UserException {
         List<String> requested = new ArrayList<>(permissions);
         if (requested.isEmpty()) {
             terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
@@ -67,15 +64,6 @@ class PluginSecurity {
             }
             terminal.println(Verbosity.NORMAL, "See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html");
             terminal.println(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
-            prompt(terminal, batch);
-        }
-
-        if (needsNativeController) {
-            terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            terminal.println(Verbosity.NORMAL, "@        WARNING: plugin forks a native controller        @");
-            terminal.println(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-            terminal.println(Verbosity.NORMAL, "This plugin launches a native controller that is not subject to the Java");
-            terminal.println(Verbosity.NORMAL, "security manager nor to system call filters.");
             prompt(terminal, batch);
         }
     }

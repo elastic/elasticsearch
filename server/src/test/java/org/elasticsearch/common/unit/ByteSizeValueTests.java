@@ -20,7 +20,6 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.MatcherAssert;
@@ -168,7 +167,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     public void testCompareUnits() {
-        long number = randomNonNegativeLong() / ByteSizeUnit.PB.toBytes(1);
+        long number = randomLongBetween(1, Long.MAX_VALUE/ ByteSizeUnit.PB.toBytes(1));
         ByteSizeUnit randomUnit = randomValueOtherThan(ByteSizeUnit.PB, ()->randomFrom(ByteSizeUnit.values()));
         ByteSizeValue firstByteValue = new ByteSizeValue(number, randomUnit);
         ByteSizeValue secondByteValue = new ByteSizeValue(number, ByteSizeUnit.PB);
@@ -223,25 +222,36 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
     }
 
     @Override
-    protected ByteSizeValue mutateInstance(ByteSizeValue instance) throws IOException {
-        long size = instance.getSize();
-        ByteSizeUnit unit = instance.getUnit();
+    protected ByteSizeValue mutateInstance(final ByteSizeValue instance) {
+        final long instanceSize = instance.getSize();
+        final ByteSizeUnit instanceUnit = instance.getUnit();
+        final long mutateSize;
+        final ByteSizeUnit mutateUnit;
         switch (between(0, 1)) {
         case 0:
-            long unitBytes = unit.toBytes(1);
-            size = randomValueOtherThan(size, () -> randomNonNegativeLong() / unitBytes);
+            final long unitBytes = instanceUnit.toBytes(1);
+            mutateSize = randomValueOtherThan(instanceSize, () -> randomNonNegativeLong() / unitBytes);
+            mutateUnit = instanceUnit;
             break;
         case 1:
-            unit = randomValueOtherThan(unit, () -> randomFrom(ByteSizeUnit.values()));
-            long newUnitBytes = unit.toBytes(1);
-            if (size >= Long.MAX_VALUE / newUnitBytes) {
-                size = randomValueOtherThan(size, () -> randomNonNegativeLong() / newUnitBytes);
+            mutateUnit = randomValueOtherThan(instanceUnit, () -> randomFrom(ByteSizeUnit.values()));
+            final long newUnitBytes = mutateUnit.toBytes(1);
+            /*
+             * If size is zero we can not reuse zero because zero with any unit will be equal to zero with any other unit so in this case we
+             * need to randomize a new size. Additionally, if the size unit pair is such that the representation would be such that the
+             * number of represented bytes would exceed Long.Max_VALUE, we have to randomize a new size too.
+             */
+            if (instanceSize == 0 || instanceSize >= Long.MAX_VALUE / newUnitBytes) {
+                mutateSize = randomValueOtherThanMany(
+                        v -> v == instanceSize && v >= Long.MAX_VALUE / newUnitBytes, () -> randomNonNegativeLong() / newUnitBytes);
+            } else {
+                mutateSize = instanceSize;
             }
             break;
         default:
             throw new AssertionError("Invalid randomisation branch");
         }
-        return new ByteSizeValue(size, unit);
+        return new ByteSizeValue(mutateSize, mutateUnit);
     }
 
     public void testParse() {
@@ -307,10 +317,5 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
                 assertEquals((int) bytesValue, instance.bytesAsInt());
             }
         }
-    }
-
-    public void testOldSerialisation() throws IOException {
-        ByteSizeValue original = createTestInstance();
-        assertSerialization(original, randomFrom(Version.V_5_6_4, Version.V_5_6_5, Version.V_6_0_0, Version.V_6_0_1, Version.V_6_1_0));
     }
 }

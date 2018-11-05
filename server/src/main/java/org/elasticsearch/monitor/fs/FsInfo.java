@@ -165,13 +165,13 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             }
 
             if (total != -1) {
-                builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, total);
+                builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, getTotal());
             }
             if (free != -1) {
-                builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, free);
+                builder.humanReadableField(Fields.FREE_IN_BYTES, Fields.FREE, getFree());
             }
             if (available != -1) {
-                builder.byteSizeField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, available);
+                builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, getAvailable());
             }
 
             builder.endObject();
@@ -530,8 +530,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             builder.startObject(Fields.LEAST_ESTIMATE);
             {
                 builder.field(Fields.PATH, leastDiskEstimate.getPath());
-                builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, leastDiskEstimate.getTotalBytes());
-                builder.byteSizeField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, leastDiskEstimate.getFreeBytes());
+                builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(leastDiskEstimate.getTotalBytes()));
+                builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE,
+                    new ByteSizeValue(leastDiskEstimate.getFreeBytes()));
                 builder.field(Fields.USAGE_PERCENTAGE, leastDiskEstimate.getUsedDiskAsPercentage());
             }
             builder.endObject();
@@ -541,8 +542,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             builder.startObject(Fields.MOST_ESTIMATE);
             {
                 builder.field(Fields.PATH, mostDiskEstimate.getPath());
-                builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, mostDiskEstimate.getTotalBytes());
-                builder.byteSizeField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, mostDiskEstimate.getFreeBytes());
+                builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(mostDiskEstimate.getTotalBytes()));
+                builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, new ByteSizeValue(mostDiskEstimate.getFreeBytes()));
                 builder.field(Fields.USAGE_PERCENTAGE, mostDiskEstimate.getUsedDiskAsPercentage());
             }
             builder.endObject();

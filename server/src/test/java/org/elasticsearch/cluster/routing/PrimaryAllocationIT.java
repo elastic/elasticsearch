@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -31,6 +32,12 @@ import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -38,20 +45,31 @@ import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class PrimaryAllocationIT extends ESIntegTestCase {
@@ -68,18 +86,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
     }
 
-    private void createStaleReplicaScenario() throws Exception {
-        logger.info("--> starting 3 nodes, 1 master, 2 data");
-        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
-        internalCluster().startDataOnlyNodes(2);
-
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
-            .put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get());
-        ensureGreen();
-        logger.info("--> indexing...");
+    private void createStaleReplicaScenario(String master) throws Exception {
         client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
         refresh();
-
         ClusterState state = client().admin().cluster().prepareState().all().get().getState();
         List<ShardRouting> shards = state.routingTable().allShards("test");
         assertThat(shards.size(), equalTo(2));
@@ -125,7 +134,13 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     }
 
     public void testDoNotAllowStaleReplicasToBePromotedToPrimary() throws Exception {
-        createStaleReplicaScenario();
+        logger.info("--> starting 3 nodes, 1 master, 2 data");
+        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNodes(2);
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get());
+        ensureGreen();
+        createStaleReplicaScenario(master);
 
         logger.info("--> starting node that reuses data folder with the up-to-date primary shard");
         internalCluster().startDataOnlyNode(Settings.EMPTY);
@@ -161,9 +176,17 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     }
 
     public void testForceStaleReplicaToBePromotedToPrimary() throws Exception {
-        boolean useStaleReplica = randomBoolean(); // if true, use stale replica, otherwise a completely empty copy
-        createStaleReplicaScenario();
+        logger.info("--> starting 3 nodes, 1 master, 2 data");
+        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNodes(2);
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).get());
+        ensureGreen();
+        Set<String> historyUUIDs = Arrays.stream(client().admin().indices().prepareStats("test").clear().get().getShards())
+            .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY)).collect(Collectors.toSet());
+        createStaleReplicaScenario(master);
 
+        boolean useStaleReplica = randomBoolean(); // if true, use stale replica, otherwise a completely empty copy
         logger.info("--> explicitly promote old primary shard");
         final String idxName = "test";
         ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = client().admin().indices().prepareShardStores(idxName).get().getStoreStatuses().get(idxName);
@@ -198,6 +221,11 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         assertEquals(Collections.singleton(state.routingTable().index(idxName).shard(0).primary.allocationId().getId()),
             state.metaData().index(idxName).inSyncAllocationIds(0));
+
+        Set<String> newHistoryUUIds = Arrays.stream(client().admin().indices().prepareStats("test").clear().get().getShards())
+            .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY)).collect(Collectors.toSet());
+        assertThat(newHistoryUUIds, everyItem(not(isIn(historyUUIDs))));
+        assertThat(newHistoryUUIds, hasSize(1));
     }
 
     public void testForcePrimaryShardIfAllocationDecidersSayNoAfterIndexCreation() throws ExecutionException, InterruptedException {
@@ -309,4 +337,75 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertEquals(1, client().admin().cluster().prepareState().get().getState()
                             .routingTable().index(indexName).shardsWithState(ShardRoutingState.STARTED).size());
     }
+
+    /**
+     * This test asserts that replicas failed to execute resync operations will be failed but not marked as stale.
+     */
+    @TestLogging("_root:DEBUG, org.elasticsearch.cluster.routing.allocation:TRACE, org.elasticsearch.cluster.action.shard:TRACE," +
+        "org.elasticsearch.indices.recovery:TRACE, org.elasticsearch.cluster.routing.allocation.allocator:TRACE")
+    public void testPrimaryReplicaResyncFailed() throws Exception {
+        String master = internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        final int numberOfReplicas = between(2, 3);
+        final String oldPrimary = internalCluster().startDataOnlyNode();
+        assertAcked(
+            prepareCreate("test", Settings.builder().put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)));
+        final ShardId shardId = new ShardId(clusterService().state().metaData().index("test").getIndex(), 0);
+        final Set<String> replicaNodes = new HashSet<>(internalCluster().startDataOnlyNodes(numberOfReplicas));
+        ensureGreen();
+        assertAcked(
+            client(master).admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none")).get());
+        logger.info("--> Indexing with gap in seqno to ensure that some operations will be replayed in resync");
+        long numDocs = scaledRandomIntBetween(5, 50);
+        for (int i = 0; i < numDocs; i++) {
+            IndexResponse indexResult = index("test", "doc", Long.toString(i));
+            assertThat(indexResult.getShardInfo().getSuccessful(), equalTo(numberOfReplicas + 1));
+        }
+        final IndexShard oldPrimaryShard = internalCluster().getInstance(IndicesService.class, oldPrimary).getShardOrNull(shardId);
+        EngineTestCase.generateNewSeqNo(IndexShardTestCase.getEngine(oldPrimaryShard)); // Make gap in seqno.
+        long moreDocs = scaledRandomIntBetween(1, 10);
+        for (int i = 0; i < moreDocs; i++) {
+            IndexResponse indexResult = index("test", "doc", Long.toString(numDocs + i));
+            assertThat(indexResult.getShardInfo().getSuccessful(), equalTo(numberOfReplicas + 1));
+        }
+        final Set<String> replicasSide1 = Sets.newHashSet(randomSubsetOf(between(1, numberOfReplicas - 1), replicaNodes));
+        final Set<String> replicasSide2 = Sets.difference(replicaNodes, replicasSide1);
+        NetworkDisruption partition = new NetworkDisruption(new TwoPartitions(replicasSide1, replicasSide2), new NetworkDisconnect());
+        internalCluster().setDisruptionScheme(partition);
+        logger.info("--> isolating some replicas during primary-replica resync");
+        partition.startDisrupting();
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(oldPrimary));
+        // Checks that we fails replicas in one side but not mark them as stale.
+        assertBusy(() -> {
+            ClusterState state = client(master).admin().cluster().prepareState().get().getState();
+            final IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shardId);
+            final String newPrimaryNode = state.getRoutingNodes().node(shardRoutingTable.primary.currentNodeId()).node().getName();
+            assertThat(newPrimaryNode, not(equalTo(oldPrimary)));
+            Set<String> selectedPartition = replicasSide1.contains(newPrimaryNode) ? replicasSide1 : replicasSide2;
+            assertThat(shardRoutingTable.activeShards(), hasSize(selectedPartition.size()));
+            for (ShardRouting activeShard : shardRoutingTable.activeShards()) {
+                assertThat(state.getRoutingNodes().node(activeShard.currentNodeId()).node().getName(), isIn(selectedPartition));
+            }
+            assertThat(state.metaData().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
+        }, 1, TimeUnit.MINUTES);
+        assertAcked(
+            client(master).admin().cluster().prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "all")).get());
+        partition.stopDisrupting();
+        partition.ensureHealthy(internalCluster());
+        logger.info("--> stop disrupting network and re-enable allocation");
+        assertBusy(() -> {
+            ClusterState state = client(master).admin().cluster().prepareState().get().getState();
+            assertThat(state.routingTable().shardRoutingTable(shardId).activeShards(), hasSize(numberOfReplicas));
+            assertThat(state.metaData().index("test").inSyncAllocationIds(shardId.id()), hasSize(numberOfReplicas + 1));
+            for (String node : replicaNodes) {
+                IndexShard shard = internalCluster().getInstance(IndicesService.class, node).getShardOrNull(shardId);
+                assertThat(shard.getLocalCheckpoint(), equalTo(numDocs + moreDocs));
+            }
+        }, 30, TimeUnit.SECONDS);
+        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
+    }
+
 }

@@ -28,8 +28,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -76,7 +76,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
      * Construct a {@linkplain TaskResult} for a task that completed successfully.
      */
     public TaskResult(TaskInfo task, ToXContent response) throws IOException {
-        this(true, task, null, toXContent(response));
+        this(true, task, null, XContentHelper.toXContent(response, Requests.INDEX_CONTENT_TYPE, true));
     }
 
     private TaskResult(boolean completed, TaskInfo task, @Nullable BytesReference error, @Nullable BytesReference result) {
@@ -186,8 +186,9 @@ public final class TaskResult implements Writeable, ToXContentObject {
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("completed"));
         PARSER.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
-        PARSER.declareRawObject(optionalConstructorArg(), new ParseField("error"));
-        PARSER.declareRawObject(optionalConstructorArg(), new ParseField("response"));
+        ObjectParserHelper<TaskResult, Void> parserHelper = new ObjectParserHelper<>();
+        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("error"));
+        parserHelper.declareRawObject(PARSER, optionalConstructorArg(), new ParseField("response"));
     }
 
     @Override
@@ -221,22 +222,12 @@ public final class TaskResult implements Writeable, ToXContentObject {
         return Objects.hash(completed, task, getErrorAsMap(), getResponseAsMap());
     }
 
-    private static BytesReference toXContent(ToXContent result) throws IOException {
-        try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
-            // Elasticsearch's Response object never emit starting or ending objects. Most other implementers of ToXContent do....
-            builder.startObject();
-            result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            return builder.bytes();
-        }
-    }
-
     private static BytesReference toXContent(Exception error) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             builder.startObject();
             ElasticsearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
             builder.endObject();
-            return builder.bytes();
+            return BytesReference.bytes(builder);
         }
     }
 }

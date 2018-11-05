@@ -91,6 +91,31 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFra
         assertThat(restApi.isBodyRequired(), equalTo(false));
     }
 
+    public void testRequiredBodyWithoutUrlParts() throws Exception {
+        String spec = "{\n" +
+            "  \"count\": {\n" +
+            "    \"documentation\": \"whatever\",\n" +
+            "    \"methods\": [ \"GET\", \"POST\" ],\n" +
+            "    \"url\": {\n" +
+            "      \"path\": \"/whatever\",\n" +
+            "      \"paths\": [ \"/whatever\" ]\n" +
+            "    },\n" +
+            "    \"body\": {\n" +
+            "      \"description\" : \"whatever\",\n" +
+            "      \"required\" : true\n" +
+            "    }\n" +
+            "  }\n" +
+            "}";
+
+        parser = createParser(YamlXContent.yamlXContent, spec);
+        ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("count.json", parser);
+
+        assertThat(restApi, notNullValue());
+        assertThat(restApi.getPathParts().isEmpty(), equalTo(true));
+        assertThat(restApi.getParams().isEmpty(), equalTo(true));
+        assertThat(restApi.isBodyRequired(), equalTo(true));
+    }
+
     private static final String REST_SPEC_COUNT_API = "{\n" +
             "  \"count\": {\n" +
             "    \"documentation\": \"http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/search-count.html\",\n" +

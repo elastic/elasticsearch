@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -27,10 +28,10 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public class ObjectMapper extends Mapper implements Cloneable {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger(ObjectMapper.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ObjectMapper.class));
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";
@@ -178,12 +179,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
                 } else {
-                    boolean dynamic = TypeParsers.nodeBooleanValue(fieldName, "dynamic", fieldNode, parserContext);
+                    boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
                 }
                 return true;
             } else if (fieldName.equals("enabled")) {
-                builder.enabled(TypeParsers.nodeBooleanValue(fieldName, "enabled", fieldNode, parserContext));
+                builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -219,12 +220,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
             fieldNode = node.get("include_in_parent");
             if (fieldNode != null) {
-                nestedIncludeInParent = TypeParsers.nodeBooleanValue(name, "include_in_parent", fieldNode, parserContext);
+                nestedIncludeInParent = XContentMapValues.nodeBooleanValue(fieldNode, name + ".include_in_parent");
                 node.remove("include_in_parent");
             }
             fieldNode = node.get("include_in_root");
             if (fieldNode != null) {
-                nestedIncludeInRoot = TypeParsers.nodeBooleanValue(name, "include_in_root", fieldNode, parserContext);
+                nestedIncludeInRoot = XContentMapValues.nodeBooleanValue(fieldNode, name + ".include_in_root");
                 node.remove("include_in_root");
             }
             if (nested) {
@@ -358,6 +359,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return this.fullPath;
     }
 
+    @Override
+    public String typeName() {
+        return CONTENT_TYPE;
+    }
+
     public boolean isEnabled() {
         return this.enabled;
     }
@@ -452,6 +458,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         for (Mapper mergeWithMapper : mergeWith) {
             Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
+            checkEnabledFieldChange(mergeWith, mergeWithMapper, mergeIntoMapper);
+
             Mapper merged;
             if (mergeIntoMapper == null) {
                 // no mapping, simply add it
@@ -461,6 +469,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 merged = mergeIntoMapper.merge(mergeWithMapper);
             }
             putMapper(merged);
+        }
+    }
+
+    private static void checkEnabledFieldChange(ObjectMapper mergeWith, Mapper mergeWithMapper, Mapper mergeIntoMapper) {
+        if (mergeIntoMapper instanceof ObjectMapper && mergeWithMapper instanceof ObjectMapper) {
+            final ObjectMapper mergeIntoObjectMapper = (ObjectMapper) mergeIntoMapper;
+            final ObjectMapper mergeWithObjectMapper = (ObjectMapper) mergeWithMapper;
+
+            if (mergeIntoObjectMapper.isEnabled() != mergeWithObjectMapper.isEnabled()) {
+                final String path = mergeWith.fullPath() + "." + mergeWithObjectMapper.simpleName() + ".enabled";
+                throw new MapperException("Can't update attribute for type [" + path + "] in index mapping");
+            }
         }
     }
 

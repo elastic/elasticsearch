@@ -20,7 +20,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -33,7 +32,6 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -71,18 +69,18 @@ public class TransportNodesListGatewayStartedShards extends
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
     private final NodeEnvironment nodeEnv;
     private final IndicesService indicesService;
+    private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
-    public TransportNodesListGatewayStartedShards(Settings settings, ThreadPool threadPool,
-                                                  ClusterService clusterService, TransportService transportService,
-                                                  ActionFilters actionFilters,
-                                                  IndexNameExpressionResolver indexNameExpressionResolver,
-                                                  NodeEnvironment env, IndicesService indicesService) {
+    public TransportNodesListGatewayStartedShards(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                                  TransportService transportService, ActionFilters actionFilters,
+                                                  NodeEnvironment env, IndicesService indicesService,
+                                                  NamedXContentRegistry namedXContentRegistry) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
-              indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED,
-              NodeGatewayStartedShards.class);
+            Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED, NodeGatewayStartedShards.class);
         this.nodeEnv = env;
         this.indicesService = indicesService;
+        this.namedXContentRegistry = namedXContentRegistry;
     }
 
     @Override
@@ -117,7 +115,7 @@ public class TransportNodesListGatewayStartedShards extends
         try {
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);
-            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
                 nodeEnv.availableShardPaths(request.shardId));
             if (shardStateMetaData != null) {
                 IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex());
@@ -125,7 +123,7 @@ public class TransportNodesListGatewayStartedShards extends
                     // we may send this requests while processing the cluster state that recovered the index
                     // sometimes the request comes in before the local node processed that cluster state
                     // in such cases we can load it from disk
-                    metaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+                    metaData = IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
                         nodeEnv.indexPaths(shardId.getIndex()));
                 }
                 if (metaData == null) {
@@ -146,8 +144,7 @@ public class TransportNodesListGatewayStartedShards extends
                         Store.tryOpenIndex(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
                     } catch (Exception exception) {
                         final ShardPath finalShardPath = shardPath;
-                        logger.trace(
-                            (Supplier<?>) () -> new ParameterizedMessage(
+                        logger.trace(() -> new ParameterizedMessage(
                                 "{} can't open index for shard [{}] in path [{}]",
                                 shardId,
                                 shardStateMetaData,

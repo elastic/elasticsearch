@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -88,7 +89,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
                          shardRoutingState.toString().toLowerCase(Locale.ROOT) + "\",\"current_node\":" +
                          "{\"id\":\"" + cae.getCurrentNode().getId() + "\",\"name\":\"" + cae.getCurrentNode().getName() +
                          "\",\"transport_address\":\"" + cae.getCurrentNode().getAddress() +
-                         "\"},\"explanation\":\"" + explanation + "\"}", builder.string());
+                         "\"},\"explanation\":\"" + explanation + "\"}", Strings.toString(builder));
     }
 
     public void testFindAnyUnassignedShardToExplain() {

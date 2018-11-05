@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -71,7 +72,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
     }
 
     public void testRandomExceptions() throws IOException, InterruptedException, ExecutionException {
-        String mapping = XContentFactory.jsonBuilder().
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().
                 startObject().
                 startObject("type").
                 startObject("properties").
@@ -80,7 +81,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
                 .endObject().
                         endObject().
                         endObject()
-                .endObject().string();
+                .endObject());
         final double lowLevelRate;
         final double topLevelRate;
         if (frequently()) {

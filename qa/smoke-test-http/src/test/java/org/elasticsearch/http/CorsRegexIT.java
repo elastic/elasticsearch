@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.http;
 
-import org.apache.http.message.BasicHeader;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -49,27 +49,41 @@ public class CorsRegexIT extends HttpSmokeTestCase {
                 .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
                 .put(SETTING_CORS_ALLOW_METHODS.getKey(), "get, options, post")
                 .put(SETTING_CORS_ENABLED.getKey(), true)
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
     }
 
     public void testThatRegularExpressionWorksOnMatch() throws IOException {
-        String corsValue = "http://localhost:9200";
-        Response response = getRestClient().performRequest("GET", "/",
-                new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));
-        assertResponseWithOriginheader(response, corsValue);
-
-        corsValue = "https://localhost:9200";
-        response = getRestClient().performRequest("GET", "/",
-                new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue));
-        assertResponseWithOriginheader(response, corsValue);
-        assertThat(response.getHeader("Access-Control-Allow-Credentials"), is("true"));
+        {
+            String corsValue = "http://localhost:9200";
+            Request request = new Request("GET", "/");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("User-Agent", "Mozilla Bar");
+            options.addHeader("Origin", corsValue);
+            request.setOptions(options);
+            Response response = getRestClient().performRequest(request);
+            assertResponseWithOriginHeader(response, corsValue);
+        }
+        {
+            String corsValue = "https://localhost:9201";
+            Request request = new Request("GET", "/");
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.addHeader("User-Agent", "Mozilla Bar");
+            options.addHeader("Origin", corsValue);
+            request.setOptions(options);
+            Response response = getRestClient().performRequest(request);
+            assertResponseWithOriginHeader(response, corsValue);
+            assertThat(response.getHeader("Access-Control-Allow-Credentials"), is("true"));
+        }
     }
 
     public void testThatRegularExpressionReturnsForbiddenOnNonMatch() throws IOException {
+        Request request = new Request("GET", "/");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("User-Agent", "Mozilla Bar");
+        options.addHeader("Origin", "http://evil-host:9200");
+        request.setOptions(options);
         try {
-            getRestClient().performRequest("GET", "/", new BasicHeader("User-Agent", "Mozilla Bar"),
-                    new BasicHeader("Origin", "http://evil-host:9200"));
+            getRestClient().performRequest(request);
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
@@ -80,31 +94,44 @@ public class CorsRegexIT extends HttpSmokeTestCase {
     }
 
     public void testThatSendingNoOriginHeaderReturnsNoAccessControlHeader() throws IOException {
-        Response response = getRestClient().performRequest("GET", "/", new BasicHeader("User-Agent", "Mozilla Bar"));
+        Request request = new Request("GET", "/");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("User-Agent", "Mozilla Bar");
+        request.setOptions(options);
+        Response response = getRestClient().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
     }
 
     public void testThatRegularExpressionIsNotAppliedWithoutCorrectBrowserOnMatch() throws IOException {
-        Response response = getRestClient().performRequest("GET", "/");
+        Response response = getRestClient().performRequest(new Request("GET", "/"));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getHeader("Access-Control-Allow-Origin"), nullValue());
     }
 
     public void testThatPreFlightRequestWorksOnMatch() throws IOException {
         String corsValue = "http://localhost:9200";
-        Response response = getRestClient().performRequest("OPTIONS", "/",
-                new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue),
-                new BasicHeader("Access-Control-Request-Method", "GET"));
-        assertResponseWithOriginheader(response, corsValue);
+        Request request = new Request("OPTIONS", "/");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("User-Agent", "Mozilla Bar");
+        options.addHeader("Origin", corsValue);
+        options.addHeader("Access-Control-Request-Method", "GET");
+        request.setOptions(options);
+        Response response = getRestClient().performRequest(request);
+        assertResponseWithOriginHeader(response, corsValue);
         assertNotNull(response.getHeader("Access-Control-Allow-Methods"));
     }
 
     public void testThatPreFlightRequestReturnsNullOnNonMatch() throws IOException {
+        String corsValue = "http://evil-host:9200";
+        Request request = new Request("OPTIONS", "/");
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("User-Agent", "Mozilla Bar");
+        options.addHeader("Origin", corsValue);
+        options.addHeader("Access-Control-Request-Method", "GET");
+        request.setOptions(options);
         try {
-            getRestClient().performRequest("OPTIONS", "/", new BasicHeader("User-Agent", "Mozilla Bar"),
-                    new BasicHeader("Origin", "http://evil-host:9200"),
-                    new BasicHeader("Access-Control-Request-Method", "GET"));
+            getRestClient().performRequest(request);
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
@@ -115,7 +142,7 @@ public class CorsRegexIT extends HttpSmokeTestCase {
         }
     }
 
-    protected static void assertResponseWithOriginheader(Response response, String expectedCorsHeader) {
+    private static void assertResponseWithOriginHeader(Response response, String expectedCorsHeader) {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getHeader("Access-Control-Allow-Origin"), is(expectedCorsHeader));
     }

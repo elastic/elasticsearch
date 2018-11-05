@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -61,48 +60,42 @@ public final class HdfsRepository extends BlobStoreRepository {
     private final ByteSizeValue chunkSize;
     private final boolean compress;
     private final BlobPath basePath = BlobPath.cleanPath();
-
-    private HdfsBlobStore blobStore;
+    private final URI uri;
+    private final String pathSetting;
 
     // buffer size passed to HDFS read/write methods
     // TODO: why 100KB?
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
     public HdfsRepository(RepositoryMetaData metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry) throws IOException {
+                          NamedXContentRegistry namedXContentRegistry) {
         super(metadata, environment.settings(), namedXContentRegistry);
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
         this.compress = metadata.settings().getAsBoolean("compress", false);
-    }
 
-    @Override
-    protected void doStart() {
         String uriSetting = getMetadata().settings().get("uri");
         if (Strings.hasText(uriSetting) == false) {
             throw new IllegalArgumentException("No 'uri' defined for hdfs snapshot/restore");
         }
-        URI uri = URI.create(uriSetting);
+        uri = URI.create(uriSetting);
         if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
-                "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore", uri.getScheme(), uriSetting));
+                "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore",
+                uri.getScheme(),
+                uriSetting));
         }
         if (Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
             throw new IllegalArgumentException(String.format(Locale.ROOT,
                 "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", uri.getPath(), uriSetting));
         }
 
-        String pathSetting = getMetadata().settings().get("path");
+        pathSetting = getMetadata().settings().get("path");
         // get configuration
         if (pathSetting == null) {
             throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
         }
-
-        // initialize our blobstore using elevated privileges.
-        SpecialPermission.check();
-        blobStore = AccessController.doPrivileged((PrivilegedAction<HdfsBlobStore>) () -> createBlobstore(uri, pathSetting, getMetadata().settings()));
-        super.doStart();
     }
 
     private HdfsBlobStore createBlobstore(URI uri, String path, Settings repositorySettings)  {
@@ -143,7 +136,10 @@ public final class HdfsRepository extends BlobStoreRepository {
             }
         });
 
-        logger.debug("Using file-system [{}] for URI [{}], path [{}]", fileContext.getDefaultFileSystem(), fileContext.getDefaultFileSystem().getUri(), path);
+        logger.debug("Using file-system [{}] for URI [{}], path [{}]",
+            fileContext.getDefaultFileSystem(),
+            fileContext.getDefaultFileSystem().getUri(),
+            path);
 
         try {
             return new HdfsBlobStore(fileContext, path, bufferSize, isReadOnly(), haEnabled);
@@ -229,7 +225,12 @@ public final class HdfsRepository extends BlobStoreRepository {
     }
 
     @Override
-    protected BlobStore blobStore() {
+    protected HdfsBlobStore createBlobStore() {
+        // initialize our blobstore using elevated privileges.
+        SpecialPermission.check();
+        final HdfsBlobStore blobStore =
+            AccessController.doPrivileged((PrivilegedAction<HdfsBlobStore>)
+                () -> createBlobstore(uri, pathSetting, getMetadata().settings()));
         return blobStore;
     }
 

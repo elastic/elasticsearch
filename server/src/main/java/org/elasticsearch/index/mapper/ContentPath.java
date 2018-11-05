@@ -36,7 +36,7 @@ public final class ContentPath {
     }
 
     /**
-     * Constructs a json path with an offset. The offset will result an <tt>offset</tt>
+     * Constructs a json path with an offset. The offset will result an {@code offset}
      * number of path elements to not be included in {@link #pathAsText(String)}.
      */
     public ContentPath(int offset) {

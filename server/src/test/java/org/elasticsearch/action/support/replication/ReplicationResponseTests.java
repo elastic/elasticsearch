@@ -82,7 +82,7 @@ public class ReplicationResponseTests extends ESTestCase {
         // Shuffle the XContent fields
         if (randomBoolean()) {
             try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-                originalBytes = shuffleXContent(parser, randomBoolean()).bytes();
+                originalBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
             }
         }
 

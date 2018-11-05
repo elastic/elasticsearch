@@ -19,10 +19,14 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -39,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -57,11 +62,12 @@ public class RepositoryDataTests extends ESTestCase {
         RepositoryData repositoryData = generateRandomRepoData();
         XContentBuilder builder = JsonXContent.contentBuilder();
         repositoryData.snapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
-        long gen = (long) randomIntBetween(0, 500);
-        RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen);
-        assertEquals(repositoryData, fromXContent);
-        assertEquals(gen, fromXContent.getGenId());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            long gen = (long) randomIntBetween(0, 500);
+            RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen);
+            assertEquals(repositoryData, fromXContent);
+            assertEquals(gen, fromXContent.getGenId());
+        }
     }
 
     public void testAddSnapshots() {
@@ -100,15 +106,18 @@ public class RepositoryDataTests extends ESTestCase {
     public void testInitIndices() {
         final int numSnapshots = randomIntBetween(1, 30);
         final Map<String, SnapshotId> snapshotIds = new HashMap<>(numSnapshots);
+        final Map<String, SnapshotState> snapshotStates = new HashMap<>(numSnapshots);
         for (int i = 0; i < numSnapshots; i++) {
             final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             snapshotIds.put(snapshotId.getUUID(), snapshotId);
+            snapshotStates.put(snapshotId.getUUID(), randomFrom(SnapshotState.values()));
         }
         RepositoryData repositoryData = new RepositoryData(EMPTY_REPO_GEN, snapshotIds,
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyList());
         // test that initializing indices works
         Map<IndexId, Set<SnapshotId>> indices = randomIndices(snapshotIds);
-        RepositoryData newRepoData = repositoryData.initIndices(indices);
+        RepositoryData newRepoData =  new RepositoryData(repositoryData.getGenId(), snapshotIds, snapshotStates, indices,
+            new ArrayList<>(repositoryData.getIncompatibleSnapshotIds()));
         List<SnapshotId> expected = new ArrayList<>(repositoryData.getSnapshotIds());
         Collections.sort(expected);
         List<SnapshotId> actual = new ArrayList<>(newRepoData.getSnapshotIds());
@@ -150,6 +159,89 @@ public class RepositoryDataTests extends ESTestCase {
         final RepositoryData repositoryData = RepositoryData.EMPTY.addSnapshot(snapshotId, state, Collections.emptyList());
         assertEquals(state, repositoryData.getSnapshotState(snapshotId));
         assertNull(repositoryData.getSnapshotState(new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())));
+    }
+
+    public void testIndexThatReferencesAnUnknownSnapshot() throws IOException {
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+        final RepositoryData repositoryData = generateRandomRepoData();
+
+        XContentBuilder builder = XContentBuilder.builder(xContent);
+        repositoryData.snapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
+        RepositoryData parsedRepositoryData;
+        try (XContentParser xParser = createParser(builder)) {
+            parsedRepositoryData = RepositoryData.snapshotsFromXContent(xParser, repositoryData.getGenId());
+        }
+        assertEquals(repositoryData, parsedRepositoryData);
+
+        Map<String, SnapshotId> snapshotIds = new HashMap<>();
+        Map<String, SnapshotState> snapshotStates = new HashMap<>();
+        for (SnapshotId snapshotId : parsedRepositoryData.getSnapshotIds()) {
+            snapshotIds.put(snapshotId.getUUID(), snapshotId);
+            snapshotStates.put(snapshotId.getUUID(), parsedRepositoryData.getSnapshotState(snapshotId));
+        }
+
+        final IndexId corruptedIndexId = randomFrom(parsedRepositoryData.getIndices().values());
+
+        Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+        for (Map.Entry<String, IndexId> snapshottedIndex : parsedRepositoryData.getIndices().entrySet()) {
+            IndexId indexId = snapshottedIndex.getValue();
+            Set<SnapshotId> snapshotsIds = new LinkedHashSet<>(parsedRepositoryData.getSnapshots(indexId));
+            if (corruptedIndexId.equals(indexId)) {
+                snapshotsIds.add(new SnapshotId("_uuid", "_does_not_exist"));
+            }
+            indexSnapshots.put(indexId, snapshotsIds);
+        }
+        assertNotNull(corruptedIndexId);
+
+        RepositoryData corruptedRepositoryData = new RepositoryData(parsedRepositoryData.getGenId(), snapshotIds, snapshotStates,
+            indexSnapshots, new ArrayList<>(parsedRepositoryData.getIncompatibleSnapshotIds()));
+
+        final XContentBuilder corruptedBuilder = XContentBuilder.builder(xContent);
+        corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, ToXContent.EMPTY_PARAMS);
+
+        try (XContentParser xParser = createParser(corruptedBuilder)) {
+            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
+                RepositoryData.snapshotsFromXContent(xParser, corruptedRepositoryData.getGenId()));
+            assertThat(e.getMessage(), equalTo("Detected a corrupted repository, index " + corruptedIndexId + " references an unknown " +
+                "snapshot uuid [_does_not_exist]"));
+        }
+    }
+
+    public void testIndexThatReferenceANullSnapshot() throws IOException {
+        final XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON).xContent());
+        builder.startObject();
+        {
+            builder.startArray("snapshots");
+            builder.value(new SnapshotId("_name", "_uuid"));
+            builder.endArray();
+
+            builder.startObject("indices");
+            {
+                builder.startObject("docs");
+                {
+                    builder.field("id", "_id");
+                    builder.startArray("snapshots");
+                    {
+                        builder.startObject();
+                        if (randomBoolean()) {
+                            builder.field("name", "_name");
+                        }
+                        builder.endObject();
+                    }
+                    builder.endArray();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+
+        try (XContentParser xParser = createParser(builder)) {
+            ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () ->
+                RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong()));
+            assertThat(e.getMessage(), equalTo("Detected a corrupted repository, " +
+                "index [docs/_id] references an unknown snapshot uuid [null]"));
+        }
     }
 
     public static RepositoryData generateRandomRepoData() {

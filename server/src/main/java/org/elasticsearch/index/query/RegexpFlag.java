@@ -26,13 +26,13 @@ import java.util.Locale;
 /**
  * Regular expression syntax flags. Each flag represents optional syntax support in the regular expression:
  * <ul>
- *     <li><tt>INTERSECTION</tt> - Support for intersection notation: <tt>&lt;expression&gt; &amp; &lt;expression&gt;</tt></li>
- *     <li><tt>COMPLEMENT</tt> - Support for complement notation: <tt>&lt;expression&gt; &amp; &lt;expression&gt;</tt></li>
- *     <li><tt>EMPTY</tt> - Support for the empty language symbol: <tt>#</tt></li>
- *     <li><tt>ANYSTRING</tt> - Support for the any string symbol: <tt>@</tt></li>
- *     <li><tt>INTERVAL</tt> - Support for numerical interval notation: <tt>&lt;n-m&gt;</tt></li>
- *     <li><tt>NONE</tt> - Disable support for all syntax options</li>
- *     <li><tt>ALL</tt> - Enables support for all syntax options</li>
+ *     <li>{@code INTERSECTION} - Support for intersection notation: {@code &lt;expression&gt; &amp; &lt;expression&gt;}</li>
+ *     <li>{@code COMPLEMENT} - Support for complement notation: {@code &lt;expression&gt; &amp; &lt;expression&gt;}</li>
+ *     <li>{@code EMPTY} - Support for the empty language symbol: {@code #}</li>
+ *     <li>{@code ANYSTRING} - Support for the any string symbol: {@code @}</li>
+ *     <li>{@code INTERVAL} - Support for numerical interval notation: {@code &lt;n-m&gt;}</li>
+ *     <li>{@code NONE} - Disable support for all syntax options</li>
+ *     <li>{@code ALL} - Enables support for all syntax options</li>
  * </ul>
  *
  * @see RegexpQueryBuilder#flags(RegexpFlag...)
@@ -41,27 +41,27 @@ import java.util.Locale;
 public enum RegexpFlag {
 
     /**
-     * Enables intersection of the form: <tt>&lt;expression&gt; &amp; &lt;expression&gt;</tt>
+     * Enables intersection of the form: {@code &lt;expression&gt; &amp; &lt;expression&gt;}
      */
     INTERSECTION(RegExp.INTERSECTION),
 
     /**
-     * Enables complement expression of the form: <tt>~&lt;expression&gt;</tt>
+     * Enables complement expression of the form: {@code ~&lt;expression&gt;}
      */
     COMPLEMENT(RegExp.COMPLEMENT),
 
     /**
-     * Enables empty language expression: <tt>#</tt>
+     * Enables empty language expression: {@code #}
      */
     EMPTY(RegExp.EMPTY),
 
     /**
-     * Enables any string expression: <tt>@</tt>
+     * Enables any string expression: {@code @}
      */
     ANYSTRING(RegExp.ANYSTRING),
 
     /**
-     * Enables numerical interval expression: <tt>&lt;n-m&gt;</tt>
+     * Enables numerical interval expression: {@code &lt;n-m&gt;}
      */
     INTERVAL(RegExp.INTERVAL),
 
@@ -90,9 +90,9 @@ public enum RegexpFlag {
      * Resolves the combined OR'ed value for the given list of regular expression flags. The given flags must follow the
      * following syntax:
      * <p>
-     * <tt>flag_name</tt>(|<tt>flag_name</tt>)*
+     * {@code flag_name}(|{@code flag_name})*
      * <p>
-     * Where <tt>flag_name</tt> is one of the following:
+     * Where {@code flag_name} is one of the following:
      * <ul>
      *     <li>INTERSECTION</li>
      *     <li>COMPLEMENT</li>
@@ -103,7 +103,7 @@ public enum RegexpFlag {
      *     <li>ALL</li>
      * </ul>
      * <p>
-     * Example: <tt>INTERSECTION|COMPLEMENT|EMPTY</tt>
+     * Example: {@code INTERSECTION|COMPLEMENT|EMPTY}
      *
      * @param flags A string representing a list of regular expression flags
      * @return The combined OR'ed value for all the flags

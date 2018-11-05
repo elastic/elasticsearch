@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -57,10 +58,11 @@ public class NestedIdentityTests extends ESTestCase {
             builder.prettyPrint();
         }
         builder = nestedIdentity.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = createParser(builder);
-        NestedIdentity parsedNestedIdentity = NestedIdentity.fromXContent(parser);
-        assertEquals(nestedIdentity, parsedNestedIdentity);
-        assertNull(parser.nextToken());
+        try (XContentParser parser = createParser(builder)) {
+            NestedIdentity parsedNestedIdentity = NestedIdentity.fromXContent(parser);
+            assertEquals(nestedIdentity, parsedNestedIdentity);
+            assertNull(parser.nextToken());
+        }
     }
 
     public void testToXContent() throws IOException {
@@ -76,7 +78,7 @@ public class NestedIdentityTests extends ESTestCase {
               "    \"field\" : \"foo\",\n" +
               "    \"offset\" : 5\n" +
               "  }\n" +
-              "}", builder.string());
+              "}", Strings.toString(builder));
 
         nestedIdentity = new NestedIdentity("foo", 5, new NestedIdentity("bar", 3, null));
         builder = JsonXContent.contentBuilder();
@@ -94,7 +96,7 @@ public class NestedIdentityTests extends ESTestCase {
               "      \"offset\" : 3\n" +
               "    }\n" +
               "  }\n" +
-              "}", builder.string());
+              "}", Strings.toString(builder));
     }
 
     /**

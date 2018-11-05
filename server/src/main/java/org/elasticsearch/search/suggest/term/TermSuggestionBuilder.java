@@ -21,7 +21,7 @@ package org.elasticsearch.search.suggest.term;
 
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.JaroWinklerDistance;
-import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
@@ -67,7 +67,7 @@ import static org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBu
  */
 public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuilder> {
 
-    private static final String SUGGESTION_NAME = "term";
+    public static final String SUGGESTION_NAME = "term";
 
     private SuggestMode suggestMode = SuggestMode.MISSING;
     private float accuracy = DEFAULT_ACCURACY;
@@ -164,7 +164,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * This value will be compared to the string distance result of each
      * candidate spelling correction.
      * <p>
-     * Default is <tt>0.5</tt>
+     * Default is {@code 0.5}
      */
     public TermSuggestionBuilder accuracy(float accuracy) {
         if (accuracy < 0.0f || accuracy > 1.0f) {
@@ -240,7 +240,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * Sets the maximum edit distance candidate suggestions can have in order to
      * be considered as a suggestion. Can only be a value between 1 and 2. Any
      * other value result in an bad request error being thrown. Defaults to
-     * <tt>2</tt>.
+     * {@code 2}.
      */
     public TermSuggestionBuilder maxEdits(int maxEdits) {
         if (maxEdits < 1 || maxEdits > 2) {
@@ -260,7 +260,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /**
      * A factor that is used to multiply with the size in order to inspect more
      * candidate suggestions. Can improve accuracy at the cost of performance.
-     * Defaults to <tt>5</tt>.
+     * Defaults to {@code 5}.
      */
     public TermSuggestionBuilder maxInspections(int maxInspections) {
         if (maxInspections < 0) {
@@ -282,7 +282,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
      * exist in order to be corrected. Can be a relative percentage number (e.g
      * 0.4) or an absolute number to represent document frequencies. If an value
      * higher than 1 is specified then fractional can not be specified. Defaults
-     * to <tt>0.01</tt>.
+     * to {@code 0.01}.
      * <p>
      * This can be used to exclude high frequency terms from being suggested.
      * High frequency terms are usually spelled correctly on top of this this
@@ -329,7 +329,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
     /**
      * The minimum length a suggest text term must have in order to be
-     * corrected. Defaults to <tt>4</tt>.
+     * corrected. Defaults to {@code 4}.
      */
     public TermSuggestionBuilder minWordLength(int minWordLength) {
         if (minWordLength < 1) {
@@ -548,7 +548,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         LEVENSHTEIN {
             @Override
             public StringDistance toLucene() {
-                return new LevensteinDistance();
+                return new LevenshteinDistance();
             }
         },
         /** String distance algorithm based on Jaro-Winkler algorithm. */

@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -338,7 +337,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
             builder.field("format", format);
         }
         if (timeZone != null) {
-            builder.field("time_zone", timeZone);
+            builder.field("time_zone", timeZone.toString());
         }
         if (valueType != null) {
             builder.field("value_type", valueType.getPreferredName());

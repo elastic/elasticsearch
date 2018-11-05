@@ -78,8 +78,7 @@ public abstract class DefaultBindingTargetVisitor<T, V> implements BindingTarget
 
     // javac says it's an error to cast ProviderBinding<? extends T> to Binding<? extends T>
     @Override
-    @SuppressWarnings("unchecked")
     public V visit(ProviderBinding<? extends T> providerBinding) {
-        return visitOther((Binding<? extends T>) providerBinding);
+        return visitOther(providerBinding);
     }
 }

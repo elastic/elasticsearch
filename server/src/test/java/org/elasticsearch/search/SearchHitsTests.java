@@ -20,6 +20,7 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -111,8 +112,8 @@ public class SearchHitsTests extends ESTestCase {
         searchHits.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals("{\"hits\":{\"total\":1000,\"max_score\":1.5," +
-                "\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":\"-Infinity\"},"+
-                          "{\"_type\":\"type\",\"_id\":\"id2\",\"_score\":\"-Infinity\"}]}}", builder.string());
+                "\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":null},"+
+                          "{\"_type\":\"type\",\"_id\":\"id2\",\"_score\":null}]}}", Strings.toString(builder));
     }
 
 }

@@ -75,7 +75,7 @@ public class CompletionStats implements Streamable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(COMPLETION);
-        builder.byteSizeField(SIZE_IN_BYTES, SIZE, sizeInBytes);
+        builder.humanReadableField(SIZE_IN_BYTES, SIZE, getSize());
         if (fields != null) {
             fields.toXContent(builder, FIELDS, SIZE_IN_BYTES, SIZE);
         }

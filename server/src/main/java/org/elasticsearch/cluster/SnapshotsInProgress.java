@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,12 +47,6 @@ import java.util.Map;
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
     public static final String TYPE = "snapshots";
-
-    // denotes an undefined repository state id, which will happen when receiving a cluster state with
-    // a snapshot in progress from a pre 5.2.x node
-    public static final long UNDEFINED_REPOSITORY_STATE_ID = -2L;
-    // the version where repository state ids were introduced
-    private static final Version REPOSITORY_ID_INTRODUCED_VERSION = Version.V_5_2_0;
 
     @Override
     public boolean equals(Object o) {
@@ -394,6 +389,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return TYPE;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
+    }
+
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
         return readDiffFrom(Custom.class, TYPE, in);
     }
@@ -426,10 +426,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState, reason));
                 }
             }
-            long repositoryStateId = UNDEFINED_REPOSITORY_STATE_ID;
-            if (in.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
-                repositoryStateId = in.readLong();
-            }
+            long repositoryStateId = in.readLong();
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
                                    partial,
@@ -465,9 +462,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     out.writeByte(shardEntry.value.state().value());
                 }
             }
-            if (out.getVersion().onOrAfter(REPOSITORY_ID_INTRODUCED_VERSION)) {
-                out.writeLong(entry.repositoryStateId);
-            }
+            out.writeLong(entry.repositoryStateId);
         }
     }
 
@@ -512,7 +507,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
         }
         builder.endArray();
-        builder.timeValueField(START_TIME_MILLIS, START_TIME, entry.startTime());
+        builder.humanReadableField(START_TIME_MILLIS, START_TIME, new TimeValue(entry.startTime()));
         builder.field(REPOSITORY_STATE_ID, entry.getRepositoryStateId());
         builder.startArray(SHARDS);
         {

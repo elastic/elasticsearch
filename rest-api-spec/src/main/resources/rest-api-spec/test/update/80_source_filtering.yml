@@ -1,10 +1,14 @@
 ---
 "Source filtering":
 
+  - skip:
+      version: " - 6.99.99"
+      reason:  include_type_name was introduced in 7.0.0
+
   - do:
       update:
+          include_type_name: false
           index:  test_1
-          type:   test
           id:     1
           _source: [foo, bar]
           body:

@@ -71,8 +71,9 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
 
     @Override
     protected void masterOperation(final CreateSnapshotRequest request, ClusterState state, final ActionListener<CreateSnapshotResponse> listener) {
+        final String snapshotName = indexNameExpressionResolver.resolveDateMathExpression(request.snapshot());
         SnapshotsService.SnapshotRequest snapshotRequest =
-                new SnapshotsService.SnapshotRequest(request.repository(), request.snapshot(), "create_snapshot [" + request.snapshot() + "]")
+                new SnapshotsService.SnapshotRequest(request.repository(), snapshotName, "create_snapshot [" + snapshotName + "]")
                         .indices(request.indices())
                         .indicesOptions(request.indicesOptions())
                         .partial(request.partial())
@@ -87,7 +88,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
                         @Override
                         public void onSnapshotCompletion(Snapshot snapshot, SnapshotInfo snapshotInfo) {
                             if (snapshot.getRepository().equals(request.repository()) &&
-                                    snapshot.getSnapshotId().getName().equals(request.snapshot())) {
+                                    snapshot.getSnapshotId().getName().equals(snapshotName)) {
                                 listener.onResponse(new CreateSnapshotResponse(snapshotInfo));
                                 snapshotsService.removeListener(this);
                             }
@@ -96,7 +97,7 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
                         @Override
                         public void onSnapshotFailure(Snapshot snapshot, Exception e) {
                             if (snapshot.getRepository().equals(request.repository()) &&
-                                    snapshot.getSnapshotId().getName().equals(request.snapshot())) {
+                                    snapshot.getSnapshotId().getName().equals(snapshotName)) {
                                 listener.onFailure(e);
                                 snapshotsService.removeListener(this);
                             }

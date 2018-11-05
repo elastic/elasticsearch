@@ -21,17 +21,16 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.CoreMatchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -438,10 +437,7 @@ public class SettingsTests extends ESTestCase {
 
         Settings filteredSettings = builder.build().filter((k) -> false);
         assertEquals(0, filteredSettings.size());
-        for (String k : filteredSettings.keySet()) {
-            fail("no element");
 
-        }
         assertFalse(filteredSettings.keySet().contains("a.c"));
         assertFalse(filteredSettings.keySet().contains("a"));
         assertFalse(filteredSettings.keySet().contains("a.b"));
@@ -555,32 +551,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.getAsList("test1.test3").get(1), equalTo("test3-2"));
     }
 
-    public void testDuplicateKeysThrowsException() {
-        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-        final String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
-        final SettingsException e = expectThrows(SettingsException.class,
-            () -> Settings.builder().loadFromSource(json, XContentType.JSON).build());
-        assertThat(
-            e.toString(),
-            CoreMatchers.containsString("duplicate settings key [foo] " +
-                "found at line number [1], " +
-                "column number [20], " +
-                "previous value [bar], " +
-                "current value [baz]"));
-
-        String yaml = "foo: bar\nfoo: baz";
-        SettingsException e1 = expectThrows(SettingsException.class, () -> {
-            Settings.builder().loadFromSource(yaml, XContentType.YAML);
-        });
-        assertEquals(e1.getCause().getClass(), ElasticsearchParseException.class);
-        String msg = e1.getCause().getMessage();
-        assertTrue(
-            msg,
-            msg.contains("duplicate settings key [foo] found at line number [2], column number [6], " +
-                "previous value [bar], current value [baz]"));
-    }
-
     public void testToXContent() throws IOException {
         // this is just terrible but it's the existing behavior!
         Settings test = Settings.builder().putList("foo.bar", "1", "2", "3").put("foo.bar.baz", "test").build();
@@ -588,20 +558,20 @@ public class SettingsTests extends ESTestCase {
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
-        assertEquals("{\"foo\":{\"bar.baz\":\"test\",\"bar\":[\"1\",\"2\",\"3\"]}}", builder.string());
+        assertEquals("{\"foo\":{\"bar.baz\":\"test\",\"bar\":[\"1\",\"2\",\"3\"]}}", Strings.toString(builder));
 
         test = Settings.builder().putList("foo.bar", "1", "2", "3").build();
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
-        assertEquals("{\"foo\":{\"bar\":[\"1\",\"2\",\"3\"]}}", builder.string());
+        assertEquals("{\"foo\":{\"bar\":[\"1\",\"2\",\"3\"]}}", Strings.toString(builder));
 
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
         builder.endObject();
-        assertEquals("{\"foo.bar\":[\"1\",\"2\",\"3\"]}", builder.string());
+        assertEquals("{\"foo.bar\":[\"1\",\"2\",\"3\"]}", Strings.toString(builder));
     }
 
     public void testLoadEmptyStream() throws IOException {

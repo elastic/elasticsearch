@@ -9,7 +9,7 @@ location on a single node.  This can be useful for testing Elasticsearch's
 ability to form clusters, but it is not a configuration recommended for
 production.
 
-In order to communicate and to form a cluster with nodes on other servers, your
+In order to form a cluster with nodes on other servers, your
 node will need to bind to a non-loopback address. While there are many
 <<modules-network,network settings>>, usually all you need to configure is
 `network.host`:

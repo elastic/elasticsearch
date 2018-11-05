@@ -105,7 +105,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Creates a {@link Fuzziness} instance from an edit distance. The value must be one of <tt>[0, 1, 2]</tt>
+     * Creates a {@link Fuzziness} instance from an edit distance. The value must be one of {@code [0, 1, 2]}
      *
      * Note: Using this method only makes sense if the field you are applying Fuzziness to is some sort of string.
      */

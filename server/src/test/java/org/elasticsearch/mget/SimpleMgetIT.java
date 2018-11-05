@@ -62,7 +62,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
 
         assertThat(mgetResponse.getResponses()[1].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
-        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), is("no such index"));
+        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), is("no such index [nonExistingIndex]"));
         assertThat(((ElasticsearchException) mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex().getName(),
             is("nonExistingIndex"));
 
@@ -72,7 +72,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
-        assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), is("no such index"));
+        assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), is("no such index [nonExistingIndex]"));
         assertThat(((ElasticsearchException) mgetResponse.getResponses()[0].getFailure().getFailure()).getIndex().getName(),
             is("nonExistingIndex"));
     }
@@ -123,43 +123,14 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertFalse(mgetResponse.getResponses()[0].isFailed());
     }
 
-    public void testThatParentPerDocumentIsSupported() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .addMapping("test", jsonBuilder()
-                        .startObject()
-                        .startObject("test")
-                        .startObject("_parent")
-                        .field("type", "foo")
-                        .endObject()
-                        .endObject()
-                        .endObject()));
-
-        client().prepareIndex("test", "test", "1").setParent("4").setRefreshPolicy(IMMEDIATE)
-                .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
-                .get();
-
-        MultiGetResponse mgetResponse = client().prepareMultiGet()
-                .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1").parent("4"))
-                .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1"))
-                .get();
-
-        assertThat(mgetResponse.getResponses().length, is(2));
-        assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));
-        assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
-
-        assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
-        assertThat(mgetResponse.getResponses()[1].getResponse(), nullValue());
-        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), equalTo("routing is required for [test]/[test]/[1]"));
-    }
-
     @SuppressWarnings("unchecked")
     public void testThatSourceFilteringIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
-        BytesReference sourceBytesRef = jsonBuilder().startObject()
+        BytesReference sourceBytesRef = BytesReference.bytes(jsonBuilder().startObject()
                 .array("field", "1", "2")
                 .startObject("included").field("field", "should be seen").field("hidden_field", "should not be seen").endObject()
                 .field("excluded", "should not be seen")
-                .endObject().bytes();
+                .endObject());
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource(sourceBytesRef, XContentType.JSON).get();
         }

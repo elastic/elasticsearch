@@ -66,10 +66,10 @@ public class GeometryCollectionBuilderTests extends AbstractShapeBuilderTestCase
     }
 
     static GeometryCollectionBuilder mutate(GeometryCollectionBuilder original) throws IOException {
-        GeometryCollectionBuilder mutation = (GeometryCollectionBuilder) copyShape(original);
+        GeometryCollectionBuilder mutation = copyShape(original);
         if (mutation.shapes.size() > 0) {
             int shapePosition = randomIntBetween(0, mutation.shapes.size() - 1);
-            ShapeBuilder shapeToChange = mutation.shapes.get(shapePosition);
+            ShapeBuilder<?, ?> shapeToChange = mutation.shapes.get(shapePosition);
             switch (shapeToChange.type()) {
             case POINT:
                 shapeToChange = PointBuilderTests.mutate((PointBuilder) shapeToChange);

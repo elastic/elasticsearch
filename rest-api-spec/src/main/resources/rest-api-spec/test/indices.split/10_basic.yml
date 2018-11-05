@@ -33,8 +33,9 @@ setup:
 ---
 "Split index via API":
   - skip:
-      version: " - 6.0.99"
-      reason: Added in 6.1.0
+      version: " - 6.9.99"
+      reason: pre-7.0.0 will send warnings
+      features: "warnings"
 
   # make it read-only
   - do:
@@ -105,7 +106,7 @@ setup:
 "Split from 1 to N":
   - skip:
       version: " - 6.99.99"
-      reason: Added in 7.0.0
+      reason: automatic preparation for splitting was added in 7.0.0
   - do:
       indices.create:
         index: source_one_shard
@@ -199,13 +200,12 @@ setup:
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
 
-
-
 ---
 "Create illegal split indices":
   - skip:
-      version: " - 6.0.99"
-      reason: Added in 6.1.0
+      version: " - 6.9.99"
+      reason: pre-7.0.0 will send warnings
+      features: "warnings"
 
   # try to do an illegal split with number_of_routing_shards set
   - do:

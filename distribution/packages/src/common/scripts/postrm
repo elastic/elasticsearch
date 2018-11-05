@@ -9,9 +9,6 @@
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
 
-
-
-SOURCE_ENV_FILE=true
 REMOVE_DIRS=false
 REMOVE_USER_AND_GROUP=false
 
@@ -24,7 +21,6 @@ case "$1" in
 
     purge)
         REMOVE_USER_AND_GROUP=true
-        SOURCE_ENV_FILE=false
     ;;
     failed-upgrade|abort-install|abort-upgrade|disappear|upgrade|disappear)
     ;;
@@ -45,49 +41,34 @@ case "$1" in
     ;;
 esac
 
-# Sets the default values for elasticsearch variables used in this script
-LOG_DIR="/var/log/elasticsearch"
-PLUGINS_DIR="/usr/share/elasticsearch/plugins"
-PID_DIR="/var/run/elasticsearch"
-DATA_DIR="/var/lib/elasticsearch"
-ES_PATH_CONF="/etc/elasticsearch"
-
-# Source the default env file
-if [ "$SOURCE_ENV_FILE" = "true" ]; then
-    ES_ENV_FILE="${path.env}"
-    if [ -f "$ES_ENV_FILE" ]; then
-        . "$ES_ENV_FILE"
-    fi
-fi
-
 if [ "$REMOVE_DIRS" = "true" ]; then
 
-    if [ -d "$LOG_DIR" ]; then
+    if [ -d /var/log/elasticsearch ]; then
         echo -n "Deleting log directory..."
-        rm -rf "$LOG_DIR"
+        rm -rf /var/log/elasticsearch
         echo " OK"
     fi
 
-    if [ -d "$PLUGINS_DIR" ]; then
+    if [ -d /usr/share/elasticsearch/plugins ]; then
         echo -n "Deleting plugins directory..."
-        rm -rf "$PLUGINS_DIR"
+        rm -rf /usr/share/elasticsearch/plugins
         echo " OK"
     fi
 
-    if [ -d "$PID_DIR" ]; then
+    if [ -d /var/run/elasticsearch ]; then
         echo -n "Deleting PID directory..."
-        rm -rf "$PID_DIR"
+        rm -rf /var/run/elasticsearch
         echo " OK"
     fi
 
     # Delete the data directory if and only if empty
-    if [ -d "$DATA_DIR" ]; then
-        rmdir --ignore-fail-on-non-empty "$DATA_DIR"
+    if [ -d /var/lib/elasticsearch ]; then
+        rmdir --ignore-fail-on-non-empty /var/lib/elasticsearch
     fi
 
     # delete the conf directory if and only if empty
-    if [ -d "$ES_PATH_CONF" ]; then
-        rmdir --ignore-fail-on-non-empty "$ES_PATH_CONF"
+    if [ -d /etc/elasticsearch ]; then
+        rmdir --ignore-fail-on-non-empty /etc/elasticsearch
     fi
 
 fi

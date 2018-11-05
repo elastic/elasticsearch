@@ -81,7 +81,7 @@ public class SnapshotRequestsTests extends ESTestCase {
             builder.field("ignore_unavailable", indicesOptions.ignoreUnavailable());
         }
 
-        BytesReference bytes = builder.endObject().bytes();
+        BytesReference bytes = BytesReference.bytes(builder.endObject());
 
         request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
 
@@ -146,7 +146,7 @@ public class SnapshotRequestsTests extends ESTestCase {
             builder.field("ignore_unavailable", indicesOptions.ignoreUnavailable());
         }
 
-        BytesReference bytes = builder.endObject().bytes();
+        BytesReference bytes = BytesReference.bytes(builder.endObject());
 
         request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
 

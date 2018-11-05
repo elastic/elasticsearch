@@ -139,7 +139,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
     }
 
-    void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?, ?> builder) {
+    void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?> builder) {
         // we clean the metadata when loosing a master, therefore all operations on indices will auto create it, if allowed
         try {
             builder.get();
@@ -154,7 +154,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
     }
 
-    void checkWriteAction(ActionRequestBuilder<?, ?, ?> builder) {
+    void checkWriteAction(ActionRequestBuilder<?, ?> builder) {
         try {
             builder.get();
             fail("Expected ClusterBlockException");

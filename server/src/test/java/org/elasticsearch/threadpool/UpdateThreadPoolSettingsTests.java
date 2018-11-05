@@ -60,8 +60,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         }
     }
 
-    public void testIndexingThreadPoolsMaxSize() throws InterruptedException {
-        final String name = randomFrom(Names.BULK, Names.INDEX);
+    public void testWriteThreadPoolsMaxSize() throws InterruptedException {
         final int maxSize = 1 + EsExecutors.numberOfProcessors(Settings.EMPTY);
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);
 
@@ -74,7 +73,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                     try {
                         tp = new ThreadPool(Settings.builder()
                             .put("node.name", "testIndexingThreadPoolsMaxSize")
-                            .put("thread_pool." + name + ".size", tooBig)
+                            .put("thread_pool." + Names.WRITE + ".size", tooBig)
                             .build());
                     } finally {
                         terminateThreadPoolIfNeeded(tp);
@@ -84,11 +83,11 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         assertThat(
             initial,
             hasToString(containsString(
-                "Failed to parse value [" + tooBig + "] for setting [thread_pool." + name + ".size] must be ")));
+                "Failed to parse value [" + tooBig + "] for setting [thread_pool." + Names.WRITE + ".size] must be ")));
     }
 
     private static int getExpectedThreadPoolSize(Settings settings, String name, int size) {
-        if (name.equals(ThreadPool.Names.BULK) || name.equals(ThreadPool.Names.INDEX)) {
+        if (name.equals(ThreadPool.Names.WRITE)) {
             return Math.min(size, EsExecutors.numberOfProcessors(settings));
         } else {
             return size;

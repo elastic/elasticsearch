@@ -29,7 +29,6 @@ import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
@@ -56,7 +55,6 @@ import org.elasticsearch.painless.antlr.PainlessParser.DeclContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclarationContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DecltypeContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DeclvarContext;
-import org.elasticsearch.painless.antlr.PainlessParser.DelimiterContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DoContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DynamicContext;
 import org.elasticsearch.painless.antlr.PainlessParser.EachContext;
@@ -108,6 +106,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.TrueContext;
 import org.elasticsearch.painless.antlr.PainlessParser.TryContext;
 import org.elasticsearch.painless.antlr.PainlessParser.VariableContext;
 import org.elasticsearch.painless.antlr.PainlessParser.WhileContext;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.AExpression;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.node.AStatement;
@@ -175,9 +174,9 @@ import java.util.List;
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     public static SSource buildPainlessTree(ScriptClassInfo mainMethod, MainMethodReserved reserved, String sourceName,
-                                            String sourceText, CompilerSettings settings, Definition definition,
+                                            String sourceText, CompilerSettings settings, PainlessLookup painlessLookup,
                                             Printer debugStream) {
-        return new Walker(mainMethod, reserved, sourceName, sourceText, settings, definition, debugStream).source;
+        return new Walker(mainMethod, reserved, sourceName, sourceText, settings, painlessLookup, debugStream).source;
     }
 
     private final ScriptClassInfo scriptClassInfo;
@@ -185,29 +184,27 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private final CompilerSettings settings;
     private final Printer debugStream;
     private final String sourceName;
-    private final String sourceText;
-    private final Definition definition;
+    private final PainlessLookup painlessLookup;
 
     private final Deque<Reserved> reserved = new ArrayDeque<>();
     private final Globals globals;
     private int syntheticCounter = 0;
 
     private Walker(ScriptClassInfo scriptClassInfo, MainMethodReserved reserved, String sourceName, String sourceText,
-                   CompilerSettings settings, Definition definition, Printer debugStream) {
+                   CompilerSettings settings, PainlessLookup painlessLookup, Printer debugStream) {
         this.scriptClassInfo = scriptClassInfo;
         this.reserved.push(reserved);
         this.debugStream = debugStream;
         this.settings = settings;
-        this.sourceName = Location.computeSourceName(sourceName, sourceText);
-        this.sourceText = sourceText;
+        this.sourceName = Location.computeSourceName(sourceName);
         this.globals = new Globals(new BitSet(sourceText.length()));
-        this.definition = definition;
+        this.painlessLookup = painlessLookup;
         this.source = (SSource)visit(buildAntlrTree(sourceText));
     }
 
     private SourceContext buildAntlrTree(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);
-        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName, definition);
+        PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName, painlessLookup);
         PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
         ParserErrorStrategy strategy = new ParserErrorStrategy(sourceName);
 
@@ -264,7 +261,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
-        return new SSource(scriptClassInfo, settings, sourceName, sourceText, debugStream, (MainMethodReserved)reserved.pop(),
+        return new SSource(scriptClassInfo, settings, sourceName, debugStream, (MainMethodReserved)reserved.pop(),
                            location(ctx), functions, globals, statements);
     }
 
@@ -290,6 +287,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             statements.add((AStatement)visit(statement));
         }
 
+        if (ctx.block().dstatement() != null) {
+            statements.add((AStatement)visit(ctx.block().dstatement()));
+        }
+
         return new SFunction((FunctionReserved)reserved.pop(), location(ctx), rtnType, name,
                              paramTypes, paramNames, statements, false);
     }
@@ -297,6 +298,17 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitParameters(ParametersContext ctx) {
         throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    public ANode visitStatement(StatementContext ctx) {
+        if (ctx.rstatement() != null) {
+            return visit(ctx.rstatement());
+        } else if (ctx.dstatement() != null) {
+            return visit(ctx.dstatement());
+        } else {
+            throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
+        }
     }
 
     @Override
@@ -446,13 +458,17 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitBlock(BlockContext ctx) {
-        if (ctx.statement().isEmpty()) {
+        if (ctx.statement().isEmpty() && ctx.dstatement() == null) {
             return null;
         } else {
             List<AStatement> statements = new ArrayList<>();
 
             for (StatementContext statement : ctx.statement()) {
                 statements.add((AStatement)visit(statement));
+            }
+
+            if (ctx.dstatement() != null) {
+                statements.add((AStatement)visit(ctx.dstatement()));
             }
 
             return new SBlock(location(ctx), statements);
@@ -512,11 +528,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         SBlock block = (SBlock)visit(ctx.block());
 
         return new SCatch(location(ctx), type, name, block);
-    }
-
-    @Override
-    public ANode visitDelimiter(DelimiterContext ctx) {
-        throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
@@ -969,19 +980,20 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitNewstandardarray(NewstandardarrayContext ctx) {
-        String type = ctx.TYPE().getText();
+        StringBuilder type = new StringBuilder(ctx.TYPE().getText());
         List<AExpression> expressions = new ArrayList<>();
 
         for (ExpressionContext expression : ctx.expression()) {
+            type.append("[]");
             expressions.add((AExpression)visit(expression));
         }
 
-        return buildPostfixChain(new ENewArray(location(ctx), type, expressions, false), ctx.postdot(), ctx.postfix());
+        return buildPostfixChain(new ENewArray(location(ctx), type.toString(), expressions, false), ctx.postdot(), ctx.postfix());
     }
 
     @Override
     public ANode visitNewinitializedarray(NewinitializedarrayContext ctx) {
-        String type = ctx.TYPE().getText();
+        String type = ctx.TYPE().getText() + "[]";
         List<AExpression> expressions = new ArrayList<>();
 
         for (ExpressionContext expression : ctx.expression()) {
@@ -1073,6 +1085,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         } else {
             for (StatementContext statement : ctx.block().statement()) {
                 statements.add((AStatement)visit(statement));
+            }
+
+            if (ctx.block().dstatement() != null) {
+                statements.add((AStatement)visit(ctx.block().dstatement()));
             }
         }
 

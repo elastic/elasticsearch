@@ -26,39 +26,39 @@ import org.apache.logging.log4j.spi.ExtendedLogger;
 /**
  * Factory to get {@link Logger}s
  */
-public final class ESLoggerFactory {
+final class ESLoggerFactory {
 
     private ESLoggerFactory() {
 
     }
 
-    public static Logger getLogger(String prefix, String name) {
+    static Logger getLogger(String prefix, String name) {
         return getLogger(prefix, LogManager.getLogger(name));
     }
 
-    public static Logger getLogger(String prefix, Class<?> clazz) {
+    static Logger getLogger(String prefix, Class<?> clazz) {
         /*
-         * Do not use LogManager#getLogger(Class) as this now uses Class#getCanonicalName under the hood; as this returns null for local and
-         * anonymous classes, any place we create, for example, an abstract component defined as an anonymous class (e.g., in tests) will
-         * result in a logger with a null name which will blow up in a lookup inside of Log4j.
+         * At one point we didn't use LogManager.getLogger(clazz) because
+         * of a bug in log4j that has since been fixed:
+         * https://github.com/apache/logging-log4j2/commit/ae33698a1846a5e10684ec3e52a99223f06047af
+         *
+         * For now we continue to use LogManager.getLogger(clazz.getName())
+         * because we expect to eventually migrate away from needing this
+         * method entirely.
          */
         return getLogger(prefix, LogManager.getLogger(clazz.getName()));
     }
 
-    public static Logger getLogger(String prefix, Logger logger) {
+    static Logger getLogger(String prefix, Logger logger) {
+        /*
+         * In a followup we'll throw an exception if prefix is null or empty
+         * redirecting folks to LogManager.getLogger.
+         *
+         * This and more is tracked in https://github.com/elastic/elasticsearch/issues/32174
+         */
+        if (prefix == null || prefix.length() == 0) {
+            return logger;
+        }
         return new PrefixLogger((ExtendedLogger)logger, logger.getName(), prefix);
     }
-
-    public static Logger getLogger(Class<?> clazz) {
-        return getLogger(null, clazz);
-    }
-
-    public static Logger getLogger(String name) {
-        return getLogger(null, name);
-    }
-
-    public static Logger getRootLogger() {
-        return LogManager.getRootLogger();
-    }
-
 }

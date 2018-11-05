@@ -19,23 +19,22 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -68,7 +67,6 @@ import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 import static org.hamcrest.Matchers.contains;
@@ -91,6 +89,38 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(InternalSettingsPlugin.class);
+    }
+
+    public void testTieBreak() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        mapping.indexAnalyzer("keyword");
+        createIndexAndMapping(mapping);
+
+        int numDocs = randomIntBetween(3, 50);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        String[] entries = new String[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            String value = "a" + randomAlphaOfLengthBetween(1, 10);
+            entries[i] = value;
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", value)
+                    .field("weight", 10)
+                    .endObject()
+                    .endObject()
+                ));
+        }
+        Arrays.sort(entries);
+        indexRandom(true, indexRequestBuilders);
+        for (int i = 1; i < numDocs; i++) {
+            CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD)
+                .prefix("a")
+                .size(i);
+            String[] topEntries = Arrays.copyOfRange(entries, 0, i);
+            assertSuggestions("foo", prefix, topEntries);
+        }
     }
 
     public void testPrefix() throws Exception {
@@ -244,8 +274,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int id = numDocs;
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
-            assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore((id)));
+            assertThat(option.getHit(), hasId("" + id));
+            assertThat(option.getHit(), hasScore((id)));
             assertNotNull(option.getHit().getSourceAsMap());
             id--;
         }
@@ -279,8 +309,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int id = numDocs;
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
-            assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore((id)));
+            assertThat(option.getHit(), hasId("" + id));
+            assertThat(option.getHit(), hasScore((id)));
             assertNull(option.getHit().getSourceAsMap());
             id--;
         }
@@ -316,8 +346,8 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int id = numDocs;
         for (CompletionSuggestion.Entry.Option option : options) {
             assertThat(option.getText().toString(), equalTo("suggestion" + id));
-            assertSearchHit(option.getHit(), hasId("" + id));
-            assertSearchHit(option.getHit(), hasScore((id)));
+            assertThat(option.getHit(), hasId("" + id));
+            assertThat(option.getHit(), hasScore((id)));
             assertNotNull(option.getHit().getSourceAsMap());
             Set<String> sourceFields = option.getHit().getSourceAsMap().keySet();
             assertThat(sourceFields, contains("a"));
@@ -524,28 +554,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("b", "The Beatles");
     }
 
-    public void testThatSynonymsWork() throws Exception {
-        Settings.Builder settingsBuilder = Settings.builder()
-                .put("analysis.analyzer.suggest_analyzer_synonyms.type", "custom")
-                .put("analysis.analyzer.suggest_analyzer_synonyms.tokenizer", "standard")
-                .putList("analysis.analyzer.suggest_analyzer_synonyms.filter", "standard", "lowercase", "my_synonyms")
-                .put("analysis.filter.my_synonyms.type", "synonym")
-                .putList("analysis.filter.my_synonyms.synonyms", "foo,renamed");
-        completionMappingBuilder.searchAnalyzer("suggest_analyzer_synonyms").indexAnalyzer("suggest_analyzer_synonyms");
-        createIndexAndMappingAndSettings(settingsBuilder.build(), completionMappingBuilder);
-
-        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                .startObject().startObject(FIELD)
-                .startArray("input").value("Foo Fighters").endArray()
-                .endObject().endObject()
-        ).get();
-
-        refresh();
-
-        // get suggestions for renamed
-        assertSuggestions("r", "Foo Fighters");
-    }
-
     public void testThatUpgradeToMultiFieldsWorks() throws Exception {
         final XContentBuilder mapping = jsonBuilder()
                 .startObject()
@@ -562,7 +570,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .setSource(jsonBuilder().startObject().field(FIELD, "Foo Fighters").endObject()).get();
         ensureGreen(INDEX);
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "text")
@@ -742,7 +750,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .execute().actionGet();
         ensureGreen();
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
+        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "completion").field("analyzer", "simple")
@@ -806,7 +814,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatSuggestStopFilterWorks() throws Exception {
         Settings.Builder settingsBuilder = Settings.builder()
                 .put("index.analysis.analyzer.stoptest.tokenizer", "standard")
-                .putList("index.analysis.analyzer.stoptest.filter", "standard", "suggest_stop_filter")
+                .putList("index.analysis.analyzer.stoptest.filter", "suggest_stop_filter")
                 .put("index.analysis.filter.suggest_stop_filter.type", "stop")
                 .put("index.analysis.filter.suggest_stop_filter.remove_trailing", false);
 
@@ -890,7 +898,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions(searchResponse, true, "suggestions", expected);
     }
 
-    public void assertSuggestions(String suggestionName, SuggestionBuilder suggestBuilder, String... suggestions) {
+    public void assertSuggestions(String suggestionName, SuggestionBuilder<?> suggestBuilder, String... suggestions) {
         SearchResponse searchResponse = client().prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder)).execute().actionGet();
         assertSuggestions(searchResponse, suggestionName, suggestions);
     }
@@ -971,7 +979,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         if (completionMappingBuilder.contextMappings != null) {
             mapping = mapping.startArray("contexts");
-            for (Map.Entry<String, ContextMapping> contextMapping : completionMappingBuilder.contextMappings.entrySet()) {
+            for (Map.Entry<String, ContextMapping<?>> contextMapping : completionMappingBuilder.contextMappings.entrySet()) {
                 mapping = mapping.startObject()
                         .field("name", contextMapping.getValue().name())
                         .field("type", contextMapping.getValue().type().name());
@@ -1111,35 +1119,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-    // see issue #6399
-    public void testIndexingUnrelatedNullValue() throws Exception {
-        String mapping = jsonBuilder()
-                .startObject()
-                .startObject(TYPE)
-                .startObject("properties")
-                .startObject(FIELD)
-                .field("type", "completion")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .string();
-
-        assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, mapping, XContentType.JSON).get());
-        ensureGreen();
-
-        client().prepareIndex(INDEX, TYPE, "1").setSource(FIELD, "strings make me happy", FIELD + "_1", "nulls make me sad")
-                .setRefreshPolicy(IMMEDIATE).get();
-
-        try {
-            client().prepareIndex(INDEX, TYPE, "2").setSource(FIELD, null, FIELD + "_1", "nulls make me sad").get();
-            fail("Expected MapperParsingException for null value");
-        } catch (MapperParsingException e) {
-            // make sure that the exception has the name of the field causing the error
-            assertTrue(e.getDetailedMessage().contains(FIELD));
-        }
-    }
-
     public void testMultiDocSuggestions() throws Exception {
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
         createIndexAndMapping(mapping);
@@ -1161,6 +1140,32 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("foo", prefix, "suggester10", "suggester9", "suggester8", "suggester7", "suggester6");
     }
 
+    public void testSuggestWithFieldAlias() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject(TYPE)
+                    .startObject("properties")
+                        .startObject(FIELD)
+                            .field("type", "completion")
+                        .endObject()
+                        .startObject("alias")
+                            .field("type", "alias")
+                            .field("path", FIELD)
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate(INDEX).addMapping(TYPE, mapping));
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "apple"));
+        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "mango"));
+        builders.add(client().prepareIndex(INDEX, TYPE).setSource(FIELD, "papaya"));
+        indexRandom(true, false, builders);
+
+        CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("alias").text("app");
+        assertSuggestions("suggestion", suggestionBuilder, "apple");
+    }
 
     public static boolean isReservedChar(char c) {
         switch (c) {
@@ -1189,7 +1194,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         String indexAnalyzer = "simple";
         Boolean preserveSeparators = random().nextBoolean();
         Boolean preservePositionIncrements = random().nextBoolean();
-        LinkedHashMap<String, ContextMapping> contextMappings = null;
+        LinkedHashMap<String, ContextMapping<?>> contextMappings = null;
 
         public CompletionMappingBuilder searchAnalyzer(String searchAnalyzer) {
             this.searchAnalyzer = searchAnalyzer;
@@ -1208,7 +1213,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             return this;
         }
 
-        public CompletionMappingBuilder context(LinkedHashMap<String, ContextMapping> contextMappings) {
+        public CompletionMappingBuilder context(LinkedHashMap<String, ContextMapping<?>> contextMappings) {
             this.contextMappings = contextMappings;
             return this;
         }

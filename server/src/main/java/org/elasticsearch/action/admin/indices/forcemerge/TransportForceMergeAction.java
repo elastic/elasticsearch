@@ -43,15 +43,16 @@ import java.util.List;
 /**
  * ForceMerge index/indices action.
  */
-public class TransportForceMergeAction extends TransportBroadcastByNodeAction<ForceMergeRequest, ForceMergeResponse, TransportBroadcastByNodeAction.EmptyResult> {
+public class TransportForceMergeAction
+        extends TransportBroadcastByNodeAction<ForceMergeRequest, ForceMergeResponse, TransportBroadcastByNodeAction.EmptyResult> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportForceMergeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportForceMergeAction(Settings settings, ClusterService clusterService,
                                    TransportService transportService, IndicesService indicesService,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ForceMergeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(settings, ForceMergeAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 ForceMergeRequest::new, ThreadPool.Names.FORCE_MERGE);
         this.indicesService = indicesService;
     }
@@ -62,7 +63,9 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<Fo
     }
 
     @Override
-    protected ForceMergeResponse newResponse(ForceMergeRequest request, int totalShards, int successfulShards, int failedShards, List<EmptyResult> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
+    protected ForceMergeResponse newResponse(ForceMergeRequest request, int totalShards, int successfulShards, int failedShards,
+                                             List<EmptyResult> responses, List<DefaultShardOperationFailedException> shardFailures,
+                                             ClusterState clusterState) {
         return new ForceMergeResponse(totalShards, successfulShards, failedShards, shardFailures);
     }
 

@@ -79,7 +79,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     @SuppressWarnings("unchecked")
     public final Request timeout(TimeValue timeout) {
@@ -88,7 +88,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
+     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
      */
     public final Request timeout(String timeout) {
         return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
@@ -150,7 +150,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
      * to get the ActiveShardCount.
      */
-    @SuppressWarnings("unchecked")
     public final Request waitForActiveShards(final int waitForActiveShards) {
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
@@ -187,7 +186,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             shardId = null;
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        timeout = new TimeValue(in);
+        timeout = in.readTimeValue();
         index = in.readString();
         routedBasedOnClusterVersion = in.readVLong();
     }
@@ -202,7 +201,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             out.writeBoolean(false);
         }
         waitForActiveShards.writeTo(out);
-        timeout.writeTo(out);
+        out.writeTimeValue(timeout);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
     }

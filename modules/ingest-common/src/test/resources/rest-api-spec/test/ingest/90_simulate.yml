@@ -107,9 +107,9 @@ teardown:
           }
   - match: { error.root_cause.0.type: "parse_exception" }
   - match: { error.root_cause.0.reason: "[field] required property is missing" }
-  - match: { error.root_cause.0.header.processor_tag: "fails" }
-  - match: { error.root_cause.0.header.processor_type: "set" }
-  - match: { error.root_cause.0.header.property_name: "field" }
+  - match: { error.root_cause.0.processor_tag: "fails" }
+  - match: { error.root_cause.0.processor_type: "set" }
+  - match: { error.root_cause.0.property_name: "field" }
 
 ---
 "Test simulate without index type and id":
@@ -198,9 +198,9 @@ teardown:
               }
             ]
           }
-  - is_false: error.root_cause.0.header.processor_type
-  - is_false: error.root_cause.0.header.processor_tag
-  - match: { error.root_cause.0.header.property_name: "pipeline" }
+  - is_false: error.root_cause.0.processor_type
+  - is_false: error.root_cause.0.processor_tag
+  - match: { error.root_cause.0.property_name: "pipeline" }
   - match: { error.reason: "[pipeline] required property is missing" }
 
 ---
@@ -233,9 +233,9 @@ teardown:
           }
   - match: { error.root_cause.0.type: "parse_exception" }
   - match: { error.root_cause.0.reason: "[value] required property is missing" }
-  - match: { error.root_cause.0.header.processor_type: "set" }
-  - match: { error.root_cause.0.header.property_name: "value" }
-  - is_false: error.root_cause.0.header.processor_tag
+  - match: { error.root_cause.0.processor_type: "set" }
+  - match: { error.root_cause.0.property_name: "value" }
+  - is_false: error.root_cause.0.processor_tag
 
 ---
 "Test simulate with verbose flag":
@@ -605,3 +605,151 @@ teardown:
   - length: { docs.0.processor_results.1: 2 }
   - match: { docs.0.processor_results.1.tag: "rename-1" }
   - match: { docs.0.processor_results.1.doc._source.new_status: 200 }
+
+---
+"Test verbose simulate with Pipeline Processor with Circular Pipelines":
+- do:
+    ingest.put_pipeline:
+      id: "outer"
+      body:  >
+        {
+          "description" : "outer pipeline",
+          "processors" : [
+            {
+              "pipeline" : {
+                "name": "inner"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    ingest.put_pipeline:
+      id: "inner"
+      body:  >
+        {
+          "description" : "inner pipeline",
+          "processors" : [
+            {
+              "pipeline" : {
+                "name": "outer"
+              }
+            }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    ingest.simulate:
+      verbose: true
+      body: >
+        {
+          "pipeline": {
+            "processors" : [
+            {
+              "pipeline" : {
+                "name": "outer"
+              }
+            }
+            ]
+          }
+          ,
+          "docs": [
+          {
+            "_index": "index",
+            "_type": "type",
+            "_id": "id",
+            "_source": {
+              "field1": "123.42 400 <foo>"
+            }
+          }
+          ]
+        }
+- length: { docs: 1 }
+- length: { docs.0.processor_results: 1 }
+- match: { docs.0.processor_results.0.error.reason: "java.lang.IllegalArgumentException: java.lang.IllegalStateException: Cycle detected for pipeline: outer" }
+- match: { docs.0.processor_results.0.error.caused_by.caused_by.reason: "Cycle detected for pipeline: outer" }
+
+---
+"Test verbose simulate with Pipeline Processor with Multiple Pipelines":
+- do:
+    ingest.put_pipeline:
+      id: "pipeline1"
+      body:  >
+        {
+          "processors": [
+          {
+            "set": {
+              "field": "pipeline1",
+              "value": true
+            }
+          },
+          {
+            "pipeline": {
+              "name": "pipeline2"
+            }
+          }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    ingest.put_pipeline:
+      id: "pipeline2"
+      body:  >
+        {
+          "processors": [
+          {
+            "set": {
+              "field": "pipeline2",
+              "value": true
+            }
+          }
+          ]
+        }
+- match: { acknowledged: true }
+
+- do:
+    ingest.simulate:
+      verbose: true
+      body: >
+        {
+          "pipeline": {
+            "processors": [
+            {
+              "set": {
+                "field": "pipeline0",
+                "value": true
+              }
+            },
+            {
+              "pipeline": {
+                "name": "pipeline1"
+              }
+            }
+            ]
+          },
+          "docs": [
+          {
+            "_index": "index",
+            "_type": "type",
+            "_id": "id",
+            "_source": {
+              "field1": "123.42 400 <foo>"
+            }
+          }
+          ]
+        }
+- length: { docs: 1 }
+- length: { docs.0.processor_results: 3 }
+- match: { docs.0.processor_results.0.doc._source.pipeline0: true }
+- is_false: docs.0.processor_results.0.doc._source.pipeline1
+- is_false: docs.0.processor_results.0.doc._source.pipeline2
+- match: { docs.0.processor_results.1.doc._source.pipeline0: true }
+- match: { docs.0.processor_results.1.doc._source.pipeline1: true }
+- is_false: docs.0.processor_results.1.doc._source.pipeline2
+- match: { docs.0.processor_results.2.doc._source.pipeline0: true }
+- match: { docs.0.processor_results.2.doc._source.pipeline1: true }
+- match: { docs.0.processor_results.2.doc._source.pipeline2: true }
+

@@ -455,7 +455,7 @@ public interface Client extends ElasticsearchClient, Releasable {
     /**
      * Builder for the field capabilities request.
      */
-    FieldCapabilitiesRequestBuilder prepareFieldCaps();
+    FieldCapabilitiesRequestBuilder prepareFieldCaps(String... indices);
 
     /**
      * An action that returns the field capabilities from the provided request
@@ -477,4 +477,14 @@ public interface Client extends ElasticsearchClient, Releasable {
      * issued from it.
      */
     Client filterWithHeader(Map<String, String> headers);
+
+    /**
+     * Returns a client to a remote cluster with the given cluster alias.
+     *
+     * @throws IllegalArgumentException if the given clusterAlias doesn't exist
+     * @throws UnsupportedOperationException if this functionality is not available on this client.
+     */
+    default Client getRemoteClusterClient(String clusterAlias) {
+        throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
+    }
 }

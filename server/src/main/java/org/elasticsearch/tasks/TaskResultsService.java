@@ -19,17 +19,15 @@
 package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,17 +36,17 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.internal.io.Streams;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 /**
@@ -70,15 +68,11 @@ public class TaskResultsService extends AbstractComponent {
 
     private final ClusterService clusterService;
 
-    private final TransportCreateIndexAction createIndexAction;
-
     @Inject
-    public TaskResultsService(Settings settings, Client client, ClusterService clusterService,
-                              TransportCreateIndexAction createIndexAction) {
+    public TaskResultsService(Settings settings, Client client, ClusterService clusterService) {
         super(settings);
         this.client = client;
         this.clusterService = clusterService;
-        this.createIndexAction = createIndexAction;
     }
 
     public void storeResult(TaskResult taskResult, ActionListener<Void> listener) {
@@ -92,7 +86,7 @@ public class TaskResultsService extends AbstractComponent {
             createIndexRequest.mapping(TASK_TYPE, taskResultIndexMapping(), XContentType.JSON);
             createIndexRequest.cause("auto(task api)");
 
-            createIndexAction.execute(null, createIndexRequest, new ActionListener<CreateIndexResponse>() {
+            client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     doStoreResult(taskResult, listener);
@@ -119,9 +113,9 @@ public class TaskResultsService extends AbstractComponent {
                 // The index already exists but doesn't have our mapping
                 client.admin().indices().preparePutMapping(TASK_INDEX).setType(TASK_TYPE)
                     .setSource(taskResultIndexMapping(), XContentType.JSON)
-                    .execute(new ActionListener<PutMappingResponse>() {
+                    .execute(new ActionListener<AcknowledgedResponse>() {
                                  @Override
-                                 public void onResponse(PutMappingResponse putMappingResponse) {
+                                 public void onResponse(AcknowledgedResponse putMappingResponse) {
                                      doStoreResult(taskResult, listener);
                                  }
 
@@ -182,10 +176,9 @@ public class TaskResultsService extends AbstractComponent {
         try (InputStream is = getClass().getResourceAsStream(TASK_RESULT_INDEX_MAPPING_FILE)) {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             Streams.copy(is, out);
-            return out.toString(IOUtils.UTF_8);
+            return out.toString(StandardCharsets.UTF_8.name());
         } catch (Exception e) {
-            logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage(
+            logger.error(() -> new ParameterizedMessage(
                     "failed to create tasks results index template [{}]", TASK_RESULT_INDEX_MAPPING_FILE), e);
             throw new IllegalStateException("failed to create tasks results index template [" + TASK_RESULT_INDEX_MAPPING_FILE + "]", e);
         }

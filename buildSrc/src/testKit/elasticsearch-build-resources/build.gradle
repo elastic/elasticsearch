@@ -1,0 +1,38 @@
+plugins {
+    id 'elasticsearch.build'
+}
+
+ext.licenseFile = file("$buildDir/dummy/license")
+ext.noticeFile = file("$buildDir/dummy/notice")
+
+buildResources {
+    copy 'checkstyle.xml'
+}
+
+task sampleCopyAll(type: Sync) {
+    /** Note: no explicit dependency. This works with tasks that use the Provider API a.k.a "Lazy Configuration" **/
+    from buildResources
+    into "$buildDir/sampleCopyAll"
+}
+
+task sample {
+    // This does not work, task dependencies can't be providers
+    // dependsOn buildResources.resource('minimumRuntimeVersion')
+    // Nor does this, despite https://github.com/gradle/gradle/issues/3811
+    // dependsOn buildResources.outputDir
+    // for now it's just
+    dependsOn buildResources
+    // we have to reference it at configuration time in order to be picked up
+    ext.checkstyle_suppressions = buildResources.copy('checkstyle_suppressions.xml')
+    doLast {
+        println "This task is using ${file(checkstyle_suppressions)}"
+    }
+}
+
+task noConfigAfterExecution {
+    dependsOn buildResources
+    doLast {
+        println "This should cause an error because we are refferencing " +
+                "${buildResources.copy('checkstyle_suppressions.xml')} after the `buildResources` task has ran."
+    }
+}

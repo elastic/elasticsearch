@@ -46,7 +46,7 @@ response.
 
 ==== Script
 
-The `min` aggregation can also calculate the maximum of a script. The example
+The `min` aggregation can also calculate the minimum of a script. The example
 below computes the minimum price:
 
 [source,js]

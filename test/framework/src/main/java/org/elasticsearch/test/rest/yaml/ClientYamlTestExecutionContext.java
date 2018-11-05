@@ -19,13 +19,16 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.client.NodeSelector;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -45,7 +48,7 @@ import java.util.Map;
  */
 public class ClientYamlTestExecutionContext {
 
-    private static final Logger logger = Loggers.getLogger(ClientYamlTestExecutionContext.class);
+    private static final Logger logger = LogManager.getLogger(ClientYamlTestExecutionContext.class);
 
     private static final XContentType[] STREAMING_CONTENT_TYPES = new XContentType[]{XContentType.JSON, XContentType.SMILE};
 
@@ -67,6 +70,15 @@ public class ClientYamlTestExecutionContext {
      */
     public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
                                     Map<String, String> headers) throws IOException {
+        return callApi(apiName, params, bodies, headers, NodeSelector.ANY);
+    }
+
+    /**
+     * Calls an elasticsearch api with the parameters and request body provided as arguments.
+     * Saves the obtained response in the execution context.
+     */
+    public ClientYamlTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
+                                    Map<String, String> headers, NodeSelector nodeSelector) throws IOException {
         //makes a copy of the parameters before modifying them for this specific request
         Map<String, String> requestParams = new HashMap<>(params);
         requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
@@ -86,7 +98,7 @@ public class ClientYamlTestExecutionContext {
 
         HttpEntity entity = createEntity(bodies, requestHeaders);
         try {
-            response = callApiInternal(apiName, requestParams, entity, requestHeaders);
+            response = callApiInternal(apiName, requestParams, entity, requestHeaders, nodeSelector);
             return response;
         } catch(ClientYamlTestResponseException e) {
             response = e.getRestTestResponse();
@@ -147,14 +159,14 @@ public class ClientYamlTestExecutionContext {
     private BytesRef bodyAsBytesRef(Map<String, Object> bodyAsMap, XContentType xContentType) throws IOException {
         Map<String, Object> finalBodyAsMap = stash.replaceStashedValues(bodyAsMap);
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
-            return builder.map(finalBodyAsMap).bytes().toBytesRef();
+            return BytesReference.bytes(builder.map(finalBodyAsMap)).toBytesRef();
         }
     }
 
     // pkg-private for testing
-    ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-                                                   HttpEntity entity, Map<String, String> headers) throws IOException  {
-        return clientYamlTestClient.callApi(apiName, params, entity, headers);
+    ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params, HttpEntity entity,
+            Map<String, String> headers, NodeSelector nodeSelector) throws IOException  {
+        return clientYamlTestClient.callApi(apiName, params, entity, headers, nodeSelector);
     }
 
     /**
@@ -182,6 +194,10 @@ public class ClientYamlTestExecutionContext {
      */
     public Version esVersion() {
         return clientYamlTestClient.getEsVersion();
+    }
+
+    public Version masterVersion() {
+        return clientYamlTestClient.getMasterVersion();
     }
 
 }

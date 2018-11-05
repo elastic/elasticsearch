@@ -19,13 +19,15 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesAggregationBuilder;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggregationBuilder> {
 
@@ -85,12 +87,8 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
         XContentParser parser = createParser(JsonXContent.jsonXContent, illegalAgg);
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        ParsingException e = expectThrows(ParsingException.class,
+        XContentParseException e = expectThrows(XContentParseException.class,
                 () -> PercentilesAggregationBuilder.parse("myPercentiles", parser));
-        assertEquals(
-                "ParsingException[[percentiles] failed to parse field [hdr]]; "
-                + "nested: IllegalStateException[Only one percentiles method should be declared.];; "
-                + "java.lang.IllegalStateException: Only one percentiles method should be declared.",
-                e.getDetailedMessage());
+        assertThat(ExceptionsHelper.detailedMessage(e), containsString("[percentiles] failed to parse field [hdr]"));
     }
 }

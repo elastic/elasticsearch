@@ -29,7 +29,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -165,27 +164,7 @@ public class BytesRestResponseTests extends ESTestCase {
 
     public void testResponseWhenPathContainsEncodingError() throws IOException {
         final String path = "%a";
-        final RestRequest request = new RestRequest(NamedXContentRegistry.EMPTY, Collections.emptyMap(), path, Collections.emptyMap()) {
-            @Override
-            public Method method() {
-                return null;
-            }
-
-            @Override
-            public String uri() {
-                return null;
-            }
-
-            @Override
-            public boolean hasContent() {
-                return false;
-            }
-
-            @Override
-            public BytesReference content() {
-                return null;
-            }
-        };
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> RestUtils.decodeComponent(request.rawPath()));
         final RestChannel channel = new DetailedExceptionRestChannel(request);
         // if we try to decode the path, this will throw an IllegalArgumentException again
@@ -338,7 +317,7 @@ public class BytesRestResponseTests extends ESTestCase {
                 builder.field("status", randomFrom(RestStatus.values()).getStatus());
                 builder.endObject();
 
-                try (XContentParser parser = createParser(builder.contentType().xContent(), builder.bytes())) {
+                try (XContentParser parser = createParser(builder.contentType().xContent(), BytesReference.bytes(builder))) {
                     BytesRestResponse.errorFromXContent(parser);
                 }
             }

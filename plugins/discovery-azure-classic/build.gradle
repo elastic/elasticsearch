@@ -128,7 +128,7 @@ thirdPartyAudit.excludes = [
 ]
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
-if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
   thirdPartyAudit.excludes += [
     'javax.xml.bind.Binder',
     'javax.xml.bind.ContextFinder$1',

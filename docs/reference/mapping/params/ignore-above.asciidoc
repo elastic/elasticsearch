@@ -2,6 +2,9 @@
 === `ignore_above`
 
 Strings longer than the `ignore_above` setting will not be indexed or stored.
+For arrays of strings, `ignore_above` will be applied for each array element separately and string elements longer than `ignore_above` will not be indexed or stored.
+
+NOTE: All strings/array elements will still be present in the `_source` field, if the latter is enabled which is the default in Elasticsearch.
 
 [source,js]
 --------------------------------------------------

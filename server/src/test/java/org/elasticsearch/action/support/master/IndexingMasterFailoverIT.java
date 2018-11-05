@@ -66,6 +66,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
      * This retry logic is implemented in TransportMasterNodeAction and tested by the following master failover scenario.
      */
     @TestLogging("_root:DEBUG")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30844")
     public void testMasterFailoverDuringIndexingWithMappingChanges() throws Throwable {
         logger.info("--> start 4 nodes, 3 master, 1 data");
 

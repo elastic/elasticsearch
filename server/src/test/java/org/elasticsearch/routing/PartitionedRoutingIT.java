@@ -19,6 +19,7 @@
 
 package org.elasticsearch.routing;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
@@ -58,6 +59,8 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
     }
 
     public void testShrinking() throws Exception {
+        assumeFalse("http://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
+
         // creates random routing groups and repeatedly halves the index until it is down to 1 shard
         // verifying that the count is correct for each shrunken index
         final int partitionSize = 3;
@@ -108,10 +111,11 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
 
             logger.info("--> shrinking index [" + previousIndex + "] to [" + index + "]");
             client().admin().indices().prepareResizeIndex(previousIndex, index)
-                .setSettings(Settings.builder()
-                    .put("index.number_of_shards", currentShards)
-                    .put("index.number_of_replicas", numberOfReplicas())
-                    .build()).get();
+                    .setSettings(Settings.builder()
+                            .put("index.number_of_shards", currentShards)
+                            .put("index.number_of_replicas", numberOfReplicas())
+                            .putNull("index.routing.allocation.require._name")
+                            .build()).get();
             ensureGreen();
         }
     }

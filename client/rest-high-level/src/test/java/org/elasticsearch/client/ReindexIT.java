@@ -22,7 +22,6 @@ package org.elasticsearch.client;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.reindex.ReindexSubmissionResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -112,9 +111,9 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1").types("type"));
             reindexRequest.setRefresh(true);
 
-            ReindexSubmissionResponse reindexSubmission = highLevelClient().submitReindexTask(reindexRequest, RequestOptions.DEFAULT);
+            TaskId task = highLevelClient().submitReindexTask(reindexRequest, RequestOptions.DEFAULT);
 
-            BooleanSupplier hasUpgradeCompleted = checkCompletionStatus(reindexSubmission.getTask());
+            BooleanSupplier hasUpgradeCompleted = checkCompletionStatus(task);
             awaitBusy(hasUpgradeCompleted);
         }
     }

@@ -490,7 +490,9 @@ public class UpdateRequestTests extends ESTestCase {
             BytesReference source = RandomObjects.randomSource(random(), xContentType);
             updateRequest.upsert(new IndexRequest().source(source, xContentType));
         }
-        if (randomBoolean()) {
+
+        final boolean fieldsAreUsed = randomBoolean();
+        if (fieldsAreUsed) {
             String[] fields = new String[randomIntBetween(0, 5)];
             for (int i = 0; i < fields.length; i++) {
                 fields[i] = randomAlphaOfLength(5);
@@ -541,6 +543,10 @@ public class UpdateRequestTests extends ESTestCase {
 
         BytesReference finalBytes = toXContent(parsedUpdateRequest, xContentType, humanReadable);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
+
+        if (fieldsAreUsed) {
+            assertWarnings("Deprecated field [fields] used, expected [_source] instead");
+        }
     }
 
     public void testToValidateUpsertRequestAndVersion() {

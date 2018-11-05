@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -43,7 +45,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -126,7 +127,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * Service responsible for the creation, validation, and other management of {@link UserToken}
  * objects for authentication
  */
-public final class TokenService extends AbstractComponent {
+public final class TokenService {
 
     /**
      * The parameters below are used to generate the cryptographic key that is used to encrypt the
@@ -160,6 +161,7 @@ public final class TokenService extends AbstractComponent {
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     private static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
     private static final int MAX_RETRY_ATTEMPTS = 5;
+    private static final Logger logger = LogManager.getLogger(TokenService.class);
 
     private final SecureRandom secureRandom = new SecureRandom();
     private final Settings settings;
@@ -184,7 +186,6 @@ public final class TokenService extends AbstractComponent {
      */
     public TokenService(Settings settings, Clock clock, Client client,
                         SecurityIndexManager securityIndex, ClusterService clusterService) throws GeneralSecurityException {
-        super(settings);
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
 

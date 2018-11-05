@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 
@@ -17,6 +18,8 @@ public class IsNotNullProcessor implements Processor {
     public static final String NAME = "inn";
 
     private IsNotNullProcessor() {}
+
+    public IsNotNullProcessor(StreamInput in) throws IOException {}
 
     @Override
     public String getWriteableName() {

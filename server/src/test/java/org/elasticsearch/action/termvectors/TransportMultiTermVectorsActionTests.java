@@ -205,7 +205,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
     }
 
     private static Task createMultiGetTask() {
-        return new Task(randomLong(), "transport", MultiGetAction.NAME, "description",
+        return new Task(randomLong(), "transport", MultiTermVectorsAction.NAME, "description",
             new TaskId(randomLong() + ":" + randomLong()), emptyMap());
     }
 

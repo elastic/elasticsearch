@@ -163,9 +163,9 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         transportAction = new TransportMultiTermVectorsAction(Settings.EMPTY, transportService, clusterService,
             shardAction, new ActionFilters(emptySet()), new Resolver()) {
             @Override
-            protected void executeShardAction(ActionListener<MultiTermVectorsResponse> listener,
-                                              AtomicArray<MultiTermVectorsItemResponse> responses,
-                                              Map<ShardId, MultiTermVectorsShardRequest> shardRequests) {
+            protected void executeShardAction(final ActionListener<MultiTermVectorsResponse> listener,
+                                              final AtomicArray<MultiTermVectorsItemResponse> responses,
+                                              final Map<ShardId, MultiTermVectorsShardRequest> shardRequests) {
                 shardActionInvoked.set(true);
                 assertEquals(2, responses.length());
                 assertNull(responses.get(0));
@@ -188,9 +188,9 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         transportAction = new TransportMultiTermVectorsAction(Settings.EMPTY, transportService, clusterService,
             shardAction, new ActionFilters(emptySet()), new Resolver()) {
             @Override
-            protected void executeShardAction(ActionListener<MultiTermVectorsResponse> listener,
-                                              AtomicArray<MultiTermVectorsItemResponse> responses,
-                                              Map<ShardId, MultiTermVectorsShardRequest> shardRequests) {
+            protected void executeShardAction(final ActionListener<MultiTermVectorsResponse> listener,
+                                              final AtomicArray<MultiTermVectorsItemResponse> responses,
+                                              final Map<ShardId, MultiTermVectorsShardRequest> shardRequests) {
                 shardActionInvoked.set(true);
                 assertEquals(2, responses.length());
                 assertNull(responses.get(0));

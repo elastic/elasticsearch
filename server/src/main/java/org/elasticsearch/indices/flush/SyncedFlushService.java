@@ -40,7 +40,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
@@ -84,8 +83,7 @@ public class SyncedFlushService extends AbstractComponent implements IndexEventL
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public SyncedFlushService(Settings settings, IndicesService indicesService, ClusterService clusterService, TransportService transportService, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings);
+    public SyncedFlushService(IndicesService indicesService, ClusterService clusterService, TransportService transportService, IndexNameExpressionResolver indexNameExpressionResolver) {
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;

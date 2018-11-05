@@ -35,7 +35,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -75,9 +74,8 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
 
     private ImmutableOpenMap<String, IndexTemplateMetaData> lastTemplateMetaData;
 
-    public TemplateUpgradeService(Settings settings, Client client, ClusterService clusterService, ThreadPool threadPool,
+    public TemplateUpgradeService(Client client, ClusterService clusterService, ThreadPool threadPool,
                                   Collection<UnaryOperator<Map<String, IndexTemplateMetaData>>> indexTemplateMetaDataUpgraders) {
-        super(settings);
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

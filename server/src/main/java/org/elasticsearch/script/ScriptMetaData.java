@@ -68,7 +68,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
          *                 is no existing {@link ScriptMetaData}.
          */
         public Builder(ScriptMetaData previous) {
-            this.scripts = previous == null ? new HashMap<>() :new HashMap<>(previous.scripts);
+            this.scripts = previous == null ? new HashMap<>() : new HashMap<>(previous.scripts);
         }
 
         /**
@@ -350,6 +350,13 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     @Override
     public EnumSet<MetaData.XContentContext> context() {
         return MetaData.ALL_CONTEXTS;
+    }
+
+    /**
+     * Returns the map of stored scripts.
+     */
+    Map<String, StoredScriptSource> getStoredScripts() {
+        return scripts;
     }
 
     /**

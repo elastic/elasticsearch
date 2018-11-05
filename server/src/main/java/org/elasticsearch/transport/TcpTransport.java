@@ -59,6 +59,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -1608,13 +1609,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final class ChannelsConnectedListener implements ActionListener<Void> {
 
-        private static final int FAILED = -1;
-
         private final DiscoveryNode node;
         private final ConnectionProfile connectionProfile;
         private final List<TcpChannel> channels;
         private final ActionListener<NodeChannels> listener;
-        private final AtomicInteger pendingConnections;
+        private final CountDown countDown;
 
         private ChannelsConnectedListener(DiscoveryNode node, ConnectionProfile connectionProfile, List<TcpChannel> channels,
                                           ActionListener<NodeChannels> listener) {
@@ -1622,14 +1621,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             this.connectionProfile = connectionProfile;
             this.channels = channels;
             this.listener = listener;
-            this.pendingConnections = new AtomicInteger(channels.size());
+            this.countDown = new CountDown(channels.size());
         }
 
         @Override
         public void onResponse(Void v) {
-            assert pendingConnections.get() != 0 : "Should not call onResponse when the pending connections is 0.";
             // Returns true if all connections have completed successfully
-            if (setConnectSuccess()) {
+            if (countDown.countDown()) {
                 final TcpChannel handshakeChannel = channels.get(0);
                 try {
                     executeHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout(), new ActionListener<Version>() {
@@ -1660,42 +1658,16 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         @Override
         public void onFailure(Exception ex) {
-            assert pendingConnections.get() != 0 : "Should not receive non-timeout connection exception if no connections pending.";
-            if (setFailed()) {
+            if (countDown.fastForward()) {
                 CloseableChannel.closeChannels(channels, false);
                 listener.onFailure(new ConnectTransportException(node, "connect_exception", ex));
             }
         }
 
         public void onTimeout() {
-            if (setFailed()) {
+            if (countDown.fastForward()) {
                 CloseableChannel.closeChannels(channels, false);
                 listener.onFailure(new ConnectTransportException(node, "connect_timeout[" + connectionProfile.getConnectTimeout()  + "]"));
-            }
-        }
-
-        private boolean setConnectSuccess() {
-            while (true) {
-                int pendingConnections = this.pendingConnections.get();
-                if (pendingConnections == FAILED) {
-                    return false;
-                } else {
-                    int newValue = pendingConnections - 1;
-                    if (this.pendingConnections.compareAndSet(pendingConnections, newValue)) {
-                        return newValue == 0;
-                    }
-                }
-            }
-        }
-
-        private boolean setFailed() {
-            while (true) {
-                int pendingConnections = this.pendingConnections.get();
-                if (pendingConnections == 0 || pendingConnections == FAILED) {
-                    return false;
-                } else if (this.pendingConnections.compareAndSet(pendingConnections, FAILED)) {
-                    return true;
-                }
             }
         }
     }

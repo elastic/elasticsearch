@@ -21,11 +21,13 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelException;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPromise;
 import java.io.IOException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.transport.TcpChannel;
@@ -40,14 +42,10 @@ public class Netty4TcpChannel implements TcpChannel {
     private final CompletableContext<Void> connectContext;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
-    Netty4TcpChannel(Channel channel, String profile) {
-        this(channel, profile, completedConnectContext());
-    }
-
-    Netty4TcpChannel(Channel channel, String profile, CompletableContext<Void> connectContext) {
+    Netty4TcpChannel(Channel channel, String profile, @Nullable ChannelFuture connectFuture) {
         this.channel = channel;
         this.profile = profile;
-        this.connectContext = connectContext;
+        this.connectContext = new CompletableContext<>();
         this.channel.closeFuture().addListener(f -> {
             if (f.isSuccess()) {
                 closeContext.complete(null);
@@ -61,6 +59,24 @@ public class Netty4TcpChannel implements TcpChannel {
                 }
             }
         });
+
+        if (connectFuture != null) {
+            connectFuture.addListener(f -> {
+            if (f.isSuccess()) {
+                connectContext.complete(null);
+            } else {
+                Throwable cause = f.cause();
+                if (cause instanceof Error) {
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
+                    connectContext.completeExceptionally(new Exception(cause));
+                } else {
+                    connectContext.completeExceptionally((Exception) cause);
+                }
+            }
+            });
+        } else {
+            connectContext.complete(null);
+        }
     }
 
     @Override
@@ -142,11 +158,5 @@ public class Netty4TcpChannel implements TcpChannel {
             "localAddress=" + getLocalAddress() +
             ", remoteAddress=" + channel.remoteAddress() +
             '}';
-    }
-
-    private static CompletableContext<Void> completedConnectContext() {
-        CompletableContext<Void> connectContext = new CompletableContext<>();
-        connectContext.complete(null);
-        return connectContext;
     }
 }

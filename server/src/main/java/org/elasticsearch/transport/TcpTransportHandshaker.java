@@ -33,7 +33,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-class TcpTransportHandshaker {
+/**
+ * Sends and receives transport-level connection handshakes. This class will send the initial handshake,
+ * manage state/timeouts while the handshake is in transit, and handle the eventual response.
+ */
+final class TcpTransportHandshaker {
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
@@ -70,7 +74,7 @@ class TcpTransportHandshaker {
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")));
             success = true;
         } catch (Exception e) {
-            handler.handleLocalException(new SendRequestTransportException(node, HANDSHAKE_ACTION_NAME, e));
+            handler.handleLocalException(new ConnectTransportException(node, "failure to send " + HANDSHAKE_ACTION_NAME, e));
         } finally {
             if (success == false) {
                 TransportResponseHandler<?> removed = pendingHandshakes.remove(requestId);
@@ -83,7 +87,7 @@ class TcpTransportHandshaker {
         handshakeResponseSender.sendResponse(version, features, channel, new VersionHandshakeResponse(this.version), requestId);
     }
 
-    TransportResponseHandler<?> removeHandlerForHandshake(long requestId) {
+    TransportResponseHandler<VersionHandshakeResponse> removeHandlerForHandshake(long requestId) {
         return pendingHandshakes.remove(requestId);
     }
 
@@ -145,11 +149,11 @@ class TcpTransportHandshaker {
         }
     }
 
-    private static final class VersionHandshakeResponse extends TransportResponse {
+    static final class VersionHandshakeResponse extends TransportResponse {
 
         private final Version version;
 
-        private VersionHandshakeResponse(Version version) {
+        VersionHandshakeResponse(Version version) {
             this.version = version;
         }
 

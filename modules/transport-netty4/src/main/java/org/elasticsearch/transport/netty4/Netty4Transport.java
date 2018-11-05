@@ -41,7 +41,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
@@ -222,33 +221,17 @@ public class Netty4Transport extends TcpTransport {
         Bootstrap bootstrapWithHandler = clientBootstrap.clone();
         bootstrapWithHandler.handler(getClientChannelInitializer(node));
         bootstrapWithHandler.remoteAddress(address);
-        ChannelFuture channelFuture = bootstrapWithHandler.connect();
+        ChannelFuture connectFuture = bootstrapWithHandler.connect();
 
-        Channel channel = channelFuture.channel();
+        Channel channel = connectFuture.channel();
         if (channel == null) {
-            ExceptionsHelper.maybeDieOnAnotherThread(channelFuture.cause());
-            throw new IOException(channelFuture.cause());
+            ExceptionsHelper.maybeDieOnAnotherThread(connectFuture.cause());
+            throw new IOException(connectFuture.cause());
         }
         addClosedExceptionLogger(channel);
 
-        CompletableContext<Void> connectContext = new CompletableContext<>();
-
-        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, "default", connectContext);
+        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, "default", connectFuture);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
-
-        channelFuture.addListener(f -> {
-            if (f.isSuccess()) {
-                connectContext.complete(null);
-            } else {
-                Throwable cause = f.cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    connectContext.completeExceptionally(new Exception(cause));
-                } else {
-                    connectContext.completeExceptionally((Exception) cause);
-                }
-            }
-        });
 
         return nettyChannel;
     }
@@ -312,7 +295,7 @@ public class Netty4Transport extends TcpTransport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             addClosedExceptionLogger(ch);
-            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, name);
+            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, name, null);
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());

@@ -150,7 +150,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
     }
 
     public void testTransportMultiGetAction() {
-        final Task task = createMultiGetTask();
+        final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE);
         request.add(new MultiGetRequest.Item("index1", "type1", "1"));
@@ -175,7 +175,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
     }
 
     public void testTransportMultiGetAction_withMissingRouting() {
-        final Task task = createMultiGetTask();
+        final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiGetRequestBuilder request = new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE);
         request.add(new MultiGetRequest.Item("index1", "type2", "1").routing("1"));
@@ -202,7 +202,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
 
     }
 
-    private static Task createMultiGetTask() {
+    private static Task createTask() {
         return new Task(randomLong(), "transport", MultiGetAction.NAME, "description",
             new TaskId(randomLong() + ":" + randomLong()), emptyMap());
     }

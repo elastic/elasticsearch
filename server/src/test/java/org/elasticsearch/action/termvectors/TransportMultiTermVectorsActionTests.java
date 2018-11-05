@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.TransportMultiGetActionTests;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.node.NodeClient;
@@ -153,7 +152,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
     }
 
     public void testTransportMultiGetAction() {
-        final Task task = createMultiGetTask();
+        final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
         request.add(new TermVectorsRequest("index1", "type1", "1"));
@@ -178,7 +177,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
     }
 
     public void testTransportMultiGetAction_withMissingRouting() {
-        final Task task = createMultiGetTask();
+        final Task task = createTask();
         final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
         final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
         request.add(new TermVectorsRequest("index1", "type2", "1").routing("1"));
@@ -204,7 +203,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         assertTrue(shardActionInvoked.get());
     }
 
-    private static Task createMultiGetTask() {
+    private static Task createTask() {
         return new Task(randomLong(), "transport", MultiTermVectorsAction.NAME, "description",
             new TaskId(randomLong() + ":" + randomLong()), emptyMap());
     }

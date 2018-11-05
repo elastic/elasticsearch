@@ -84,7 +84,7 @@ public class TransportUnfollowAction extends TransportMasterNodeAction<UnfollowA
         }
 
         if (followerIMD.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY) == null) {
-            throw new IllegalArgumentException("index [" + followerIndex + "] is not a follow index");
+            throw new IllegalArgumentException("index [" + followerIndex + "] is not a follower index");
         }
 
         if (followerIMD.getState() != IndexMetaData.State.CLOSE) {

@@ -134,7 +134,8 @@ public class CommonAnalysisPluginTests extends ESTestCase {
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin));
         assertEquals("[standard_html_strip] analyzer is not supported for new indices, " +
             "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter", ex.getMessage());
     }

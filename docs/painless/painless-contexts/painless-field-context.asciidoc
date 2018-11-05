@@ -33,33 +33,28 @@ The standard <<painless-api-reference, Painless API>> is available.
 To run this example, first follow the steps in
 <<painless-context-examples, context examples>>.
 
-We will use two scripts to create two additional fields for each search hit.
-These script fields will output computed custom information.
+You can then use these two example scripts to compute custom information
+for each search hit and output it to two new fields.
 
-The first script calculates the day of the week for the field `datetime`:
+The first script gets the doc value for the `datetime` field and calls
+the `getDayOfWeek` function to determine the corresponding day of the week.
 
 [source,Painless]
 ----
-doc['datetime'].value.getDayOfWeek();                               <1>
+doc['datetime'].value.getDayOfWeek();
 ----
-
-<1> Accesses a doc value for the `datetime` field, and uses the function
-    `getDayOfWeek` to calculate the day of the week for this date.
-
-
 
 The second script calculates the number of actors. Actors' names are stored
-as an array in the `actors` field:
+as a text array in the `actors` field.
 
 [source,Painless]
 ----
-params['_source']['actors'].length;
+params['_source']['actors'].length;                        <1>
 ----
 
-<1> As `actors` field is of type `text`, by default, doc values are
-    not available for this field. We parse `_source` to extract
-    `actors` and calculate their number. Note how `params['_source']['actors']`
-    is a list.
+<1> By default, doc values are not available for text fields. However,
+    you can still calculate the number of actors by extracting actors
+    from `_source`. Note that `params['_source']['actors']` is a list.
 
 
 Submit the following request:

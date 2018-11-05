@@ -112,6 +112,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("build_hash", build.shortHash())
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
+            .field("build_version", build.getVersion())
             .field("lucene_version", version.luceneVersion.toString())
             .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
             .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
@@ -138,7 +139,9 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
                             buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType),
                             (String) value.get("build_hash"),
                             (String) value.get("build_date"),
-                            (boolean) value.get("build_snapshot"));
+                            (boolean) value.get("build_snapshot"),
+                            (String) value.get("build_version")
+                    );
             response.version = Version.fromString((String) value.get("number"));
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }

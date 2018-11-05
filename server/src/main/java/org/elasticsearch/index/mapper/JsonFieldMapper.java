@@ -277,6 +277,25 @@ public final class JsonFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query rangeQuery(Object lowerTerm,
+                                Object upperTerm,
+                                boolean includeLower,
+                                boolean includeUpper,
+                                QueryShardContext context) {
+
+            // We require range queries to specify both bounds because an unbounded query could incorrectly match
+            // values from other keys. For example, a query on the 'first' key with only a lower bound would become
+            // ("first\0value", null), which would also match the value "second\0value" belonging to the key 'second'.
+            if (lowerTerm == null || upperTerm == null) {
+                throw new IllegalArgumentException("[range] queries on keyed [" + CONTENT_TYPE +
+                    "] fields must include both an upper and a lower bound.");
+            }
+
+            return super.rangeQuery(lowerTerm, upperTerm,
+                includeLower, includeUpper, context);
+        }
+
+        @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
                                 boolean transpositions) {
             throw new UnsupportedOperationException("[fuzzy] queries are not currently supported on [" +

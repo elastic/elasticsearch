@@ -128,6 +128,16 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
             new BytesRef("key\0lower"),
             new BytesRef("key\0upper"), false, false);
         assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, null));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            ft.rangeQuery("lower", null, false, false, null));
+        assertEquals("[range] queries on keyed [json] fields must include both an upper and a lower bound.",
+            e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () ->
+            ft.rangeQuery(null, "upper", false, false, null));
+        assertEquals("[range] queries on keyed [json] fields must include both an upper and a lower bound.",
+            e.getMessage());
     }
 
     public void testRegexpQuery() {

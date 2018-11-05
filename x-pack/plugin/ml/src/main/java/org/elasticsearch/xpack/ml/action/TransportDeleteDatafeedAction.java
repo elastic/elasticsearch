@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,11 +38,11 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
     private PersistentTasksService persistentTasksService;
 
     @Inject
-    public TransportDeleteDatafeedAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeleteDatafeedAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver,
                                          Client client, PersistentTasksService persistentTasksService) {
-        super(settings, DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, DeleteDatafeedAction.Request::new);
         this.client = client;
         this.persistentTasksService = persistentTasksService;

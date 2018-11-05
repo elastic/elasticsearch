@@ -73,27 +73,17 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     public void testFailedRecoveryOnAllocateStalePrimaryRequiresAnotherAllocateStalePrimary() throws Exception {
-        /* test case to spot the problem if allocation id is adjusted before recovery is done (historyUUID is adjusted):
-         * ( if recovery is failed on AllocateStalePrimary it requires another AllocateStalePrimary )
+        /*
+         * Allocation id is put on start of shard while historyUUID is adjusted after recovery is done.
          *
-         * - Master node + 2 data nodes
-         * - (1) index some docs
-         * - stop primary (node1)
-         * - (2) index more docs to a node2, that marks node1 as stale
-         * - stop node2
+         * If during execution of AllocateStalePrimary a proper allocation id is stored in allocation id set and recovery is failed
+         * shard restart skips the stage where historyUUID is changed.
          *
-         * node1 would not be a new primary due to master node state - it is required to run AllocateStalePrimary
-         * - put a corruption marker to node1 to interrupt recovery
-         * - start node1 (shard would not start as it is stale)
-         * - allocate stale primary - allocation id is adjusted (*) - but it fails due to the presence of corruption marker
-         * - stop node1
-         * - remove a corruption marker
-         * - try to open index on node1
-         *  -> node1 has a RED index if (*) points to a fake shard -> node requires another AllocateStalePrimary
-         * - check that restart does not help
-         * - another manual intervention of AllocateStalePrimary brings index to yellow state
-         * - bring node2 back
-         * -> nodes are fully in-sync and has different to initial history uuid
+         * That leads to situation where allocated stale primary and its replica belongs to the same historyUUID and
+         * replica will receive operations after local checkpoint while documents before checkpoints could be significant different.
+         *
+         * Therefore, on AllocateStalePrimary we put some fake allocation id (no real one could be generated like that)
+         * and any failure during recovery requires extra AllocateStalePrimary command to be executed.
          */
 
         // initial set up

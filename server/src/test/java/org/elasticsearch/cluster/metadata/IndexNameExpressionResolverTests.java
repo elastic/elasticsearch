@@ -43,6 +43,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Function;
@@ -1325,7 +1326,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .settings(settings().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true))
                 .putAlias(AliasMetaData.builder("test-alias")))
             .put(indexBuilder("index").state(State.OPEN)
-                .putAlias(AliasMetaData.builder("test-alias2")));
+                .putAlias(AliasMetaData.builder("test-alias2")))
+            .put(indexBuilder("index-closed").state(State.CLOSE)
+                .settings(settings().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true))
+                .putAlias(AliasMetaData.builder("test-alias-closed")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
         {
             Index[] indices = indexNameExpressionResolver.concreteIndices(state,
@@ -1357,6 +1361,27 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Arrays.sort(indices, Comparator.comparing(Index::getName));
             assertEquals("index", indices[0].getName());
             assertEquals("test-index", indices[1].getName());
+        }
+
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES,
+                    IndicesOptions.Option.IGNORE_THROTTLED),
+                    EnumSet.of(IndicesOptions.WildcardStates.OPEN)), "ind*", "test-index");
+            assertEquals(2, indices.length);
+            Arrays.sort(indices, Comparator.comparing(Index::getName));
+            assertEquals("index", indices[0].getName());
+            assertEquals("test-index", indices[1].getName());
+        }
+        {
+            Index[] indices = indexNameExpressionResolver.concreteIndices(state,
+                new IndicesOptions(EnumSet.of(IndicesOptions.Option.ALLOW_NO_INDICES),
+                    EnumSet.of(IndicesOptions.WildcardStates.OPEN, IndicesOptions.WildcardStates.CLOSED)), "ind*", "test-index");
+            assertEquals(3, indices.length);
+            Arrays.sort(indices, Comparator.comparing(Index::getName));
+            assertEquals("index", indices[0].getName());
+            assertEquals("index-closed", indices[1].getName());
+            assertEquals("test-index", indices[2].getName());
         }
     }
 }

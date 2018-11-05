@@ -41,7 +41,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -109,37 +108,6 @@ final class IndexShardOperationPermits implements Closeable {
         } finally {
             releaseDelayedOperations();
         }
-    }
-
-    /**
-     * Immediately delays operations and on another thread waits for in-flight operations to finish and then executes {@code onBlocked}
-     * under the guarantee that no new operations are started. Delayed operations are run after {@code onBlocked} has executed. After
-     * operations are delayed and the blocking is forked to another thread, returns to the caller. If a failure occurs while blocking
-     * operations or executing {@code onBlocked} then the {@code onFailure} handler will be invoked.
-     *
-     * @param timeout   the maximum time to wait for the in-flight operations block
-     * @param timeUnit  the time unit of the {@code timeout} argument
-     * @param onBlocked the action to run once the block has been acquired
-     * @param onFailure the action to run if a failure occurs while blocking operations
-     * @param <E>       the type of checked exception thrown by {@code onBlocked} (not thrown on the calling thread)
-     */
-    <E extends Exception> void asyncBlockOperations(final long timeout, final TimeUnit timeUnit,
-                                                    final CheckedRunnable<E> onBlocked, final Consumer<Exception> onFailure) {
-        asyncBlockOperations(new ActionListener<Releasable>() {
-            @Override
-            public void onFailure(final Exception e) {
-                onFailure.accept(e);
-            }
-
-            @Override
-            public void onResponse(final Releasable releasable) {
-                try (Releasable ignored = releasable) {
-                    onBlocked.run();
-                } catch (final Exception e) {
-                    onFailure.accept(e);
-                }
-            }
-        }, timeout, timeUnit);
     }
 
     /**

@@ -151,8 +151,13 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
             if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
                 // fire off the search. Note this is async, the method will return from here
-                executor.execute(() -> doNextSearch(buildSearchRequest(),
-                        ActionListener.wrap(this::onSearchResponse, exc -> finishWithFailure(exc))));
+                executor.execute(() -> {
+                    try {
+                        doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, exc -> finishWithFailure(exc)));
+                    } catch (Exception e) {
+                        finishWithFailure(e);
+                    }
+                });
                 logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
                 return true;
             } else {
@@ -252,7 +257,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract void onAbort();
 
     private void finishWithFailure(Exception exc) {
-        doSaveState(finishAndSetState(), position.get(), () -> onFailure(exc));
+        try {
+            doSaveState(finishAndSetState(), position.get(), () -> onFailure(exc));
+        } catch (Exception e) {
+            onFailure(exc);
+            onFailure(new RuntimeException("Failed to save State", e));
+        }
     }
 
     private IndexerState finishAndSetState() {

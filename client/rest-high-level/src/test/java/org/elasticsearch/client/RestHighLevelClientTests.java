@@ -89,6 +89,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -97,6 +99,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -675,8 +678,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.put_alias",
             "mtermvectors",
             "render_search_template",
-            "scripts_painless_execute",
-            "tasks.get"
+            "scripts_painless_execute"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -777,8 +779,11 @@ public class RestHighLevelClientTests extends ESTestCase {
             assertThat("the return type for method [" + method + "] is incorrect",
                 method.getReturnType().getSimpleName(), equalTo("boolean"));
         } else {
-            assertThat("the return type for method [" + method + "] is incorrect",
-                method.getReturnType().getSimpleName(), endsWith("Response"));
+            // It's acceptable for 404s to be represented as empty Optionals 
+            if (!method.getReturnType().isAssignableFrom(Optional.class)) {
+                assertThat("the return type for method [" + method + "] is incorrect",
+                    method.getReturnType().getSimpleName(), endsWith("Response"));
+            }
         }
 
         assertEquals("incorrect number of exceptions for method [" + method + "]", 1, method.getExceptionTypes().length);

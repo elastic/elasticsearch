@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -325,6 +327,17 @@ public abstract class MappedFieldType extends FieldType {
             builder.add(termQuery(value, context), Occur.SHOULD);
         }
         return new ConstantScoreQuery(builder.build());
+    }
+
+    public Query commonTermsQuery(String queryString,
+                                  Analyzer analyzer,
+                                  float cutoffFrequency,
+                                  Operator lowFreqOperator,
+                                  Operator highFreqOperator,
+                                  String lowFreqMinimumShouldMatch,
+                                  String highFreqMinimumShouldMatch) throws IOException {
+        throw new IllegalArgumentException("Can only use [common] queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "].");
     }
 
     /**

@@ -20,19 +20,14 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -346,52 +341,22 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        String field;
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            field = fieldType.name();
-        } else {
-            field = fieldName;
+        if (fieldType == null) {
+            return Queries.newUnmappedFieldQuery(fieldName);
         }
 
         Analyzer analyzerObj;
         if (analyzer == null) {
-            if (fieldType != null) {
-                analyzerObj = context.getSearchAnalyzer(fieldType);
-            } else {
-                analyzerObj = context.getMapperService().searchAnalyzer();
-            }
+            analyzerObj = context.getSearchAnalyzer(fieldType);
         } else {
             analyzerObj = context.getMapperService().getIndexAnalyzers().get(analyzer);
             if (analyzerObj == null) {
                 throw new QueryShardException(context, "[common] analyzer [" + analyzer + "] not found");
             }
         }
-
-        Occur highFreqOccur = highFreqOperator.toBooleanClauseOccur();
-        Occur lowFreqOccur = lowFreqOperator.toBooleanClauseOccur();
-
-        ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency);
-        return parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
-    }
-
-    private static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer,
-                                         String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch) throws IOException {
-        // Logic similar to QueryParser#getFieldQuery
-        try (TokenStream source = analyzer.tokenStream(field, queryString.toString())) {
-            source.reset();
-            CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
-            BytesRefBuilder builder = new BytesRefBuilder();
-            while (source.incrementToken()) {
-                // UTF-8
-                builder.copyChars(termAtt);
-                query.add(new Term(field, builder.toBytesRef()));
-            }
-        }
-
-        query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);
-        query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
-        return query;
+        return fieldType.commonTermsQuery(text.toString(), analyzerObj, cutoffFrequency,
+            lowFreqOperator, highFreqOperator, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
 
     @Override

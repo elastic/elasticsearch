@@ -40,6 +40,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.index.query.Operator;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -183,5 +184,15 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
         ft.setSearchAnalyzer(Lucene.STANDARD_ANALYZER);
         assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
+    }
+
+    public void testCommonTermsQuery() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            ft.commonTermsQuery("value", null, 0.01f, Operator.OR, Operator.OR, null, null));
+        assertEquals("Can only use [common] queries on text fields - not on [field] which" +
+            " is of type [keyword].", e.getMessage());
     }
 }

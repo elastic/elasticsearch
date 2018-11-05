@@ -26,12 +26,14 @@ import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.shingle.FixedShingleFilter;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -39,6 +41,7 @@ import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +51,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -605,6 +609,37 @@ public class TextFieldMapper extends FieldMapper {
             }
 
             return builder.build();
+        }
+
+        @Override
+        public Query commonTermsQuery(String queryString,
+                                      Analyzer analyzer,
+                                      float cutoffFrequency,
+                                      Operator lowFreqOperator,
+                                      Operator highFreqOperator,
+                                      String lowFreqMinimumShouldMatch,
+                                      String highFreqMinimumShouldMatch) throws IOException {
+
+            ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(
+                highFreqOperator.toBooleanClauseOccur(),
+                lowFreqOperator.toBooleanClauseOccur(),
+                cutoffFrequency);
+
+            // Logic similar to QueryParser#getFieldQuery
+            try (TokenStream source = analyzer.tokenStream(name(), queryString)) {
+                source.reset();
+                CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
+                BytesRefBuilder builder = new BytesRefBuilder();
+                while (source.incrementToken()) {
+                    // UTF-8
+                    builder.copyChars(termAtt);
+                    query.add(new Term(name(), builder.toBytesRef()));
+                }
+            }
+
+            query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);
+            query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
+            return query;
         }
 
         @Override

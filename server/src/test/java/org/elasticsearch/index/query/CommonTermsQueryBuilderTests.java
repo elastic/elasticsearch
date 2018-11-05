@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -97,18 +98,26 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     @Override
     protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        assertThat(query, instanceOf(ExtendedCommonTermsQuery.class));
-        ExtendedCommonTermsQuery extendedCommonTermsQuery = (ExtendedCommonTermsQuery) query;
+        if (queryBuilder.fieldName().equals(STRING_FIELD_NAME)
+            || queryBuilder.fieldName().equals(STRING_ALIAS_FIELD_NAME)) {
 
-        List<Term> terms = extendedCommonTermsQuery.getTerms();
-        if (!terms.isEmpty()) {
-            String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
-            String actualFieldName = terms.iterator().next().field();
-            assertThat(actualFieldName, equalTo(expectedFieldName));
+            assertThat(query, instanceOf(ExtendedCommonTermsQuery.class));
+            ExtendedCommonTermsQuery extendedCommonTermsQuery = (ExtendedCommonTermsQuery) query;
+
+            List<Term> terms = extendedCommonTermsQuery.getTerms();
+            if (!terms.isEmpty()) {
+                String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
+                String actualFieldName = terms.iterator().next().field();
+                assertThat(actualFieldName, equalTo(expectedFieldName));
+            }
+
+            assertThat(extendedCommonTermsQuery.getHighFreqMinimumNumberShouldMatchSpec(),
+                equalTo(queryBuilder.highFreqMinimumShouldMatch()));
+            assertThat(extendedCommonTermsQuery.getLowFreqMinimumNumberShouldMatchSpec(),
+                equalTo(queryBuilder.lowFreqMinimumShouldMatch()));
+        } else {
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
         }
-
-        assertThat(extendedCommonTermsQuery.getHighFreqMinimumNumberShouldMatchSpec(), equalTo(queryBuilder.highFreqMinimumShouldMatch()));
-        assertThat(extendedCommonTermsQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo(queryBuilder.lowFreqMinimumShouldMatch()));
     }
 
     public void testIllegalArguments() {
@@ -173,12 +182,6 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), nullValue());
         assertThat(ectQuery.getLowFreqMinimumNumberShouldMatchSpec(), equalTo("2"));
-    }
-
-    // see #11730
-    public void testCommonTermsQuery4() throws IOException {
-        Query parsedQuery = parseQuery(commonTermsQuery("field", "text")).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {

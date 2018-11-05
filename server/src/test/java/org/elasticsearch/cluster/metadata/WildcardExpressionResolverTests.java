@@ -218,7 +218,8 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         // when ignoreAliases option is not set, WildcardExpressionResolver resolves the provided
         // expressions against the defined indices and aliases
         IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false);
-        IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
+        IndexNameExpressionResolver.Context indicesAndAliasesContext =
+            new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions);
 
         // ignoreAliases option is set, WildcardExpressionResolver resolves the provided expressions
         // only against the defined indices

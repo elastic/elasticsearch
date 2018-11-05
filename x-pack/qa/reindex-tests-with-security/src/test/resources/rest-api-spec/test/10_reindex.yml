@@ -1,3 +1,6 @@
+setup:
+  - skip:
+      features: headers
 ---
 "Reindex as same user works":
 

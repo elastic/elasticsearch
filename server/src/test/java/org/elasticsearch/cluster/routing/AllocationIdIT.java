@@ -193,9 +193,6 @@ public class AllocationIdIT extends ESIntegTestCase {
             .setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1")
-                .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true)
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum")));
     }
 

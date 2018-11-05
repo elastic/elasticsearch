@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommandIT;
@@ -47,7 +46,6 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
@@ -62,11 +60,9 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
@@ -112,7 +108,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         final ShardId shardId = new ShardId(resolveIndex(indexName), 0);
         final Path indexPath = getIndexPath(node1, shardId);
         assertThat(allocationIds, hasSize(1));
-        final Set<String> historyUUIDs = historyUUIDs(node1, indexName);
+        final String historyUUID = historyUUID(node1, indexName);
         String node2 = internalCluster().startNode();
         ensureGreen(indexName);
         internalCluster().assertSameDocIdsOnShards();
@@ -176,8 +172,8 @@ public class AllocationIdIT extends ESIntegTestCase {
         node2 = internalCluster().startNode();
         ensureGreen(indexName);
 
-        assertThat(historyUUIDs(node1, indexName), everyItem(not(isIn(historyUUIDs))));
-        assertThat(historyUUIDs(node1, indexName), equalTo(historyUUIDs(node2, indexName)));
+        assertThat(historyUUID(node1, indexName), not(equalTo(historyUUID)));
+        assertThat(historyUUID(node1, indexName), equalTo(historyUUID(node2, indexName)));
 
         internalCluster().assertSameDocIdsOnShards();
     }
@@ -231,11 +227,14 @@ public class AllocationIdIT extends ESIntegTestCase {
         return indexService.getIndexSettings();
     }
 
-    private Set<String> historyUUIDs(String node, String indexName) {
+    private String historyUUID(String node, String indexName) {
         final ShardStats[] shards = client(node).admin().indices().prepareStats(indexName).clear().get().getShards();
         assertThat(shards.length, greaterThan(0));
-        return Arrays.stream(shards).map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY))
+        final Set<String> historyUUIDs = Arrays.stream(shards)
+            .map(shard -> shard.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY))
             .collect(Collectors.toSet());
+        assertThat(historyUUIDs, hasSize(1));
+        return historyUUIDs.iterator().next();
     }
 
     private void putFakeCorruptionMarker(IndexSettings indexSettings, ShardId shardId, Path indexPath) throws IOException {

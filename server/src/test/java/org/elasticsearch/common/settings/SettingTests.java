@@ -912,7 +912,7 @@ public class SettingTests extends ESTestCase {
 
         final Setting.AffixSetting<String> affixSetting =
             Setting.prefixKeySetting("prefix" + ".",
-                (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
+                key -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope));
 
         final Consumer<Map<String, String>> consumer = (map) -> {};
         final BiConsumer<String, String> validator = (s1, s2) -> {};

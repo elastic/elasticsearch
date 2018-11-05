@@ -186,7 +186,7 @@ public class Setting<T> implements ToXContentObject {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
-        this(key, defaultValue, parser, (v) -> {}, properties);
+        this(key, defaultValue, parser, v -> {}, properties);
     }
 
     /**
@@ -246,7 +246,7 @@ public class Setting<T> implements ToXContentObject {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Setting<T> fallbackSetting, Function<String, T> parser, Property... properties) {
-        this(key, fallbackSetting, fallbackSetting::getRaw, parser, (v) -> {}, properties);
+        this(key, fallbackSetting, fallbackSetting::getRaw, parser, v -> {}, properties);
     }
 
     /**
@@ -1292,9 +1292,9 @@ public class Setting<T> implements ToXContentObject {
             super(
                     new ListKey(key),
                     fallbackSetting,
-                    (s) -> Setting.arrayToParsableString(defaultStringValue.apply(s)),
+                    s -> Setting.arrayToParsableString(defaultStringValue.apply(s)),
                     parser,
-                    (v) -> {},
+                    v -> {},
                     properties);
             this.defaultStringValue = defaultStringValue;
         }
@@ -1352,7 +1352,7 @@ public class Setting<T> implements ToXContentObject {
                 fallbackSetting,
                 fallbackSetting::getRaw,
                 minTimeValueParser(key, minValue),
-                (v) -> {},
+                v -> {},
                 properties);
     }
 

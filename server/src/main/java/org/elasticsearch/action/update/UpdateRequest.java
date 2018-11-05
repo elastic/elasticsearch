@@ -767,6 +767,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             } else if ("detect_noop".equals(currentFieldName)) {
                 detectNoop(parser.booleanValue());
             } else if ("fields".equals(currentFieldName)) {
+                DEPRECATION_LOGGER.deprecated("Deprecated field [fields] used, expected [_source] instead");
                 List<Object> fields = null;
                 if (token == XContentParser.Token.START_ARRAY) {
                     fields = (List) parser.list();

@@ -327,11 +327,13 @@ public class UpdateRequestTests extends ESTestCase {
                 createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"field1\": \"value1\"}, \"fields\": \"_source\"}")));
         assertThat(request.doc().sourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(request.fields(), arrayContaining("_source"));
+        assertWarnings("Deprecated field [fields] used, expected [_source] instead");
 
         request = new UpdateRequest("test", "type2", "2").fromXContent(createParser(JsonXContent.jsonXContent,
                 new BytesArray("{\"doc\": {\"field2\": \"value2\"}, \"fields\": [\"field1\", \"field2\"]}")));
         assertThat(request.doc().sourceAsMap().get("field2").toString(), equalTo("value2"));
         assertThat(request.fields(), arrayContaining("field1", "field2"));
+        assertWarnings("Deprecated field [fields] used, expected [_source] instead");
     }
 
     public void testFetchSourceParsing() throws Exception {

@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -210,14 +211,23 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
         };
+        int bulkSize = between(1, 20);
         BulkProcessor bulkProcessor = BulkProcessor.builder(leaderClient(), listener)
-            .setBulkActions(100)
+            .setBulkActions(bulkSize)
             .setConcurrentRequests(4)
             .build();
         AtomicBoolean run = new AtomicBoolean(true);
+        Semaphore availableDocs = new Semaphore(0);
         Thread thread = new Thread(() -> {
             int counter = 0;
             while (run.get()) {
+                try {
+                    if (availableDocs.tryAcquire(10, TimeUnit.MILLISECONDS) == false) {
+                        continue;
+                    }
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
                 final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
                 IndexRequest indexRequest = new IndexRequest("index1", "doc")
                     .source(source, XContentType.JSON)
@@ -228,26 +238,28 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         thread.start();
 
         // Waiting for some document being index before following the index:
-        int maxReadSize = randomIntBetween(128, 2048);
-        long numDocsIndexed = Math.min(3000 * 2, randomLongBetween(maxReadSize, maxReadSize * 10));
+        int maxOpsPerRead = randomIntBetween(10, 100);
+        int numDocsIndexed = Math.min(between(20, 300), between(maxOpsPerRead, maxOpsPerRead * 10));
+        availableDocs.release(numDocsIndexed / 2 + bulkSize);
         atLeastDocsIndexed(leaderClient(), "index1", numDocsIndexed / 3);
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getFollowRequest().setMaxReadRequestOperationCount(maxReadSize);
-        followRequest.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(2, 10));
-        followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(2, 10));
+        followRequest.getFollowRequest().setMaxReadRequestOperationCount(maxOpsPerRead);
+        followRequest.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
+        followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         followRequest.getFollowRequest().setMaxWriteBufferCount(randomIntBetween(1024, 10240));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
-
+        availableDocs.release(numDocsIndexed * 2  + bulkSize);
         atLeastDocsIndexed(leaderClient(), "index1", numDocsIndexed);
         run.set(false);
         thread.join();
         assertThat(bulkProcessor.awaitClose(1L, TimeUnit.MINUTES), is(true));
 
-        assertSameDocCount("index1", "index2");
+        assertIndexFullyReplicatedToFollower("index1", "index2");
+        pauseFollow("index2");
+        leaderClient().admin().indices().prepareRefresh("index1").get();
         assertTotalNumberOfOptimizedIndexing(resolveFollowerIndex("index2"), numberOfShards,
             leaderClient().prepareSearch("index1").get().getHits().totalHits);
-        pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfShards);
     }
 

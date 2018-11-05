@@ -62,7 +62,7 @@ public class TransportGetDiscoveredNodesAction extends TransportAction<GetDiscov
     @Override
     protected void doExecute(Task task, GetDiscoveredNodesRequest request, ActionListener<GetDiscoveredNodesResponse> listener) {
         if (coordinator == null) { // TODO remove when not nullable
-            throw new IllegalStateException("cannot execute a Zen2 action if not using Zen2");
+            throw new IllegalStateException("discovered nodes are not exposed by this discovery type");
         }
 
         final DiscoveryNode localNode = transportService.getLocalNode();

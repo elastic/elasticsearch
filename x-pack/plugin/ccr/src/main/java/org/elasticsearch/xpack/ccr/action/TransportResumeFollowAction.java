@@ -104,7 +104,7 @@ public class TransportResumeFollowAction extends TransportMasterNodeAction<Resum
 
     @Override
     protected ClusterBlockException checkBlock(ResumeFollowAction.Request request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.getFollowerIndex());
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override

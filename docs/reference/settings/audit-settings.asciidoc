@@ -29,13 +29,11 @@ information, but it uses the older (pre-6.5.0) formatting style.
 If the backwards compatible format is not required, it should be disabled.
 To do that, change its logger level to `off` in the `log4j2.properties` file.
 For more information, see <<configuring-logging-levels>>.
-
 +
 --
 TIP: If the index is unavailable, it is possible for auditing events to
 be lost. The `index` output type should therefore be used in conjunction with
 the `logfile` output type and the latter should be the official record of events.
-
 --
 
 [[event-audit-settings]]
@@ -59,7 +57,6 @@ event types such as `authentication_failed`. The default value is `false`.
 --
 IMPORTANT: No filtering is performed when auditing, so sensitive data may be
 audited in plain text when including the request body in audit events.
-
 --
 
 [[node-audit-settings]]
@@ -86,6 +83,36 @@ Unlike <<node.name,node name>>, whose value might change if the administrator
 changes the setting in the config file, the node id will persist across cluster
 restarts and the administrator cannot change it.
 The default value is `true`.
+
+[[audit-event-ignore-policies]]
+==== Audit Logfile Event Ignore Policies
+
+These settings enable fine grained control over which audit events
+are eventually printed to the log file. See {xpack-ref}/audit-log-output.html#audit-log-ignore-policy[Logfile Audit Events Ignore Policies]
+for the gory details.
+
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.users`::
+Binds with other settings with the same `<policy_name>` to form a policy.
+The value is a list of names or wildcards, and specifies that the policy will
+not print audit events for users matching any of the specifed names or wildcards.
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.realms`::
+Binds with other settings with the same `<policy_name>` to form a policy.
+The value is a list of names or wildcards, and specifies that the policy will
+not print audit events for users whose authentication realm matches any of the
+specified names or wildcards.
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.roles`::
+Binds with other settings with the same `<policy_name>` to form a policy.
+The value is a list of names or wildcards, and specifies that the policy will
+not print audit events for users whose roles match any of the specified
+names or wildcards. If the user has several roles, some of which are *not*
+covered by the policy, then the policy will *not* cover this event.
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.indices`::
+Binds with other settings with the same `<policy_name>` to form a policy.
+The value is a list of names or wildcards, and specifies that the policy will
+not print audit events when all the indices in the event match any of the specified
+names or wildcards. If the event concerns several indices, some of which are
+*not* covered by the policy, then the policy will *not* cover this event.
+
 
 [[index-audit-settings]]
 ==== Audit Log Indexing Configuration Settings

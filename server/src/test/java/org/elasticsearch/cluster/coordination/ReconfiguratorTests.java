@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -42,6 +43,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ReconfiguratorTests extends ESTestCase {
+
+    @Before
+    public void resetPortCounterBeforeTest() {
+        resetPortCounter();
+    }
 
     public void testReconfigurationExamples() {
 

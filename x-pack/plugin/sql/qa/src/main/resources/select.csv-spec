@@ -24,7 +24,7 @@ SELECT 1 NOT IN (1, 1 + 1, 3), 1 NOT IN (2, 3);
 false                     |true
 ;
 
-// Need to CAST as STRING since for boolean types CSV tool translates null -> false
+// Need to CAST as STRING since for boolean types the jdbc CSV translates null -> false
 inWithNullHandling
 SELECT CAST(2 IN (1, null, 3) AS STRING), CAST(3 IN (1, null, 3) AS STRING), CAST(null IN (1, null, 3) AS STRING), CAST(null IN (1, 2, 3) AS STRING);
 
@@ -89,7 +89,7 @@ true
 ;
 
 
-// Need to CAST as STRING since for boolean types CSV tool translates null -> false
+// Need to CAST as STRING since for boolean types the jdbc CSV translates null -> false
 inWithTableColumnAndNullHandling
 SELECT emp_no, CAST(languages IN (2, 3) AS STRING), CAST(languages IN (2, null, 3) AS STRING) FROM test_emp WHERE emp_no BETWEEN 10018 AND 10020 ORDER BY emp_no;
 

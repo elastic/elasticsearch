@@ -585,7 +585,7 @@ final class QueryTranslator {
                         name = fa.exactAttribute().name();
                     }
                 }
-                Query query= new TermQuery(loc, name, value);
+                Query query = new TermQuery(loc, name, value);
                 if (bc instanceof NotEquals) {
                     query = new NotQuery(loc, query);
                 }

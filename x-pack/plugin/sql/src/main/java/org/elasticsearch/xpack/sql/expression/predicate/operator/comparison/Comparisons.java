@@ -21,7 +21,7 @@ public final class Comparisons {
 
     static Boolean neq(Object l, Object r) {
         Integer i = compare(l, r);
-        return i == null? null : i.intValue() != 0;
+        return i == null ? null : i.intValue() != 0;
     }
 
     static Boolean lt(Object l, Object r) {

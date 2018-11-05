@@ -92,7 +92,7 @@ public class BuiltinCommandTests extends ESTestCase {
         CliSession cliSession = new CliSession(httpClient);
         testTerminal.print("not clean");
         assertTrue(new PrintLogoCommand().handle(testTerminal, cliSession, "logo"));
-        assertThat(testTerminal.toString(), containsString("sticElasticElast"));
+        assertThat(testTerminal.toString(), containsString("SQL"));
         verifyNoMoreInteractions(httpClient);
     }
 

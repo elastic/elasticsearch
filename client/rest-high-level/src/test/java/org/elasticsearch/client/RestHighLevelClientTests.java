@@ -89,8 +89,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.Type;
-import java.lang.reflect.TypeVariable;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -239,7 +239,7 @@ public class IndexNameExpressionResolver {
         return concreteIndices.toArray(new Index[concreteIndices.size()]);
     }
 
-    private boolean addIndex(IndexMetaData metaData, Context context, Set<String> originalIndices) {
+    private static boolean addIndex(IndexMetaData metaData, Context context, Set<String> originalIndices) {
         if (context.options.ignoreThrottled()) {
             if (originalIndices.contains(metaData.getIndex().getName()) == false) {
                 return IndexSettings.INDEX_SEARCH_THROTTLED.get(metaData.getSettings()) == false;

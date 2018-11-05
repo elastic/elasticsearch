@@ -128,7 +128,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
 
         // The constructor of UpdateSnapshotStatusAction will register itself to the TransportService.
-        this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(settings, UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
+        this.updateSnapshotStatusHandler = new UpdateSnapshotStatusAction(UPDATE_SNAPSHOT_STATUS_ACTION_NAME,
             transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
     }
 
@@ -615,9 +615,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     }
 
     class UpdateSnapshotStatusAction extends TransportMasterNodeAction<UpdateIndexShardSnapshotStatusRequest, UpdateIndexShardSnapshotStatusResponse> {
-        UpdateSnapshotStatusAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService,
+        UpdateSnapshotStatusAction(String actionName, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, UpdateIndexShardSnapshotStatusRequest::new);
+            super(actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, UpdateIndexShardSnapshotStatusRequest::new);
         }
 
         @Override

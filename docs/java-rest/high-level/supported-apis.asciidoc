@@ -260,6 +260,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-get-calendars>>
 * <<{upid}-put-calendar>>
 * <<{upid}-delete-calendar>>
+* <<{upid}-put-filter>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -288,6 +289,7 @@ include::ml/get-categories.asciidoc[]
 include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
+include::ml/put-filter.asciidoc[]
 
 == Migration APIs
 

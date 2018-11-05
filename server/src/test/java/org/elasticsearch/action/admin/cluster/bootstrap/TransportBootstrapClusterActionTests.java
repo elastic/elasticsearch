@@ -46,6 +46,7 @@ import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.mockito.Mockito;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -56,6 +57,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TransportBootstrapClusterActionTests extends ESTestCase {
     private static BootstrapClusterRequest exampleRequest() {
@@ -68,52 +70,10 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
         final DiscoveryNode discoveryNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         final TransportService transportService = transport.createTransportService(Settings.EMPTY, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> discoveryNode, null, emptySet());
-        final Discovery discovery = new Discovery() {
-            @Override
-            public DiscoveryStats stats() {
-                throw new AssertionError("should not be called");
-            }
 
-            @Override
-            public void startInitialJoin() {
-                throw new AssertionError("should not be called");
-            }
+        final Discovery discovery = mock(Discovery.class);
+        verifyZeroInteractions(discovery);
 
-            @Override
-            public void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener) {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public State lifecycleState() {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public void addLifecycleListener(LifecycleListener listener) {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public void removeLifecycleListener(LifecycleListener listener) {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public void start() {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public void stop() {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public void close() {
-                throw new AssertionError("should not be called");
-            }
-        };
         final TransportBootstrapClusterAction transportBootstrapClusterAction
             = new TransportBootstrapClusterAction(Settings.EMPTY, mock(ActionFilters.class), transportService, discovery);
 

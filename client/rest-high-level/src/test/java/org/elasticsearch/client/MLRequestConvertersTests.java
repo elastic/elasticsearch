@@ -45,6 +45,7 @@ import org.elasticsearch.client.ml.PostDataRequest;
 import org.elasticsearch.client.ml.PreviewDatafeedRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
+import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequestTests;
@@ -59,6 +60,8 @@ import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.JobUpdateTests;
+import org.elasticsearch.client.ml.job.config.MlFilter;
+import org.elasticsearch.client.ml.job.config.MlFilterTests;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -509,6 +512,20 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.deleteCalendar(deleteCalendarRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_xpack/ml/calendars/" + deleteCalendarRequest.getCalendarId(), request.getEndpoint());
+    }
+
+    public void testPutFilter() throws IOException {
+        MlFilter filter = MlFilterTests.createRandom("foo");
+        PutFilterRequest putFilterRequest = new PutFilterRequest(filter);
+
+        Request request = MLRequestConverters.putFilter(putFilterRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/foo"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            MlFilter parsedFilter = MlFilter.PARSER.apply(parser, null).build();
+            assertThat(parsedFilter, equalTo(filter));
+        }
     }
 
     private static Job createValidJob(String jobId) {

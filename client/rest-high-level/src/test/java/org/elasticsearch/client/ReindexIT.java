@@ -37,7 +37,6 @@ import java.util.function.BooleanSupplier;
 
 public class ReindexIT extends ESRestHighLevelClientTestCase {
 
-    //TODO taken from CrudIT - should these scenarios be moved here?
     public void testReindex() throws IOException {
         final String sourceIndex = "source1";
         final String destinationIndex = "dest";

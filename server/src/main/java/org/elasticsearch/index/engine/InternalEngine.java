@@ -59,6 +59,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -2086,7 +2087,8 @@ public class InternalEngine extends Engine {
         if (softDeleteEnabled) {
             iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
             mergePolicy = new RecoverySourcePruneMergePolicy(SourceFieldMapper.RECOVERY_SOURCE_NAME, softDeletesPolicy::getRetentionQuery,
-                new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, softDeletesPolicy::getRetentionQuery, mergePolicy));
+                new CachedDeleteCountMergePolicy(new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD,
+                    softDeletesPolicy::getRetentionQuery, mergePolicy), TimeValue.timeValueSeconds(60)));
         }
         iwc.setMergePolicy(new ElasticsearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());

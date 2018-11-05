@@ -146,13 +146,14 @@ public final class VersionsAndSeqNoResolver {
     }
 
     /**
-     * Lookup sequence number and documentId that associated the given term {@code uid} in the provided leaf {@code context}.
-     * If the parameter {@code includeDeletes} is true, this method may return a deleted document, however its sequence number
-     * must be at least the parameter {@code minSeqNoForDeletes}; otherwise this method returns null.
+     * Load the internal doc ID and sequence number for the uid from the reader. If {@code includeDeletes} is false,
+     * this method considers only live documents; and if {@code includeDeletes} is true, this method also considers
+     * deleted documents whose seq_no at least the parameter {@code minSeqNoForDeletes} besides live documents.
+     * This returns a null if no such document found.
      *
-     * @param reader             the reader to look up
+     * @param reader             the index reader to look up
      * @param uid                the uid term to look up
-     * @param minSeqNoForDeletes the minimum seq_no value of a deleted document to be considered if includeDeletes is true.
+     * @param minSeqNoForDeletes the minimum seq_no of a deleted document to be considered if includeDeletes is true.
      * @param includeDeletes     whether or not to consider deleted documents
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term uid,

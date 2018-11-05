@@ -687,8 +687,8 @@ public class InternalEngine extends Engine {
                         assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
                             "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
                         final long existingTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docAndSeqNo, op.uid().field());
-                        assert existingTerm == op.primaryTerm() : "primary terms are mismatched; id=" + op.uid() + " seq_no=" + op.seqNo()
-                            + "op_term=" + op.primaryTerm() + " existing_term=" + existingTerm;
+                        assert existingTerm == op.primaryTerm() : "primary terms mismatched; id=" + op.id() + " seq_no=" + op.seqNo()
+                            + " op_term=" + op.primaryTerm() + " existing_term=" + existingTerm;
                     }
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 } else {

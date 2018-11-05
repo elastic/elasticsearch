@@ -55,19 +55,19 @@ public final class Role implements ToXContentObject {
             constructorObjects -> {
                 int i = 0;
                 final Collection<String> clusterPrivileges = (Collection<String>) constructorObjects[i++];
-                final ManageApplicationsPrivilege manageApplicationPrivileges = (ManageApplicationsPrivilege) constructorObjects[i++];
+                final GlobalPrivileges globalApplicationPrivileges = (GlobalPrivileges) constructorObjects[i++];
                 final Collection<IndicesPrivileges> indicesPrivileges = (Collection<IndicesPrivileges>) constructorObjects[i++];
                 final Collection<ApplicationResourcePrivileges> applicationResourcePrivileges =
                         (Collection<ApplicationResourcePrivileges>) constructorObjects[i++];
                 final Collection<String> runAsPrivilege = (Collection<String>) constructorObjects[i++];
                 final Map<String, Object> metadata = (Map<String, Object>) constructorObjects[i];
-                return new Role(clusterPrivileges, manageApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
+                return new Role(clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
                         runAsPrivilege, metadata);
             });
 
     static {
         PARSER.declareStringArray(optionalConstructorArg(), CLUSTER);
-        PARSER.declareObject(optionalConstructorArg(), ManageApplicationsPrivilege.PARSER, GLOBAL);
+        PARSER.declareObject(optionalConstructorArg(), GlobalPrivileges.PARSER, GLOBAL);
         PARSER.declareFieldArray(optionalConstructorArg(), IndicesPrivileges.PARSER, INDICES, ValueType.OBJECT_ARRAY);
         PARSER.declareFieldArray(optionalConstructorArg(), ApplicationResourcePrivileges.PARSER, APPLICATIONS, ValueType.OBJECT_ARRAY);
         PARSER.declareStringArray(optionalConstructorArg(), RUN_AS);
@@ -75,20 +75,20 @@ public final class Role implements ToXContentObject {
     }
 
     private final Set<String> clusterPrivileges;
-    private final @Nullable ManageApplicationsPrivilege manageApplicationPrivileges;
+    private final @Nullable GlobalPrivileges globalApplicationPrivileges;
     private final Set<IndicesPrivileges> indicesPrivileges;
     private final Set<ApplicationResourcePrivileges> applicationResourcePrivileges;
     private final Set<String> runAsPrivilege;
     private final Map<String, Object> metadata;
 
-    private Role(@Nullable Collection<String> clusterPrivileges, @Nullable ManageApplicationsPrivilege manageApplicationPrivileges,
+    private Role(@Nullable Collection<String> clusterPrivileges, @Nullable GlobalPrivileges globalApplicationPrivileges,
             @Nullable Collection<IndicesPrivileges> indicesPrivileges,
             @Nullable Collection<ApplicationResourcePrivileges> applicationResourcePrivileges, @Nullable Collection<String> runAsPrivilege,
             @Nullable Map<String, Object> metadata) {
         // no cluster privileges are granted unless otherwise specified
         this.clusterPrivileges = Collections
                 .unmodifiableSet(clusterPrivileges != null ? new HashSet<>(clusterPrivileges) : Collections.emptySet());
-        this.manageApplicationPrivileges = manageApplicationPrivileges;
+        this.globalApplicationPrivileges = globalApplicationPrivileges;
         // no indices privileges are granted unless otherwise specified
         this.indicesPrivileges = Collections
                 .unmodifiableSet(indicesPrivileges != null ? new HashSet<>(indicesPrivileges) : Collections.emptySet());
@@ -104,8 +104,8 @@ public final class Role implements ToXContentObject {
         return clusterPrivileges;
     }
 
-    public ManageApplicationsPrivilege getManageApplicationPrivileges() {
-        return manageApplicationPrivileges;
+    public GlobalPrivileges getGlobalApplicationPrivileges() {
+        return globalApplicationPrivileges;
     }
 
     public Set<IndicesPrivileges> getIndicesPrivileges() {
@@ -130,7 +130,7 @@ public final class Role implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         Role that = (Role) o;
         return clusterPrivileges.equals(that.clusterPrivileges)
-                && Objects.equals(manageApplicationPrivileges, that.manageApplicationPrivileges)
+                && Objects.equals(globalApplicationPrivileges, that.globalApplicationPrivileges)
                 && indicesPrivileges.equals(that.indicesPrivileges)
                 && applicationResourcePrivileges.equals(that.applicationResourcePrivileges)
                 && runAsPrivilege.equals(that.runAsPrivilege)
@@ -139,7 +139,7 @@ public final class Role implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(clusterPrivileges, manageApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
+        return Objects.hash(clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
                 runAsPrivilege, metadata);
     }
 
@@ -158,8 +158,8 @@ public final class Role implements ToXContentObject {
         if (false == clusterPrivileges.isEmpty()) {
             builder.field(CLUSTER.getPreferredName(), clusterPrivileges);
         }
-        if (null != manageApplicationPrivileges) {
-            builder.field(GLOBAL.getPreferredName(), manageApplicationPrivileges);
+        if (null != globalApplicationPrivileges) {
+            builder.field(GLOBAL.getPreferredName(), globalApplicationPrivileges);
         }
         if (false == indicesPrivileges.isEmpty()) {
             builder.field(INDICES.getPreferredName(), indicesPrivileges);
@@ -187,7 +187,7 @@ public final class Role implements ToXContentObject {
     public static final class Builder {
 
         private @Nullable Collection<String> clusterPrivileges = null;
-        private @Nullable ManageApplicationsPrivilege manageApplicationPrivileges = null;
+        private @Nullable GlobalPrivileges globalApplicationPrivileges = null;
         private @Nullable Collection<IndicesPrivileges> indicesPrivileges = null;
         private @Nullable Collection<ApplicationResourcePrivileges> applicationResourcePrivileges = null;
         private @Nullable Collection<String> runAsPrivilege = null;
@@ -207,8 +207,8 @@ public final class Role implements ToXContentObject {
             return this;
         }
 
-        public Builder manageApplicationPrivileges(ManageApplicationsPrivilege manageApplicationPrivileges) {
-            this.manageApplicationPrivileges = manageApplicationPrivileges;
+        public Builder manageApplicationPrivileges(GlobalPrivileges globalApplicationPrivileges) {
+            this.globalApplicationPrivileges = globalApplicationPrivileges;
             return this;
         }
 
@@ -251,7 +251,7 @@ public final class Role implements ToXContentObject {
         }
 
         public Role build() {
-            return new Role(clusterPrivileges, manageApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
+            return new Role(clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
                     runAsPrivilege, metadata);
         }
     }

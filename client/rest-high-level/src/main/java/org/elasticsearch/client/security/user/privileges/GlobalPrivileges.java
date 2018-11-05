@@ -32,43 +32,44 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class GlobalApplicationPrivileges implements ToXContentObject {
+public class GlobalPrivileges implements ToXContentObject {
     
     static final ParseField APPLICATION = new ParseField("application");
     
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<GlobalApplicationPrivileges, Void> PARSER = new ConstructingObjectParser<>(
-            "global_application_privileges", false, constructorObjects -> {
-                return new GlobalApplicationPrivileges((Collection<GlobalScopedPrivilege>) constructorObjects[0]);
+    static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>(
+            "global_application_privileges", true, constructorObjects -> {
+                return new GlobalPrivileges((Collection<GlobalScopedPrivilege>) constructorObjects[0]);
             });
 
     static {
-        PARSER.declareNamedObjects(constructorArg(), (p, c, n) -> GlobalScopedPrivilege.fromXContent(n, p), APPLICATION);
+        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> GlobalScopedPrivilege.fromXContent(n, p), APPLICATION);
     }
 
-    private final Set<? extends GlobalScopedPrivilege> privileges;
+    private final Set<? extends GlobalScopedPrivilege> applicationPrivileges;
 
-    public GlobalApplicationPrivileges(Collection<? extends GlobalScopedPrivilege> privileges) {
-        this.privileges = Collections.unmodifiableSet(new HashSet<>(Objects.requireNonNull(privileges)));
+    public GlobalPrivileges(Collection<? extends GlobalScopedPrivilege> applicationPrivileges) {
+        this.applicationPrivileges = applicationPrivileges == null ? Collections.emptySet()
+                : Collections.unmodifiableSet(new HashSet<>(applicationPrivileges));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        for (final GlobalScopedPrivilege privilege : privileges) {
+        for (final GlobalScopedPrivilege privilege : applicationPrivileges) {
             builder.field(privilege.getScope(), privilege.getRaw());
         }
         return builder.endObject();
     }
 
-    public static GlobalApplicationPrivileges fromXContent(XContentParser parser) {
+    public static GlobalPrivileges fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
     public Set<? extends GlobalScopedPrivilege> getPrivileges() {
-        return privileges;
+        return applicationPrivileges;
     }
 
     @Override
@@ -79,13 +80,13 @@ public class GlobalApplicationPrivileges implements ToXContentObject {
         if (o == null || this.getClass() != o.getClass()) {
             return false;
         }
-        final GlobalApplicationPrivileges that = (GlobalApplicationPrivileges) o;
-        return privileges.equals(that.privileges);
+        final GlobalPrivileges that = (GlobalPrivileges) o;
+        return applicationPrivileges.equals(that.applicationPrivileges);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(privileges);
+        return Objects.hash(applicationPrivileges);
     }
 
 }

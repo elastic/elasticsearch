@@ -97,6 +97,12 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
             listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
         }
 
+        executeShardAction(listener, responses, shardRequests);
+    }
+
+    protected void executeShardAction(ActionListener<MultiGetResponse> listener,
+                                      AtomicArray<MultiGetItemResponse> responses,
+                                      Map<ShardId, MultiGetShardRequest> shardRequests) {
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {

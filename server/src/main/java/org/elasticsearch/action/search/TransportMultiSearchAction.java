@@ -51,7 +51,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     @Inject
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                       ClusterService clusterService, ActionFilters actionFilters, NodeClient client) {
-        super(settings, MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
+        super(MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.availableProcessors = EsExecutors.numberOfProcessors(settings);
@@ -62,7 +62,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     TransportMultiSearchAction(ThreadPool threadPool, ActionFilters actionFilters, TransportService transportService,
                                ClusterService clusterService, int availableProcessors,
                                LongSupplier relativeTimeProvider, NodeClient client) {
-        super(Settings.EMPTY, MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
+        super(MultiSearchAction.NAME, transportService, actionFilters, MultiSearchRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.availableProcessors = availableProcessors;

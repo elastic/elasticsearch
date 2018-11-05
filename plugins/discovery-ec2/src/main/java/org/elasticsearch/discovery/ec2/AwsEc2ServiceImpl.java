@@ -40,8 +40,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
 
-    public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
-
     private final AtomicReference<LazyInitializable<AmazonEc2Reference, ElasticsearchException>> lazyClientReference =
             new AtomicReference<>();
 

@@ -72,7 +72,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), any(), any());
 
-        action = new TransportPutWatchAction(Settings.EMPTY, transportService, threadPool, new ActionFilters(Collections.emptySet()),
+        action = new TransportPutWatchAction(transportService, threadPool, new ActionFilters(Collections.emptySet()),
             new ClockMock(), new XPackLicenseState(Settings.EMPTY), parser, client);
     }
 

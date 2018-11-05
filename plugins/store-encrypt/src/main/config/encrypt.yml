@@ -1,0 +1,6 @@
+# Config store encryption 
+# 4 space indent.
+# 
+encrypt:
+    dsmhost: http://www.baidu.com
+    certfile: config/dsm_ca.crt

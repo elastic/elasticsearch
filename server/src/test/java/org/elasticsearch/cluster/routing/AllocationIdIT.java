@@ -57,7 +57,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -101,7 +100,10 @@ public class AllocationIdIT extends ESIntegTestCase {
         final String indexName = "index42";
         final String master = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
-        createIndex(indexName);
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum").build());
         final int numDocs = indexDocs(indexName, "foo", "bar");
         final IndexSettings indexSettings = getIndexSettings(indexName, node1);
         final Set<String> allocationIds = getAllocationIds(indexName);
@@ -182,14 +184,6 @@ public class AllocationIdIT extends ESIntegTestCase {
         final ClusterHealthStatus indexHealthStatus = client().admin().cluster()
             .health(Requests.clusterHealthRequest(indexName)).actionGet().getStatus();
         assertThat(indexHealthStatus, is(healthStatus));
-    }
-
-    private void createIndex(String indexName) {
-        assertAcked(prepareCreate(indexName)
-            .setSettings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum")));
     }
 
     private int indexDocs(String indexName, Object ... source) throws InterruptedException, ExecutionException {

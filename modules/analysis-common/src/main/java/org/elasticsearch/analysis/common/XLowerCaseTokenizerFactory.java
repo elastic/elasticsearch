@@ -26,6 +26,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
 @Deprecated
+// NORELEASE we should prevent the usage on indices created after 7.0 in order to be able to remove in 8
 public class XLowerCaseTokenizerFactory extends AbstractTokenizerFactory {
 
     public XLowerCaseTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {

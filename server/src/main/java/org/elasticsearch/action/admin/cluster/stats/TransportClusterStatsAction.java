@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -61,10 +60,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
 
     @Inject
-    public TransportClusterStatsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                       TransportService transportService, NodeService nodeService, IndicesService indicesService,
-                                       ActionFilters actionFilters) {
-        super(settings, ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportClusterStatsAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                       NodeService nodeService, IndicesService indicesService, ActionFilters actionFilters) {
+        super(ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
             ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT, ClusterStatsNodeResponse.class);
         this.nodeService = nodeService;
         this.indicesService = indicesService;

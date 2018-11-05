@@ -57,22 +57,22 @@ import java.util.Locale;
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class AnnotatedTextHighlighterTests  extends ESTestCase {
+public class AnnotatedTextHighlighterTests extends ESTestCase {
     
     private void assertHighlightOneDoc(String fieldName, String []markedUpInputs,
             Query query, Locale locale, BreakIterator breakIterator,
             int noMatchSize, String[] expectedPassages) throws Exception {
         
         // Annotated fields wrap the usual analyzer with one that injects extra tokens
-        Analyzer indexAnalyzer = new AnnotationAnalyzerWrapper(new StandardAnalyzer());
-        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(new StandardAnalyzer());
+        Analyzer wrapperAnalyzer = new AnnotationAnalyzerWrapper(new StandardAnalyzer());
+        AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
         hiliteAnalyzer.init(markedUpInputs);
         PassageFormatter passageFormatter = new AnnotatedPassageFormatter(hiliteAnalyzer,new DefaultEncoder());
         String []plainTextForHighlighter = hiliteAnalyzer.getPlainTextValuesForHighlighter();
 
         
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(indexAnalyzer);
+        IndexWriterConfig iwc = newIndexWriterConfig(wrapperAnalyzer);
         iwc.setMergePolicy(newTieredMergePolicy(random()));
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
         FieldType ft = new FieldType(TextField.TYPE_STORED);

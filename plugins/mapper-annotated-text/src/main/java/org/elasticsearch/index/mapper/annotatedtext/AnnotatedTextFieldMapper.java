@@ -363,10 +363,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
-            if (components.getTokenStream() instanceof AnnotationsInjector) {
-                // already wrapped
-                return components;
-            }
             AnnotationsInjector injector = new AnnotationsInjector(components.getTokenStream());
             AtomicInteger readerNum = new AtomicInteger(0);
             return new TokenStreamComponents(r -> {

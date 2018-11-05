@@ -213,21 +213,11 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         testCaseTermsParentTerms(new MatchAllDocsQuery(), indexSearcher, longTerms -> {
             assertNotNull(longTerms);
 
-            // TODO: test some more here
             for (LongTerms.Bucket bucket : longTerms.getBuckets()) {
                 assertNotNull(bucket);
                 assertNotNull(bucket.getKeyAsString());
             }
         });
-
-        /*for(int j = 0;j < 20;j++) {
-            long start = System.currentTimeMillis();
-            for (int i = 0; i < 100; i++) {
-                testCaseTermsParentTerms(new MatchAllDocsQuery(), indexSearcher, Assert::assertNotNull);
-            }
-
-            System.out.println("Duration: " + (System.currentTimeMillis() - start));
-        }*/
 
         indexReader.close();
         directory.close();

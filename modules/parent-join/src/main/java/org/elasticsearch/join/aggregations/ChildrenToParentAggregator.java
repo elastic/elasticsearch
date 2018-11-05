@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -32,8 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A {@link org.elasticsearch.search.aggregations.bucket.BucketsAggregator} which resolves
- * to the matching parent documents.
+ * A {@link BucketsAggregator} which resolves to the matching parent documents.
  */
 public class ChildrenToParentAggregator extends ParentJoinAggregator {
 

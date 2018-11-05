@@ -21,11 +21,13 @@ package org.elasticsearch.join.aggregations;
 
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -96,9 +98,9 @@ public class ParentIT extends AbstractParentChildIT {
             .setSize(10000)
             .setQuery(matchQuery("randomized", true))
             .addAggregation(
-                terms("commenter").field("commenter").size(10000).subAggregation(parent("to_article", "comment")
-                    .subAggregation(
-                        terms("category").field("category").size(10000).subAggregation(
+                terms("to_commenter").field("commenter").size(10000).subAggregation(
+                    parent("to_article", "comment").subAggregation(
+                        terms("to_category").field("category").size(10000).subAggregation(
                             topHits("top_category")
                         ))
                 )
@@ -109,9 +111,43 @@ public class ParentIT extends AbstractParentChildIT {
         final Set<String> commenters = getCommenters();
         final Map<String, Set<String>> commenterToComments = getCommenterToComments();
 
-        Terms categoryTerms = searchResponse.getAggregations().get("commenter");
+        Terms categoryTerms = searchResponse.getAggregations().get("to_commenter");
         assertThat("Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
             categoryTerms.getBuckets().size(), equalTo(commenters.size()));
+        for (Terms.Bucket commenterBucket : categoryTerms.getBuckets()) {
+            Set<String> comments = commenterToComments.get(commenterBucket.getKeyAsString());
+            assertNotNull(comments);
+            assertThat("Failed for commenter " + commenterBucket.getKeyAsString(),
+                commenterBucket.getDocCount(), equalTo((long)comments.size()));
+
+            Parent articleAgg = commenterBucket.getAggregations().get("to_article");
+            assertThat(articleAgg.getName(), equalTo("to_article"));
+            // find all articles for the comments for the current commenter
+            Set<String> articles = articleToControl.values().stream().flatMap(
+                (Function<ParentControl, Stream<String>>) parentControl -> parentControl.commentIds.stream().
+                    filter(comments::contains)
+            ).collect(Collectors.toSet());
+
+            assertThat(articleAgg.getDocCount(), equalTo((long)articles.size()));
+
+            Terms categoryAgg = articleAgg.getAggregations().get("to_category");
+            assertNotNull(categoryAgg);
+
+            List<String> categories = categoryToControl.entrySet().
+                stream().
+                filter(entry -> entry.getValue().commenterToCommentId.containsKey(commenterBucket.getKeyAsString())).
+                map(Map.Entry::getKey).
+                collect(Collectors.toList());
+
+            for (String category : categories) {
+                Terms.Bucket categoryBucket = categoryAgg.getBucketByKey(category);
+                assertNotNull(categoryBucket);
+
+                Aggregation topCategory = categoryBucket.getAggregations().get("top_category");
+                assertNotNull(topCategory);
+            }
+        }
+
         for (String commenter : commenters) {
             Terms.Bucket categoryBucket = categoryTerms.getBucketByKey(commenter);
             assertThat(categoryBucket.getKeyAsString(), equalTo(commenter));
@@ -119,25 +155,6 @@ public class ParentIT extends AbstractParentChildIT {
 
             Parent childrenBucket = categoryBucket.getAggregations().get("to_article");
             assertThat(childrenBucket.getName(), equalTo("to_article"));
-
-            // TODO: verify some more
-            /*assertThat(childrenBucket.getDocCount(), equalTo((long) entry1.getValue().commentIds.size()));
-            assertThat(((InternalAggregation)childrenBucket).getProperty("_count"),
-                equalTo((long) entry1.getValue().commentIds.size()));
-
-            Terms commentersTerms = childrenBucket.getAggregations().get("category");
-            assertThat(((InternalAggregation)childrenBucket).getProperty("category"), sameInstance(commentersTerms));
-            assertThat(commentersTerms.getBuckets().size(), equalTo(entry1.getValue().commenterToCommentId.size()));
-            for (Map.Entry<String, Set<String>> entry2 : entry1.getValue().commenterToCommentId.entrySet()) {
-                Terms.Bucket commentBucket = commentersTerms.getBucketByKey(entry2.getKey());
-                assertThat(commentBucket.getKeyAsString(), equalTo(entry2.getKey()));
-                assertThat(commentBucket.getDocCount(), equalTo((long) entry2.getValue().size()));
-
-                TopHits topHits = commentBucket.getAggregations().get("top_commenters");
-                for (SearchHit searchHit : topHits.getHits().getHits()) {
-                    assertThat(entry2.getValue().contains(searchHit.getId()), is(true));
-                }
-            }*/
         }
     }
 
@@ -158,18 +175,17 @@ public class ParentIT extends AbstractParentChildIT {
         return commenterToComments;
     }
 
-//    public void testNonExistingParentType() throws Exception {
-//        SearchResponse searchResponse = client().prepareSearch("test")
-//            .addAggregation(
-//                parent("non-existing", "xyz")
-//            ).get();
-//        assertSearchResponse(searchResponse);
-//
-//        Parent parent = searchResponse.getAggregations().get("non-existing");
-//        assertThat(parent.getName(), equalTo("non-existing"));
-//        assertThat(parent.getDocCount(), equalTo(0L));
-//    }
+    public void testNonExistingParentType() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .addAggregation(
+                parent("non-existing", "xyz")
+            ).get();
+        assertSearchResponse(searchResponse);
 
+        Parent parent = searchResponse.getAggregations().get("non-existing");
+        assertThat(parent.getName(), equalTo("non-existing"));
+        assertThat(parent.getDocCount(), equalTo(0L));
+    }
 
     public void testTermsParentAggTerms() throws Exception {
         final SearchRequestBuilder searchRequest = client().prepareSearch("test")
@@ -177,9 +193,8 @@ public class ParentIT extends AbstractParentChildIT {
             .setQuery(matchQuery("randomized", true))
             .addAggregation(
                 terms("to_commenter").field("commenter").size(10000).subAggregation(
-                    parent("to_article", "comment")
-                    .subAggregation(
-                        terms("category").field("category").size(10000))));
+                    parent("to_article", "comment").subAggregation(
+                        terms("to_category").field("category").size(10000))));
         SearchResponse searchResponse = searchRequest.get();
         assertSearchResponse(searchResponse);
 
@@ -205,7 +220,19 @@ public class ParentIT extends AbstractParentChildIT {
 
             assertThat(articleAgg.getDocCount(), equalTo((long)articles.size()));
 
-            // TODO: add more verification
+            Terms categoryAgg = articleAgg.getAggregations().get("to_category");
+            assertNotNull(categoryAgg);
+
+            List<String> categories = categoryToControl.entrySet().
+                stream().
+                    filter(entry -> entry.getValue().commenterToCommentId.containsKey(commenterBucket.getKeyAsString())).
+                    map(Map.Entry::getKey).
+                collect(Collectors.toList());
+
+            for (String category : categories) {
+                Terms.Bucket categoryBucket = categoryAgg.getBucketByKey(category);
+                assertNotNull(categoryBucket);
+            }
         }
     }
 }

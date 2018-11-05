@@ -676,21 +676,21 @@ public class InternalEngine extends Engine {
             // load from index
             assert incrementIndexVersionLookup();
             try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL)) {
-                DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), op.uid());
+                DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
+                    searcher.reader(), op.uid(), op.seqNo(), softDeleteEnabled);
                 if (docAndSeqNo == null) {
                     status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
                     status = OpVsLuceneDocStatus.OP_NEWER;
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
-                    assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
-                        "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
-                    // load term to tie break
-                    final long existingTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docAndSeqNo, op.uid().field());
-                    if (op.primaryTerm() > existingTerm) {
-                        status = OpVsLuceneDocStatus.OP_NEWER;
-                    } else {
-                        status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+                    if (Assertions.ENABLED) {
+                        assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
+                            "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
+                        final long existingTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docAndSeqNo, op.uid().field());
+                        assert existingTerm == op.primaryTerm() : "primary terms are mismatched; id=" + op.uid() + " seq_no=" + op.seqNo()
+                            + "op_term=" + op.primaryTerm() + " existing_term=" + existingTerm;
                     }
+                    status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 } else {
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 }

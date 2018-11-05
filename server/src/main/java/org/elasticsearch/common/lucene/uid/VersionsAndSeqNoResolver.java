@@ -146,20 +146,25 @@ public final class VersionsAndSeqNoResolver {
     }
 
     /**
-     * Load the internal doc ID and sequence number for the uid from the reader, returning<ul>
-     * <li>null if the uid wasn't found,
-     * <li>a doc ID and the associated seqNo otherwise
-     * </ul>
+     * Lookup sequence number and documentId that associated the given term {@code uid} in the provided leaf {@code context}.
+     * If the parameter {@code includeDeletes} is true, this method may return a deleted document, however its sequence number
+     * must be at least the parameter {@code minSeqNoForDeletes}; otherwise this method returns null.
+     *
+     * @param reader             the reader to look up
+     * @param uid                the uid term to look up
+     * @param minSeqNoForDeletes the minimum seq_no value of a deleted document to be considered if includeDeletes is true.
+     * @param includeDeletes     whether or not to consider deleted documents
      */
-    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term term) throws IOException {
-        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
+    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term uid,
+                                                  long minSeqNoForDeletes, boolean includeDeletes) throws IOException {
+        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, uid.field());
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
             PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
-            DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes(), leaf);
+            DocIdAndSeqNo result = lookup.lookupSeqNo(uid.bytes(), leaf, minSeqNoForDeletes, includeDeletes);
             if (result != null) {
                 return result;
             }

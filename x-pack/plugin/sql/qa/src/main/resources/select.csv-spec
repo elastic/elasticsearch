@@ -1,4 +1,48 @@
+//
+// SELECT with = and !=
+//
+equalsSelectClause
+SELECT CAST(4 = 4 AS STRING), CAST(NOT 4 = 4 AS STRING), CAST(3 = 4 AS STRING), CAST(NOT 3 = 4 AS STRING), CAST(1 = null AS STRING), CAST(NOT null = 1 AS STRING);
+
+  CAST(4 == 4 AS VARCHAR):s |  CAST(NOT(4 == 4) AS VARCHAR):s |  CAST(3 == 4 AS VARCHAR):s |  CAST(NOT(3 == 4) AS VARCHAR):s |  CAST(1 == null AS VARCHAR):s |  CAST(NOT(null == 1) AS VARCHAR):s
+----------------------------+---------------------------------+----------------------------+---------------------------------+-------------------------------+-----------------------------------
+true                        |false                            |false                       |true                             |null                           |null
+;
+
+notEqualsSelectClause
+SELECT CAST(4 != 4 AS STRING), CAST(NOT 4 != 4 AS STRING), CAST(3 != 4 AS STRING), CAST(NOT 3 != 4 AS STRING), CAST(1 != null AS STRING), CAST(NOT 1 != null AS STRING);
+
+  CAST(4 != 4 AS VARCHAR):s |  CAST(NOT(4 != 4) AS VARCHAR):s |  CAST(3 != 4 AS VARCHAR):s |  CAST(NOT(3 != 4) AS VARCHAR):s |  CAST(1 != null AS VARCHAR):s |  CAST(NOT(1 != null) AS VARCHAR):s
+----------------------------+---------------------------------+----------------------------+---------------------------------+-------------------------------+-----------------------------------
+false                       |true                             |true                        |false                            |null                           |null
+;
+
+equalSelectClauseWithTableColumns
+SELECT CAST(languages = 2 AS STRING), CAST(NOT languages = 2 AS STRING), CAST(languages = null AS STRING), CAST(NOT languages = null AS STRING)
+FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020) ORDER BY emp_no;
+
+  CAST((languages) == 2 AS VARCHAR):s |  CAST(NOT((languages) == 2) AS VARCHAR):s |  CAST((languages) == null AS VARCHAR):s |  CAST(NOT((languages) == null) AS VARCHAR):s
+--------------------------------------+-------------------------------------------+-----------------------------------------+---------------------------------------------
+true                                  |false                                      |null                                     |null
+false                                 |true                                       |null                                     |null
+null                                  |null                                       |null                                     |null
+;
+
+notEqualsAndNotEqualsSelectClauseWithTableColumns
+SELECT CAST(languages != 2 AS STRING), CAST(NOT languages != 2 AS STRING), CAST(languages != null AS STRING), CAST(NOT languages != null AS STRING)
+FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020) ORDER BY emp_no;
+
+  CAST((languages) != 2 AS VARCHAR):s |  CAST(NOT((languages) != 2) AS VARCHAR):s |  CAST((languages) != null AS VARCHAR):s |  CAST(NOT((languages) != null) AS VARCHAR):s
+--------------------------------------+-------------------------------------------+-----------------------------------------+---------------------------------------------
+false                                 |true                                       |null                                     |null
+true                                  |false                                      |null                                     |null
+null                                  |null                                       |null                                     |null
+;
+
+
+//
 // SELECT with IN
+//
 inWithLiterals
 SELECT 1 IN (1, 2, 3), 1 IN (2, 3);
 

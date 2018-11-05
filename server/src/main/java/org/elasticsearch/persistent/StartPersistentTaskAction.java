@@ -203,7 +203,7 @@ public class StartPersistentTaskAction extends Action<PersistentTaskResponse> {
                     indexNameExpressionResolver, Request::new);
             this.persistentTasksClusterService = persistentTasksClusterService;
             NodePersistentTasksExecutor executor = new NodePersistentTasksExecutor(threadPool);
-            clusterService.addListener(new PersistentTasksNodeService(settings, persistentTasksService, persistentTasksExecutorRegistry,
+            clusterService.addListener(new PersistentTasksNodeService(persistentTasksService, persistentTasksExecutorRegistry,
                     transportService.getTaskManager(), executor));
         }
 

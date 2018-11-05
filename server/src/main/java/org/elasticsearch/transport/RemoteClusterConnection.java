@@ -110,7 +110,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     RemoteClusterConnection(Settings settings, String clusterAlias, List<Supplier<DiscoveryNode>> seedNodes,
             TransportService transportService, ConnectionManager connectionManager, int maxNumRemoteConnections,
             Predicate<DiscoveryNode> nodePredicate, String proxyAddress) {
-        super(settings);
         this.transportService = transportService;
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;

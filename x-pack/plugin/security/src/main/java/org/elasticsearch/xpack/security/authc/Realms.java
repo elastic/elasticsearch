@@ -5,23 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
-import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -37,10 +20,31 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
+import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
  */
-public class Realms extends AbstractComponent implements Iterable<Realm> {
+public class Realms implements Iterable<Realm> {
+
+    private static final Logger logger = LogManager.getLogger(Realms.class);
 
     private final Settings settings;
     private final Environment env;
@@ -58,7 +62,6 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
 
     public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, XPackLicenseState licenseState,
                   ThreadContext threadContext, ReservedRealm reservedRealm) throws Exception {
-        super(settings);
         this.settings = settings;
         this.env = env;
         this.factories = factories;

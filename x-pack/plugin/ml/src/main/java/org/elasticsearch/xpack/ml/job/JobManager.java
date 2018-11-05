@@ -99,7 +99,6 @@ public class JobManager extends AbstractComponent {
     public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
                       ClusterService clusterService, Auditor auditor,
                       Client client, UpdateJobProcessNotifier updateJobProcessNotifier) {
-        super(settings);
         this.settings = settings;
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
@@ -492,7 +491,7 @@ public class JobManager extends AbstractComponent {
             ModelSnapshot modelSnapshot) {
 
         final ModelSizeStats modelSizeStats = modelSnapshot.getModelSizeStats();
-        final JobResultsPersister persister = new JobResultsPersister(settings, client);
+        final JobResultsPersister persister = new JobResultsPersister(client);
 
         // Step 3. After the model size stats is persisted, also persist the snapshot's quantiles and respond
         // -------

@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -42,10 +41,9 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
     private final Client client;
 
     @Inject
-    public TransportUpdateModelSnapshotAction(Settings settings, TransportService transportService,
-                                              ActionFilters actionFilters, JobResultsProvider jobResultsProvider, Client client) {
-        super(settings, UpdateModelSnapshotAction.NAME, transportService, actionFilters,
-            UpdateModelSnapshotAction.Request::new);
+    public TransportUpdateModelSnapshotAction(TransportService transportService, ActionFilters actionFilters,
+                                              JobResultsProvider jobResultsProvider, Client client) {
+        super(UpdateModelSnapshotAction.NAME, transportService, actionFilters, UpdateModelSnapshotAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.client = client;
     }

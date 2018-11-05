@@ -144,7 +144,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
     }
 
 
-    public void testEscapeFields_doNotingIfFieldNotInSourceDoc() throws Exception {
+    public void testEscapeFields_doNothingIfFieldNotInSourceDoc() throws Exception {
         //asking to expand a (literal) field that is not present in the source document
         Map<String, Object> source = new HashMap<>();
         source.put("foo.bar", "baz1");
@@ -155,8 +155,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         //hasField returns false since it requires the expanded form, which is not expanded since we did not ask for it to be
         assertFalse(document.hasField("foo.bar"));
         //nothing has changed
-        assertEquals(document.getSourceAndMetadata().get("foo.bar"), source.get("foo.bar"));
-        assertEquals(document.getSourceAndMetadata(), source);
+        assertEquals(document.getSourceAndMetadata().get("foo.bar"), "baz1");
         //abc.def is not found anywhere
         assertFalse(document.hasField("abc.def"));
         assertFalse(document.getSourceAndMetadata().containsKey("abc"));
@@ -174,8 +173,6 @@ public class DotExpanderProcessorTests extends ESTestCase {
         //hasField returns true because the nested/expanded form exists in the source document
         assertTrue(document.hasField("foo.bar"));
         //nothing changed
-        assertEquals(document.getSourceAndMetadata().get("foo.bar"), source.get("foo.bar"));
-        assertEquals(document.getSourceAndMetadata(), source);
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
         assertThat(document.getFieldValue("foo.bar", String.class), equalTo("baz1"));
     }

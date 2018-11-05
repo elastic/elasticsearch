@@ -10,7 +10,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -61,10 +60,8 @@ public class WatchParser extends AbstractComponent {
     private final List<ActionWrapper> defaultActions;
     private final Clock clock;
 
-    public WatchParser(Settings settings, TriggerService triggerService, ActionRegistry actionRegistry, InputRegistry inputRegistry,
+    public WatchParser(TriggerService triggerService, ActionRegistry actionRegistry, InputRegistry inputRegistry,
                        @Nullable CryptoService cryptoService, Clock clock) {
-
-        super(settings);
         this.triggerService = triggerService;
         this.actionRegistry = actionRegistry;
         this.inputRegistry = inputRegistry;

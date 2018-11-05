@@ -97,7 +97,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
     @Inject
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         setWeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setThreshold(THRESHOLD_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);

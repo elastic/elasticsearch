@@ -62,7 +62,6 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
                                        IndexScopedSettings indexScopedSettings,
                                        Collection<UnaryOperator<IndexMetaData>> indexMetaDataUpgraders) {
-        super(settings);
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;

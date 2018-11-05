@@ -24,7 +24,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
@@ -56,8 +55,7 @@ public class FileBasedUnicastHostsProvider extends AbstractComponent implements 
     private final Path unicastHostsFilePath;
     private final Path legacyUnicastHostsFilePath;
 
-    public FileBasedUnicastHostsProvider(Settings settings, Path configFile) {
-        super(settings);
+    public FileBasedUnicastHostsProvider(Path configFile) {
         this.unicastHostsFilePath = configFile.resolve(UNICAST_HOSTS_FILE);
         this.legacyUnicastHostsFilePath = configFile.resolve("discovery-file").resolve(UNICAST_HOSTS_FILE);
     }

@@ -88,7 +88,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         AtomicBoolean postUpgradeIsCalled = new AtomicBoolean();
 
         IndexUpgradeCheck check = new IndexUpgradeCheck<Long>(
-                "test", Settings.EMPTY,
+                "test",
                 indexMetaData -> {
                     if (indexMetaData.getIndex().getName().equals(testIndex)) {
                         return UpgradeActionRequired.UPGRADE;

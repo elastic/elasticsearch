@@ -43,7 +43,7 @@ public class GoogleCloudStorageRepositoryDeprecationTests extends ESTestCase {
         final RepositoryMetaData repositoryMetaData = new RepositoryMetaData("test", "gcs", repositorySettings);
         final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
         new GoogleCloudStorageRepository(repositoryMetaData, environment, NamedXContentRegistry.EMPTY,
-                new GoogleCloudStorageService(Settings.EMPTY) {
+                new GoogleCloudStorageService() {
                     @Override
                     public Storage client(String clientName) throws IOException {
                         return new MockStorage("test", new ConcurrentHashMap<>());

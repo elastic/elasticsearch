@@ -33,8 +33,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -68,7 +66,7 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public final class SearchPhaseController extends AbstractComponent {
+public final class SearchPhaseController {
 
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
@@ -76,11 +74,9 @@ public final class SearchPhaseController extends AbstractComponent {
 
     /**
      * Constructor.
-     * @param settings Node settings
      * @param reduceContextFunction A function that builds a context for the reduce of an {@link InternalAggregation}
      */
-    public SearchPhaseController(Settings settings, Function<Boolean, ReduceContext> reduceContextFunction) {
-        super(settings);
+    public SearchPhaseController(Function<Boolean, ReduceContext> reduceContextFunction) {
         this.reduceContextFunction = reduceContextFunction;
     }
 

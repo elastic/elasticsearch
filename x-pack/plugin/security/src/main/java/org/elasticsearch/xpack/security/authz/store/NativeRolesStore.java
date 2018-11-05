@@ -99,7 +99,6 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
     private final SecurityIndexManager securityIndex;
 
     public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex) {
-        super(settings);
         this.settings = settings;
         this.client = client;
         this.isTribeNode = XPackClientActionPlugin.isTribeNode(settings);

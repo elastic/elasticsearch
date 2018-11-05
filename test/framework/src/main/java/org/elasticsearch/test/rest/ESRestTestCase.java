@@ -533,12 +533,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         try {
             Response response = adminClient().performRequest(new Request("GET", "/_ilm/policy"));
             policies = entityAsMap(response);
-        } catch (ResponseException e) {
-            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
-                // If bad request returned, ILM is not enabled.
-                return;
-            }
-            throw e;
+        } catch (IOException e) {
+            // If bad request returned, ILM is not enabled.
+            return;
         }
 
         if (policies == null || policies.isEmpty()) {

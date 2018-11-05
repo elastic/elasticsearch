@@ -61,7 +61,6 @@ public class IndexLifecycleService extends AbstractComponent
 
     public IndexLifecycleService(Settings settings, Client client, ClusterService clusterService, Clock clock, LongSupplier nowSupplier,
                                  NamedXContentRegistry xContentRegistry) {
-        super(settings);
         this.settings = settings;
         this.client = client;
         this.clusterService = clusterService;

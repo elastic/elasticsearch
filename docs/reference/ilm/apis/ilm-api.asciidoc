@@ -16,7 +16,6 @@ You can use the following APIs to manage policies on indices.
 === Index Management APIs
 
 * <<ilm-move-to-step,Move Index To Step>>
-* <<ilm-set-policy,Set Policy On Index>>
 * <<ilm-retry-policy,Retry Policy On Indices>>
 
 [float]

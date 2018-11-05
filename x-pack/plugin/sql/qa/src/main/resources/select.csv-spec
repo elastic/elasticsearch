@@ -2,101 +2,110 @@
 inWithLiterals
 SELECT 1 IN (1, 2, 3), 1 IN (2, 3);
 
-  1 IN (1, 2, 3) |  1 IN (2, 3)
------------------+-------------
-true             |false
+  1 IN (1, 2, 3):b |  1 IN (2, 3):b
+-------------------+-------------
+true               |false
 ;
 
 inWithLiteralsAndFunctions
 SELECT 1 IN (2 - 1, 2, 3), abs(-1) IN (2, 3, abs(4 - 5));
 
-  1 IN (1, 2, 3) |  1 IN (2, 3)
------------------+-------------
-true             |false
+  1 IN (2 - 1, 2, 3) |  ABS(-1) IN (2, 3, ABS(4 - 5))
+---------------------+------------------------------
+true                 |true
 ;
 
 
 inWithLiteralsAndNegation
-SELECT NOT 1 IN (1, 1 + 1, 3), NOT 1 IN (2, 3);
+SELECT 1 NOT IN (1, 1 + 1, 3), 1 NOT IN (2, 3);
 
-  1 IN (1, 2, 3) |  1 IN (2, 3)
------------------+-------------
-false            |true
+  NOT(1 IN (1, 1 + 1, 3)) | NOT(1 IN (2, 3))
+--------------------------+-----------------
+false                     |true
 ;
 
-
+// Need to CAST as STRING since for boolean types the jdbc CSV translates null -> false
 inWithNullHandling
-SELECT 2 IN (1, null, 3), 3 IN (1, null, 3), null IN (1, null, 3), null IN (1, 2, 3);
+SELECT CAST(2 IN (1, null, 3) AS STRING), CAST(3 IN (1, null, 3) AS STRING), CAST(null IN (1, null, 3) AS STRING), CAST(null IN (1, 2, 3) AS STRING);
 
-  2 IN (1, null, 3) |  3 IN (1, null, 3) |  null IN (1, null, 3) |  null IN (1, 2, 3)
---------------------+--------------------+-----------------------+-------------------
-null                |true                |null                   | null
+  CAST(2 IN (1, null, 3) AS VARCHAR):s | CAST(3 IN (1, null, 3) AS VARCHAR):s |  CAST(null IN (1, null, 3) AS VARCHAR):s |  CAST(null IN (1, 2, 3) AS VARCHAR):s
+---------------------------------------+--------------------------------------+------------------------------------------+--------------------------------------
+null                                   |true                                  |null                                      |null
 ;
 
 inWithNullHandlingAndNegation
-SELECT NOT 2 IN (1, null, 3), NOT 3 IN (1, null, 3), NOT null IN (1, null, 3), NOT null IN (1, 2, 3);
+SELECT CAST(NOT 2 IN (1, null, 3) AS STRING), CAST(3 NOT IN (1, null, 3) AS STRING), CAST(NOT null IN (1, null, 3) AS STRING), CAST(null NOT IN (1, 2, 3) AS STRING);
 
-  NOT 2 IN (1, null, 3) |  NOT 3 IN (1, null, 3) |  NOT null IN (1, null, 3) |  null IN (1, 2, 3)
-------------------------+------------------------+---------------------------+--------------------
-null                    |false                   |null                       | null
+  CAST(NOT(2 IN (1, null, 3)) AS VARCHAR):s |  CAST(NOT(3 IN (1, null, 3)) AS VARCHAR):s |  CAST(NOT(null IN (1, null, 3)) AS VARCHAR):s |  CAST(NOT(null IN (1, 2, 3)) AS VARCHAR):s
+--------------------------------------------+--------------------------------------------+-----------------------------------------------+-------------------------------------------
+null                                        |false                                       |null                                           |null
 ;
 
 //
 // SELECT with IN and table columns
 //
 inWithTableColumn
-SELECT emp_no IN (10000, 10001, 10002) FROM test_emp ORDER BY 1;
+SELECT emp_no IN (10000, 10001, 10002) FROM test_emp WHERE emp_no BETWEEN 10001 AND 10004 ORDER BY emp_no;
 
- emp_no
--------
-10001
-10002
+ emp_no IN (10000, 10001, 10002):b
+----------------------------------
+true
+true
+false
+false
 ;
 
 inWithTableColumnAndFunction
-SELECT emp_no IN (10000, 10000 + 1, abs(-10000 - 2)) FROM test_emp;
+SELECT emp_no IN (10000, 10000 + 1, abs(-10000 - 2)) FROM test_emp WHERE emp_no BETWEEN 10001 AND 10004 ORDER BY emp_no;
 
- emp_no
--------
-10001
-10002
+ emp_no IN (10000, 10000 + 1, ABS(-10000 - 2)):b
+------------------------------------------------
+true
+true
+false
+false
 ;
 
 inWithTableColumnAndNegation
-SELECT emp_no NOT IN (10000, 10000 + 1, 10002) FROM test_emp ORDER BY 1 LIMIT 3;
+SELECT emp_no NOT IN (10000, 10000 + 1, 10002) FROM test_emp WHERE emp_no BETWEEN 10001 AND 10004 ORDER BY emp_no;
 
- emp_no
--------
-10003
-10004
-10005
+ NOT(emp_no IN (10000, 10000 + 1, 10002)):b
+-------------------------------------------
+false
+false
+true
+true
 ;
 
 inWithTableColumnAndComplexFunctions
-SELECT 1 IN (1, abs(2 - 4), 3) OR emp_no NOT IN (10000, 10000 + 1, 10002) FROM test_emp ORDER BY 1 LIMIT 3;
+SELECT emp_no IN (1, abs(1 - 10002), 3) OR emp_no NOT IN (10000, 10000 + 2, 10003) FROM test_emp WHERE emp_no BETWEEN 10001 AND 10004 ORDER BY emp_no;
 
- emp_no
--------
-10003
-10004
-10005
+(emp_no IN (1, ABS(1 - 10002), 3)) OR (NOT(emp_no IN (10000, 10000 + 2, 10003))):b
+----------------------------------------------------------------------------------
+true
+false
+false
+true
 ;
 
+
+// Need to CAST as STRING since for boolean types the jdbc CSV translates null -> false
 inWithTableColumnAndNullHandling
-SELECT emp_no, birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)), birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), null, CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)) FROM test_emp WHERE emp_no = 10038 OR emp_no = 10039 OR emp_no = 10040 ORDER BY 1;
+SELECT emp_no, CAST(languages IN (2, 3) AS STRING), CAST(languages IN (2, null, 3) AS STRING) FROM test_emp WHERE emp_no BETWEEN 10018 AND 10020 ORDER BY emp_no;
 
- emp_no |  birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)) |  birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), null, CAST('1959-10-01T00:00:00Z' AS TIMESTAMP))
---------+-------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------
-10038   | true                                                                                                  | true
-10039   | null                                                                                                  | null
-10040   | false                                                                                                 | null
-
+ emp_no:i |  CAST(languages IN (2, 3) AS VARCHAR):s |  CAST(languages IN (2, null, 3) AS VARCHAR):s
+----------+-----------------------------------------+----------------------------------------------
+10018     |true                                     |true
+10019     |false                                    |null
+10020     |null                                     |null
+;
 
 inWithTableColumnAndNullHandlingAndNegation
-SELECT emp_no, NOT birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)), NOT birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), null, CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)) FROM test_emp WHERE emp_no = 10038 OR emp_no = 10039 OR emp_no = 10040 ORDER BY 1;
+SELECT emp_no, CAST(languages NOT IN (2, 3) AS STRING), CAST(NOT languages IN (2, null, 3) AS STRING) FROM test_emp WHERE emp_no BETWEEN 10018 AND 10020 ORDER BY emp_no;
 
- emp_no |  NOT birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), CAST('1959-10-01T00:00:00Z' AS TIMESTAMP)) |  NOT birth_date in (CAST('2018-10-01T00:00:00Z' AS TIMESTAMP), null, CAST('1959-10-01T00:00:00Z' AS TIMESTAMP))
---------+-----------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------
-10038   | false                                                                                                     | false
-10039   | null                                                                                                      | null
-10040   | true                                                                                                      | null
+ emp_no:i |  CAST(NOT(languages IN (2, 3)) AS VARCHAR):s |  CAST(NOT(languages IN (2, null, 3)) AS VARCHAR):s
+----------+----------------------------------------------+---------------------------------------------------
+10018     |false                                         |false
+10019     |true                                          |null
+10020     |null                                          |null
+;

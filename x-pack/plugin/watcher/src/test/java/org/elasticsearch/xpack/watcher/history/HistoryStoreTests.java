@@ -71,7 +71,7 @@ public class HistoryStoreTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
         BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
         BulkProcessor bulkProcessor = BulkProcessor.builder(client, listener).setConcurrentRequests(0).setBulkActions(1).build();
-        historyStore = new HistoryStore(settings, bulkProcessor);
+        historyStore = new HistoryStore(bulkProcessor);
     }
 
     public void testPut() throws Exception {

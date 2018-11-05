@@ -1,5 +1,7 @@
 ---
 "Verify user and role in upgraded cluster":
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic bmF0aXZlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="

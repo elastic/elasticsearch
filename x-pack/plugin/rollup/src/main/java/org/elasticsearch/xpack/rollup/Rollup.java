@@ -195,7 +195,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         }
 
         SchedulerEngine schedulerEngine = new SchedulerEngine(settings, getClock());
-        return Collections.singletonList(new RollupJobTask.RollupJobPersistentTasksExecutor(settings, client, schedulerEngine, threadPool));
+        return Collections.singletonList(new RollupJobTask.RollupJobPersistentTasksExecutor(client, schedulerEngine, threadPool));
     }
 
     // overridable by tests

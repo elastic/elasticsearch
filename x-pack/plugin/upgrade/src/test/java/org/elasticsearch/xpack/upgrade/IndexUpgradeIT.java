@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -88,7 +87,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         AtomicBoolean postUpgradeIsCalled = new AtomicBoolean();
 
         IndexUpgradeCheck check = new IndexUpgradeCheck<Long>(
-                "test", Settings.EMPTY,
+                "test",
                 indexMetaData -> {
                     if (indexMetaData.getIndex().getName().equals(testIndex)) {
                         return UpgradeActionRequired.UPGRADE;
@@ -116,7 +115,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         );
         ensureYellow(testIndex);
 
-        IndexUpgradeService service = new IndexUpgradeService(Settings.EMPTY, Collections.singletonList(check));
+        IndexUpgradeService service = new IndexUpgradeService(Collections.singletonList(check));
 
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
         service.upgrade(new TaskId("abc", 123), testIndex, clusterService().state(), future);

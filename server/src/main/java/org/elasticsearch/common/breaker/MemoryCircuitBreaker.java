@@ -84,7 +84,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
                 ", which is larger than the limit of [" +
                 memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
         logger.debug("{}", message);
-        throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit);
+        throw new CircuitBreakingException(message, bytesNeeded, memoryBytesLimit, Durability.PERMANENT);
     }
 
     /**
@@ -196,5 +196,10 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
     @Override
     public String getName() {
         return FIELDDATA;
+    }
+
+    @Override
+    public Durability getDurability() {
+        return Durability.PERMANENT;
     }
 }

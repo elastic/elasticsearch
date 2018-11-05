@@ -66,7 +66,6 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             final Set<Setting<?>> settingsSet,
             final Set<SettingUpgrader<?>> settingUpgraders,
             final Setting.Property scope) {
-        super(settings);
         this.settings = settings;
         this.lastSettingsApplied = Settings.EMPTY;
 
@@ -107,7 +106,6 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     protected AbstractScopedSettings(Settings nodeSettings, Settings scopeSettings, AbstractScopedSettings other) {
-        super(nodeSettings);
         this.settings = nodeSettings;
         this.lastSettingsApplied = scopeSettings;
         this.scope = other.scope;

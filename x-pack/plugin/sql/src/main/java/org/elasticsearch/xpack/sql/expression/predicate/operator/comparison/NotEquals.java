@@ -11,29 +11,29 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Bina
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
-public class Equals extends BinaryComparison implements BinaryOperator.Negateable {
+public class NotEquals extends BinaryComparison implements BinaryOperator.Negateable {
 
-    public Equals(Location location, Expression left, Expression right) {
-        super(location, left, right, BinaryComparisonOperation.EQ);
+    public NotEquals(Location location, Expression left, Expression right) {
+        super(location, left, right, BinaryComparisonOperation.NEQ);
     }
 
     @Override
-    protected NodeInfo<Equals> info() {
-        return NodeInfo.create(this, Equals::new, left(), right());
+    protected NodeInfo<NotEquals> info() {
+        return NodeInfo.create(this, NotEquals::new, left(), right());
     }
 
     @Override
-    protected Equals replaceChildren(Expression newLeft, Expression newRight) {
-        return new Equals(location(), newLeft, newRight);
+    protected NotEquals replaceChildren(Expression newLeft, Expression newRight) {
+        return new NotEquals(location(), newLeft, newRight);
     }
 
     @Override
-    public Equals swapLeftAndRight() {
-        return new Equals(location(), right(), left());
+    public NotEquals swapLeftAndRight() {
+        return new NotEquals(location(), right(), left());
     }
 
     @Override
     public BinaryOperator<?, ?, ?, ?> negate() {
-        return new NotEquals(location(), left(), right());
+        return new Equals(location(), left(), right());
     }
 }

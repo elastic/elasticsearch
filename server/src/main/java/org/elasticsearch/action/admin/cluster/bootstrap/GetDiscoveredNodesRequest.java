@@ -35,6 +35,15 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     private int minimumNodeCount = 1;
     private TimeValue timeout = TimeValue.ZERO;
 
+    public GetDiscoveredNodesRequest() {
+    }
+
+    public GetDiscoveredNodesRequest(StreamInput in) throws IOException {
+        super(in);
+        minimumNodeCount = in.readInt();
+        timeout = in.readTimeValue();
+    }
+
     /**
      * Sometimes it is useful only to receive a successful response after discovering a certain number of master-eligible nodes. This
      * parameter controls this behaviour.
@@ -97,9 +106,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        setMinimumNodeCount(in.readInt());
-        setTimeout(in.readTimeValue());
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

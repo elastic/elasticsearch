@@ -93,8 +93,7 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
             originalRequest.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), "timeout"));
         }
 
-        final GetDiscoveredNodesRequest deserialized = copyWriteable(originalRequest, writableRegistry(),
-            Streamable.newWriteableReader(GetDiscoveredNodesRequest::new));
+        final GetDiscoveredNodesRequest deserialized = copyWriteable(originalRequest, writableRegistry(), GetDiscoveredNodesRequest::new);
 
         assertThat(deserialized.getMinimumNodeCount(), equalTo(originalRequest.getMinimumNodeCount()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));

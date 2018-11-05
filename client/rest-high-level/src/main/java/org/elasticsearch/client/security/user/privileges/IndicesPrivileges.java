@@ -131,10 +131,10 @@ public final class IndicesPrivileges implements ToXContentObject {
     }
 
     public boolean isUsingFieldLevelSecurity() {
-        return limitsGrantedFields() || limitsDeniedFields();
+        return limitsGrantedFields() || hasDeniedFields();
     }
 
-    private boolean limitsDeniedFields() {
+    private boolean hasDeniedFields() {
         return deniedFields != null && false == deniedFields.isEmpty();
     }
 
@@ -186,7 +186,7 @@ public final class IndicesPrivileges implements ToXContentObject {
             if (limitsGrantedFields()) {
                 builder.field(GRANT_FIELDS.getPreferredName(), grantedFields);
             }
-            if (limitsDeniedFields()) {
+            if (hasDeniedFields()) {
                 builder.field(EXCEPT_FIELDS.getPreferredName(), deniedFields);
             }
             builder.endObject();

@@ -72,12 +72,12 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
         assert Objects.equals(initializingShard.allocationId().getId(), startedShard.allocationId().getId())
             : "initializingShard.allocationId [" + initializingShard.allocationId().getId()
             + "] and startedShard.allocationId [" + startedShard.allocationId().getId() + "] have to have the same";
-        changes(startedShard.shardId()).addedAllocationIds.add(startedShard.allocationId().getId());
+        Updates updates = changes(startedShard.shardId());
+        updates.addedAllocationIds.add(startedShard.allocationId().getId());
         if (startedShard.primary()
             // started shard has to have null recoverySource; have to pick up recoverySource from its initializing state
             && (initializingShard.recoverySource() == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
             || initializingShard.recoverySource() instanceof RecoverySource.SnapshotRecoverySource)) {
-            Updates updates = changes(startedShard.shardId());
             updates.removedAllocationIds.add(RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID);
         }
     }

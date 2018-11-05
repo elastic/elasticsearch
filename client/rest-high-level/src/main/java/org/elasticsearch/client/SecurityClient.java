@@ -247,7 +247,7 @@ public final class SecurityClient {
      *
      * @param request the request with the realm names and usernames to clear the cache for
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the enable user call
+     * @return the response from the clear realm cache call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ClearRealmCacheResponse clearRealmCache(ClearRealmCacheRequest request, RequestOptions options) throws IOException {
@@ -277,7 +277,7 @@ public final class SecurityClient {
      *
      * @param request the request with the roles for which the cache should be cleared.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the enable user call
+     * @return the response from the clear roles cache call
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public ClearRolesCacheResponse clearRolesCache(ClearRolesCacheRequest request, RequestOptions options) throws IOException {

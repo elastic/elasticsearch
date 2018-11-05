@@ -47,7 +47,7 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
                                 ClusterState.Metric.NODES));
 
     public static final String TYPE = "cluster_stats";
-    protected static final String SETTING_CLUSTER_METADATA = "cluster.metadata";
+    protected static final String SETTING_DISPLAY_NAME = "cluster.metadata.display_name";
 
     private final String clusterName;
     private final String version;
@@ -121,12 +121,12 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
         return clusterNeedsTLSEnabled;
     }
 
-    Settings getClusterMetaDataSettings() {
+    String getClusterDisplayName() {
         MetaData metaData = this.clusterState.getMetaData();
         if (metaData == null) {
-            return Settings.EMPTY;
+            return null;
         }
-        return metaData.settings().getAsSettings(SETTING_CLUSTER_METADATA);
+        return metaData.settings().get(SETTING_DISPLAY_NAME);
     }
 
     @Override
@@ -167,21 +167,19 @@ public class ClusterStatsMonitoringDoc extends MonitoringDoc {
             builder.endObject();
         }
 
-        Settings clusterMetaDataSettings = getClusterMetaDataSettings();
-        if (clusterMetaDataSettings != null) {
+        String displayName = getClusterDisplayName();
+        if (displayName != null) {
             builder.startObject("cluster_settings");
             {
-                if (clusterMetaDataSettings.size() > 0) {
-                    builder.startObject("cluster");
+                builder.startObject("cluster");
+                {
+                    builder.startObject("metadata");
                     {
-                        builder.startObject("metadata");
-                        {
-                            clusterMetaDataSettings.toXContent(builder, params);
-                        }
-                        builder.endObject();
+                        builder.field("display_name", displayName);
                     }
                     builder.endObject();
                 }
+                builder.endObject();
             }
             builder.endObject();
         }

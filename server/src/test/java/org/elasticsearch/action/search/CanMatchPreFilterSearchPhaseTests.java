@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -59,9 +58,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final boolean shard1 = randomBoolean();
         final boolean shard2 = randomBoolean();
 
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
-
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
                                      ActionListener<SearchService.CanMatchResponse> listener) {
@@ -118,9 +115,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
-        SearchTransportService searchTransportService = new SearchTransportService(
-            Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
-
+        SearchTransportService searchTransportService = new SearchTransportService(null, null) {
             @Override
             public void sendCanMatch(Transport.Connection connection, ShardSearchTransportRequest request, SearchTask task,
                                      ActionListener<SearchService.CanMatchResponse> listener) {
@@ -186,7 +181,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
 
         final SearchTransportService searchTransportService =
-                new SearchTransportService(Settings.builder().put("cluster.remote.connect", false).build(), null, null) {
+                new SearchTransportService(null, null) {
                     @Override
                     public void sendCanMatch(
                             Transport.Connection connection,

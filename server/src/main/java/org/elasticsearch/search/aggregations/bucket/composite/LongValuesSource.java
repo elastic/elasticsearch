@@ -30,6 +30,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -61,7 +62,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         this.bigArrays = bigArrays;
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
-        this.bits = missingBucket ? new BitArray(bigArrays, Math.min(size, 100)) : null;
+        this.bits = missingBucket ? new BitArray(Math.min(size, 100), bigArrays) : null;
         this.values = bigArrays.newLongArray(Math.min(size, 100), false);
     }
 

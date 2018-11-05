@@ -254,7 +254,7 @@ public class TransportSearchActionTests extends ESTestCase {
             remoteIndices.put(cluster, randomOriginalIndices());
             if (onlySuccessful || randomBoolean()) {
                 //whatever response counts as successful as long as it's not the empty placeholder
-                searchShardsResponses.put(cluster, new ClusterSearchShardsResponse());
+                searchShardsResponses.put(cluster, new ClusterSearchShardsResponse(null, null, null));
                 successful++;
             } else {
                 searchShardsResponses.put(cluster, ClusterSearchShardsResponse.EMPTY);

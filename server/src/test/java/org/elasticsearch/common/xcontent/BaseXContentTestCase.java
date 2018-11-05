@@ -1138,9 +1138,6 @@ public abstract class BaseXContentTestCase extends ESTestCase {
     }
 
     public void testChecksForDuplicates() throws Exception {
-        assumeTrue("Test only makes sense if XContent parser has strict duplicate checks enabled",
-            XContent.isStrictDuplicateDetectionEnabled());
-
         XContentBuilder builder = builder()
                 .startObject()
                     .field("key", 1)

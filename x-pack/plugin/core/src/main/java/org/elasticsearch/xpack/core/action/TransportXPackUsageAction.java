@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -34,10 +33,10 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
     private final List<XPackFeatureSet> featureSets;
 
     @Inject
-    public TransportXPackUsageAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
                                      ClusterService clusterService, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, Set<XPackFeatureSet> featureSets) {
-        super(settings, XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+        super(XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 XPackUsageRequest::new);
         this.featureSets = Collections.unmodifiableList(new ArrayList<>(featureSets));
     }

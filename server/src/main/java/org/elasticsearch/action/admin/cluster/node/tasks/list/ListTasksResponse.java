@@ -51,8 +51,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class ListTasksResponse extends BaseTasksResponse implements ToXContentObject {
     private static final String TASKS = "tasks";
-    private static final String TASK_FAILURES = "task_failures";
-    private static final String NODE_FAILURES = "node_failures";
 
     private List<TaskInfo> tasks;
 
@@ -244,28 +242,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
         toXContentGroupedByNone(builder, params);
         builder.endObject();
         return builder;
-    }
-
-    private void toXContentCommon(XContentBuilder builder, Params params) throws IOException {
-        if (getTaskFailures() != null && getTaskFailures().size() > 0) {
-            builder.startArray(TASK_FAILURES);
-            for (TaskOperationFailure ex : getTaskFailures()){
-                builder.startObject();
-                builder.value(ex);
-                builder.endObject();
-            }
-            builder.endArray();
-        }
-
-        if (getNodeFailures() != null && getNodeFailures().size() > 0) {
-            builder.startArray(NODE_FAILURES);
-            for (ElasticsearchException ex : getNodeFailures()) {
-                builder.startObject();
-                ex.toXContent(builder, params);
-                builder.endObject();
-            }
-            builder.endArray();
-        }
     }
 
     public static ListTasksResponse fromXContent(XContentParser parser) {

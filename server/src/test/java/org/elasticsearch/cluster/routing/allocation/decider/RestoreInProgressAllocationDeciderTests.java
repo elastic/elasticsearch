@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -186,8 +185,8 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
     }
 
     private Decision executeAllocation(final ClusterState clusterState, final ShardRouting shardRouting) {
-        final AllocationDecider decider = new RestoreInProgressAllocationDecider(Settings.EMPTY);
-        final RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Settings.EMPTY, Collections.singleton(decider)),
+        final AllocationDecider decider = new RestoreInProgressAllocationDecider();
+        final RoutingAllocation allocation = new RoutingAllocation(new AllocationDeciders(Collections.singleton(decider)),
             clusterState.getRoutingNodes(), clusterState, null, 0L);
         allocation.debugDecision(true);
 

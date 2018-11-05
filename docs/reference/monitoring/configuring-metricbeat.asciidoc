@@ -94,9 +94,12 @@ You must specify the following settings in the `modules.d/elasticsearch.yml` fil
     - shard
   period: 10s
   hosts: ["http://localhost:9200"] <1>
-  xpack.enabled: true
+  xpack.enabled: true <2>
 ----------------------------------
-<1> This setting identifies the host and port number that are used to access {es}.  
+<1> This setting identifies the host and port number that are used to access {es}.
+<2> This setting ensures that {kib} can read this monitoring data successfully. 
+That is to say, it's stored in the same location and format as monitoring data 
+that is sent by <<es-monitoring-exporters,exporters>>. 
 --
 
 .. If Elastic {security-features} are enabled, you must also provide a user ID 

@@ -47,6 +47,8 @@ if (project == rootProject) {
 Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
 version = props.getProperty("elasticsearch")
 processResources {
+  inputs.file(project.file('version.properties'))
+  inputs.property("dynamic_elasticsearch_version", props.getProperty("elasticsearch"))
   doLast {
     Writer writer = file("$destinationDir/version.properties").newWriter()
     try {

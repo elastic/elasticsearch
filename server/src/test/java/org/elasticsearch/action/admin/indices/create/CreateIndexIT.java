@@ -363,6 +363,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                                         .settings(Settings.builder().put(metaData.getSettings()).put("index.foo", true))
                                         .build();
                         // so evil
+                        metaStateService.keepGlobalState();
                         metaStateService.writeIndex("broken meta", brokenMetaData);
                         metaStateService.writeMetaState("broken meta");
                     }

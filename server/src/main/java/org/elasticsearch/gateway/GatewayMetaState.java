@@ -78,40 +78,48 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
                 ensureNoPre019State();
-                final MetaData metaData = metaStateService.loadMetaData();
+                final MetaData metaData = metaStateService.getMetaData();
 
                 // We finished global state validation and successfully checked all indices for backward compatibility
                 // and found no non-upgradable indices, which means the upgrade can continue.
                 // Now it's safe to overwrite global and index metadata.
                 if (metaData != null) {
+                    long startNS = System.nanoTime();
                     final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
                     if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
                         metaStateService.writeGlobalState("upgrade", upgradedMetaData);
                     } else {
-                        metaStateService.writeGlobalState("startup", upgradedMetaData);
+                        if (metaStateService.isBwcMode()) {
+                            metaStateService.writeGlobalState("startup", upgradedMetaData);
+                        } else {
+                            metaStateService.keepGlobalState();
+                        }
                     }
                     for (IndexMetaData indexMetaData : upgradedMetaData) {
                         if (metaData.hasIndexMetaData(indexMetaData) == false) {
                             metaStateService.writeIndex("upgrade", indexMetaData);
                         } else {
-                            metaStateService.writeIndex("startup", indexMetaData);
+                            if (metaStateService.isBwcMode()) {
+                                metaStateService.writeIndex("startup", indexMetaData);
+                            } else {
+                                metaStateService.keepIndex(indexMetaData.getIndex());
+                            }
                         }
                     }
                     metaStateService.writeMetaState("startup");
+                    logger.debug("took {} ms to upgrade / re-write meta data",
+                            TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
                 }
-
-                long startNS = System.nanoTime();
-                metaStateService.loadMetaData();
-                logger.debug("took {} to load meta data", TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
             } catch (Exception e) {
-                logger.error("failed to read local state, exiting...", e);
+                logger.error("failed to bootstrap, exiting...", e);
                 throw e;
             }
         }
     }
 
-    public MetaData loadMetaData() throws IOException {
-        MetaData metaData = metaStateService.loadMetaData();
+    public MetaData getMetaData() {
+        MetaData metaData = metaStateService.getMetaData();
+        //although metadata returned by MetaStateService is nullable, our callers expect non-nullable metadata
         return metaData == null ? MetaData.builder().build() : metaData;
     }
 
@@ -133,6 +141,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                 // check if the global state changed?
                 if (previousMetaData == null || !MetaData.isGlobalStateEquals(previousMetaData, newMetaData)) {
                     metaStateService.writeGlobalState("changed", newMetaData);
+                } else {
+                    metaStateService.keepGlobalState();
                 }
 
                 Set<Index> previouslyWrittenIndices = metaStateService.getPreviouslyWrittenIndices();

@@ -156,7 +156,6 @@ import javax.net.ssl.SNIHostName;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.Charset;
@@ -672,18 +671,15 @@ public class Node implements Closeable {
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
         final MetaData onDiskMetadata;
-        try {
-            // we load the global state here (the persistent part of the cluster state stored on disk) to
-            // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
-            if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
-                onDiskMetadata = injector.getInstance(GatewayMetaState.class).loadMetaData();
-            } else {
-                onDiskMetadata = MetaData.EMPTY_META_DATA;
-            }
-            assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+
+        // we load the global state here (the persistent part of the cluster state stored on disk) to
+        // pass it to the bootstrap checks to allow plugins to enforce certain preconditions based on the recovered state.
+        if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
+            onDiskMetadata = injector.getInstance(GatewayMetaState.class).getMetaData();
+        } else {
+            onDiskMetadata = MetaData.EMPTY_META_DATA;
         }
+        assert onDiskMetadata != null : "metadata is null but shouldn't"; // this is never null
         validateNodeBeforeAcceptingRequests(new BootstrapContext(settings, onDiskMetadata), transportService.boundAddress(), pluginsService
             .filterPlugins(Plugin
             .class)

@@ -232,12 +232,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
-        MetaData meta = gwMetaState.loadMetaData();
+        MetaData meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
 
-        meta = gwMetaState.loadMetaData();
+        meta = gwMetaState.getMetaData();
         assertNotNull(meta);
         assertNull(meta.index("test"));
 

@@ -50,7 +50,7 @@ public class MetaStateServiceTests extends ESTestCase {
                     .build();
             metaStateService.writeGlobalState("test_write", metaData);
             metaStateService.writeMetaState("test");
-            assertThat(metaStateService.loadMetaData().persistentSettings(), equalTo(metaData.persistentSettings()));
+            assertThat(metaStateService.getMetaData().persistentSettings(), equalTo(metaData.persistentSettings()));
         }
     }
 
@@ -67,7 +67,7 @@ public class MetaStateServiceTests extends ESTestCase {
             metaStateService.writeGlobalState("test_write", metaDataWithIndex);
             metaStateService.writeMetaState("test");
 
-            MetaData loadedMetaData = metaStateService.loadMetaData();
+            MetaData loadedMetaData = metaStateService.getMetaData();
             assertThat(loadedMetaData.persistentSettings(), equalTo(metaData.persistentSettings()));
             assertThat(loadedMetaData.hasIndex("test1"), equalTo(false));
         }
@@ -87,7 +87,7 @@ public class MetaStateServiceTests extends ESTestCase {
 
             metaStateService.writeMetaState("test");
 
-            assertThat(metaStateService.loadMetaData().index("index1"), equalTo(index));
+            assertThat(metaStateService.getMetaData().index("index1"), equalTo(index));
         }
     }
 
@@ -108,7 +108,7 @@ public class MetaStateServiceTests extends ESTestCase {
             metaStateService.writeGlobalState("test_write2", newMetaData);
             metaStateService.writeMetaState("test2");
 
-            assertTrue(MetaData.isGlobalStateEquals(metaStateService.loadMetaData(), newMetaData));
+            assertTrue(MetaData.isGlobalStateEquals(metaStateService.getMetaData(), newMetaData));
         }
     }
 
@@ -133,12 +133,13 @@ public class MetaStateServiceTests extends ESTestCase {
             metaStateService.writeIndex("write1", changedIndex_v1);
             metaStateService.writeMetaState("write1");
 
+            metaStateService.keepGlobalState();
             metaStateService.keepIndex(notChangedIndex.getIndex());
             metaStateService.writeIndex("write2", changedIndex_v2);
             metaStateService.writeIndex("write2", newIndex);
             metaStateService.writeMetaState("write2");
 
-            MetaData loadedMetaData = metaStateService.loadMetaData();
+            MetaData loadedMetaData = metaStateService.getMetaData();
             assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, metaData));
             assertThat(loadedMetaData.index("not_changed_index"), equalTo(notChangedIndex));
             assertThat(loadedMetaData.index("removed_index"), is(nullValue()));
@@ -168,12 +169,14 @@ public class MetaStateServiceTests extends ESTestCase {
             metaStateService.writeIndex("write2", index_v2);
             //we don't write manifest file here
 
-            MetaData loadedMetaData = metaStateService.loadMetaData(); //this must load old metadata
+            metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            MetaData loadedMetaData = metaStateService.getMetaData(); //this must load old metadata
             assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, metaData_v1));
             assertThat(loadedMetaData.index("index"), equalTo(index_v1));
 
             MetaState.FORMAT.cleanupOldFiles(Long.MAX_VALUE, env.nodeDataPaths()); // this will erase manifest file
-            loadedMetaData = metaStateService.loadMetaData(); //this must load new metadata, because manifest file is gone
+            metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            loadedMetaData = metaStateService.getMetaData(); //this must load new metadata, because manifest file is gone
             assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, metaData_v2));
             assertThat(loadedMetaData.index("index"), equalTo(index_v2));
         }

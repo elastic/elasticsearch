@@ -221,7 +221,7 @@ public class RollupJobIdentifierUtils {
 
     /**
      * If intervals are mixed (one calendar, one fixed), this attempts to compare the two and make sure they are roughly
-     * in the right arrangement (request >= config).  This always logs a deprecation warning because the behavior is gone
+     * in the right arrangement (request &gt;= config).  This always logs a deprecation warning because the behavior is gone
      * in 6.5
      */
     static boolean validateMixedInterval(DateHistogramInterval requestInterval, DateHistogramInterval configInterval) {
@@ -252,7 +252,7 @@ public class RollupJobIdentifierUtils {
 
     /**
      * If intervals are mixed (one calendar, one fixed), this attempts to compare the two and make sure they are roughly
-     * in the right arrangement (request >= config).  This always logs a deprecation warning because the behavior is gone
+     * in the right arrangement (request &gt;= config).  This always logs a deprecation warning because the behavior is gone
      * in 6.5
      */
     static boolean validateMixedInterval(long requestInterval, DateHistogramInterval configInterval) {

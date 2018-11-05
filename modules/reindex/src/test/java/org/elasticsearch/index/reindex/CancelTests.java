@@ -195,7 +195,7 @@ public class CancelTests extends ReindexTestCase {
         assertion.assertThat(response, numDocs, numModifiedDocs);
     }
 
-    private TaskInfo findTaskToCancel(String actionName, int workerCount) {
+    public static TaskInfo findTaskToCancel(String actionName, int workerCount) {
         ListTasksResponse tasks;
         long start = System.nanoTime();
         do {

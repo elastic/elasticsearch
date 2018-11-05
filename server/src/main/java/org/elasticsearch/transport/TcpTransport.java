@@ -118,8 +118,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
 
-    public static final String TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX = "transport_server_worker";
-    public static final String TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX = "transport_client_boss";
+    public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = "transport_worker";
 
     public static final Setting<List<String>> HOST =
         listSetting("transport.host", emptyList(), Function.identity(), Setting.Property.NodeScope);

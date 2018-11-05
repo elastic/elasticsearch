@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 
+import java.io.IOException;
 import java.util.Objects;
 
 public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsAction.Request, CcrStatsAction.Response> {
@@ -70,7 +72,12 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
 
     @Override
     protected CcrStatsAction.Response newResponse() {
-        return new CcrStatsAction.Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected CcrStatsAction.Response read(StreamInput in) throws IOException {
+        return new CcrStatsAction.Response(in);
     }
 
     @Override

@@ -46,7 +46,7 @@ import static org.mockito.Mockito.when;
 
 public class AggregationDataExtractorTests extends ESTestCase {
 
-    private Client client;
+    private Client testClient;
     private List<SearchRequestBuilder> capturedSearchRequests;
     private String jobId;
     private String timeField;
@@ -61,7 +61,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         private SearchResponse nextResponse;
 
         TestDataExtractor(long start, long end) {
-            super(client, createContext(start, end));
+            super(testClient, createContext(start, end));
         }
 
         @Override
@@ -77,7 +77,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
 
     @Before
     public void setUpTests() {
-        client = mock(Client.class);
+        testClient = mock(Client.class);
         capturedSearchRequests = new ArrayList<>();
         jobId = "test-job";
         timeField = "time";

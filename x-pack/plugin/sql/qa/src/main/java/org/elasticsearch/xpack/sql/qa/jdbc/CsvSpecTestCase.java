@@ -29,6 +29,7 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
         List<Object[]> tests = new ArrayList<>();
+        tests.addAll(readScriptSpec("/select.csv-spec", parser));
         tests.addAll(readScriptSpec("/command.csv-spec", parser));
         tests.addAll(readScriptSpec("/fulltext.csv-spec", parser));
         tests.addAll(readScriptSpec("/agg.csv-spec", parser));

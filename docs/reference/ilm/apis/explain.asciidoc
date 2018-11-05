@@ -101,22 +101,22 @@ When the index is first taken over by ILM you will see a response like the follo
       "index": "my_index",
       "managed": true, <1>
       "policy": "my_policy", <2>
-      "lifecycle_date": 1538475653281, <3>
+      "lifecycle_date_millis": 1538475653281, <3>
       "phase": "new", <4>
-      "phase_time": 1538475653317, <5>
+      "phase_time_millis": 1538475653317, <5>
       "action": "complete", <6>
-      "action_time": 1538475653317, <7>
+      "action_time_millis": 1538475653317, <7>
       "step": "complete", <8>
-      "step_time": 1538475653317 <9>
+      "step_time_millis": 1538475653317 <9>
     }
   }
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE[s/"lifecycle_date": 1538475653281/"lifecycle_date": $body.indices.my_index.lifecycle_date/]
-// TESTRESPONSE[s/"phase_time": 1538475653317/"phase_time": $body.indices.my_index.phase_time/]
-// TESTRESPONSE[s/"action_time": 1538475653317/"action_time": $body.indices.my_index.action_time/]
-// TESTRESPONSE[s/"step_time": 1538475653317/"step_time": $body.indices.my_index.step_time/]
+// TESTRESPONSE[s/"lifecycle_date_millis": 1538475653281/"lifecycle_date_millis": $body.indices.my_index.lifecycle_date_millis/]
+// TESTRESPONSE[s/"phase_time_millis": 1538475653317/"phase_time_millis": $body.indices.my_index.phase_time_millis/]
+// TESTRESPONSE[s/"action_time_millis": 1538475653317/"action_time_millis": $body.indices.my_index.action_time_millis/]
+// TESTRESPONSE[s/"step_time_millis": 1538475653317/"step_time_millis": $body.indices.my_index.step_time_millis/]
 <1> Shows if the index is being managed by ILM. If the index is not managed by
 ILM the other fields will not be shown
 <2> The name of the policy which ILM is using for this index
@@ -141,12 +141,16 @@ phase definition has been completely executed.
       "index": "test-000069",
       "managed": true,
       "policy": "my_lifecycle3",
+      "lifecycle_date_millis": 1538475653281,
       "lifecycle_date": "2018-10-15T13:45:21.981Z",
       "phase": "hot",
+      "phase_time_millis": 1538475653317,
       "phase_time": "2018-10-15T13:45:22.577Z",
       "action": "rollover",
+      "action_time_millis": 1538475653317,
       "action_time": "2018-10-15T13:45:22.577Z",
       "step": "attempt_rollover",
+      "step_time_millis": 1538475653317,
       "step_time": "2018-10-15T13:45:22.577Z",
       "phase_execution": { <1>
         "policy": "my_lifecycle3", <2>
@@ -187,13 +191,17 @@ If the policy is waiting for a step to complete for the index, the response will
       "index": "test-000020",
       "managed": true,
       "policy": "my_lifecycle3",
-      "lifecycle_date": "2018-10-15T13:20:28.042Z",
+      "lifecycle_date_millis": 1538475653281,
+      "lifecycle_date": "2018-10-15T13:45:21.981Z",
       "phase": "warm",
-      "phase_time": "2018-10-15T13:20:28.428Z",
+      "phase_time_millis": 1538475653317,
+      "phase_time": "2018-10-15T13:45:22.577Z",
       "action": "allocate",
-      "action_time": "2018-10-15T13:20:28.428Z",
+      "action_time_millis": 1538475653317,
+      "action_time": "2018-10-15T13:45:22.577Z",
       "step": "check-allocation",
-      "step_time": "2018-10-15T13:20:28.633Z",
+      "step_time_millis": 1538475653317,
+      "step_time": "2018-10-15T13:45:22.577Z",
       "step_info": { <1>
         "message": "Waiting for all shard copies to be active",
         "shards_left_to_allocate": -1,
@@ -245,13 +253,17 @@ that occurred in `step_info`.
       "index": "test-000056",
       "managed": true,
       "policy": "my_lifecycle3",
-      "lifecycle_date": "2018-10-15T13:38:26.209Z",
+      "lifecycle_date_millis": 1538475653281,
+      "lifecycle_date": "2018-10-15T13:45:21.981Z",
       "phase": "hot",
-      "phase_time": "2018-10-15T13:38:26.706Z",
+      "phase_time_millis": 1538475653317,
+      "phase_time": "2018-10-15T13:45:22.577Z",
       "action": "rollover",
-      "action_time": "2018-10-15T13:38:26.706Z",
+      "action_time_millis": 1538475653317,
+      "action_time": "2018-10-15T13:45:22.577Z",
       "step": "ERROR",
-      "step_time": "2018-10-15T13:39:15.304Z",
+      "step_time_millis": 1538475653317,
+      "step_time": "2018-10-15T13:45:22.577Z",
       "failed_step": "attempt_rollover", <1>
       "step_info": { <2>
         "type": "resource_already_exists_exception",

@@ -33,7 +33,7 @@ import java.io.IOException;
 public class GetDiscoveredNodesRequest extends ActionRequest {
 
     private int minimumNodeCount = 1;
-    private TimeValue timeout = TimeValue.ZERO;
+    private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
     public GetDiscoveredNodesRequest() {
     }
@@ -70,8 +70,8 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
 
     /**
      * Sometimes it is useful to wait until enough nodes have been discovered, rather than failing immediately. This parameter controls how
-     * long to wait. It may only be set to a nonzero timeout when waiting for more than one node, because every node always discovers
-     * at least one node, itself.
+     * long to wait, and defaults to 30s.
+     *
      * @param timeout how long to wait to discover sufficiently many nodes to respond successfully.
      */
     public void setTimeout(TimeValue timeout) {
@@ -83,8 +83,8 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
 
     /**
      * Sometimes it is useful to wait until enough nodes have been discovered, rather than failing immediately. This parameter controls how
-     * long to wait. It may only be set to a nonzero timeout when waiting for more than one node, because every node always discovers
-     * at least one node, itself.
+     * long to wait, and defaults to 30s.
+     *
      * @return how long to wait to discover sufficiently many nodes to respond successfully.
      */
     public TimeValue getTimeout() {
@@ -93,15 +93,7 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        final ActionRequestValidationException actionRequestValidationException = new ActionRequestValidationException();
-
-        assert minimumNodeCount > 0 : minimumNodeCount;
-        if (timeout.compareTo(TimeValue.ZERO) > 0 && minimumNodeCount <= 1) {
-            actionRequestValidationException.addValidationError(
-                "always discovers at least one node, so a timeout of [" + timeout + "] is unnecessary");
-        }
-
-        return actionRequestValidationException.validationErrors().isEmpty() ? null : actionRequestValidationException;
+        return null;
     }
 
     @Override

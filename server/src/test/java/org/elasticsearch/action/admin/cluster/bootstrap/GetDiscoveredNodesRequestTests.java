@@ -51,7 +51,7 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
 
     public void testTimeoutValidation() {
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        assertThat("default value is zero", getDiscoveredNodesRequest.getTimeout(), is(TimeValue.ZERO));
+        assertThat("default value is 30s", getDiscoveredNodesRequest.getTimeout(), is(TimeValue.timeValueSeconds(30)));
         assertNull(getDiscoveredNodesRequest.validate());
 
         final TimeValue newTimeout = TimeValue.parseTimeValue(randomTimeValue(), "timeout");
@@ -62,17 +62,6 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
             () -> getDiscoveredNodesRequest.setTimeout(TimeValue.timeValueNanos(randomLongBetween(-10, -1))));
         assertThat(exception.getMessage(), startsWith("negative timeout of "));
         assertThat(exception.getMessage(), endsWith(" is not allowed"));
-    }
-
-    public void testNoTimeoutAcceptedIfNoNodesToAwait() {
-        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setMinimumNodeCount(1);
-        getDiscoveredNodesRequest.setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
-        final ActionRequestValidationException exception = getDiscoveredNodesRequest.validate();
-        assertThat(exception.validationErrors(), hasSize(1));
-        final String validationError = exception.validationErrors().get(0);
-        assertThat(validationError, startsWith("always discovers at least one node, so a timeout of "));
-        assertThat(validationError, endsWith(" is unnecessary"));
     }
 
     public void testTimeoutAcceptedIfNodesToAwait() {

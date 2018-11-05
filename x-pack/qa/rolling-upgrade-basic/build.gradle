@@ -30,7 +30,12 @@ for (Version version : bwcVersions.wireCompatible) {
 
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
         if (version.before('6.3.0')) {
-            mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${version}"
+            String depVersion = version;
+            if (project.bwcVersions.unreleased.contains(version)) {
+                depVersion += "-SNAPSHOT"
+            }
+            mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${depVersion}"
+
         }
         bwcVersion = version
         numBwcNodes = 3

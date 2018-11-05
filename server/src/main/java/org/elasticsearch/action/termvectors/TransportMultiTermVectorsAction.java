@@ -94,7 +94,14 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             listener.onResponse(new MultiTermVectorsResponse(responses.toArray(new MultiTermVectorsItemResponse[responses.length()])));
         }
 
+        executeShardAction(listener, responses, shardRequests);
+    }
+
+    protected void executeShardAction(ActionListener<MultiTermVectorsResponse> listener,
+                                      AtomicArray<MultiTermVectorsItemResponse> responses,
+                                      Map<ShardId, MultiTermVectorsShardRequest> shardRequests) {
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
+
         for (final MultiTermVectorsShardRequest shardRequest : shardRequests.values()) {
             shardAction.execute(shardRequest, new ActionListener<MultiTermVectorsShardResponse>() {
                 @Override

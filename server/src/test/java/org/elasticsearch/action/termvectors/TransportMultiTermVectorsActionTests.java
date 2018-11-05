@@ -19,195 +19,216 @@
 
 package org.elasticsearch.action.termvectors;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.TransportMultiGetActionTests;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
-import java.io.IOException;
-import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.arrayWithSize;
+import static org.elasticsearch.common.UUIDs.randomBase64UUID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-public class TransportMultiTermVectorsActionTests extends ESSingleNodeTestCase {
+public class TransportMultiTermVectorsActionTests extends ESTestCase {
 
-    private ThreadPool threadPool;
-    private ClusterService clusterService;
-    private IndicesService indicesService;
-    private TransportService transportService;
+    private static ThreadPool threadPool;
+    private static TransportService transportService;
+    private static ClusterService clusterService;
+    private static TransportMultiTermVectorsAction transportAction;
+    private static TransportShardMultiTermsVectorAction shardAction;
 
-    private TransportMultiTermVectorsAction transportMultiTermVectorsAction;
-
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-
+    @BeforeClass
+    public static void beforeClass() throws Exception {
         threadPool = new TestThreadPool(TransportMultiGetActionTests.class.getSimpleName());
 
-        clusterService = getInstanceFromNode(ClusterService.class);
-        indicesService = getInstanceFromNode(IndicesService.class);
-        transportService = new CapturingTransport().createCapturingTransportService(clusterService.getSettings(), threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundAddress -> clusterService.localNode(), null, emptySet());
+        transportService = new TransportService(Settings.EMPTY, mock(Transport.class), threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(Settings.builder().put("node.name", "node1").build(),
+                boundAddress.publishAddress(), randomBase64UUID()), null, emptySet()) {
+            @Override
+            public TaskManager getTaskManager() {
+                return taskManager;
+            }
+        };
 
-        transportService.start();
-        transportService.acceptIncomingRequests();
+        final Index index1 = new Index("index1", randomBase64UUID());
+        final ClusterState clusterState = ClusterState.builder(new ClusterName(TransportMultiGetActionTests.class.getSimpleName()))
+            .metaData(new MetaData.Builder()
+                .put(new IndexMetaData.Builder(index1.getName())
+                    .settings(Settings.builder().put("index.version.created", Version.CURRENT)
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 1)
+                        .put(IndexMetaData.SETTING_INDEX_UUID, index1.getUUID()))
+                    .putMapping("type1",
+                        XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
+                            .startObject()
+                                .startObject("type1")
+                                    .startObject("_routing")
+                                        .field("required", false)
+                                    .endObject()
+                                .endObject()
+                            .endObject()), true, XContentType.JSON))
+                    .putMapping("type2",
+                        XContentHelper.convertToJson(BytesReference.bytes(XContentFactory.jsonBuilder()
+                            .startObject()
+                                .startObject("type2")
+                                    .startObject("_routing")
+                                        .field("required", true)
+                                    .endObject()
+                                .endObject()
+                            .endObject()), true, XContentType.JSON)))).build();
 
-        transportMultiTermVectorsAction = new TransportMultiTermVectorsAction(Settings.EMPTY, transportService, clusterService,
-            new TestTransportShardMultiTermsVectorAction(), new ActionFilters(emptySet()), new Resolver());
+        final ShardIterator shardIterator = mock(ShardIterator.class);
+        when(shardIterator.shardId()).thenReturn(new ShardId(index1, randomInt()));
+
+        final OperationRouting operationRouting = mock(OperationRouting.class);
+        when(operationRouting.getShards(eq(clusterState), eq(index1.getName()), anyString(), anyString(), anyString()))
+            .thenReturn(shardIterator);
+        when(operationRouting.shardId(eq(clusterState), eq(index1.getName()), anyString(), anyString()))
+            .thenReturn(new ShardId(index1, randomInt()));
+
+        clusterService = mock(ClusterService.class);
+        when(clusterService.localNode()).thenReturn(transportService.getLocalNode());
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.operationRouting()).thenReturn(operationRouting);
+
+        shardAction = new TransportShardMultiTermsVectorAction(Settings.EMPTY, clusterService,
+            transportService, mock(IndicesService.class), threadPool, new ActionFilters(emptySet()), new Resolver()) {
+            @Override
+            protected void doExecute(Task task, MultiTermVectorsShardRequest request,
+                                     ActionListener<MultiTermVectorsShardResponse> listener) {
+            }
+        };
     }
 
-    @After
-    @Override
-    public void tearDown() throws Exception {
+    @AfterClass
+    public static void afterClass() {
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         threadPool = null;
-
-        super.tearDown();
+        transportService = null;
+        clusterService = null;
+        transportAction = null;
+        shardAction = null;
     }
 
-    public void testTransportMultiTermVectorsAction() throws IOException {
-        // GIVEN
-        final String indexName = createAndPrepareIndex(5, false);
-
+    public void testTransportMultiGetAction() {
         final Task task = createMultiGetTask();
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
+        request.add(new TermVectorsRequest("index1", "type1", "1"));
+        request.add(new TermVectorsRequest("index1", "type1", "2"));
 
-        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client(), MultiTermVectorsAction.INSTANCE);
-        request.add(new TermVectorsRequest(indexName, "type1", "1"));
-        request.add(new TermVectorsRequest(indexName, "type1", "2"));
-
-        // WHEN
-        transportMultiTermVectorsAction.execute(task, request.request(), new ActionListener<MultiTermVectorsResponse>() {
-            // THEN
+        final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
+        transportAction = new TransportMultiTermVectorsAction(Settings.EMPTY, transportService, clusterService,
+            shardAction, new ActionFilters(emptySet()), new Resolver()) {
             @Override
-            public void onResponse(MultiTermVectorsResponse multiTermVectorsResponse) {
-                try {
-                    final MultiTermVectorsItemResponse[] responses = multiTermVectorsResponse.getResponses();
-
-                    assertThat(responses, arrayWithSize(2));
-
-                    assertThat(responses[0].getResponse().getId(), equalTo("1"));
-                    assertTrue(responses[0].getResponse().isExists());
-                    assertNull(responses[0].getFailure());
-
-                    assertThat(responses[1].getResponse().getId(), equalTo("2"));
-                    assertTrue(responses[1].getResponse().isExists());
-                    assertNull(responses[1].getFailure());
-                } catch (final Exception e) {
-                    logger.error(e.getMessage(), e);
-                    fail(e.getMessage());
-                }
+            protected void executeShardAction(ActionListener<MultiTermVectorsResponse> listener,
+                                              AtomicArray<MultiTermVectorsItemResponse> responses,
+                                              Map<ShardId, MultiTermVectorsShardRequest> shardRequests) {
+                shardActionInvoked.set(true);
+                assertEquals(2, responses.length());
+                assertNull(responses.get(0));
+                assertNull(responses.get(1));
             }
+        };
 
-            @Override
-            public void onFailure(final Exception e) {
-                logger.error(e.getMessage(), e);
-                fail(e.getMessage());
-            }
-        });
+        transportAction.execute(task, request.request(), new ActionListenerAdapter());
+        assertTrue(shardActionInvoked.get());
     }
 
-    public void testTransportMultiTermVectorsAction_withMissingRouting() throws IOException {
-        // GIVEN
-        final String indexName = createAndPrepareIndex(5, true);
+    public void testTransportMultiGetAction_withMissingRouting() {
+        final Task task = createMultiGetTask();
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client, MultiTermVectorsAction.INSTANCE);
+        request.add(new TermVectorsRequest("index1", "type2", "1").routing("1"));
+        request.add(new TermVectorsRequest("index1", "type2", "2"));
 
-        final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client(), MultiTermVectorsAction.INSTANCE);
-        request.add(new TermVectorsRequest(indexName, "type1", "1").routing("1"));
-        request.add(new TermVectorsRequest(indexName, "type1", "2"));
-
-        // WHEN
-        transportMultiTermVectorsAction.execute(createMultiGetTask(), request.request(), new ActionListener<MultiTermVectorsResponse>() {
-            // THEN
+        final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
+        transportAction = new TransportMultiTermVectorsAction(Settings.EMPTY, transportService, clusterService,
+            shardAction, new ActionFilters(emptySet()), new Resolver()) {
             @Override
-            public void onResponse(MultiTermVectorsResponse multiTermVectorsResponse) {
-                try {
-                    final MultiTermVectorsItemResponse[] responses = multiTermVectorsResponse.getResponses();
-
-                    assertThat(responses, arrayWithSize(2));
-
-                    assertThat(responses[0].getResponse().getId(), equalTo("1"));
-                    assertTrue(responses[0].getResponse().isExists());
-                    assertNull(responses[0].getFailure());
-
-                    assertNull(responses[1].getResponse());
-                    assertThat(responses[1].getFailure().getCause(), instanceOf(RoutingMissingException.class));
-                    assertThat(responses[1].getFailure().getCause().getMessage(),
-                        equalTo("routing is required for [" + indexName + "]/[type1]/[2]"));
-                } catch (final Exception e) {
-                    logger.error(e.getMessage(), e);
-                    fail(e.getMessage());
-                }
+            protected void executeShardAction(ActionListener<MultiTermVectorsResponse> listener,
+                                              AtomicArray<MultiTermVectorsItemResponse> responses,
+                                              Map<ShardId, MultiTermVectorsShardRequest> shardRequests) {
+                shardActionInvoked.set(true);
+                assertEquals(2, responses.length());
+                assertNull(responses.get(0));
+                assertThat(responses.get(1).getFailure().getCause(), instanceOf(RoutingMissingException.class));
+                assertThat(responses.get(1).getFailure().getCause().getMessage(),
+                    equalTo("routing is required for [index1]/[type2]/[2]"));
             }
+        };
 
-            @Override
-            public void onFailure(final Exception e) {
-                logger.error(e.getMessage(), e);
-                fail(e.getMessage());
-            }
-        });
+        transportAction.execute(task, request.request(), new ActionListenerAdapter());
+        assertTrue(shardActionInvoked.get());
     }
 
-    private String createAndPrepareIndex(int numberOfDocs, boolean routingRequired) throws IOException {
-        final String indexName = randomAlphaOfLength(5).toLowerCase(Locale.getDefault());
-        createIndex(indexName, Settings.EMPTY, "type1", "_routing", "required=" + routingRequired, "field1", "type=text");
-        ensureGreen(indexName);
-
-        for (int i = 0; i < numberOfDocs; i++) {
-            final String id = String.valueOf(i);
-            final XContentBuilder source = jsonBuilder().startObject().field("field1", randomAlphaOfLengthBetween(5, 20)).endObject();
-            client().prepareIndex(indexName, "type1", id).setSource(source).setRouting(id).setRefreshPolicy(IMMEDIATE).get();
-        }
-
-        return indexName;
-    }
-
-    private Task createMultiGetTask() {
+    private static Task createMultiGetTask() {
         return new Task(randomLong(), "transport", MultiGetAction.NAME, "description",
-            new TaskId(node().getNodeEnvironment().nodeId() + ":" + randomLong()), emptyMap());
+            new TaskId(randomLong() + ":" + randomLong()), emptyMap());
     }
 
-    class TestTransportShardMultiTermsVectorAction extends TransportShardMultiTermsVectorAction {
-
-        TestTransportShardMultiTermsVectorAction() {
-            super(Settings.EMPTY, TransportMultiTermVectorsActionTests.this.clusterService,
-                TransportMultiTermVectorsActionTests.this.transportService, indicesService,
-                TransportMultiTermVectorsActionTests.this.threadPool, new ActionFilters(emptySet()), new Resolver());
-        }
-    }
-
-    class Resolver extends IndexNameExpressionResolver {
+    static class Resolver extends IndexNameExpressionResolver {
 
         Resolver() {
             super(Settings.EMPTY);
         }
 
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
-            return request.indices();
+        public Index concreteSingleIndex(ClusterState state, IndicesRequest request) {
+            return new Index("index1", randomBase64UUID());
+        }
+    }
+
+    static class ActionListenerAdapter implements ActionListener<MultiTermVectorsResponse> {
+
+        @Override
+        public void onResponse(MultiTermVectorsResponse response) {
+        }
+
+        @Override
+        public void onFailure(Exception e) {
         }
     }
 }

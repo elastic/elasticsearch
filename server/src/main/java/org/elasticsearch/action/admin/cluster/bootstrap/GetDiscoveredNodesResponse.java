@@ -37,7 +37,7 @@ public class GetDiscoveredNodesResponse extends ActionResponse {
     public GetDiscoveredNodesResponse() {
     }
 
-    public GetDiscoveredNodesResponse(final Set<DiscoveryNode> nodes) {
+    public GetDiscoveredNodesResponse(Set<DiscoveryNode> nodes) {
         this.nodes = nodes;
     }
 

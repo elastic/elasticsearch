@@ -1,12 +1,25 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
-package org.elasticsearch.xpack.watcher.support.xcontent;
+
+package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,23 +31,23 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
 
-public class MapPathTests extends ESTestCase {
-    public void testEval() throws Exception {
+public class ObjectPathTests extends ESTestCase {
+    public void testEval() {
         Map<String, Object> map = singletonMap("key", "value");
 
         assertThat(ObjectPath.eval("key", map), is((Object) "value"));
         assertThat(ObjectPath.eval("key1", map), nullValue());
     }
 
-    public void testEvalList() throws Exception {
-        List list = Arrays.asList(1, 2, 3, 4);
+    public void testEvalList() {
+        List<Integer> list = Arrays.asList(1, 2, 3, 4);
         Map<String, Object> map = singletonMap("key", list);
 
         int index = randomInt(3);
         assertThat(ObjectPath.eval("key." + index, map), is(list.get(index)));
     }
 
-    public void testEvalArray() throws Exception {
+    public void testEvalArray() {
         int[] array = new int[] { 1, 2, 3, 4 };
         Map<String, Object> map = singletonMap("key", array);
 
@@ -42,13 +55,13 @@ public class MapPathTests extends ESTestCase {
         assertThat(((Number) ObjectPath.eval("key." + index, map)).intValue(), is(array[index]));
     }
 
-    public void testEvalMap() throws Exception {
+    public void testEvalMap() {
         Map<String, Object> map = singletonMap("a", singletonMap("b", "val"));
 
         assertThat(ObjectPath.eval("a.b", map), is((Object) "val"));
     }
 
-    public void testEvalMixed() throws Exception {
+    public void testEvalMixed() {
         Map<String, Object> map = new HashMap<>();
 
         Map<String, Object> mapA = new HashMap<>();

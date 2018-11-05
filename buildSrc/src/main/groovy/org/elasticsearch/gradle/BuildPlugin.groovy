@@ -775,7 +775,7 @@ class BuildPlugin implements Plugin<Project> {
     static void applyCommonTestConfig(Project project) {
         project.tasks.withType(RandomizedTestingTask) {
             jvm "${project.runtimeJavaHome}/bin/java"
-            parallelism System.getProperty('tests.jvms', 'auto')
+            parallelism System.getProperty('tests.jvms',  String.valueOf(Runtime.getRuntime().availableProcessors() / 2))
             ifNoTests System.getProperty('tests.ifNoTests', 'fail')
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true

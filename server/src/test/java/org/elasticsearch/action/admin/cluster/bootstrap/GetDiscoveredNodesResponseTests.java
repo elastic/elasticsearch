@@ -37,8 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GetDiscoveredNodesResponseTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final GetDiscoveredNodesResponse original = new GetDiscoveredNodesResponse(randomDiscoveryNodeSet());
-        final GetDiscoveredNodesResponse deserialized = copyWriteable(original, writableRegistry(),
-            Streamable.newWriteableReader(GetDiscoveredNodesResponse::new));
+        final GetDiscoveredNodesResponse deserialized = copyWriteable(original, writableRegistry(), GetDiscoveredNodesResponse::new);
         assertThat(deserialized.getNodes(), equalTo(original.getNodes()));
     }
 

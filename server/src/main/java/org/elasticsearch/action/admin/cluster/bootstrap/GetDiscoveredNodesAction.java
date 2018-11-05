@@ -30,6 +30,6 @@ public class GetDiscoveredNodesAction extends Action<GetDiscoveredNodesResponse>
 
     @Override
     public GetDiscoveredNodesResponse newResponse() {
-        return new GetDiscoveredNodesResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

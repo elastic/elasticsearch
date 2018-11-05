@@ -25,6 +25,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,13 +34,15 @@ import java.util.stream.Collectors;
  * Response to {@link GetDiscoveredNodesRequest}, containing the set of nodes that were discovered.
  */
 public class GetDiscoveredNodesResponse extends ActionResponse {
-    private Set<DiscoveryNode> nodes;
-
-    public GetDiscoveredNodesResponse() {
-    }
+    private final Set<DiscoveryNode> nodes;
 
     public GetDiscoveredNodesResponse(Set<DiscoveryNode> nodes) {
-        this.nodes = nodes;
+        this.nodes = Collections.unmodifiableSet(new HashSet<>(nodes));
+    }
+
+    public GetDiscoveredNodesResponse(StreamInput in) throws IOException {
+        super(in);
+        nodes = Collections.unmodifiableSet(in.readSet(DiscoveryNode::new));
     }
 
     /**
@@ -58,8 +62,7 @@ public class GetDiscoveredNodesResponse extends ActionResponse {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        nodes = in.readSet(DiscoveryNode::new);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

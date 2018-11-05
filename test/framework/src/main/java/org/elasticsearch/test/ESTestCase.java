@@ -345,9 +345,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                                 }
                             } else {
                                 try {
-                                    final BootstrapClusterRequest bootstrapClusterRequest = new BootstrapClusterRequest();
-                                    bootstrapClusterRequest.setBootstrapConfiguration(bootstrapConfiguration);
-                                    client.execute(BootstrapClusterAction.INSTANCE, bootstrapClusterRequest).get();
+                                    client.execute(BootstrapClusterAction.INSTANCE, new BootstrapClusterRequest(bootstrapConfiguration))
+                                        .get();
                                     if (usually(bootstrapRandom)) {
                                         return;
                                     }

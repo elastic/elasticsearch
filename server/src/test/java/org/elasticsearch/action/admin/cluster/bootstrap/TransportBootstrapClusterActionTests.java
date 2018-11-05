@@ -58,6 +58,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class TransportBootstrapClusterActionTests extends ESTestCase {
+    private static BootstrapClusterRequest exampleRequest() {
+        return new BootstrapClusterRequest(new BootstrapConfiguration(singletonList(new NodeDescription("id", "name"))));
+    }
+
     public void testHandlesNonstandardDiscoveryImplementation() {
         final MockTransport transport = new MockTransport();
         final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
@@ -126,7 +130,7 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
         };
 
         assertThat(expectThrows(IllegalStateException.class,
-            () -> transportBootstrapClusterAction.doExecute(mock(Task.class), new BootstrapClusterRequest(), listener))
+            () -> transportBootstrapClusterAction.doExecute(mock(Task.class), exampleRequest(), listener))
             .getMessage(), equalTo("cannot execute a Zen2 action if not using Zen2"));
 
         threadPool.shutdown();
@@ -167,8 +171,9 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
             }
         };
 
-        assertThat(expectThrows(ElasticsearchException.class, () -> transportBootstrapClusterAction.doExecute(mock(Task.class),
-            new BootstrapClusterRequest(), listener)).getMessage(), equalTo("this node is not master-eligible"));
+        assertThat(expectThrows(ElasticsearchException.class,
+            () -> transportBootstrapClusterAction.doExecute(mock(Task.class), exampleRequest(), listener)).getMessage(),
+            equalTo("this node is not master-eligible"));
 
         threadPool.shutdown();
     }
@@ -201,8 +206,8 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
 
         assertFalse(coordinator.isInitialConfigurationSet());
 
-        final BootstrapClusterRequest request = new BootstrapClusterRequest();
-        request.setBootstrapConfiguration(new BootstrapConfiguration(singletonList(new NodeDescription(discoveryNode))));
+        final BootstrapClusterRequest request
+            = new BootstrapClusterRequest(new BootstrapConfiguration(singletonList(new NodeDescription(discoveryNode))));
 
         transportBootstrapClusterAction.doExecute(mock(Task.class), request,
             new ActionListener<AcknowledgedResponse>() {

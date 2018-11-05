@@ -29,15 +29,15 @@ import java.io.IOException;
  * Request to set the initial configuration of master-eligible nodes in a cluster so that the very first master election can take place.
  */
 public class BootstrapClusterRequest extends ActionRequest {
-    private BootstrapConfiguration bootstrapConfiguration;
+    private final BootstrapConfiguration bootstrapConfiguration;
 
-    /**
-     * Set the bootstrap configuration for this request.
-     * @param bootstrapConfiguration the bootstrap configuration: the initial set of master-eligible nodes whose votes are counted in
-     *                               elections.
-     */
-    public void setBootstrapConfiguration(BootstrapConfiguration bootstrapConfiguration) {
+    public BootstrapClusterRequest(BootstrapConfiguration bootstrapConfiguration) {
         this.bootstrapConfiguration = bootstrapConfiguration;
+    }
+
+    public BootstrapClusterRequest(StreamInput in) throws IOException {
+        super(in);
+        bootstrapConfiguration = new BootstrapConfiguration(in);
     }
 
     /**
@@ -54,8 +54,7 @@ public class BootstrapClusterRequest extends ActionRequest {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        bootstrapConfiguration = new BootstrapConfiguration(in);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

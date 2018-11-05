@@ -46,10 +46,33 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * A query that computes a document score based on the provided script
  */
 public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQueryBuilder> {
+
     public static final String NAME = "script_score";
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
+
+    private static ConstructingObjectParser<ScriptScoreQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, false,
+        args -> {
+            ScriptScoreFunctionBuilder ssFunctionBuilder = new ScriptScoreFunctionBuilder((Script) args[1]);
+            ScriptScoreQueryBuilder ssQueryBuilder = new ScriptScoreQueryBuilder((QueryBuilder) args[0], ssFunctionBuilder);
+            if (args[2] != null) ssQueryBuilder.setMinScore((Float) args[2]);
+            if (args[3] != null) ssQueryBuilder.boost((Float) args[3]);
+            if (args[4] != null) ssQueryBuilder.queryName((String) args[4]);
+            return ssQueryBuilder;
+        });
+
+    static {
+        PARSER.declareObject(constructorArg(), (p,c) -> parseInnerQueryBuilder(p), QUERY_FIELD);
+        PARSER.declareObject(constructorArg(), (p,c) -> Script.parse(p), SCRIPT_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), AbstractQueryBuilder.BOOST_FIELD);
+        PARSER.declareString(optionalConstructorArg(), AbstractQueryBuilder.NAME_FIELD);
+    }
+
+    public static ScriptScoreQueryBuilder fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
 
     private final QueryBuilder query;
     private Float minScore = null;
@@ -161,25 +184,4 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
         InnerHitContextBuilder.extractInnerHits(query(), innerHits);
     }
 
-    private static ConstructingObjectParser<ScriptScoreQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, false,
-        args -> {
-            ScriptScoreFunctionBuilder ssFunctionBuilder = new ScriptScoreFunctionBuilder((Script) args[1]);
-            ScriptScoreQueryBuilder ssQueryBuilder = new ScriptScoreQueryBuilder((QueryBuilder) args[0], ssFunctionBuilder);
-            if (args[2] != null) ssQueryBuilder.setMinScore((Float) args[2]);
-            if (args[3] != null) ssQueryBuilder.boost((Float) args[3]);
-            if (args[4] != null) ssQueryBuilder.queryName((String) args[4]);
-            return ssQueryBuilder;
-        });
-
-    static {
-        PARSER.declareObject(constructorArg(), (p,c) -> parseInnerQueryBuilder(p), QUERY_FIELD);
-        PARSER.declareObject(constructorArg(), (p,c) -> Script.parse(p), SCRIPT_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), AbstractQueryBuilder.BOOST_FIELD);
-        PARSER.declareString(optionalConstructorArg(), AbstractQueryBuilder.NAME_FIELD);
-    }
-
-    public static ScriptScoreQueryBuilder fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
 }

@@ -52,18 +52,12 @@ public class ScriptScoreQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = super.rewrite(reader);
-        if (rewritten != this) {
-            return rewritten;
-        }
         Query newQ = subQuery.rewrite(reader);
         ScriptScoreFunction newFunction = (ScriptScoreFunction) function.rewrite(reader);
-        boolean needsRewrite = (newQ != subQuery) || (newFunction != function);
-
-        if (needsRewrite) {
+        if ((newQ != subQuery) || (newFunction != function)) {
             return new ScriptScoreQuery(newQ, newFunction, minScore);
         }
-        return this;
+        return super.rewrite(reader);
     }
 
     @Override

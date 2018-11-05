@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -34,6 +35,8 @@ import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_RETRY_DELAY_FIELD;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_COUNT;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_SIZE;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_OPERATION_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_SIZE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.READ_POLL_TIMEOUT;
 
 public final class PutFollowAction extends Action<PutFollowAction.Response> {
@@ -47,7 +50,12 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -66,12 +74,18 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             PARSER.declareString(Request::setLeaderIndex, LEADER_INDEX_FIELD);
             PARSER.declareString((req, val) -> req.followRequest.setFollowerIndex(val), FOLLOWER_INDEX_FIELD);
             PARSER.declareInt((req, val) -> req.followRequest.setMaxReadRequestOperationCount(val), MAX_READ_REQUEST_OPERATION_COUNT);
-            PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingReadRequests(val), MAX_OUTSTANDING_READ_REQUESTS);
             PARSER.declareField(
                 (req, val) -> req.followRequest.setMaxReadRequestSize(val),
                 (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
                 MAX_READ_REQUEST_SIZE,
                 ObjectParser.ValueType.STRING);
+            PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingReadRequests(val), MAX_OUTSTANDING_READ_REQUESTS);
+            PARSER.declareInt((req, val) -> req.followRequest.setMaxWriteRequestOperationCount(val), MAX_WRITE_REQUEST_OPERATION_COUNT);
+            PARSER.declareField(
+                    (req, val) -> req.followRequest.setMaxWriteRequestSize(val),
+                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
+                    MAX_WRITE_REQUEST_SIZE,
+                    ObjectParser.ValueType.STRING);
             PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingWriteRequests(val), MAX_OUTSTANDING_WRITE_REQUESTS);
             PARSER.declareInt((req, val) -> req.followRequest.setMaxWriteBufferCount(val), MAX_WRITE_BUFFER_COUNT);
             PARSER.declareField(
@@ -158,13 +172,11 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             remoteCluster = in.readString();
             leaderIndex = in.readString();
-            followRequest = new ResumeFollowAction.Request();
-            followRequest.readFrom(in);
+            followRequest = new ResumeFollowAction.Request(in);
         }
 
         @Override
@@ -205,13 +217,9 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private boolean followIndexCreated;
-        private boolean followIndexShardsAcked;
-        private boolean indexFollowingStarted;
-
-        public Response() {
-
-        }
+        private final boolean followIndexCreated;
+        private final boolean followIndexShardsAcked;
+        private final boolean indexFollowingStarted;
 
         public Response(boolean followIndexCreated, boolean followIndexShardsAcked, boolean indexFollowingStarted) {
             this.followIndexCreated = followIndexCreated;
@@ -231,9 +239,8 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             return indexFollowingStarted;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             followIndexCreated = in.readBoolean();
             followIndexShardsAcked = in.readBoolean();
             indexFollowingStarted = in.readBoolean();

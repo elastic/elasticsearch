@@ -49,6 +49,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.indexlifecycle.AllocateAction;
+import org.elasticsearch.client.indexlifecycle.DeleteAction;
+import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
+import org.elasticsearch.client.indexlifecycle.LifecycleAction;
+import org.elasticsearch.client.indexlifecycle.ReadOnlyAction;
+import org.elasticsearch.client.indexlifecycle.RolloverAction;
+import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -618,7 +625,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(10, namedXContents.size());
+        assertEquals(16, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -628,7 +635,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals(3, categories.size());
+        assertEquals(4, categories.size());
         assertEquals(Integer.valueOf(2), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
@@ -642,15 +649,20 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
+        assertEquals(Integer.valueOf(6), categories.get(LifecycleAction.class));
+        assertTrue(names.contains(AllocateAction.NAME));
+        assertTrue(names.contains(DeleteAction.NAME));
+        assertTrue(names.contains(ForceMergeAction.NAME));
+        assertTrue(names.contains(ReadOnlyAction.NAME));
+        assertTrue(names.contains(RolloverAction.NAME));
+        assertTrue(names.contains(ShrinkAction.NAME));
     }
 
     public void testApiNamingConventions() throws Exception {
         //this list should be empty once the high-level client is feature complete
         String[] notYetSupportedApi = new String[]{
             "cluster.remote_info",
-            "count",
             "create",
-            "exists_source",
             "get_source",
             "indices.delete_alias",
             "indices.delete_template",
@@ -720,7 +732,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                         methods.containsKey(apiName.substring(0, apiName.length() - 6)));
                 assertThat("async method [" + method + "] should return void", method.getReturnType(), equalTo(Void.TYPE));
                 assertEquals("async method [" + method + "] should not throw any exceptions", 0, method.getExceptionTypes().length);
-                if (apiName.equals("security.get_ssl_certificates_async")) {
+                if (apiName.equals("security.authenticate_async") || apiName.equals("security.get_ssl_certificates_async")) {
                     assertEquals(2, method.getParameterTypes().length);
                     assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
                     assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
@@ -745,7 +757,8 @@ public class RestHighLevelClientTests extends ESTestCase {
 
                 assertEquals("incorrect number of exceptions for method [" + method + "]", 1, method.getExceptionTypes().length);
                 //a few methods don't accept a request object as argument
-                if (apiName.equals("ping") || apiName.equals("info") || apiName.equals("security.get_ssl_certificates")) {
+                if (apiName.equals("ping") || apiName.equals("info") || apiName.equals("security.get_ssl_certificates")
+                    || apiName.equals("security.authenticate")) {
                     assertEquals("incorrect number of arguments for method [" + method + "]", 1, method.getParameterTypes().length);
                     assertThat("the parameter to method [" + method + "] is the wrong type",
                         method.getParameterTypes()[0], equalTo(RequestOptions.class));
@@ -771,7 +784,8 @@ public class RestHighLevelClientTests extends ESTestCase {
                             apiName.startsWith("watcher.") == false &&
                             apiName.startsWith("graph.") == false &&
                             apiName.startsWith("migration.") == false &&
-                            apiName.startsWith("security.") == false) {
+                            apiName.startsWith("security.") == false &&
+                            apiName.startsWith("index_lifecycle.") == false) {
                             apiNotFound.add(apiName);
                         }
                     }

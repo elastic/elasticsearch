@@ -202,14 +202,11 @@ if (useFixture && minioDistribution) {
 
     doLast {
       // get free port
-      for (int port = 60920; port < 60940; port++) {
-        try {
-          javax.net.ServerSocketFactory.getDefault().createServerSocket(port, 1, InetAddress.getByName(minioAddress)).close()
-          minioPort = port
-          break
-        } catch (BindException e) {
-          logger.info("Port " + port + " for Minio process is already taken", e)
-        }
+      ServerSocket serverSocket = new ServerSocket(0, 1, InetAddress.getByName(minioAddress))
+      try {
+        minioPort = serverSocket.localPort
+      } finally {
+        serverSocket.close()
       }
       if (minioPort == 0) {
         throw new GradleException("Could not find a free port for Minio")

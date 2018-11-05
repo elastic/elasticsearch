@@ -42,7 +42,10 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
                 timeAligner.alignToFloor(end),
                 datafeedConfig.getChunkingConfig().getTimeSpan(),
                 timeAligner,
-                datafeedConfig.getHeaders());
+                datafeedConfig.getHeaders(),
+                datafeedConfig.hasAggregations(),
+                datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis() : null
+            );
         return new ChunkedDataExtractor(client, dataExtractorFactory, dataExtractorContext);
     }
 

@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
@@ -18,6 +16,7 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 import java.util.Objects;
 
 public class Cast extends UnaryScalarFunction {
+
     private final DataType dataType;
 
     public Cast(Location location, Expression field, DataType dataType) {
@@ -67,13 +66,12 @@ public class Cast extends UnaryScalarFunction {
     protected TypeResolution resolveType() {
         return DataTypeConversion.canConvert(from(), to()) ?
                 TypeResolution.TYPE_RESOLVED :
-                    new TypeResolution("Cannot cast %s to %s", from(), to());
+                    new TypeResolution("Cannot cast [" + from() + "] to [" + to()+ "]");
     }
 
     @Override
-    protected Pipe makePipe() {
-        return new UnaryPipe(location(), this, Expressions.pipe(field()),
-                new CastProcessor(DataTypeConversion.conversionFor(from(), to())));
+    protected Processor makeProcessor() {
+        return new CastProcessor(DataTypeConversion.conversionFor(from(), to()));
     }
 
     @Override

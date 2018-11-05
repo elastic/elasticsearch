@@ -30,7 +30,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,9 +42,9 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     private final Client client;
 
     @Inject
-    public TransportRethrottleAction(Settings settings, ClusterService clusterService,
-            TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(settings, RethrottleAction.NAME, clusterService, transportService, actionFilters,
+    public TransportRethrottleAction(ClusterService clusterService, TransportService transportService,
+                                     ActionFilters actionFilters, Client client) {
+        super(RethrottleAction.NAME, clusterService, transportService, actionFilters,
             RethrottleRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         this.client = client;
     }

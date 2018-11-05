@@ -104,6 +104,12 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
         }
+        // special handling if query is "now" and no field specified. This hits the "mapped_date" field which leads to the query not being
+        // cacheable and trigger later test failures (see https://github.com/elastic/elasticsearch/issues/35183)
+        if (fieldCount == 0 && result.value().equalsIgnoreCase("now")) {
+            fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
+        }
+
         result.fields(fields);
         if (randomBoolean()) {
             result.autoGenerateSynonymsPhraseQuery(randomBoolean());

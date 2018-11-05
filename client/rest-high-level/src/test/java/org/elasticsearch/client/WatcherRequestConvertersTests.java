@@ -29,8 +29,8 @@ import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
+import org.elasticsearch.client.watcher.DeleteWatchRequest;
+import org.elasticsearch.client.watcher.PutWatchRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -56,11 +56,9 @@ public class WatcherRequestConvertersTests extends ESTestCase {
     }
 
     public void testPutWatch() throws Exception {
-        PutWatchRequest putWatchRequest = new PutWatchRequest();
         String watchId = randomAlphaOfLength(10);
-        putWatchRequest.setId(watchId);
         String body = randomAlphaOfLength(20);
-        putWatchRequest.setSource(new BytesArray(body), XContentType.JSON);
+        PutWatchRequest putWatchRequest = new PutWatchRequest(watchId, new BytesArray(body), XContentType.JSON);
 
         Map<String, String> expectedParams = new HashMap<>();
         if (randomBoolean()) {
@@ -94,9 +92,8 @@ public class WatcherRequestConvertersTests extends ESTestCase {
     }
 
     public void testDeleteWatch() {
-        DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest();
         String watchId = randomAlphaOfLength(10);
-        deleteWatchRequest.setId(watchId);
+        DeleteWatchRequest deleteWatchRequest = new DeleteWatchRequest(watchId);
 
         Request request = WatcherRequestConverters.deleteWatch(deleteWatchRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());

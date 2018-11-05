@@ -6,4 +6,7 @@ coalesceField
 SELECT COALESCE(null, ABS(emp_no) + 1) AS c FROM test_emp ORDER BY emp_no LIMIT 5;
 
 coalesceHaving
-SELECT COALESCE(languages, 0) c FROM test_emp GROUP BY languages ORDER BY languages;
+SELECT COALESCE(null, ABS(MAX(emp_no)) + 1, 123) AS c FROM test_emp GROUP BY languages HAVING c > 100 ORDER BY languages LIMIT 5;
+
+coalesceWhere
+SELECT COALESCE(null, ABS(emp_no) + 1, 123) AS c FROM test_emp WHERE COALESCE(null, ABS(emp_no) + 1, 123, 321) > 100 ORDER BY emp_no NULLS FIRST LIMIT 5;

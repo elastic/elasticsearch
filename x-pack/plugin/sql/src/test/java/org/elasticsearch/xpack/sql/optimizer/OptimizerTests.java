@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -406,6 +407,25 @@ public class OptimizerTests extends ESTestCase {
         Expression e = new SimplifyCoalesce().rule(new Coalesce(EMPTY, asList(Literal.NULL, Literal.NULL)));
         assertEquals(Coalesce.class, e.getClass());
         assertEquals(0, e.children().size());
+    }
+
+    public void testSimplifyCoalesceRandomNulls() {
+        Expression e = new SimplifyCoalesce().rule(new Coalesce(EMPTY, randomListOfNulls()));
+        assertEquals(Coalesce.class, e.getClass());
+        assertEquals(0, e.children().size());
+    }
+
+    public void testSimplifyCoalesceRandomNullsWithValue() {
+        Expression e = new SimplifyCoalesce().rule(new Coalesce(EMPTY,
+                CollectionUtils.combine(
+                        CollectionUtils.combine(randomListOfNulls(), Literal.TRUE, Literal.FALSE, Literal.TRUE),
+                        randomListOfNulls())));
+        assertEquals(1, e.children().size());
+        assertEquals(Literal.TRUE, e.children().get(0));
+    }
+
+    private List<Expression> randomListOfNulls() {
+        return asList(randomArray(1, 10, i -> new Literal[i], () -> Literal.NULL));
     }
 
     public void testSimplifyCoalesceFirstLiteral() {

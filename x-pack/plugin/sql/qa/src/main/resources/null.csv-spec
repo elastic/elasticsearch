@@ -17,10 +17,17 @@ null
 ;
 
 
-divOfNull
+divOfCastedNull
 SELECT 5 / CAST(NULL AS FLOAT) + 10 AS n;
 
 n:d
+null
+;
+
+divNoNull
+SELECT 5 / null + 1 AS n;
+
+n:i
 null
 ;
 
@@ -30,6 +37,14 @@ SELECT COALESCE(null, null, null) AS c;
 c
 null
 ;
+
+coalesceFirstNotNull
+SELECT COALESCE(123) AS c;
+
+c
+123
+;
+
 
 coalesceWithFirstNullOfString
 SELECT COALESCE(null, 'first') AS c;

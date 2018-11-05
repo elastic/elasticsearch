@@ -75,7 +75,7 @@ public class Coalesce extends ConditionalFunction {
             templates.add(asScript(ex));
         }
 
-        StringJoiner template = new StringJoiner(",", "{sql}.coalesce(", ")");
+        StringJoiner template = new StringJoiner(",", "{sql}.coalesce([", "])");
         ParamsBuilder params = paramsBuilder();
 
         for (ScriptTemplate scriptTemplate : templates) {

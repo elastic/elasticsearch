@@ -371,6 +371,7 @@ public class FunctionRegistry {
         };
         return def(function, builder, true, aliases);
     }
+
     interface DatetimeUnaryFunctionBuilder<T> {
         T build(Location location, Expression target, TimeZone tz);
     }
@@ -397,6 +398,7 @@ public class FunctionRegistry {
         };
         return def(function, builder, false, aliases);
     }
+
     interface BinaryFunctionBuilder<T> {
         T build(Location location, Expression lhs, Expression rhs);
     }
@@ -415,6 +417,7 @@ public class FunctionRegistry {
         };
         return new FunctionDefinition(primaryName, unmodifiableList(Arrays.asList(aliases)), function, datetime, realBuilder);
     }
+
     private interface FunctionBuilder {
         Function build(Location location, List<Expression> children, boolean distinct, TimeZone tz);
     }
@@ -474,6 +477,7 @@ public class FunctionRegistry {
             ctorRef.build(location, children.get(0), children.get(0).dataType());
         return def(function, builder, false, aliases);
     }
+
     private interface CastFunctionBuilder<T> {
         T build(Location location, Expression expression, DataType dataType);
     }

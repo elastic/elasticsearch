@@ -261,7 +261,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             doSaveState(finishAndSetState(), position.get(), () -> onFailure(exc));
         } catch (Exception e) {
             onFailure(exc);
-            onFailure(new RuntimeException("Failed to save State", e));
+            onFailure(new RuntimeException("Failed to save state", e));
         }
     }
 

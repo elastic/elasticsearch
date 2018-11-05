@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
@@ -22,7 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -259,12 +258,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not start with '_', '-', or '+'");
         }
         int byteCount = 0;
-        try {
-            byteCount = policy.getBytes("UTF-8").length;
-        } catch (UnsupportedEncodingException e) {
-            // UTF-8 should always be supported, but rethrow this if it is not for some reason
-            throw new ElasticsearchException("Unable to determine length of policy name", e);
-        }
+        byteCount = policy.getBytes(StandardCharsets.UTF_8).length;
         if (byteCount > MAX_INDEX_NAME_BYTES) {
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: name is too long, (" + byteCount + " > " +
                 MAX_INDEX_NAME_BYTES + ")");

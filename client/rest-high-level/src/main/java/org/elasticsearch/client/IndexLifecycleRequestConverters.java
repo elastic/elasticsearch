@@ -78,7 +78,7 @@ final class IndexLifecycleRequestConverters {
     static Request removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyRequest removePolicyRequest) {
         String[] indices = removePolicyRequest.indices() == null ?
                 Strings.EMPTY_ARRAY : removePolicyRequest.indices().toArray(new String[] {});
-        Request request = new Request(HttpDelete.METHOD_NAME,
+        Request request = new Request(HttpPost.METHOD_NAME,
                 new RequestConverters.EndpointBuilder()
                         .addCommaSeparatedPathParts(indices)
                         .addPathPartAsIs("_ilm")

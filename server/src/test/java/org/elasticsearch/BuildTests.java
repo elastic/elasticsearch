@@ -42,10 +42,11 @@ public class BuildTests extends ESTestCase {
     }
 
     public void testIsProduction() {
-        assertTrue(new Build(
+        Build build = new Build(
             Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.shortHash(), Build.CURRENT.date(),
-            Build.CURRENT.isSnapshot(), randomInt() + "." + randomInt() + "." + randomInt()
-        ).isProductionRelease());
+            Build.CURRENT.isSnapshot(), Math.abs(randomInt()) + "." + Math.abs(randomInt()) + "." + Math.abs(randomInt())
+        );
+        assertTrue(build.getVersion(), build.isProductionRelease());
 
         assertFalse(new Build(
             Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.shortHash(), Build.CURRENT.date(),

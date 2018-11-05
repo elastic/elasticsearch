@@ -131,8 +131,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
 
-        shardAction = new TransportShardMultiGetAction(Settings.EMPTY, clusterService,
-            transportService, mock(IndicesService.class), threadPool, new ActionFilters(emptySet()), new Resolver()) {
+        shardAction = new TransportShardMultiGetAction(clusterService, transportService, mock(IndicesService.class), threadPool,
+            new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {
             }
@@ -157,8 +157,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
         request.add(new MultiGetRequest.Item("index1", "type1", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiGetAction(Settings.EMPTY, transportService, clusterService,
-            shardAction, new ActionFilters(emptySet()), new Resolver()) {
+        transportAction = new TransportMultiGetAction(transportService, clusterService, shardAction,
+            new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void executeShardAction(final ActionListener<MultiGetResponse> listener,
                                               final AtomicArray<MultiGetItemResponse> responses,
@@ -182,8 +182,8 @@ public class TransportMultiGetActionTests extends ESTestCase {
         request.add(new MultiGetRequest.Item("index1", "type2", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiGetAction(Settings.EMPTY, transportService, clusterService,
-            shardAction, new ActionFilters(emptySet()), new Resolver()) {
+        transportAction = new TransportMultiGetAction(transportService, clusterService, shardAction,
+            new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void executeShardAction(final ActionListener<MultiGetResponse> listener,
                                               final AtomicArray<MultiGetItemResponse> responses,
@@ -208,10 +208,6 @@ public class TransportMultiGetActionTests extends ESTestCase {
     }
 
     static class Resolver extends IndexNameExpressionResolver {
-
-        Resolver() {
-            super(Settings.EMPTY);
-        }
 
         @Override
         public Index concreteSingleIndex(ClusterState state, IndicesRequest request) {

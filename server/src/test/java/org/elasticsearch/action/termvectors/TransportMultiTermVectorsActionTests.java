@@ -132,8 +132,8 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
 
-        shardAction = new TransportShardMultiTermsVectorAction(Settings.EMPTY, clusterService,
-            transportService, mock(IndicesService.class), threadPool, new ActionFilters(emptySet()), new Resolver()) {
+        shardAction = new TransportShardMultiTermsVectorAction(clusterService, transportService, mock(IndicesService.class), threadPool,
+            new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void doExecute(Task task, MultiTermVectorsShardRequest request,
                                      ActionListener<MultiTermVectorsShardResponse> listener) {
@@ -159,8 +159,8 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         request.add(new TermVectorsRequest("index1", "type1", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiTermVectorsAction(Settings.EMPTY, transportService, clusterService,
-            shardAction, new ActionFilters(emptySet()), new Resolver()) {
+        transportAction = new TransportMultiTermVectorsAction(transportService, clusterService, shardAction,
+            new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void executeShardAction(final ActionListener<MultiTermVectorsResponse> listener,
                                               final AtomicArray<MultiTermVectorsItemResponse> responses,
@@ -184,8 +184,8 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         request.add(new TermVectorsRequest("index1", "type2", "2"));
 
         final AtomicBoolean shardActionInvoked = new AtomicBoolean(false);
-        transportAction = new TransportMultiTermVectorsAction(Settings.EMPTY, transportService, clusterService,
-            shardAction, new ActionFilters(emptySet()), new Resolver()) {
+        transportAction = new TransportMultiTermVectorsAction(transportService, clusterService, shardAction,
+            new ActionFilters(emptySet()), new Resolver()) {
             @Override
             protected void executeShardAction(final ActionListener<MultiTermVectorsResponse> listener,
                                               final AtomicArray<MultiTermVectorsItemResponse> responses,
@@ -209,10 +209,6 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
     }
 
     static class Resolver extends IndexNameExpressionResolver {
-
-        Resolver() {
-            super(Settings.EMPTY);
-        }
 
         @Override
         public Index concreteSingleIndex(ClusterState state, IndicesRequest request) {

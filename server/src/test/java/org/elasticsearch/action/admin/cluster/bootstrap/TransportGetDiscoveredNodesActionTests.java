@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -33,14 +32,11 @@ import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.component.Lifecycle.State;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.PeersRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -69,6 +65,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
     public void testHandlesNonstandardDiscoveryImplementation() {
@@ -77,52 +74,10 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         final DiscoveryNode discoveryNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         final TransportService transportService = transport.createTransportService(Settings.EMPTY, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> discoveryNode, null, emptySet());
-        final Discovery discovery = new Discovery() {
-            @Override
-            public DiscoveryStats stats() {
-                throw new AssertionError("should not be called");
-            }
 
-            @Override
-            public void startInitialJoin() {
-                throw new AssertionError("should not be called");
-            }
+        final Discovery discovery = mock(Discovery.class);
+        verifyZeroInteractions(discovery);
 
-            @Override
-            public void publish(ClusterChangedEvent clusterChangedEvent, ActionListener<Void> publishListener, AckListener ackListener) {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public State lifecycleState() {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public void addLifecycleListener(LifecycleListener listener) {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public void removeLifecycleListener(LifecycleListener listener) {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public void start() {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public void stop() {
-                throw new AssertionError("should not be called");
-            }
-
-            @Override
-            public void close() {
-                throw new AssertionError("should not be called");
-            }
-        };
         final TransportGetDiscoveredNodesAction transportGetDiscoveredNodesAction
             = new TransportGetDiscoveredNodesAction(Settings.EMPTY, mock(ActionFilters.class), transportService, discovery);
 

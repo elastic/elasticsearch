@@ -99,7 +99,7 @@ public class TestZenDiscovery extends ZenDiscovery {
     protected ZenPing newZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
                                  UnicastHostsProvider hostsProvider) {
         if (USE_MOCK_PINGS.get(settings)) {
-            return new MockZenPing(settings, this);
+            return new MockZenPing(this);
         } else {
             return super.newZenPing(settings, threadPool, transportService, hostsProvider);
         }

@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
@@ -35,9 +34,8 @@ public class TransportDeleteRollupJobAction extends TransportTasksAction<RollupJ
     DeleteRollupJobAction.Response, DeleteRollupJobAction.Response> {
 
     @Inject
-    public TransportDeleteRollupJobAction(Settings settings, TransportService transportService,
-                                       ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, DeleteRollupJobAction.NAME, clusterService, transportService, actionFilters,
+    public TransportDeleteRollupJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+        super(DeleteRollupJobAction.NAME, clusterService, transportService, actionFilters,
             DeleteRollupJobAction.Request::new, DeleteRollupJobAction.Response::new, ThreadPool.Names.SAME);
     }
 

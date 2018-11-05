@@ -20,9 +20,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -41,8 +42,11 @@ import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSetting
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
  */
-public class Realms extends AbstractComponent implements Iterable<Realm> {
+public class Realms implements Iterable<Realm> {
 
+    private static final Logger logger = LogManager.getLogger(Realms.class);
+
+    private final Settings settings;
     private final Environment env;
     private final Map<String, Realm.Factory> factories;
     private final XPackLicenseState licenseState;
@@ -58,7 +62,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
 
     public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, XPackLicenseState licenseState,
                   ThreadContext threadContext, ReservedRealm reservedRealm) throws Exception {
-        super(settings);
+        this.settings = settings;
         this.env = env;
         this.factories = factories;
         this.licenseState = licenseState;

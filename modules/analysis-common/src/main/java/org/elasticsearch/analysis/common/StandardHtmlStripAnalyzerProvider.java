@@ -49,8 +49,7 @@ public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProv
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
             throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
                 "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
-        }
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_5_0)) {
+        } else {
             DEPRECATION_LOGGER.deprecatedAndMaybeLog("standard_html_strip_deprecation",
                 "Deprecated analyzer [standard_html_strip] used, " +
                     "replace it with a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");

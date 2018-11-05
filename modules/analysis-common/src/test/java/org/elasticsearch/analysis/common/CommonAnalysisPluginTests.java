@@ -33,7 +33,6 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -134,15 +133,10 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            IndexAnalyzers analyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
-            Assert.fail("[standard_html_strip] is created");
-        } catch (IllegalArgumentException iae) {
-            assertEquals(iae.getMessage(), "[standard_html_strip] analyzer is not supported for new indices, " +
-                "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
-        } catch (Exception e) {
-            fail("expected IAE");
-        }
+        CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin();
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin));
+        assertEquals("[standard_html_strip] analyzer is not supported for new indices, " +
+            "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter", ex.getMessage());
     }
 
     /**
@@ -151,7 +145,7 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     public void testStandardHtmlStripAnalyzerDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetaData.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_6_5_0, Version.V_6_6_0))
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_6_0))
             .put("index.analysis.analyzer.custom_analyzer.type", "standard_html_strip")
             .putList("index.analysis.analyzer.custom_analyzer.stopwords", "a", "b")
             .build();
@@ -164,26 +158,6 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             assertWarnings(
                 "Deprecated analyzer [standard_html_strip] used, " +
                     "replace it with a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
-        }
-    }
-
-    /**
-     * Check that the deprecated analyzer name "standard_html_strip" does NOT issue a deprecation warning for indices created before 6.4.0
-     */
-    public void testStandardHtmlStripAnalyzerNoDeprecationPre6_5() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(IndexMetaData.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1, Version.V_6_4_0))
-            .put("index.analysis.analyzer.custom_analyzer.type", "standard_html_strip")
-            .putList("index.analysis.analyzer.custom_analyzer.stopwords", "a", "b")
-            .build();
-
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        try (CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin()) {
-            IndexAnalyzers analyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
-            Analyzer analyzer = analyzers.get("custom_analyzer");
-
-            assertNotNull(((NamedAnalyzer) analyzer).analyzer());
         }
     }
 }

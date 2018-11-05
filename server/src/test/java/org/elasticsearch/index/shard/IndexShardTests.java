@@ -997,7 +997,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         @Override
                         public void onResponse(Releasable releasable) {
                             counter.incrementAndGet();
-                            assertThat(indexShard.getPendingPrimaryTerm(), equalTo(primaryTerm + increment));
+                            assertThat(indexShard.getOperationPrimaryTerm(), equalTo(primaryTerm + increment));
                             latch.countDown();
                             releasable.close();
                         }
@@ -1042,6 +1042,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         assertThat(indexShard.getPendingPrimaryTerm(), equalTo(primaryTerm + Math.max(firstIncrement, secondIncrement)));
+        assertThat(indexShard.getOperationPrimaryTerm(), equalTo(indexShard.getPendingPrimaryTerm()));
 
         closeShards(indexShard);
     }

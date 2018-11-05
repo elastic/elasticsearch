@@ -95,7 +95,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         assertThat(expectThrows(IllegalStateException.class,
             () -> transportGetDiscoveredNodesAction.doExecute(mock(Task.class), new GetDiscoveredNodesRequest(), listener))
-            .getMessage(), equalTo("cannot execute a Zen2 action if not using Zen2"));
+            .getMessage(), equalTo("discovered nodes are not exposed by this discovery type"));
 
         threadPool.shutdown();
     }

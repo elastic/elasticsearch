@@ -86,7 +86,7 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
 
         assertThat(expectThrows(IllegalStateException.class,
             () -> transportBootstrapClusterAction.doExecute(mock(Task.class), exampleRequest(), listener))
-            .getMessage(), equalTo("cannot execute a Zen2 action if not using Zen2"));
+            .getMessage(), equalTo("cluster bootstrapping is not supported by this discovery type"));
 
         threadPool.shutdown();
     }

@@ -3,8 +3,8 @@
     "documentation": "http://www.elastic.co/guide/en/index_lifecycle/current/index_lifecycle.html",
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_ilm",
-      "paths": ["/{index}/_ilm", "/_ilm"],
+      "path": "/{index}/_ilm/remove",
+      "paths": ["/{index}/_ilm/remove", "/_ilm/remove"],
       "parts": {
         "index": {
           "type" : "string",

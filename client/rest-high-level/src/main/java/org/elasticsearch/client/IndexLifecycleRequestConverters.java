@@ -81,7 +81,7 @@ final class IndexLifecycleRequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME,
                 new RequestConverters.EndpointBuilder()
                         .addCommaSeparatedPathParts(indices)
-                        .addPathPartAsIs("_ilm")
+                        .addPathPartAsIs("_ilm", "remove")
                         .build());
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withIndicesOptions(removePolicyRequest.indicesOptions());

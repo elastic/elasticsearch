@@ -129,6 +129,10 @@ aggCountAndHaving
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING COUNT(*) > 10 ORDER BY gender;
 aggCountAndHavingEquality
 SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING COUNT(*) = 10 ORDER BY gender;
+aggCountAndHavingNotEquals
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING COUNT(*) != 10 ORDER BY gender;
+aggCountAndHavingNegateEquality
+SELECT gender g, COUNT(*) c FROM "test_emp" GROUP BY g HAVING NOT COUNT(*) = 10 ORDER BY gender;
 aggCountOnColumnAndHaving
 SELECT gender g, COUNT(gender) c FROM "test_emp" GROUP BY g HAVING COUNT(gender) > 10 ORDER BY gender;
 aggCountOnColumnAndWildcardAndHaving

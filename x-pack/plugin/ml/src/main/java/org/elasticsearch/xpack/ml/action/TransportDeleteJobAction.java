@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -99,11 +98,11 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private final Map<String, List<ActionListener<AcknowledgedResponse>>> listenersByJobId;
 
     @Inject
-    public TransportDeleteJobAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeleteJobAction(TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
                                     Client client, Auditor auditor, JobResultsProvider jobResultsProvider) {
-        super(settings, DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, DeleteJobAction.Request::new);
         this.client = client;
         this.persistentTasksService = persistentTasksService;

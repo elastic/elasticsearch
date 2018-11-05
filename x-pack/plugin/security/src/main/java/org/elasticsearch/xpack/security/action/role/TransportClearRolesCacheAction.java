@@ -10,13 +10,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 
@@ -26,11 +25,10 @@ public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRo
     private final CompositeRolesStore rolesStore;
 
     @Inject
-    public TransportClearRolesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportClearRolesCacheAction(ThreadPool threadPool, ClusterService clusterService,
                                           TransportService transportService, ActionFilters actionFilters, CompositeRolesStore rolesStore) {
-        super(settings, ClearRolesCacheAction.NAME, threadPool, clusterService, transportService,
-              actionFilters, ClearRolesCacheRequest::new, ClearRolesCacheRequest.Node::new,
-              ThreadPool.Names.MANAGEMENT, ClearRolesCacheResponse.Node.class);
+        super(ClearRolesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters, ClearRolesCacheRequest::new,
+            ClearRolesCacheRequest.Node::new, ThreadPool.Names.MANAGEMENT, ClearRolesCacheResponse.Node.class);
         this.rolesStore = rolesStore;
     }
 

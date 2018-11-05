@@ -41,6 +41,33 @@ public class BuildTests extends ESTestCase {
         assertNotNull(Build.CURRENT.shortHash());
     }
 
+    public void testIsProduction() {
+        assertTrue(new Build(
+            Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.shortHash(), Build.CURRENT.date(),
+            Build.CURRENT.isSnapshot(), randomInt() + "." + randomInt() + "." + randomInt()
+        ).isProductionRelease());
+
+        assertFalse(new Build(
+            Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.shortHash(), Build.CURRENT.date(),
+            Build.CURRENT.isSnapshot(), "7.0.0-alpha1"
+        ).isProductionRelease());
+
+        assertFalse(new Build(
+            Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.shortHash(), Build.CURRENT.date(),
+            Build.CURRENT.isSnapshot(), "7.0.0-alpha1-SNAPSHOT"
+        ).isProductionRelease());
+
+        assertFalse(new Build(
+            Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.shortHash(), Build.CURRENT.date(),
+            Build.CURRENT.isSnapshot(), "7.0.0-SNAPSHOT"
+        ).isProductionRelease());
+
+        assertFalse(new Build(
+            Build.CURRENT.flavor(), Build.CURRENT.type(), Build.CURRENT.shortHash(), Build.CURRENT.date(),
+            Build.CURRENT.isSnapshot(), "Unknown"
+        ).isProductionRelease());
+    }
+
     public void testEqualsAndHashCode() {
         Build build = Build.CURRENT;
 

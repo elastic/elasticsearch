@@ -61,6 +61,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return version;
     }
 
+
     public ClusterName getClusterName() {
         return clusterName;
     }

@@ -26,7 +26,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -279,7 +278,7 @@ public class Node implements Closeable {
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
+                Build.CURRENT.getVersion(),
                 jvmInfo.pid(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
@@ -293,7 +292,7 @@ public class Node implements Closeable {
                 Constants.JAVA_VERSION,
                 Constants.JVM_VERSION);
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
-            warnIfPreRelease(Version.CURRENT, Build.CURRENT.isSnapshot(), logger);
+            warnIfPreRelease(Build.CURRENT, logger);
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
@@ -577,11 +576,11 @@ public class Node implements Closeable {
         }
     }
 
-    static void warnIfPreRelease(final Version version, final boolean isSnapshot, final Logger logger) {
-        if (!version.isRelease() || isSnapshot) {
+    static void warnIfPreRelease(final Build build,final Logger logger) {
+        if (build.isProductionRelease() == false) {
             logger.warn(
                 "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                Version.displayVersion(version, isSnapshot));
+                Build.CURRENT.getVersion());
         }
     }
 

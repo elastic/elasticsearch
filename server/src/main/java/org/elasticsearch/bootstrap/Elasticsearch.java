@@ -24,7 +24,6 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -102,7 +101,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
             final String versionOutput = String.format(
                     Locale.ROOT,
                     "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
-                    Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
+                Build.CURRENT.getVersion(),
                     Build.CURRENT.flavor().displayName(),
                     Build.CURRENT.type().displayName(),
                     Build.CURRENT.shortHash(),

@@ -390,7 +390,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         final String versionOutput = String.format(
                 Locale.ROOT,
                 "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
-                Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
+            Build.CURRENT.getVersion(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
                 Build.CURRENT.shortHash(),
@@ -422,10 +422,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             sb.append(build - 50);
         }
         return sb.toString();
-    }
-
-    public static String displayVersion(final Version version, final boolean isSnapshot) {
-        return version + (isSnapshot ? "-SNAPSHOT" : "");
     }
 
     @Override

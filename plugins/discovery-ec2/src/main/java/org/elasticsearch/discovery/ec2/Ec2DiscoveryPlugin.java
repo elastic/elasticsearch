@@ -20,10 +20,10 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.util.json.Jackson;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +52,7 @@ import java.util.function.Supplier;
 
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
 
-    private static Logger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);
+    private static Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);
     public static final String EC2 = "ec2";
 
     static {
@@ -78,7 +78,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     protected final AwsEc2Service ec2Service;
 
     public Ec2DiscoveryPlugin(Settings settings) {
-        this(settings, new AwsEc2ServiceImpl(settings));
+        this(settings, new AwsEc2ServiceImpl());
     }
 
     protected Ec2DiscoveryPlugin(Settings settings, AwsEc2ServiceImpl ec2Service) {
@@ -91,7 +91,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
     @Override
     public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         logger.debug("Register _ec2_, _ec2:xxx_ network names");
-        return new Ec2NameResolver(settings);
+        return new Ec2NameResolver();
     }
 
     @Override

@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
@@ -39,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -64,8 +64,10 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         private int maxOperationCount;
         private ShardId shardId;
         private String expectedHistoryUUID;
-        private TimeValue pollTimeout = TransportResumeFollowAction.DEFAULT_POLL_TIMEOUT;
-        private ByteSizeValue maxBatchSize = TransportResumeFollowAction.DEFAULT_MAX_BATCH_SIZE;
+        private TimeValue pollTimeout = TransportResumeFollowAction.DEFAULT_READ_POLL_TIMEOUT;
+        private ByteSizeValue maxBatchSize = TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE;
+
+        private long relativeStartNanos;
 
         public Request(ShardId shardId, String expectedHistoryUUID) {
             super(shardId.getIndexName());
@@ -142,6 +144,9 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             expectedHistoryUUID = in.readString();
             pollTimeout = in.readTimeValue();
             maxBatchSize = new ByteSizeValue(in);
+
+            // Starting the clock in order to know how much time is spent on fetching operations:
+            relativeStartNanos = System.nanoTime();
         }
 
         @Override
@@ -220,6 +225,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return operations;
         }
 
+        private long tookInMillis;
+
+        public long getTookInMillis() {
+            return tookInMillis;
+        }
+
         Response() {
         }
 
@@ -228,13 +239,15 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final long globalCheckpoint,
             final long maxSeqNo,
             final long maxSeqNoOfUpdatesOrDeletes,
-            final Translog.Operation[] operations) {
+            final Translog.Operation[] operations,
+            final long tookInMillis) {
 
             this.mappingVersion = mappingVersion;
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNo = maxSeqNo;
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
             this.operations = operations;
+            this.tookInMillis = tookInMillis;
         }
 
         @Override
@@ -245,6 +258,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             maxSeqNo = in.readZLong();
             maxSeqNoOfUpdatesOrDeletes = in.readZLong();
             operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
+            tookInMillis = in.readVLong();
         }
 
         @Override
@@ -255,6 +269,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
             out.writeArray(Translog.Operation::writeOperation, operations);
+            out.writeVLong(tookInMillis);
         }
 
         @Override
@@ -266,12 +281,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                     globalCheckpoint == that.globalCheckpoint &&
                     maxSeqNo == that.maxSeqNo &&
                     maxSeqNoOfUpdatesOrDeletes == that.maxSeqNoOfUpdatesOrDeletes &&
-                    Arrays.equals(operations, that.operations);
+                    Arrays.equals(operations, that.operations) &&
+                    tookInMillis == that.tookInMillis;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(mappingVersion, globalCheckpoint, maxSeqNo, maxSeqNoOfUpdatesOrDeletes, Arrays.hashCode(operations));
+            return Objects.hash(mappingVersion, globalCheckpoint, maxSeqNo, maxSeqNoOfUpdatesOrDeletes,
+                Arrays.hashCode(operations), tookInMillis);
         }
     }
 
@@ -280,15 +297,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         private final IndicesService indicesService;
 
         @Inject
-        public TransportAction(Settings settings,
-                               ThreadPool threadPool,
+        public TransportAction(ThreadPool threadPool,
                                ClusterService clusterService,
                                TransportService transportService,
                                ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver,
                                IndicesService indicesService) {
-            super(settings, NAME, threadPool, clusterService, transportService, actionFilters,
-                    indexNameExpressionResolver, Request::new, ThreadPool.Names.SEARCH);
+            super(NAME, threadPool, clusterService, transportService, actionFilters,
+                indexNameExpressionResolver, Request::new, ThreadPool.Names.SEARCH);
             this.indicesService = indicesService;
         }
 
@@ -308,7 +324,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                     request.getMaxBatchSize());
             // must capture after after snapshotting operations to ensure this MUS is at least the highest MUS of any of these operations.
             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
-            return getResponse(mappingVersion, seqNoStats, maxSeqNoOfUpdatesOrDeletes, operations);
+            return getResponse(mappingVersion, seqNoStats, maxSeqNoOfUpdatesOrDeletes, operations, request.relativeStartNanos);
         }
 
         @Override
@@ -373,7 +389,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                             clusterService.state().metaData().index(shardId.getIndex()).getMappingVersion();
                     final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
                     final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
-                    listener.onResponse(getResponse(mappingVersion, latestSeqNoStats, maxSeqNoOfUpdatesOrDeletes, EMPTY_OPERATIONS_ARRAY));
+                    listener.onResponse(getResponse(mappingVersion, latestSeqNoStats, maxSeqNoOfUpdatesOrDeletes, EMPTY_OPERATIONS_ARRAY,
+                        request.relativeStartNanos));
                 } catch (final Exception caught) {
                     caught.addSuppressed(e);
                     listener.onFailure(caught);
@@ -459,8 +476,11 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     }
 
     static Response getResponse(final long mappingVersion, final SeqNoStats seqNoStats,
-                                final long maxSeqNoOfUpdates, final Translog.Operation[] operations) {
-        return new Response(mappingVersion, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), maxSeqNoOfUpdates, operations);
+                                final long maxSeqNoOfUpdates, final Translog.Operation[] operations, long relativeStartNanos) {
+        long tookInNanos = System.nanoTime() - relativeStartNanos;
+        long tookInMillis = TimeUnit.NANOSECONDS.toMillis(tookInNanos);
+        return new Response(mappingVersion, seqNoStats.getGlobalCheckpoint(), seqNoStats.getMaxSeqNo(), maxSeqNoOfUpdates,
+            operations, tookInMillis);
     }
 
 }

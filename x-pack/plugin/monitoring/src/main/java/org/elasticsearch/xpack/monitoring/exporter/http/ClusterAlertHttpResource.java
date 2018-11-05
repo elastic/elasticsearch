@@ -11,12 +11,12 @@ import java.util.Map;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil.LAST
  */
 public class ClusterAlertHttpResource extends PublishableHttpResource {
 
-    private static final Logger logger = Loggers.getLogger(ClusterAlertHttpResource.class);
+    private static final Logger logger = LogManager.getLogger(ClusterAlertHttpResource.class);
 
     /**
      * Use this to retrieve the version of Cluster Alert in the Watch's JSON response from a request.

@@ -245,7 +245,7 @@ public class TransportRolloverActionTests extends ESTestCase {
 
     public void testGenerateRolloverIndexName() {
         String invalidIndexName = randomAlphaOfLength(10) + "A";
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
         expectThrows(IllegalArgumentException.class, () ->
             TransportRolloverAction.generateRolloverIndexName(invalidIndexName, indexNameExpressionResolver));
         int num = randomIntBetween(0, 100);

@@ -21,12 +21,12 @@ package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,7 +37,7 @@ import java.util.Map;
 
 public class AzureBlobContainer extends AbstractBlobContainer {
 
-    private final Logger logger = Loggers.getLogger(AzureBlobContainer.class);
+    private final Logger logger = LogManager.getLogger(AzureBlobContainer.class);
     private final AzureBlobStore blobStore;
 
     private final String keyPath;

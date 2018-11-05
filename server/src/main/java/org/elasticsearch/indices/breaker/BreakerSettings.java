@@ -25,22 +25,24 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 /**
  * Settings for a {@link CircuitBreaker}
  */
-public class BreakerSettings {
+public final class BreakerSettings {
 
     private final String name;
     private final long limitBytes;
     private final double overhead;
     private final CircuitBreaker.Type type;
+    private final CircuitBreaker.Durability durability;
 
     public BreakerSettings(String name, long limitBytes, double overhead) {
-        this(name, limitBytes, overhead, CircuitBreaker.Type.MEMORY);
+        this(name, limitBytes, overhead, CircuitBreaker.Type.MEMORY, CircuitBreaker.Durability.PERMANENT);
     }
 
-    public BreakerSettings(String name, long limitBytes, double overhead, CircuitBreaker.Type type) {
+    public BreakerSettings(String name, long limitBytes, double overhead, CircuitBreaker.Type type, CircuitBreaker.Durability durability) {
         this.name = name;
         this.limitBytes = limitBytes;
         this.overhead = overhead;
         this.type = type;
+        this.durability = durability;
     }
 
     public String getName() {
@@ -59,10 +61,15 @@ public class BreakerSettings {
         return this.type;
     }
 
+    public CircuitBreaker.Durability getDurability() {
+        return durability;
+    }
+
     @Override
     public String toString() {
         return "[" + this.name +
                 ",type=" + this.type.toString() +
+                ",durability=" + this.durability.toString() +
                 ",limit=" + this.limitBytes + "/" + new ByteSizeValue(this.limitBytes) +
                 ",overhead=" + this.overhead + "]";
     }

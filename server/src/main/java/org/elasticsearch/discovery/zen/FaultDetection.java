@@ -66,7 +66,6 @@ public abstract class FaultDetection extends AbstractComponent implements Closea
     protected final int pingRetryCount;
 
     public FaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
-        super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = clusterName;

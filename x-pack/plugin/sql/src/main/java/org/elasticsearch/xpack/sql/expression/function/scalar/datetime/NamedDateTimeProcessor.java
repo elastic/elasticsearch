@@ -16,36 +16,35 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.TimeZone;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class NamedDateTimeProcessor extends BaseDateTimeProcessor {
     
     public enum NameExtractor {
         // for the moment we'll use no specific Locale, but we might consider introducing a Locale parameter, just like the timeZone one
-        DAY_NAME((Long millis, String tzId) -> {
-            ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
-            return time.format(DateTimeFormatter.ofPattern(DAY_NAME_FORMAT, Locale.ROOT));
-        }),
-        MONTH_NAME((Long millis, String tzId) -> {
-            ZonedDateTime time = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId));
-            return time.format(DateTimeFormatter.ofPattern(MONTH_NAME_FORMAT, Locale.ROOT));
-        });
+        DAY_NAME(time -> time.format(DAY_NAME_FORMATTER)),
+        MONTH_NAME(time -> time.format(MONTH_NAME_FORMATTER));
 
-        private final BiFunction<Long,String,String> apply;
-        
-        NameExtractor(BiFunction<Long,String,String> apply) {
+        private final Function<ZonedDateTime, String> apply;
+
+        NameExtractor(Function<ZonedDateTime, String> apply) {
             this.apply = apply;
         }
 
         public final String extract(Long millis, String tzId) {
-            return apply.apply(millis, tzId);
+            return extract(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(tzId)), tzId);
+        }
+
+        public final String extract(ZonedDateTime millis, String tzId) {
+            return apply.apply(millis.withZoneSameInstant(ZoneId.of(tzId)));
         }
     }
     
     public static final String NAME = "ndt";
-    private static final String MONTH_NAME_FORMAT = "MMMM";
-    private static final String DAY_NAME_FORMAT = "EEEE";
-    
+    private static final DateTimeFormatter DAY_NAME_FORMATTER = DateTimeFormatter.ofPattern("EEEE", Locale.ROOT);
+    private static final DateTimeFormatter MONTH_NAME_FORMATTER = DateTimeFormatter.ofPattern("MMMM", Locale.ROOT);
+
+
     private final NameExtractor extractor;
 
     public NamedDateTimeProcessor(NameExtractor extractor, TimeZone timeZone) {

@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -2368,7 +2367,7 @@ public class InternalEngineTests extends EngineTestCase {
         MockAppender mockAppender = new MockAppender("testIndexWriterIFDInfoStream");
         mockAppender.start();
 
-        final Logger iwIFDLogger = Loggers.getLogger("org.elasticsearch.index.engine.Engine.IFD");
+        final Logger iwIFDLogger = LogManager.getLogger("org.elasticsearch.index.engine.Engine.IFD");
 
         Loggers.addAppender(iwIFDLogger, mockAppender);
         Loggers.setLevel(iwIFDLogger, Level.DEBUG);
@@ -2978,6 +2977,7 @@ public class InternalEngineTests extends EngineTestCase {
         private void maybeThrowFailure() throws IOException {
             if (failureToThrow.get() != null) {
                 Exception failure = failureToThrow.get().get();
+                clearFailure(); // one shot
                 if (failure instanceof RuntimeException) {
                     throw (RuntimeException) failure;
                 } else if (failure instanceof IOException) {
@@ -5048,6 +5048,60 @@ public class InternalEngineTests extends EngineTestCase {
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(engine.getLocalCheckpoint()));
     }
 
+    public void testLuceneSnapshotRefreshesOnlyOnce() throws Exception {
+        final MapperService mapperService = createMapperService("test");
+        final long maxSeqNo = randomLongBetween(10, 50);
+        final AtomicLong refreshCounter = new AtomicLong();
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(config(defaultSettings, store, createTempDir(), newMergePolicy(),
+                 null,
+                 new ReferenceManager.RefreshListener() {
+                     @Override
+                     public void beforeRefresh() throws IOException {
+                         refreshCounter.incrementAndGet();
+                     }
+
+                     @Override
+                     public void afterRefresh(boolean didRefresh) throws IOException {
+
+                     }
+                 }, null, () -> SequenceNumbers.NO_OPS_PERFORMED))) {
+            for (long seqNo = 0; seqNo <= maxSeqNo; seqNo++) {
+                final ParsedDocument doc = testParsedDocument("id_" + seqNo, null, testDocumentWithTextField("test"),
+                    new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+                engine.index(replicaIndexForDoc(doc, 1, seqNo, randomBoolean()));
+            }
+
+            final long initialRefreshCount = refreshCounter.get();
+            final Thread[] snapshotThreads = new Thread[between(1, 3)];
+            CountDownLatch latch = new CountDownLatch(1);
+            for (int i = 0; i < snapshotThreads.length; i++) {
+                final long min = randomLongBetween(0, maxSeqNo - 5);
+                final long max = randomLongBetween(min, maxSeqNo);
+                snapshotThreads[i] = new Thread(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError(e);
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        latch.await();
+                        Translog.Snapshot changes = engine.newChangesSnapshot("test", mapperService, min, max, true);
+                        changes.close();
+                    }
+                });
+                snapshotThreads[i].start();
+            }
+            latch.countDown();
+            for (Thread thread : snapshotThreads) {
+                thread.join();
+            }
+            assertThat(refreshCounter.get(), equalTo(initialRefreshCount + 1L));
+            assertThat(engine.lastRefreshedCheckpoint(), equalTo(maxSeqNo));
+        }
+    }
+
     public void testAcquireSearcherOnClosingEngine() throws Exception {
         engine.close();
         expectThrows(AlreadyClosedException.class, () -> engine.acquireSearcher("test"));
@@ -5077,6 +5131,77 @@ public class InternalEngineTests extends EngineTestCase {
                 liveDocIds.remove(doc.id());
                 assertThat("delete operations on primary must advance max_seq_no_of_updates",
                     engine.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, result.getSeqNo())));
+            }
+        }
+    }
+
+    public void testRebuildLocalCheckpointTracker() throws Exception {
+        Settings.Builder settings = Settings.builder()
+            .put(defaultSettings.getSettings())
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        Path translogPath = createTempDir();
+        int numOps = scaledRandomIntBetween(1, 500);
+        List<Engine.Operation> operations = new ArrayList<>();
+        for (int i = 0; i < numOps; i++) {
+            long seqNo = i;
+            final ParsedDocument doc = EngineTestCase.createParsedDoc(Integer.toString(between(1, 100)), null);
+            if (randomBoolean()) {
+                operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
+                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), -1, true));
+            } else if (randomBoolean()) {
+                operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
+                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis()));
+            } else {
+                operations.add(new Engine.NoOp(seqNo, primaryTerm.get(), Engine.Operation.Origin.REPLICA,
+                    threadPool.relativeTimeInMillis(), "test-" + i));
+            }
+        }
+        Randomness.shuffle(operations);
+        List<List<Engine.Operation>> commits = new ArrayList<>();
+        commits.add(new ArrayList<>());
+        try (Store store = createStore()) {
+            EngineConfig config = config(indexSettings, store, translogPath, newMergePolicy(), null, null, globalCheckpoint::get);
+            try (InternalEngine engine = createEngine(config)) {
+                List<Engine.Operation> flushedOperations = new ArrayList<>();
+                for (Engine.Operation op : operations) {
+                    flushedOperations.add(op);
+                    if (op instanceof Engine.Index) {
+                        engine.index((Engine.Index) op);
+                    } else if (op instanceof Engine.Delete) {
+                        engine.delete((Engine.Delete) op);
+                    } else {
+                        engine.noOp((Engine.NoOp) op);
+                    }
+                    if (randomInt(100) < 10) {
+                        engine.refresh("test");
+                    }
+                    if (randomInt(100) < 5) {
+                        engine.flush();
+                        commits.add(new ArrayList<>(flushedOperations));
+                        globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+                    }
+                }
+                globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+                engine.syncTranslog();
+            }
+            trimUnsafeCommits(config);
+            List<Engine.Operation> safeCommit = null;
+            for (int i = commits.size() - 1; i >= 0; i--) {
+                if (commits.get(i).stream().allMatch(op -> op.seqNo() <= globalCheckpoint.get())) {
+                    safeCommit = commits.get(i);
+                    break;
+                }
+            }
+            assertThat(safeCommit, notNullValue());
+            try (InternalEngine engine = new InternalEngine(config)) { // do not recover from translog
+                final LocalCheckpointTracker tracker = engine.getLocalCheckpointTracker();
+                for (Engine.Operation op : operations) {
+                    assertThat("seq_no=" + op.seqNo() + " max_seq_no=" + tracker.getMaxSeqNo() + " checkpoint=" + tracker.getCheckpoint(),
+                        tracker.contains(op.seqNo()), equalTo(safeCommit.contains(op)));
+                }
             }
         }
     }

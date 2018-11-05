@@ -40,6 +40,7 @@ import java.util.Map;
  * Acts as a registry of the various static methods used <b>internally</b> by the scalar functions
  * (to simplify the whitelist definition).
  */
+@SuppressWarnings("unused")
 public final class InternalSqlScriptUtils {
 
     private InternalSqlScriptUtils() {}
@@ -52,7 +53,7 @@ public final class InternalSqlScriptUtils {
     public static <T> Object docValue(Map<String, ScriptDocValues<T>> doc, String fieldName) {
         if (doc.containsKey(fieldName)) {
             ScriptDocValues<T> docValues = doc.get(fieldName);
-            if (docValues.size() > 0) {
+            if (!docValues.isEmpty()) {
                 return docValues.get(0);
             }
         }
@@ -81,6 +82,10 @@ public final class InternalSqlScriptUtils {
     //
     public static Boolean eq(Object left, Object right) {
         return BinaryComparisonOperation.EQ.apply(left, right);
+    }
+
+    public static Boolean neq(Object left, Object right) {
+        return BinaryComparisonOperation.NEQ.apply(left, right);
     }
 
     public static Boolean lt(Object left, Object right) {

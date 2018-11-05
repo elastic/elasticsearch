@@ -30,6 +30,8 @@ import org.elasticsearch.action.support.single.instance.InstanceShardOperationRe
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -41,6 +43,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -55,6 +58,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(RestUpdateAction.class));
 
     private String type;
     private String id;
@@ -772,6 +778,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 }
             } else if ("_source".equals(currentFieldName)) {
                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
+            } else {
+                DEPRECATION_LOGGER.deprecated("Unknown field [{}] used in {} which has no value and will not be accepted in future",
+                    currentFieldName, UpdateRequest.class.getSimpleName());
             }
 
             // copyCurrentStructure / SomeObject.fromXContent moves current token to END_OBJECT

@@ -286,6 +286,9 @@ public class UpdateRequestTests extends ESTestCase {
                     new BytesArray("{\"any_odd_name_for_update\":{\"doc\":{\"message\":\"set by update:doc\"}},"
                         + "\"script\":{\"source\":\"ctx._source.message = 'set by script'\"}}")));
 
+        assertWarnings("Unknown field [any_odd_name_for_update] used in UpdateRequest"
+            + " which has no value and will not be accepted in future");
+
         assertThat(request.doc(), notNullValue());
         assertThat(request.script(), notNullValue());
 
@@ -300,6 +303,13 @@ public class UpdateRequestTests extends ESTestCase {
                 createParser(JsonXContent.jsonXContent,
                     new BytesArray("{\"whatever\": {\"script\":{\"source\":\"ctx._source.message = 'set by script'\"}},"
                         + "\"nested_update1\":{\"nested_update2\":{\"doc\":{\"message\":\"set by update:doc\"}}}}")));
+
+        assertWarnings("Unknown field [whatever] used in UpdateRequest"
+            + " which has no value and will not be accepted in future",
+            "Unknown field [nested_update1] used in UpdateRequest"
+                + " which has no value and will not be accepted in future",
+            "Unknown field [nested_update2] used in UpdateRequest"
+                + " which has no value and will not be accepted in future");
 
         assertThat(request.doc(), notNullValue());
         assertThat(request.script(), notNullValue());

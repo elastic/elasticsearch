@@ -47,3 +47,9 @@ NOTE: Audit events are batched for indexing so there is a lag before
 events appear in the index. You can control how frequently batches of
 events are pushed to the index by setting
 `xpack.security.audit.index.flush_interval` in `elasticsearch.yml`.
+The value should adhere to the `TimeValue` datatype, the default is 1s (1 second).
+
+[source,yaml]
+----------------------------
+xpack.security.audit.index.flush_interval: 4s #flush every 4 seconds
+----------------------------

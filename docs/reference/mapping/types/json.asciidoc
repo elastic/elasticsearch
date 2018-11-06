@@ -80,10 +80,10 @@ POST bug_reports/_search
 
 Currently, `json` fields can be used with the following query types:
 
-- term family (`term`, `terms`, `terms_set`)
+- `term`, `terms`, and `terms_set`
 - `prefix`
 - `range`
-- match family (`match`, `match_phrase_prefix`, match_prefix`, `multi_match`)
+- `match` and `multi_match`
 - `query_string` and `simple_query_string`
 - `exists`
 

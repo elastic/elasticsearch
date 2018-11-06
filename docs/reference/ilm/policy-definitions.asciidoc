@@ -1,0 +1,293 @@
+[role="xpack"]
+[testenv="basic"]
+[[index-lifecycle-management]]
+= Policy Phases and Actions
+
+There are four stages in the index lifecycle:
+
+* Hot--the index is actively being updated and queried.
+* Warm--the index is no longer being updated, but is still being queried.
+* Cold--the index is no longer being updated and is seldom queried. The
+information still needs to be searchable, but it's okay if those queries are
+slower.
+* Delete--the index is no longer needed and can safely be deleted.
+
+Each of these stages is called a "phase". A policy does not need to configure
+each phase for an index. For example, one index may only go from the hot phase to
+the delete phase, while another may run through all phases. Depending on which
+phase one is in, different actions are allowed to be taken.
+
+== Actions
+
+Before discussing which actions are allowed in which phase, it is important
+to understand all the actions as they are.
+
+[[ilm-allocate-action]]
+=== Allocate
+
+The Allocate action allows you to specify which nodes are allowed to host the
+shards of the index and set the number of replicas.
+Behind the scenes, it is modifying the index settings
+for shard filtering and/or replica counts. When updating number of replicas,
+configuring allocation rules is optional. When configuring allocation rules,
+setting number of replicas is optional. Although this action can be treated as
+two separate index settings updates, both can be configured at once.
+
+Read more about index replicas <<getting-started-shards-and-replicas,here>>.
+Read more about shard allocation filtering in
+the <<shard-allocation-filtering,Shard allocation filtering documentation>>.
+
+[[ilm-allocate-options]]
+.Allocate Options
+[options="header"]
+|======
+| Name                 | Required  | Default     | Description
+| `number_of_replicas` | no        | -           | The number of replicas to assign to the index
+| `include`            | no        | -           | assigns an index to nodes having at least _one_ of the values
+| `exclude`            | no        | -           | assigns an index to nodes having _none_ of the values
+| `require`            | no        | -           | assigns an index to nodes having _all_ of the values
+|======
+
+Although all configuration options are not required on their own. If `number_of_replicas` is not
+configured, then at least one of `include`, `exclude`, and `require` is required. An empty
+Allocate Action with no configuration is invalid.
+
+==== Example: Change number of replicas
+
+In this example, the index's number of replicas is changed to `2`, while allocation
+rules are unchanged.
+
+[source,js]
+--------------------------------------------------
+{
+  "allocate" : {
+    "number_of_replicas" : 2
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+==== Example: Assign index to node with specific "box_type" attribute
+
+This example assigns the index to nodes with `box_type` attribute of "hot" or "warm".
+
+[source,js]
+--------------------------------------------------
+{
+  "allocate" : {
+    "include" : {
+      "box_type": "hot,warm"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+==== Example: Assign index to a specific node and update replica settings
+
+This example updates the index to have one replica per shard and be allocated
+to nodes with a `box_type` attribute of "cold".
+
+[source,js]
+--------------------------------------------------
+{
+  "allocate" : {
+    "number_of_replicas": 1,
+    "require" : {
+      "box_type": "cold"
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+[[ilm-delete-action]]
+=== Delete
+
+The Delete Action does just that, it deletes the index.
+
+This action does not have any options associated with it.
+
+[source,js]
+--------------------------------------------------
+{
+  "delete" : { }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+[[ilm-forcemerge-action]]
+=== Force Merge
+
+WARNING: This will make the index read-only (see: <<dynamic-index-settings,index.blocks.write>>)
+
+The Force Merge Action <<indices-forcemerge,force merges>> the index into at most a specific number of <<index-modules-segments,segments>>.
+
+[[ilm-forcemerge-options]]
+.Force Merge Options
+[options="header"]
+|======
+| Name                 | Required  | Default             | Description
+| `max_num_segments`   | yes       | -                   | The number of segments to merge to. To fully merge the index, set it to `1`
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "forcemerge": {
+    "max_num_segments" : 1
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+[[ilm-readonly-action]]
+=== Read-Only
+
+This action will set the index to be read-only (see: <<dynamic-index-settings,index.blocks.write>>)
+
+This action does not have any options associated with it.
+
+[source,js]
+--------------------------------------------------
+{
+  "readonly" : { }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+[[ilm-rollover-action]]
+=== Rollover
+
+[WARNING]
+index format must match pattern '^.*-\\d+$', for example (`logs-000001`).
+[WARNING]
+The managed index must set `index.lifecycle.rollover_alias` as the
+alias to rollover. The index must be
+
+The Rollover Action rolls an alias over to a new index when the existing index
+is considered to be too large or too old.
+
+
+[[ilm-rollover-options]]
+.Rollover Options
+[options="header"]
+|======
+| Name       | Required  | Default             | Description
+| `max_size` | no        | -                   | max index storage size. See <<byte-units, Byte Units>> for formatting
+| `max_docs` | no        | -                   | max number of documents an index is to contain before rolling over.
+| `max_age`  | no        | -                   | max duration index exists. See <<time-units, Time Units>> for formatting
+|======
+
+At least one of `max_size`, `max_docs`, `max_age` or any combinations of the three
+are required to be specified.
+
+==== Example: Rollover when index is too large
+
+This example rolls the index over when it is at least 100 gigabytes.
+
+[source,js]
+--------------------------------------------------
+{
+  "rollover" : {
+    "max_size": "100GB"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+==== Example: Rollover when index has too many documents
+
+This example rolls the index over when it contains at least
+1000000 documents.
+
+[source,js]
+--------------------------------------------------
+{
+  "rollover" : {
+    "max_docs": 1000000
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+==== Example: Rollover when index is too old
+
+This example rolls the index over when it has been created at least
+7 days ago.
+
+[source,js]
+--------------------------------------------------
+{
+  "rollover" : {
+    "max_age": "7d"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+==== Example: Rollover when index is too old or too large
+
+This example rolls the index over when it has been created at least
+7 days ago or it is at least 100 gigabytes. In this case, the index will be rolled
+over when at least one of these two conditions is met.
+
+[source,js]
+--------------------------------------------------
+{
+  "rollover" : {
+    "max_age": "7d",
+    "max_size": "100GB"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+[[ilm-shrink-action]]
+=== Shrink
+
+WARNING: This will make the index read-only (see: <<dynamic-index-settings,index.blocks.write>>)
+
+This action shrinks an existing index into a new index with fewer primary shards. It
+calls the <<indices-shrink-index,Shrink API>> to shrink the index. Since allocating
+all the primary shards of the index to one node is a prerequisite, this action will
+first allocate the primary shards to a valid node. After shrinking, it will swap aliases
+pointing to the original index into the new shrunken index. The new index will also
+have a new name: "shrink-<origin-index-name>". So if the original index was called "logs",
+then the new index will be named "shrink-logs".
+
+[[ilm-shrink-options]]
+.Shrink Options
+[options="header"]
+|======
+| Name               | Required  | Default             | Description
+| `number_of_shards` | yes       | -                   | The number of shards to shrink to. must be a factor of the number of shards in the source index.
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "shrink" : {
+    "number_of_shards": 1
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+== Phase Definitions
+
+Here are the phases and which actions can be defined within them.
+
+* Hot
+  - <<ilm-rollover-action,Rollover>>
+* Warm
+  - <<ilm-allocate-action,Allocate>>
+  - <<ilm-readonly-action,Read-Only>>
+  - <<ilm-forcemerge-action,Force Merge>>
+  - <<ilm-shrink-action,Shrink>>
+* Cold
+  - <<ilm-allocate-action,Allocate>>
+* Delete
+  - <<ilm-delete-action,Delete>>

@@ -154,9 +154,6 @@ public class FrozenEngineTests extends EngineTestCase {
         int numDocs = scaledRandomIntBetween(10, 1000);
         int numDocsAdded = 0;
         for (int i = 0; i < numDocs; i++) {
-            if (rarely()) {
-                continue; // gap in sequence number
-            }
             numDocsAdded++;
             ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
             engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,

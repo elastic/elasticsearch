@@ -54,12 +54,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @Override
-    protected DirectoryReader open(Directory directory) throws IOException {
-        // we fake an empty directly reader for the ReadOnlyEngine. this reader is only used
+    protected DirectoryReader open(IndexCommit indexCommit) throws IOException {
+        // we fake an empty DirectoryReader for the ReadOnlyEngine. this reader is only used
         // to initialize the reference manager and to make the refresh call happy which is essentially
         // a no-op now
-        IndexCommit indexCommit = Lucene.getIndexCommit(getLastCommittedSegmentInfos(), directory);
-        return new DirectoryReader(directory, new LeafReader[0]) {
+        return new DirectoryReader(indexCommit.getDirectory(), new LeafReader[0]) {
             @Override
             protected DirectoryReader doOpenIfChanged() {
                 return null;
@@ -103,6 +102,12 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
     @SuppressForbidden(reason = "we manage references explicitly here")
     private synchronized void onReaderClosed(IndexReader.CacheKey key) {
+        // it might look awkward that we have to check here if the keys match but if we concurrently
+        // access the lastOpenedReader there might be 2 threads competing for the cached reference in
+        // a way that thread 1 counts down the lastOpenedReader reference and before thread 1 can execute
+        // the close listener we already open and assign a new reader to lastOpenedReader. In this case
+        // the cache key doesn't match and we just ignore it since we use this method only to null out the
+        // lastOpenedReader member to ensure resources can be GCed
         if (lastOpenedReader != null && key == lastOpenedReader.getReaderCacheHelper().getKey()) {
             assert lastOpenedReader.getRefCount() == 0;
             lastOpenedReader = null;
@@ -110,19 +115,32 @@ public final class FrozenEngine extends ReadOnlyEngine {
     }
 
     @SuppressForbidden(reason = "we manage references explicitly here")
-    private synchronized DirectoryReader getOrOpenReader(boolean doOpen) throws IOException {
+    private synchronized DirectoryReader getOrOpenReader() throws IOException {
         DirectoryReader reader = null;
         boolean success = false;
         try {
-            if (lastOpenedReader == null || lastOpenedReader.tryIncRef() == false) {
-                if (doOpen) {
-                    reader = DirectoryReader.open(engineConfig.getStore().directory());
-                    searcherFactory.processReaders(reader, null);
-                    openedReaders.inc();
-                    reader = lastOpenedReader = wrapReader(reader, Function.identity());
-                    reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
-                }
-            } else {
+            reader = getReader();
+            if (reader == null) {
+                reader = DirectoryReader.open(engineConfig.getStore().directory());
+                searcherFactory.processReaders(reader, null);
+                openedReaders.inc();
+                reader = lastOpenedReader = wrapReader(reader, Function.identity());
+                reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
+            }
+            success = true;
+            return reader;
+        } finally {
+            if (success == false) {
+                IOUtils.close(reader);
+            }
+        }
+    }
+
+    private synchronized DirectoryReader getReader() throws IOException {
+        DirectoryReader reader = null;
+        boolean success = false;
+        try {
+            if (lastOpenedReader != null && lastOpenedReader.tryIncRef()) {
                 reader = lastOpenedReader;
             }
             success = true;
@@ -141,7 +159,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
         store.incRef();
         boolean success = false;
         try  {
-            final boolean openReader;
+            final boolean maybeOpenReader;
             switch (source) {
                 case "load_seq_no":
                 case "load_version":
@@ -152,18 +170,20 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 case "segments_stats":
                 case "completion_stats":
                 case "refresh_needed":
-                    openReader = false;
+                    maybeOpenReader = false;
                     break;
                 default:
-                    openReader = true;
+                    maybeOpenReader = true;
             }
             // special case we only want to report segment stats if we have a reader open. in that case we only get a reader if we still
             // have one open at the time and can inc it's reference.
-            DirectoryReader reader = getOrOpenReader(openReader);
+            DirectoryReader reader = maybeOpenReader ? getOrOpenReader() : getReader();
             if (reader == null) {
                 store.decRef();
                 success = true;
-                // we just hand out an empty searcher in this case
+                // we just hand out a searcher on top of an empty reader that we opened for the ReadOnlyEngine in the #open(IndexCommit)
+                // method. this is the case when we don't have a reader open right now and we get a stats call any other that falls in
+                // the category that doesn't trigger a reopen
                 return super.acquireSearcher(source, scope);
             } else {
                 try {
@@ -201,7 +221,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
      * This class allows us to use the same high level reader across multiple search phases but replace the underpinnings
      * on/after each search phase. This is really important otherwise we would hold on to multiple readers across phases.
      *
-     * This reader and its leave reader counterpart overrides FilterDirectory/LeafReader for convenience to be unwrapped but still
+     * This reader and its leaf reader counterpart overrides FilterDirectory/LeafReader for convenience to be unwrapped but still
      * overrides all it's delegate methods. We have tests to ensure we never miss an override but we need to in order to make sure
      * the wrapper leaf readers don't register themself as close listeners on the wrapped ones otherwise we fail plugging in new readers
      * on the next search phase.
@@ -228,6 +248,10 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 delegate.decRef();
                 delegate = null;
                 if (tryIncRef()) { // only do this if we are not closed already
+                    // we end up in this case when we are not closed but in an intermediate
+                    // state were we want to release all or the real leaf readers ie. in between search phases
+                    // but still want to keep this Lazy reference open. In oder to let the heavy real leaf
+                    // readers to be GCed we need to null our the references.
                     try {
                         for (LeafReaderContext leaf : leaves()) {
                             LazyLeafReader reader = (LazyLeafReader) leaf.reader();
@@ -241,12 +265,21 @@ public final class FrozenEngine extends ReadOnlyEngine {
         }
 
         void reset() throws IOException {
-            reset(engine.getOrOpenReader(true));
+            boolean success = false;
+            DirectoryReader reader = engine.getOrOpenReader();
+            try {
+                reset(reader);
+                success = true;
+            } finally {
+                if (success == false) {
+                    IOUtils.close(reader);
+                }
+            }
         }
 
         private synchronized void reset(DirectoryReader delegate) {
             if (this.delegate != null) {
-                throw new IllegalStateException("lazy reader is not released");
+                throw new AssertionError("lazy reader is not released");
             }
             assert (delegate instanceof LazyDirectoryReader) == false : "must not be a LazyDirectoryReader";
             List<LeafReaderContext> leaves = delegate.leaves();

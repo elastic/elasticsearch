@@ -98,10 +98,10 @@ public class ReadOnlyEngine extends Engine {
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 this.seqNoStats = seqNoStats == null ? buildSeqNoStats(lastCommittedSegmentInfos) : seqNoStats;
-                reader = open(directory);
+                this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
+                reader = open(indexCommit);
                 reader = wrapReader(reader, readerWrapperFunction);
                 searcherManager = new SearcherManager(reader, searcherFactory);
-                this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
                 this.docsStats = docsStats(lastCommittedSegmentInfos);
                 this.indexWriterLock = indexWriterLock;
                 success = true;
@@ -124,8 +124,8 @@ public class ReadOnlyEngine extends Engine {
         return readerWrapperFunction.apply(reader);
     }
 
-    protected DirectoryReader open(final Directory directory) throws IOException {
-        return DirectoryReader.open(directory);
+    protected DirectoryReader open(IndexCommit commit) throws IOException {
+        return DirectoryReader.open(commit);
     }
 
     private DocsStats docsStats(final SegmentInfos lastCommittedSegmentInfos) {

@@ -414,7 +414,6 @@ public class MetaDataStateFormatTests extends ESTestCase {
     }
 
     private static MetaDataStateFormat<MetaData> metaDataFormat() {
-        //TODO re-write tests not to use meta data format
         return new MetaDataStateFormat<MetaData>(MetaData.GLOBAL_STATE_FILE_PREFIX) {
             @Override
             public void toXContent(XContentBuilder builder, MetaData state) throws IOException {

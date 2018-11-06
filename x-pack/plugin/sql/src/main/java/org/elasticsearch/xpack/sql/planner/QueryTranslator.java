@@ -150,10 +150,6 @@ final class QueryTranslator {
     }
 
     static QueryTranslation toQuery(Expression e, boolean onAggs) {
-        if (Literal.NULL.equals(e)) {
-            return null;
-        }
-
         QueryTranslation translation = null;
         for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
             translation = translator.translate(e, onAggs);
@@ -279,8 +275,11 @@ final class QueryTranslator {
 
     static QueryTranslation and(Location loc, QueryTranslation left, QueryTranslation right) {
         Check.isTrue(left != null || right != null, "Both expressions are null");
-        if (left == null || right == null) {
-            return new QueryTranslation(null, null);
+        if (left == null) {
+            return right;
+        }
+        if (right == null) {
+            return left;
         }
 
         Query newQ = null;

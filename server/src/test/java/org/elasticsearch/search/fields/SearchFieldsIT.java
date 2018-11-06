@@ -1180,4 +1180,47 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(fields.get("_routing").isMetadataField(), equalTo(true));
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
     }
+
+    public void testStoredJsonField() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("_doc")
+                    .startObject("properties")
+                        .startObject("json_field")
+                            .field("type", "json")
+                            .field("store", true)
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        assertAcked(prepareCreate("test").addMapping("_doc", mapping));
+        ensureGreen("test");
+
+        XContentBuilder source = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("json_field")
+                    .field("key", "value")
+                .endObject()
+            .endObject();
+        index("test", "_doc", "1", source);
+        refresh("test");
+
+        SearchResponse response = client().prepareSearch("test")
+            .addStoredField("json_field")
+            .get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
+
+        Map<String, DocumentField> fields = response.getHits().getAt(0).getFields();
+        DocumentField field = fields.get("json_field");
+        assertEquals("json_field", field.getName());
+
+        // We make sure to pretty-print here, since the field is always stored in pretty-printed format.
+        BytesReference storedValue = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .prettyPrint()
+            .startObject()
+                .field("key", "value")
+            .endObject());
+        assertEquals(storedValue.utf8ToString(), field.getValue());
+    }
 }

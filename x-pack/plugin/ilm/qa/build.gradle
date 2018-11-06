@@ -16,16 +16,5 @@ subprojects {
     }
 }
 
-/* Remove assemble on all qa projects because we don't need to publish
- * artifacts for them. */
-gradle.projectsEvaluated {
-    subprojects {
-        Task assemble = project.tasks.findByName('assemble')
-        if (assemble) {
-            assemble.enabled = false
-        }
-    }
-}
-
 // the qa modules does not have any source files
 licenseHeaders.enabled = false

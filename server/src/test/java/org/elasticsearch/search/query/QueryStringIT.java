@@ -57,7 +57,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
     @BeforeClass
     public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(500, 1500);
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(50, 100);
     }
 
     @Before

@@ -54,7 +54,6 @@ public final class TransportPutFollowAction
 
     @Inject
     public TransportPutFollowAction(
-            final Settings settings,
             final ThreadPool threadPool,
             final TransportService transportService,
             final ClusterService clusterService,
@@ -64,7 +63,6 @@ public final class TransportPutFollowAction
             final AllocationService allocationService,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(
-                settings,
                 PutFollowAction.NAME,
                 transportService,
                 clusterService,

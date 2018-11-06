@@ -44,7 +44,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -510,9 +509,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             TestTasksRequest, TestTasksResponse, TestTaskResponse> {
 
         @Inject
-        public TransportTestTaskAction(Settings settings, ClusterService clusterService,
-                                       TransportService transportService, ActionFilters actionFilters) {
-            super(settings, TestTaskAction.NAME, clusterService, transportService, actionFilters,
+        public TransportTestTaskAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+            super(TestTaskAction.NAME, clusterService, transportService, actionFilters,
                 TestTasksRequest::new, TestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 

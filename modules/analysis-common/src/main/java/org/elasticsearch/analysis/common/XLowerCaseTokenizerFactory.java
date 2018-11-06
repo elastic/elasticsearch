@@ -20,26 +20,21 @@
 package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.LowerCaseTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 
-public class LowerCaseTokenizerFactory extends AbstractTokenizerFactory implements MultiTermAwareComponent {
+@Deprecated
+// NORELEASE we should prevent the usage on indices created after 7.0 in order to be able to remove in 8
+public class XLowerCaseTokenizerFactory extends AbstractTokenizerFactory {
 
-    LowerCaseTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    public XLowerCaseTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, settings);
     }
 
     @Override
     public Tokenizer create() {
-        return new LowerCaseTokenizer();
-    }
-
-    @Override
-    public Object getMultiTermComponent() {
-        return this;
+        return new XLowerCaseTokenizer();
     }
 }

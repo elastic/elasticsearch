@@ -72,7 +72,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE;
 import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -593,8 +592,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             MetaData.Builder metaDataBuilder = MetaData.builder();
             // automatically generate a UID for the metadata if we need to
             metaDataBuilder.generateClusterUuidIfNeeded(); // TODO generate UUID in bootstrapping tool?
-            metaDataBuilder.persistentSettings(Settings.builder().put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(),
-                (votingConfiguration.getNodeIds().size() - 1) / 2).build()); // TODO set this in bootstrapping tool?
             builder.metaData(metaDataBuilder);
             coordinationState.get().setInitialState(builder.build());
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version

@@ -67,7 +67,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -554,7 +553,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         MetaData metaData = client().admin().cluster().prepareState().execute().actionGet().getState().getMetaData();
 
                         final Set<String> persistentKeys = new HashSet<>(metaData.persistentSettings().keySet());
-                        persistentKeys.remove(Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey());
                         assertThat("test leaves persistent cluster metadata behind", persistentKeys, empty());
 
                         final Set<String> transientKeys = new HashSet<>(metaData.transientSettings().keySet());

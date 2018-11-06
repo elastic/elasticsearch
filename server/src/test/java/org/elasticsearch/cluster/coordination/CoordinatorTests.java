@@ -85,7 +85,7 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
-import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_MASTER_NODES_FAILURE_TOLERANCE;
+import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
@@ -141,14 +141,12 @@ public class CoordinatorTests extends ESTestCase {
         assertEquals(currentTerm, newTerm);
     }
 
-    public void testExpandsConfigurationWhenGrowingFromOneToThreeNodesAndShrinksOnFailure() {
+    public void testExpandsConfigurationWhenGrowingFromOneNodeToThreeButDoesNotShrink() {
         final Cluster cluster = new Cluster(1);
         cluster.runRandomly();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
-
-        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(0));
 
         cluster.addNodesAndStabilise(2);
 
@@ -167,22 +165,22 @@ public class CoordinatorTests extends ESTestCase {
         {
             final ClusterNode newLeader = cluster.getAnyLeader();
             final VotingConfiguration lastCommittedConfiguration = newLeader.getLastAppliedClusterState().getLastCommittedConfiguration();
-            assertThat(lastCommittedConfiguration + " should be 1 node", lastCommittedConfiguration.getNodeIds().size(), equalTo(1));
-            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect1.getId()));
+            assertThat(lastCommittedConfiguration + " should be all nodes", lastCommittedConfiguration.getNodeIds(),
+                equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
         }
     }
 
-    public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksOnFailure() {
+    public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksBackToThreeOnFailure() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
         cluster.stabilise();
 
         final ClusterNode leader = cluster.getAnyLeader();
 
-        logger.info("setting fault tolerance to 1");
-        leader.submitSetMasterNodesFailureTolerance(1);
+        logger.info("setting auto-shrink reconfiguration to true");
+        leader.submitSetAutoShrinkVotingConfiguration(true);
         cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(1));
+        assertTrue(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metaData().settings()));
 
         cluster.addNodesAndStabilise(2);
 
@@ -259,10 +257,10 @@ public class CoordinatorTests extends ESTestCase {
 
         {
             final ClusterNode leader = cluster.getAnyLeader();
-            logger.info("setting fault tolerance to 2");
-            leader.submitSetMasterNodesFailureTolerance(2);
+            logger.info("setting auto-shrink reconfiguration to false");
+            leader.submitSetAutoShrinkVotingConfiguration(false);
             cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-            assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(2));
+            assertFalse(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metaData().settings()));
         }
 
         final ClusterNode disconnect1 = cluster.getAnyNode();
@@ -281,9 +279,10 @@ public class CoordinatorTests extends ESTestCase {
                 equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
         }
 
-        leader.submitSetMasterNodesFailureTolerance(1);
+        logger.info("setting auto-shrink reconfiguration to true");
+        leader.submitSetAutoShrinkVotingConfiguration(true);
         cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY * 2); // allow for a reconfiguration
-        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(1));
+        assertTrue(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(leader.getLastAppliedClusterState().metaData().settings()));
 
         {
             final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
@@ -293,51 +292,10 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    public void testCanShrinkFromThreeNodesToTwo() {
+    public void testDoesNotShrinkConfigurationBelowThreeNodes() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
         cluster.stabilise();
-
-        {
-            final ClusterNode leader = cluster.getAnyLeader();
-            logger.info("setting fault tolerance to 1");
-            leader.submitSetMasterNodesFailureTolerance(1);
-            cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
-            assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(1));
-        }
-
-        final ClusterNode disconnect1 = cluster.getAnyNode();
-
-        logger.info("--> disconnecting {}", disconnect1);
-        disconnect1.disconnect();
-        cluster.stabilise();
-
-        final ClusterNode leader = cluster.getAnyLeader();
-
-        {
-            final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
-            assertThat(lastCommittedConfiguration + " should be all nodes", lastCommittedConfiguration.getNodeIds(),
-                equalTo(cluster.clusterNodes.stream().map(ClusterNode::getId).collect(Collectors.toSet())));
-        }
-
-        leader.submitSetMasterNodesFailureTolerance(0);
-        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY * 2); // allow for a reconfiguration
-        assertThat(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.get(leader.getLastAppliedClusterState().metaData().settings()), equalTo(0));
-
-        {
-            final VotingConfiguration lastCommittedConfiguration = leader.getLastAppliedClusterState().getLastCommittedConfiguration();
-            assertThat(lastCommittedConfiguration + " should be 1 node", lastCommittedConfiguration.getNodeIds().size(), equalTo(1));
-            assertFalse(lastCommittedConfiguration.getNodeIds().contains(disconnect1.getId()));
-        }
-    }
-
-    public void testDoesNotShrinkConfigurationDueToLossToleranceConfigurationWithThreeNodes() {
-        final Cluster cluster = new Cluster(3);
-        cluster.runRandomly();
-        cluster.stabilise();
-
-        cluster.getAnyLeader().submitSetMasterNodesFailureTolerance(1);
-        cluster.stabilise(DEFAULT_ELECTION_DELAY);
 
         final ClusterNode disconnect1 = cluster.getAnyNode();
 
@@ -358,12 +316,12 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise(); // would not work if disconnect1 were removed from the configuration
     }
 
-    public void testDoesNotShrinkConfigurationDueToLossToleranceConfigurationWithFiveNodes() {
+    public void testDoesNotShrinkConfigurationBelowFiveNodesIfAutoShrinkDisabled() {
         final Cluster cluster = new Cluster(5);
         cluster.runRandomly();
         cluster.stabilise();
 
-        cluster.getAnyLeader().submitSetMasterNodesFailureTolerance(2);
+        cluster.getAnyLeader().submitSetAutoShrinkVotingConfiguration(false);
         cluster.stabilise(DEFAULT_ELECTION_DELAY);
 
         final ClusterNode disconnect1 = cluster.getAnyNode();
@@ -911,12 +869,12 @@ public class CoordinatorTests extends ESTestCase {
                         }).run();
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNodePreferringLeaders();
-                        final int masterNodeFailureTolerance = randomIntBetween(0, 2);
+                        final boolean autoShrinkVotingConfiguration = randomBoolean();
                         onNode(clusterNode.getLocalNode(),
                             () -> {
-                                logger.debug("----> [runRandomly {}] setting master-node fault tolerance to {} on {}",
-                                    thisStep, masterNodeFailureTolerance, clusterNode.getId());
-                                clusterNode.submitSetMasterNodesFailureTolerance(masterNodeFailureTolerance);
+                                logger.debug("----> [runRandomly {}] setting auto-shrink configuration to {} on {}",
+                                    thisStep, autoShrinkVotingConfiguration, clusterNode.getId());
+                                clusterNode.submitSetAutoShrinkVotingConfiguration(autoShrinkVotingConfiguration);
                             }).run();
                     } else if (rarely()) {
                         final ClusterNode clusterNode = getAnyNode();
@@ -1286,7 +1244,7 @@ public class CoordinatorTests extends ESTestCase {
 
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterApplier = new FakeClusterApplier(settings, clusterSettings);
-                masterService = new AckedFakeThreadPoolMasterService("test_node","test",
+                masterService = new AckedFakeThreadPoolMasterService("test_node", "test",
                     runnable -> deterministicTaskQueue.scheduleNow(onNode(localNode, runnable)));
                 transportService = mockTransport.createTransportService(
                     settings, deterministicTaskQueue.getThreadPool(runnable -> onNode(localNode, runnable)), NOOP_TRANSPORT_INTERCEPTOR,
@@ -1333,18 +1291,16 @@ public class CoordinatorTests extends ESTestCase {
                 return clusterStateApplyResponse;
             }
 
-            void submitSetMasterNodesFailureTolerance(final int masterNodesFaultTolerance) {
-                submitUpdateTask("set master nodes failure tolerance [" + masterNodesFaultTolerance + "]", cs ->
-                    cs.getLastAcceptedConfiguration().getNodeIds().size() < 2 * masterNodesFaultTolerance + 1 ? cs :
-                        // TODO this rejects invalid updates, but in fact this should be validated elsewhere. Where?
-                        ClusterState.builder(cs).metaData(
-                            MetaData.builder(cs.metaData())
-                                .persistentSettings(Settings.builder()
-                                    .put(cs.metaData().persistentSettings())
-                                    .put(CLUSTER_MASTER_NODES_FAILURE_TOLERANCE.getKey(), masterNodesFaultTolerance)
-                                    .build())
+            void submitSetAutoShrinkVotingConfiguration(final boolean autoShrinkVotingConfiguration) {
+                submitUpdateTask("set master nodes failure tolerance [" + autoShrinkVotingConfiguration + "]", cs ->
+                    ClusterState.builder(cs).metaData(
+                        MetaData.builder(cs.metaData())
+                            .persistentSettings(Settings.builder()
+                                .put(cs.metaData().persistentSettings())
+                                .put(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.getKey(), autoShrinkVotingConfiguration)
                                 .build())
-                            .build());
+                            .build())
+                        .build());
             }
 
             AckCollector submitValue(final long value) {

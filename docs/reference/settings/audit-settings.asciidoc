@@ -105,7 +105,6 @@ not print audit events for users whose roles match any of the specified
 names or wildcards. If the user has several roles, some of which are *not*
 covered by the policy, then the policy will *not* cover this event.
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.indices`::
-Binds with other settings with the same `<policy_name>` to form a policy.
 The value is a list of names or wildcards, and specifies that the policy will
 not print audit events when all the indices in the event match any of the specified
 names or wildcards. If the event concerns several indices, some of which are

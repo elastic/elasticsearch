@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
@@ -685,16 +686,51 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            if (filter.condition() instanceof Literal) {
-                if (TRUE.equals(filter.condition())) {
+            Expression condition = filter.condition().transformDown(FoldBinaryLogical.INSTANCE);
+
+            if (condition instanceof Literal) {
+                if (TRUE.equals(condition)) {
                     return filter.child();
                 }
-                if (FALSE.equals(filter.condition()) || Expressions.isNull(filter.condition())) {
+                if (FALSE.equals(condition) || Expressions.isNull(condition)) {
                     return new LocalRelation(filter.location(), new EmptyExecutable(filter.output()));
                 }
             }
 
+            if (!condition.equals(filter.condition())) {
+                return new Filter(filter.location(), filter.child(), condition);
+            }
             return filter;
+        }
+    }
+
+    static class FoldBinaryLogical implements java.util.function.Function<Expression, Expression> {
+
+        static FoldBinaryLogical INSTANCE = new FoldBinaryLogical();
+
+        @Override
+        public Expression apply(Expression expression) {
+            if (expression instanceof Or) {
+                Or or = (Or) expression;
+                boolean nullLeft = Expressions.isNull(or.left());
+                boolean nullRight = Expressions.isNull(or.right());
+                if (nullLeft && nullRight) {
+                    return Literal.NULL;
+                }
+                if (nullLeft) {
+                    return or.right();
+                }
+                if (nullRight) {
+                    return or.left();
+                }
+            }
+            if (expression instanceof And) {
+                And and = (And) expression;
+                if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
+                    return Literal.NULL;
+                }
+            }
+            return expression;
         }
     }
 
@@ -1134,40 +1170,22 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // similar for IsNull once it gets introduced
             } else if (e instanceof In) {
                 In in = (In) e;
-                if (Expressions.isNull(in.value())) {
+                if (canFoldToNullLiteral(in.value())) {
                     return Literal.of(in, null);
                 }
-            } else if (e instanceof Or) {
-                Or or = (Or) e;
-                boolean leftCanFold = canFoldToNullLiteral(or.left());
-                boolean rightCanFold = canFoldToNullLiteral(or.right());
-                if (leftCanFold && rightCanFold) {
-                    return Literal.of(e, null);
+            } else if (e instanceof BinaryLogic) {
+                BinaryLogic bl = (BinaryLogic) e;
+                // The expression can also be in the SELECT clause where we must keep the 3vl
+                if (canFoldToNullLiteral(bl.left()) && canFoldToNullLiteral(bl.right())) {
+                    return Literal.of(bl, null);
                 }
-                if (leftCanFold) {
-                    return or.right();
-                }
-                if (rightCanFold) {
-                    return or.left();
-                }
-            } else if (e instanceof And) {
-                And and = (And) e;
-                if (canFoldToNullLiteral(and.left()) || canFoldToNullLiteral(and.right())) {
-                    return Literal.of(e, null);
-                }
-            }
-
-            if (canFoldToNullLiteral(e)) {
+            } else if (canFoldToNullLiteral(e)) {
                 return Literal.of(e, null);
             }
-
             return e;
         }
 
         private static boolean canFoldToNullLiteral(Expression e) {
-            if (Expressions.isNull(e)) {
-                return true;
-            }
             return e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull);
         }
     }

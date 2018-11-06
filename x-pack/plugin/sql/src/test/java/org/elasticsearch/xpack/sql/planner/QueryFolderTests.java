@@ -65,8 +65,11 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(ee.output().get(0).toString(), startsWith("keyword{f}#"));
     }
 
+    public void testFoldingToLocalExecBooleanAndNull_WhereClause2() {
+        PhysicalPlan p = plan("SELECT true OR null");
+    }
     public void testFoldingToLocalExecBooleanAndNull_WhereClause() {
-        PhysicalPlan p = plan("SELECT keyword FROM test WHERE int > 10 AND null");
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE int > 10 AND null AND true");
         assertEquals(LocalExec.class, p.getClass());
         LocalExec le = (LocalExec) p;
         assertEquals(EmptyExecutable.class, le.executable().getClass());
@@ -87,7 +90,7 @@ public class QueryFolderTests extends ESTestCase {
     }
 
     public void testFoldingBooleanOrNull_WhereClause() {
-        PhysicalPlan p = plan("SELECT keyword FROM test WHERE int > 10 OR null");
+        PhysicalPlan p = plan("SELECT keyword FROM test WHERE int > 10 OR null OR false");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
         assertEquals("{\"range\":{\"int\":{\"from\":10,\"to\":null,\"include_lower\":false,\"include_upper\":false,\"boost\":1.0}}}",

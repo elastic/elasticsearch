@@ -65,8 +65,8 @@ processResources {
  *         Java version                                                      *
  *****************************************************************************/
 
-if (JavaVersion.current() < JavaVersion.VERSION_1_10) {
-  throw new GradleException('At least Java 10 is required to build elasticsearch gradle tools')
+if (JavaVersion.current() < JavaVersion.VERSION_11) {
+  throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
 // Gradle 4.10 does not support setting this to 11 yet
 targetCompatibility = "10"

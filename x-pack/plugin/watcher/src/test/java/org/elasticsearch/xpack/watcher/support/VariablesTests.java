@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.support;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;

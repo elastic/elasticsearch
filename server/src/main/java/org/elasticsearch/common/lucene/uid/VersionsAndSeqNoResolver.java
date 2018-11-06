@@ -165,11 +165,11 @@ public final class VersionsAndSeqNoResolver {
             if (result == null) {
                 continue;
             }
-            if (latest == null || latest.seqNo < result.seqNo) {
+            if (latest == null || latest.seqNo <= result.seqNo) {
                 latest = result;
             }
             if (latest.isDeleted == false) {
-                // The live document must be always the last copy, thus we can early terminate here.
+                // The live document must always be the latest copy, thus we can early terminate here.
                 break;
             }
         }

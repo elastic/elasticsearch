@@ -26,12 +26,11 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
@@ -54,10 +53,12 @@ import java.util.function.Function;
  * LazyLeafReader delegates to segment LeafReader that can be reset (it's reference decremented and nulled out) on a search phase is
  * finished. Before the next search phase starts we can reopen the corresponding reader and reset the reference to execute the search phase.
  * This allows the SearchContext to hold on to the same LazyDirectoryReader across its lifecycle but under the hood resources (memory) is
- * released while the SearchContext phases are not executing.  
+ * released while the SearchContext phases are not executing.
+ *
+ * The internal reopen of readers is treated like a refresh and refresh listeners are called up-on reopen. This allows to consume refresh
+ * stats in order to obtain the number of reopens.
  */
 public final class FrozenEngine extends ReadOnlyEngine {
-    private final CounterMetric openedReaders = new CounterMetric();
     private volatile DirectoryReader lastOpenedReader;
 
     public FrozenEngine(EngineConfig config) {
@@ -132,11 +133,16 @@ public final class FrozenEngine extends ReadOnlyEngine {
         try {
             reader = getReader();
             if (reader == null) {
+                for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
+                    listeners.beforeRefresh();
+                }
                 reader = DirectoryReader.open(engineConfig.getStore().directory());
                 searcherFactory.processReaders(reader, null);
-                openedReaders.inc();
                 reader = lastOpenedReader = wrapReader(reader, Function.identity());
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
+                for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
+                    listeners.afterRefresh(true);
+                }
             }
             success = true;
             return reader;
@@ -506,11 +512,6 @@ public final class FrozenEngine extends ReadOnlyEngine {
         public LeafReader getDelegate() {
             return in;
         }
-    }
-
-    // TODO expose this as stats on master
-    long getTotalOpenedReaders() {
-        return openedReaders.count();
     }
 
     synchronized boolean isReaderOpen() {

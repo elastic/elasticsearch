@@ -18,8 +18,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,13 +27,17 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField MANAGED_BY_ILM_FIELD = new ParseField("managed");
     private static final ParseField POLICY_NAME_FIELD = new ParseField("policy");
+    private static final ParseField LIFECYCLE_DATE_MILLIS_FIELD = new ParseField("lifecycle_date_millis");
     private static final ParseField LIFECYCLE_DATE_FIELD = new ParseField("lifecycle_date");
     private static final ParseField PHASE_FIELD = new ParseField("phase");
     private static final ParseField ACTION_FIELD = new ParseField("action");
     private static final ParseField STEP_FIELD = new ParseField("step");
     private static final ParseField FAILED_STEP_FIELD = new ParseField("failed_step");
+    private static final ParseField PHASE_TIME_MILLIS_FIELD = new ParseField("phase_time_millis");
     private static final ParseField PHASE_TIME_FIELD = new ParseField("phase_time");
+    private static final ParseField ACTION_TIME_MILLIS_FIELD = new ParseField("action_time_millis");
     private static final ParseField ACTION_TIME_FIELD = new ParseField("action_time");
+    private static final ParseField STEP_TIME_MILLIS_FIELD = new ParseField("step_time_millis");
     private static final ParseField STEP_TIME_FIELD = new ParseField("step_time");
     private static final ParseField STEP_INFO_FIELD = new ParseField("step_info");
     private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
@@ -60,14 +62,14 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), MANAGED_BY_ILM_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), POLICY_NAME_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), LIFECYCLE_DATE_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), LIFECYCLE_DATE_MILLIS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PHASE_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ACTION_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), STEP_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FAILED_STEP_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PHASE_TIME_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), ACTION_TIME_FIELD);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), STEP_TIME_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PHASE_TIME_MILLIS_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), ACTION_TIME_MILLIS_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), STEP_TIME_MILLIS_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.copyCurrentStructure(p);
@@ -239,28 +241,20 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         builder.field(MANAGED_BY_ILM_FIELD.getPreferredName(), managedByILM);
         if (managedByILM) {
             builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
-            if (builder.humanReadable()) {
-                builder.field(LIFECYCLE_DATE_FIELD.getPreferredName(), new DateTime(lifecycleDate, ISOChronology.getInstanceUTC()));
-            } else {
-                builder.field(LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
+            if (lifecycleDate != null) {
+                builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
             }
             builder.field(PHASE_FIELD.getPreferredName(), phase);
-            if (builder.humanReadable()) {
-                builder.field(PHASE_TIME_FIELD.getPreferredName(), new DateTime(phaseTime, ISOChronology.getInstanceUTC()));
-            } else {
-                builder.field(PHASE_TIME_FIELD.getPreferredName(), phaseTime);
+            if (phaseTime != null) {
+                builder.timeField(PHASE_TIME_MILLIS_FIELD.getPreferredName(), PHASE_TIME_FIELD.getPreferredName(), phaseTime);
             }
             builder.field(ACTION_FIELD.getPreferredName(), action);
-            if (builder.humanReadable()) {
-                builder.field(ACTION_TIME_FIELD.getPreferredName(), new DateTime(actionTime, ISOChronology.getInstanceUTC()));
-            } else {
-                builder.field(ACTION_TIME_FIELD.getPreferredName(), actionTime);
+            if (actionTime != null) {
+                builder.timeField(ACTION_TIME_MILLIS_FIELD.getPreferredName(), ACTION_TIME_FIELD.getPreferredName(), actionTime);
             }
             builder.field(STEP_FIELD.getPreferredName(), step);
-            if (builder.humanReadable()) {
-                builder.field(STEP_TIME_FIELD.getPreferredName(), new DateTime(stepTime, ISOChronology.getInstanceUTC()));
-            } else {
-                builder.field(STEP_TIME_FIELD.getPreferredName(), stepTime);
+            if (stepTime != null) {
+                builder.timeField(STEP_TIME_MILLIS_FIELD.getPreferredName(), STEP_TIME_FIELD.getPreferredName(), stepTime);
             }
             if (Strings.hasLength(failedStep)) {
                 builder.field(FAILED_STEP_FIELD.getPreferredName(), failedStep);

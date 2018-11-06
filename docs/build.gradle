@@ -1157,4 +1157,4 @@ buildRestTests.setups['seats'] = '''
             {"index":{}}
             {"theatre": "Graye", "cost": 8}
             {"index":{}}
-            {"theatre": "Skyline", "cost": 10}''' 
+            {"theatre": "Skyline", "cost": 10}'''

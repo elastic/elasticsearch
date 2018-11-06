@@ -640,8 +640,8 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
 
     /** Creates a PersistentTasksClusterService with a single PersistentTasksExecutor implemented by a BiFunction **/
     private <P extends PersistentTaskParams> PersistentTasksClusterService createService(final BiFunction<P, ClusterState, Assignment> fn) {
-        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(Settings.EMPTY,
-            singleton(new PersistentTasksExecutor<P>(Settings.EMPTY, TestPersistentTasksExecutor.NAME, null) {
+        PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(
+            singleton(new PersistentTasksExecutor<P>(TestPersistentTasksExecutor.NAME, null) {
                 @Override
                 public Assignment getAssignment(P params, ClusterState clusterState) {
                     return fn.apply(params, clusterState);

@@ -105,7 +105,7 @@ that have these roles. If the user has several roles, some of which are *not*
 covered by the policy, then the policy will *not* cover this event.
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.indices`::
 A list of index names or wildcards. The specified policy will
-not print audit events when all the indices in the event match any of the specified
+not print audit events when all the indices in the event match 
 names or wildcards. If the event concerns several indices, some of which are
 *not* covered by the policy, then the policy will *not* cover this event.
 

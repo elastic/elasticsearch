@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.action.admin.cluster.bootstrap;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,7 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.PeersRequest;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransport;
@@ -52,6 +49,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.HandshakeResponse;
 
 import java.io.IOException;
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -69,7 +67,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
-    public void testHandlesNonstandardDiscoveryImplementation() {
+
+    private final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
+
+    public void testHandlesNonstandardDiscoveryImplementation() throws InterruptedException {
         final MockTransport transport = new MockTransport();
         final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
         final DiscoveryNode discoveryNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -79,29 +80,30 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         final Discovery discovery = mock(Discovery.class);
         verifyZeroInteractions(discovery);
 
-        final TransportGetDiscoveredNodesAction transportGetDiscoveredNodesAction
-            = new TransportGetDiscoveredNodesAction(Settings.EMPTY, mock(ActionFilters.class), transportService, discovery);
+        new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, discovery); // registers action
 
-        final ActionListener<GetDiscoveredNodesResponse> listener = new ActionListener<GetDiscoveredNodesResponse>() {
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        transportService.sendRequest(discoveryNode, GetDiscoveredNodesAction.NAME, new GetDiscoveredNodesRequest(), new ResponseHandler() {
             @Override
-            public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
+            public void handleResponse(GetDiscoveredNodesResponse response) {
                 throw new AssertionError("should not be called");
             }
 
             @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("should not be called");
+            public void handleException(TransportException exp) {
+                assertThat(exp.getRootCause().getMessage(), equalTo("discovered nodes are not exposed by this discovery type"));
+                countDownLatch.countDown();
             }
-        };
+        });
 
-        assertThat(expectThrows(IllegalStateException.class,
-            () -> transportGetDiscoveredNodesAction.doExecute(mock(Task.class), new GetDiscoveredNodesRequest(), listener))
-            .getMessage(), equalTo("discovered nodes are not exposed by this discovery type"));
-
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         threadPool.shutdown();
     }
 
-    public void testFailsOnNonMasterEligibleNodes() {
+    public void testFailsOnNonMasterEligibleNodes() throws InterruptedException {
         final DiscoveryNode discoveryNode
             = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
@@ -109,8 +111,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
         final TransportService transportService = transport.createTransportService(Settings.EMPTY, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> discoveryNode, null, emptySet());
-        transportService.start();
-        transportService.acceptIncomingRequests();
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
@@ -118,31 +118,33 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, state), r -> emptyList(),
-            new NoOpClusterApplier(), random());
+            new NoOpClusterApplier(), new Random(random().nextLong()));
+
+        new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
+        transportService.start();
+        transportService.acceptIncomingRequests();
         coordinator.start();
 
-        final TransportGetDiscoveredNodesAction transportGetDiscoveredNodesAction
-            = new TransportGetDiscoveredNodesAction(Settings.EMPTY, mock(ActionFilters.class), transportService, coordinator);
 
-        final ActionListener<GetDiscoveredNodesResponse> listener = new ActionListener<GetDiscoveredNodesResponse>() {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        transportService.sendRequest(discoveryNode, GetDiscoveredNodesAction.NAME, new GetDiscoveredNodesRequest(), new ResponseHandler() {
             @Override
-            public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
+            public void handleResponse(GetDiscoveredNodesResponse response) {
                 throw new AssertionError("should not be called");
             }
 
             @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("should not be called");
+            public void handleException(TransportException exp) {
+                assertThat(exp.getRootCause().getMessage(), equalTo("this node is not master-eligible"));
+                countDownLatch.countDown();
             }
-        };
+        });
 
-        assertThat(expectThrows(ElasticsearchException.class, () -> transportGetDiscoveredNodesAction.doExecute(mock(Task.class),
-            new GetDiscoveredNodesRequest(), listener)).getMessage(), equalTo("this node is not master-eligible"));
-
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         threadPool.shutdown();
     }
 
-    public void testFailsImmediatelyWithNoTimeout() throws InterruptedException {
+    public void testFailsQuicklyWithZeroTimeout() throws InterruptedException {
         final DiscoveryNode localNode
             = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
 
@@ -150,8 +152,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
         final TransportService transportService = transport.createTransportService(Settings.EMPTY, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
-        transportService.start();
-        transportService.acceptIncomingRequests();
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
@@ -159,30 +159,31 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, state), r -> emptyList(),
-            new NoOpClusterApplier(), random());
+            new NoOpClusterApplier(), new Random(random().nextLong()));
+
+        new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
+        transportService.start();
+        transportService.acceptIncomingRequests();
         coordinator.start();
         coordinator.startInitialJoin();
 
-        final TransportGetDiscoveredNodesAction transportGetDiscoveredNodesAction
-            = new TransportGetDiscoveredNodesAction(Settings.EMPTY, mock(ActionFilters.class), transportService, coordinator);
-
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
         getDiscoveredNodesRequest.setMinimumNodeCount(2);
         getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
-        transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequest,
-            new ActionListener<GetDiscoveredNodesResponse>() {
-                @Override
-                public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
-                    throw new AssertionError("should not be called");
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    assertThat(e.getMessage(), startsWith("timed out while waiting for GetDiscoveredNodesRequest{"));
-                    countDownLatch.countDown();
-                }
-            });
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+            @Override
+            public void handleResponse(GetDiscoveredNodesResponse response) {
+                throw new AssertionError("should not be called");
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                assertThat(exp.getRootCause().getMessage(), startsWith("timed out while waiting for GetDiscoveredNodesRequest{"));
+                countDownLatch.countDown();
+            }
+        });
 
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         threadPool.shutdown();
@@ -208,8 +209,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         final TransportService transportService = transport.createTransportService(
             Settings.builder().put(CLUSTER_NAME_SETTING.getKey(), clusterName).build(), threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
-        transportService.start();
-        transportService.acceptIncomingRequests();
 
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final ClusterState state = ClusterState.builder(new ClusterName(clusterName)).build();
@@ -217,12 +216,13 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, state), r -> emptyList(),
-            new NoOpClusterApplier(), random());
+            new NoOpClusterApplier(), new Random(random().nextLong()));
+
+        new TransportGetDiscoveredNodesAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
+        transportService.start();
+        transportService.acceptIncomingRequests();
         coordinator.start();
         coordinator.startInitialJoin();
-
-        final TransportGetDiscoveredNodesAction transportGetDiscoveredNodesAction
-            = new TransportGetDiscoveredNodesAction(Settings.EMPTY, mock(ActionFilters.class), transportService, coordinator);
 
         threadPool.generic().execute(() ->
             transportService.sendRequest(localNode, REQUEST_PEERS_ACTION_NAME, new PeersRequest(otherNode, emptyList()),
@@ -248,44 +248,57 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
         {
             final CountDownLatch countDownLatch = new CountDownLatch(1);
-            final GetDiscoveredNodesRequest getDiscoveredNodesRequestWithTimeout = new GetDiscoveredNodesRequest();
-            getDiscoveredNodesRequestWithTimeout.setMinimumNodeCount(2);
-            transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequestWithTimeout,
-                new ActionListener<GetDiscoveredNodesResponse>() {
-                    @Override
-                    public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
-                        assertThat(getDiscoveredNodesResponse.getNodes(), containsInAnyOrder(localNode, otherNode));
-                        countDownLatch.countDown();
-                    }
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequest.setMinimumNodeCount(2);
+            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+                @Override
+                public void handleResponse(GetDiscoveredNodesResponse response) {
+                    assertThat(response.getNodes(), containsInAnyOrder(localNode, otherNode));
+                    countDownLatch.countDown();
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new AssertionError("should not be called");
-                    }
-                });
+                @Override
+                public void handleException(TransportException exp) {
+                    throw new AssertionError("should not be called");
+                }
+            });
+
             assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         }
 
         {
             final CountDownLatch countDownLatch = new CountDownLatch(1);
-            final GetDiscoveredNodesRequest getDiscoveredNodesRequestWithoutTimeout = new GetDiscoveredNodesRequest();
-            getDiscoveredNodesRequestWithoutTimeout.setMinimumNodeCount(2);
-            transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequestWithoutTimeout,
-                new ActionListener<GetDiscoveredNodesResponse>() {
-                    @Override
-                    public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
-                        assertThat(getDiscoveredNodesResponse.getNodes(), containsInAnyOrder(localNode, otherNode));
-                        countDownLatch.countDown();
-                    }
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequest.setMinimumNodeCount(2);
+            getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
+            transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
+                @Override
+                public void handleResponse(GetDiscoveredNodesResponse response) {
+                    assertThat(response.getNodes(), containsInAnyOrder(localNode, otherNode));
+                    countDownLatch.countDown();
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new AssertionError("should not be called");
-                    }
-                });
+                @Override
+                public void handleException(TransportException exp) {
+                    throw new AssertionError("should not be called");
+                }
+            });
+
             assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         }
 
         threadPool.shutdown();
+    }
+
+    private abstract class ResponseHandler implements TransportResponseHandler<GetDiscoveredNodesResponse> {
+        @Override
+        public String executor() {
+            return Names.SAME;
+        }
+
+        @Override
+        public GetDiscoveredNodesResponse read(StreamInput in) throws IOException {
+            return new GetDiscoveredNodesResponse(in);
+        }
     }
 }

@@ -148,7 +148,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false);
-        for (boolean trackTotalHits : new boolean[] {true, false}) {
+        for (int trackTotalHits : new int[] {0, 200, Integer.MAX_VALUE}) {
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase =
                 searchPhaseController.reducedQueryPhase(queryResults.asList(), false, trackTotalHits);
             AtomicArray<SearchPhaseResult> searchPhaseResultAtomicArray = generateFetchResults(nShards, reducedQueryPhase.scoreDocs,
@@ -156,7 +156,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             InternalSearchResponse mergedResponse = searchPhaseController.merge(false,
                 reducedQueryPhase,
                 searchPhaseResultAtomicArray.asList(), searchPhaseResultAtomicArray::get);
-            if (trackTotalHits == false) {
+            if (trackTotalHits != Integer.MAX_VALUE) {
                 assertThat(mergedResponse.hits.totalHits, equalTo(-1L));
             }
             int suggestSize = 0;

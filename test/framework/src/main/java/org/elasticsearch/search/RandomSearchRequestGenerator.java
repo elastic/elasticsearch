@@ -147,7 +147,11 @@ public class RandomSearchRequestGenerator {
             builder.terminateAfter(randomIntBetween(1, 100000));
         }
         if (randomBoolean()) {
-            builder.trackTotalHits(randomBoolean());
+            if (randomBoolean()) {
+                builder.trackTotalHits(randomBoolean());
+            } else {
+                builder.trackTotalHitsThreshold(randomIntBetween(0, Integer.MAX_VALUE));
+            }
         }
 
         switch(randomInt(2)) {

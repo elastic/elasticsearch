@@ -82,6 +82,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class SearchContext extends AbstractRefCounted implements Releasable {
 
     public static final int DEFAULT_TERMINATE_AFTER = 0;
+    public static final int DEFAULT_TRACK_TOTAL_HITS = Integer.MAX_VALUE;
     private Map<Lifetime, List<Releasable>> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
@@ -240,12 +241,12 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract boolean trackScores();
 
-    public abstract SearchContext trackTotalHits(boolean trackTotalHits);
+    public abstract SearchContext trackTotalHits(int trackTotalHits);
 
     /**
      * Indicates if the total hit count for the query should be tracked. Defaults to {@code true}
      */
-    public abstract boolean trackTotalHits();
+    public abstract int trackTotalHits();
 
     public abstract SearchContext searchAfter(FieldDoc searchAfter);
 

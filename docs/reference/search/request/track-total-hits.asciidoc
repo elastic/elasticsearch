@@ -1,0 +1,127 @@
+[[search-request-track-total-hits]]
+=== Track total hits
+
+The `track_total_hits` parameter allows you to configure the number of hits to
+count accurately.
+When set to `true` the search response will contain the total number of hits
+that match the query:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "track_total_hits": true,
+    "query" : {
+        "match_all" : {}
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+\... returns:
+
+[source,js]
+--------------------------------------------------
+{
+  "_shards": ...
+   "hits" : {
+      "total" : 2048,     <1>
+      "max_score" : 1.0,
+      "hits" : []
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"total": 2048/"total": $body.hits.total/]
+
+<1> The total number of hits that match the query.
+
+If you don't need to track the total number of hits you can set this option
+to `false`. In such case the total number of hits is unknown and the search
+can efficiently skip non-competitive hits if the query is sorted by relevancy:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "track_total_hits": false,
+    "query": {
+        "term": {
+            "title": "fast"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+\... returns:
+
+[source,js]
+--------------------------------------------------
+{
+  "_shards": ...
+   "hits" : {
+      "total" : -1,     <1>
+      "max_score" : 0.42,
+      "hits" : []
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"max_score": 0\.42/"max_score": $body.hits.max_score/]
+
+<1> The total number of hits is unknown.
+
+The total hit count can't be computed accurately without visiting all matches,
+which is costly for queries that match lots of documents. Given that it is
+often enough to have a lower bounds of the number of hits, such as
+"there are more than 1000 hits", it is also possible to set `track_total_hits`
+as an integer that represents the number of hits to count accurately. When this
+option is set as a number the search response will contain a new section called
+`tracked_total` that contains the number of tracked hits (`tracked_total.value`)
+and a relation (`tracked_total.relation`) that indicates if the `value` is
+ accurate (`eq`) or a lower bound of the total hit count (`gte`):
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "track_total_hits": 100,
+    "query": {
+        "term": {
+            "title": "fast"
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+\... returns:
+
+[source,js]
+--------------------------------------------------
+{
+  "_shards": ...
+   "hits" : {
+      "total" : -1,         <1>
+      "tracked_total": {    <2>
+        "value": 100,
+        "relation": "gte"
+      },
+      "max_score" : 0.42,
+      "hits" : []
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"max_score": 0\.42/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"value": 100/"value": $body.hits.tracked_total.value/]
+// TESTRESPONSE[s/"relation": "gte"/"relation": "$body.hits.tracked_total.relation"/]
+
+<1> The total number of hits is unknown.
+<2> There are at least (`gte`) 100 documents that match the query.
+
+Search can also skip non-competitive hits if the query is sorted by
+relevancy but the optimization kicks in only after collecting at least
+$`track_total_hits` documents. This is a good trade off to speed up searches
+if you don't need the accurate number of hits after a certain threshold.

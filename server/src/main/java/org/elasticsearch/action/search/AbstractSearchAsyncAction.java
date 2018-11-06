@@ -34,6 +34,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.transport.Transport;
 
@@ -113,8 +114,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (getNumShards() == 0) {
             //no search shards to search on, bail with empty response
             //(it happens with search across _all with no indices around and consistent with broadcast operations)
-            listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, buildTookInMillis(),
-                ShardSearchFailure.EMPTY_ARRAY, clusters));
+            int trackTotalHitsThreshold = request.source() != null ?
+                request.source().trackTotalHitsThreshold() : SearchContext.DEFAULT_TRACK_TOTAL_HITS;
+            listener.onResponse(new SearchResponse(InternalSearchResponse.empty(trackTotalHitsThreshold), null, 0, 0, 0,
+                buildTookInMillis(), ShardSearchFailure.EMPTY_ARRAY, clusters));
             return;
         }
         executePhase(this);

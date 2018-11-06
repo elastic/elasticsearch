@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -227,7 +228,12 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         if (request.hasParam("track_total_hits")) {
-            searchSourceBuilder.trackTotalHits(request.paramAsBoolean("track_total_hits", true));
+            if (Booleans.isBoolean(request.param("track_total_hits"))) {
+                searchSourceBuilder.trackTotalHits(request.paramAsBoolean("track_total_hits", true));
+            } else {
+                searchSourceBuilder.trackTotalHitsThreshold(request.paramAsInt("track_total_hits",
+                    SearchContext.DEFAULT_TRACK_TOTAL_HITS));
+            }
         }
 
         String sSorts = request.param("sort");

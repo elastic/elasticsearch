@@ -96,9 +96,9 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
          * @param hasFilterCollector True if the collector chain contains a filter
          */
         private EmptyTopDocsCollectorContext(IndexReader reader, Query query,
-                                             boolean trackTotalHits, boolean hasFilterCollector) throws IOException {
+                                             int trackTotalHits, boolean hasFilterCollector) throws IOException {
             super(REASON_SEARCH_COUNT, 0);
-            if (trackTotalHits) {
+            if (trackTotalHits > 0) {
                 TotalHitCountCollector hitCountCollector = new TotalHitCountCollector();
                 // implicit total hit counts are valid only when there is no filter collector in the chain
                 int hitCount =  hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
@@ -207,7 +207,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                                               @Nullable ScoreDoc searchAfter,
                                               int numHits,
                                               boolean trackMaxScore,
-                                              boolean trackTotalHits,
+                                              int trackTotalHits,
                                               boolean hasFilterCollector) throws IOException {
             super(REASON_SEARCH_TOP_HITS, numHits);
             this.sortAndFormats = sortAndFormats;
@@ -215,19 +215,14 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             // implicit total hit counts are valid only when there is no filter collector in the chain
             final int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
             final TopDocsCollector<?> topDocsCollector;
-            if (hitCount == -1 && trackTotalHits) {
-                topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, Integer.MAX_VALUE);
+            if (hitCount == -1) {
+                topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, trackTotalHits);
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
                 totalHitsSupplier = () -> topDocsSupplier.get().totalHits;
             } else {
                 topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, 1); // don't compute hit counts via the collector
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
-                if (hitCount == -1) {
-                    assert trackTotalHits == false;
-                    totalHitsSupplier = () -> new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
-                } else {
-                    totalHitsSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
-                }
+                totalHitsSupplier = () -> new TotalHits(hitCount, TotalHits.Relation.EQUAL_TO);
             }
             MaxScoreCollector maxScoreCollector = null;
             if (sortAndFormats == null) {
@@ -273,10 +268,9 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                                                  int numHits,
                                                  boolean trackMaxScore,
                                                  int numberOfShards,
-                                                 boolean trackTotalHits,
                                                  boolean hasFilterCollector) throws IOException {
             super(reader, query, sortAndFormats, scrollContext.lastEmittedDoc, numHits, trackMaxScore,
-                trackTotalHits, hasFilterCollector);
+                Integer.MAX_VALUE, hasFilterCollector);
             this.scrollContext = Objects.requireNonNull(scrollContext);
             this.numberOfShards = numberOfShards;
         }
@@ -356,8 +350,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             // no matter what the value of from is
             int numDocs = Math.min(searchContext.size(), totalNumDocs);
             return new ScrollingTopDocsCollectorContext(reader, query, searchContext.scrollContext(),
-                searchContext.sort(), numDocs, searchContext.trackScores(), searchContext.numberOfShards(),
-                searchContext.trackTotalHits(), hasFilterCollector);
+                searchContext.sort(), numDocs, searchContext.trackScores(), searchContext.numberOfShards(), hasFilterCollector);
         } else if (searchContext.collapse() != null) {
             boolean trackScores = searchContext.sort() == null ? true : searchContext.trackScores();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);

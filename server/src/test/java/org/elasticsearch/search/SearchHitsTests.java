@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -46,9 +47,10 @@ public class SearchHitsTests extends ESTestCase {
         for (int i = 0; i < searchHits; i++) {
             hits[i] = SearchHitTests.createTestItem(false); // creating random innerHits could create loops
         }
-        long totalHits = frequently() ? TestUtil.nextLong(random(), 0, Long.MAX_VALUE) : -1;
         float maxScore = frequently() ? randomFloat() : Float.NaN;
-        return new SearchHits(hits, totalHits, maxScore);
+        return randomBoolean() ? new SearchHits(hits, TestUtil.nextLong(random(), 0, Long.MAX_VALUE), maxScore) :
+            new SearchHits(hits, -1, maxScore, new TotalHits(TestUtil.nextLong(random(), 0, Long.MAX_VALUE),
+                randomFrom(random(), TotalHits.Relation.values())));
     }
 
     public void testFromXContent() throws IOException {

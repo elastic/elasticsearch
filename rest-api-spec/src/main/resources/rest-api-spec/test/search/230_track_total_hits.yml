@@ -1,0 +1,90 @@
+---
+"Track total hits":
+
+  - skip:
+      version: " - 6.99.99"
+      reason:  track_total_hits was introduced in 7.0.0
+
+  - do:
+      search:
+        index: test_1
+        track_total_hits: false
+
+  - match: { hits.total: -1 }
+  - is_false: "hits.tracked_total"
+
+  - do:
+      search:
+        index: test_1
+        track_total_hits: true
+
+  - match: { hits.total: 0 }
+  - is_false: "hits.tracked_total"
+
+  - do:
+      search:
+        index: test_1
+        track_total_hits: 10
+
+  - match: { hits.total: -1 }
+  - match: { hits.tracked_total.value: 0 }
+  - match: { hits.tracked_total.relation: "eq" }
+
+  - do:
+      index:
+        index:  test_1
+        id:     1
+        body:   {}
+
+  - do:
+      index:
+        index:  test_1
+        id:     2
+        body:   {}
+
+  - do:
+      index:
+        index:  test_1
+        id:     3
+        body:   {}
+
+  - do:
+      index:
+        index:  test_1
+        id:     4
+        body:   {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_1
+
+  - match: { hits.total: 4 }
+
+  - do:
+      search:
+        index: test_1
+        track_total_hits: false
+
+  - match: { hits.total: -1 }
+  - is_false: "hits.tracked_total"
+
+  - do:
+      search:
+        index: test_1
+        track_total_hits: 10
+
+  - match: { hits.total: -1 }
+  - match: { hits.tracked_total.value: 4 }
+  - match: { hits.tracked_total.relation: "eq" }
+
+  - do:
+      search:
+        index: test_1
+        track_total_hits: 3
+
+  - match: { hits.total: -1 }
+  - match: { hits.tracked_total.value: 3 }
+  - match: { hits.tracked_total.relation: "gte" }

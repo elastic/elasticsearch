@@ -453,7 +453,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         {
             contextSearcher = getAssertingEarlyTerminationSearcher(reader, 1);
-            context.trackTotalHits(false);
+            context.trackTotalHits(0);
             QueryPhase.execute(context, contextSearcher, checkCancelled -> {});
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));

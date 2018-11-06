@@ -83,7 +83,7 @@ public class TestSearchContext extends SearchContext {
     SearchTask task;
     SortAndFormats sort;
     boolean trackScores = false;
-    boolean trackTotalHits = true;
+    int trackTotalHits = Integer.MAX_VALUE;
 
     ContextIndexSearcher searcher;
     int size;
@@ -364,13 +364,13 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext trackTotalHits(boolean trackTotalHits) {
+    public SearchContext trackTotalHits(int trackTotalHits) {
         this.trackTotalHits = trackTotalHits;
         return this;
     }
 
     @Override
-    public boolean trackTotalHits() {
+    public int trackTotalHits() {
         return trackTotalHits;
     }
 

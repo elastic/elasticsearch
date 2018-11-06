@@ -324,13 +324,13 @@ public abstract class ESTestCase extends LuceneTestCase {
                 final Random bootstrapRandom = new Random(randomLong());
 
                 bootstrapThread = new Thread(() -> {
-                    BootstrapConfiguration bootstrapConfiguration = null;
+                    BootstrapClusterRequest bootstrapClusterRequest = null;
                     while (stopBootstrapThread.get() == false) {
                         final Node node = randomFrom(bootstrapRandom, nodes);
                         final TransportService transportService = node.injector().getInstance(TransportService.class);
                         if (transportService.getLocalNode() != null) {
                             final Client client = clientWrapper.apply(node.client());
-                            if (bootstrapConfiguration == null) {
+                            if (bootstrapClusterRequest == null) {
                                 try {
                                     final GetDiscoveredNodesRequest discoveredNodesRequest = new GetDiscoveredNodesRequest();
                                     discoveredNodesRequest.setMinimumNodeCount(minimumConfigurationSize);
@@ -338,16 +338,17 @@ public abstract class ESTestCase extends LuceneTestCase {
                                         discoveredNodesRequest.setTimeout(TimeValue.timeValueSeconds(5));
                                     }
 
-                                    bootstrapConfiguration = client.execute(GetDiscoveredNodesAction.INSTANCE, discoveredNodesRequest)
-                                        .get().getBootstrapConfiguration();
+                                    bootstrapClusterRequest = new BootstrapClusterRequest(
+                                        client.execute(GetDiscoveredNodesAction.INSTANCE, discoveredNodesRequest).get()
+                                            .getBootstrapConfiguration());
                                 } catch (Exception e) {
                                     logger.trace("exception getting bootstrap configuration", e);
                                 }
                             } else {
                                 try {
-                                    client.execute(BootstrapClusterAction.INSTANCE, new BootstrapClusterRequest(bootstrapConfiguration))
-                                        .get();
+                                    client.execute(BootstrapClusterAction.INSTANCE, bootstrapClusterRequest).get();
                                     if (usually(bootstrapRandom)) {
+                                        // occasionally carry on trying to bootstrap even after one request succeeded.
                                         return;
                                     }
                                 } catch (Exception e) {

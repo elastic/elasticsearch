@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
-
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
@@ -93,6 +93,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 
 public abstract class AbstractBuilderTestCase extends ESTestCase {
@@ -194,8 +195,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     @AfterClass
     public static void afterClass() throws Exception {
-        org.apache.lucene.util.IOUtils.close(serviceHolder);
-        org.apache.lucene.util.IOUtils.close(serviceHolderWithNoType);
+        IOUtils.close(serviceHolder);
+        IOUtils.close(serviceHolderWithNoType);
         serviceHolder = null;
         serviceHolderWithNoType = null;
     }
@@ -330,7 +331,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                         AbstractBuilderTestCase testCase,
                         boolean registerType) throws IOException {
             this.nowInMillis = nowInMillis;
-            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings);
+            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, emptyMap(),
+                    null, () -> {
+                        throw new AssertionError("node.name must be set");
+                    });
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
 
@@ -340,8 +344,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     clientInvocationHandler);
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
             List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
-            additionalSettings.add(InternalSettingsPlugin.VERSION_CREATED);
-            SettingsModule settingsModule = new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter());
+            SettingsModule settingsModule =
+                    new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter(), Collections.emptySet());
             searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();

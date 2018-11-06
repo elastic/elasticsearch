@@ -25,7 +25,8 @@ dependencyLicenses {
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
 
-    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
@@ -34,7 +35,7 @@ dependencies {
     // watcher deps
     compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'
     compile 'com.google.guava:guava:16.0.1' // needed by watcher for the html sanitizer and security tests for jimfs
-    compile 'com.sun.mail:javax.mail:1.5.6'
+    compile 'com.sun.mail:javax.mail:1.6.2'
     // HACK: java 9 removed javax.activation from the default modules, so instead of trying to add modules, which would have
     // to be conditionalized for java 8/9, we pull in the classes directly
     compile 'javax.activation:activation:1.1.1'
@@ -67,7 +68,7 @@ thirdPartyAudit.excludes = [
 ]
 
 // pulled in as external dependency to work on java 9
-if (JavaVersion.current() <= JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {
     thirdPartyAudit.excludes += [
         'com.sun.activation.registries.MailcapParseException',
         'javax.activation.ActivationDataFlavor',

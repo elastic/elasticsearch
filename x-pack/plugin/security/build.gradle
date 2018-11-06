@@ -1,6 +1,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'nebula.maven-scm'
 esplugin {
     name 'x-pack-security'
     description 'Elasticsearch Expanded Pack Plugin - Security'
@@ -12,7 +13,8 @@ esplugin {
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-    compileOnly project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
 
@@ -21,7 +23,7 @@ dependencies {
 
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
 
-    compile 'com.unboundid:unboundid-ldapsdk:3.2.0'
+    compile 'com.unboundid:unboundid-ldapsdk:4.0.8'
     compileOnly 'org.bouncycastle:bcprov-jdk15on:1.59'
     compileOnly 'org.bouncycastle:bcpkix-jdk15on:1.59'
 
@@ -138,6 +140,7 @@ artifacts {
 }
 sourceSets.test.resources {
     srcDir '../core/src/test/resources'
+    srcDir '../core/src/main/config'
 }
 dependencyLicenses {
     mapping from: /java-support|opensaml-.*/, to: 'shibboleth'
@@ -157,8 +160,7 @@ forbiddenPatterns {
 }
 
 forbiddenApisMain {
-    signaturesURLs += file('forbidden/ldap-signatures.txt').toURI().toURL()
-    signaturesURLs += file('forbidden/xml-signatures.txt').toURI().toURL()
+    signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt')
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter
@@ -241,7 +243,7 @@ thirdPartyAudit.excludes = [
         'javax.persistence.EntityManagerFactory',
         'javax.persistence.EntityTransaction',
         'javax.persistence.LockModeType',
-        'javax/persistence/Query',
+        'javax.persistence.Query',
         // [missing classes] OpenSAML storage and HttpClient cache have optional memcache support
         'net.spy.memcached.CASResponse',
         'net.spy.memcached.CASValue',
@@ -265,7 +267,7 @@ thirdPartyAudit.excludes = [
         'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
 ]
 
-if (JavaVersion.current() > JavaVersion.VERSION_1_8) {
+if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
     thirdPartyAudit.excludes += [
         'javax.xml.bind.JAXBContext',
         'javax.xml.bind.JAXBElement',

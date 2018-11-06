@@ -28,10 +28,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
 
 
 public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTestCase<FieldCapabilitiesResponse> {
@@ -48,22 +52,46 @@ public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTe
 
     @Override
     protected FieldCapabilitiesResponse createTestInstance() {
-        Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
+        if (randomBoolean()) {
+            // merged responses
+            Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
+
+            String[] fields = generateRandomStringArray(5, 10, false, true);
+            assertNotNull(fields);
+
+            for (String field : fields) {
+                Map<String, FieldCapabilities> typesToCapabilities = new HashMap<>();
+                String[] types = generateRandomStringArray(5, 10, false, false);
+                assertNotNull(types);
+
+                for (String type : types) {
+                    typesToCapabilities.put(type, FieldCapabilitiesTests.randomFieldCaps(field));
+                }
+                responses.put(field, typesToCapabilities);
+            }
+            return new FieldCapabilitiesResponse(responses);
+        } else {
+            // non-merged responses
+            List<FieldCapabilitiesIndexResponse> responses = new ArrayList<>();
+            int numResponse = randomIntBetween(0, 10);
+            for (int i = 0; i < numResponse; i++) {
+                responses.add(createRandomIndexResponse());
+            }
+            return new FieldCapabilitiesResponse(responses);
+        }
+    }
+
+
+    private FieldCapabilitiesIndexResponse createRandomIndexResponse() {
+        Map<String, FieldCapabilities> responses = new HashMap<>();
 
         String[] fields = generateRandomStringArray(5, 10, false, true);
         assertNotNull(fields);
 
         for (String field : fields) {
-            Map<String, FieldCapabilities> typesToCapabilities = new HashMap<>();
-            String[] types = generateRandomStringArray(5, 10, false, false);
-            assertNotNull(types);
-
-            for (String type : types) {
-                typesToCapabilities.put(type, FieldCapabilitiesTests.randomFieldCaps(field));
-            }
-            responses.put(field, typesToCapabilities);
+            responses.put(field, FieldCapabilitiesTests.randomFieldCaps(field));
         }
-        return new FieldCapabilitiesResponse(responses);
+        return new FieldCapabilitiesIndexResponse(randomAsciiLettersOfLength(10), responses);
     }
 
     @Override
@@ -136,6 +164,11 @@ public class FieldCapabilitiesResponseTests extends AbstractStreamableXContentTe
             "        }" +
             "    }" +
             "}").replaceAll("\\s+", ""), generatedResponse);
+    }
+
+    public void testEmptyResponse() throws IOException {
+        FieldCapabilitiesResponse testInstance = new FieldCapabilitiesResponse();
+        assertSerialization(testInstance);
     }
 
     private static FieldCapabilitiesResponse createSimpleResponse() {

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -154,7 +155,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryStringQueryBuilder.quoteFieldSuffix(randomAlphaOfLengthBetween(1, 3));
         }
         if (randomBoolean()) {
-            queryStringQueryBuilder.tieBreaker(randomFloat());
+            queryStringQueryBuilder.tieBreaker((float) randomDoubleBetween(0d, 1d, true));
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.minimumShouldMatch(randomMinimumShouldMatch());
@@ -998,6 +999,18 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         } else {
             assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));
         }
+
+        for (boolean quoted : new boolean[] {true, false}) {
+            String value = (quoted ? "\"" : "") + STRING_FIELD_NAME + (quoted ? "\"" : "");
+            queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
+            query = queryBuilder.toQuery(context);
+            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
+                && (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false)) {
+                assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME))));
+            } else {
+                assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));
+            }
+        }
         QueryShardContext contextNoType = createShardContextWithNoType();
         query = queryBuilder.toQuery(contextNoType);
         assertThat(query, equalTo(new MatchNoDocsQuery()));
@@ -1183,20 +1196,23 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                 STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
         );
-        Query query = new QueryStringQueryBuilder("hello")
-            .toQuery(context);
-        Query expected = new DisjunctionMaxQuery(
-            Arrays.asList(
-                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
-                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
-            ), 0.0f
-        );
-        assertEquals(expected, query);
-        // Reset the default value
-        context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index",
-                context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
-        );
+        try {
+            Query query = new QueryStringQueryBuilder("hello")
+                .toQuery(context);
+            Query expected = new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+                ), 0.0f
+            );
+            assertEquals(expected, query);
+        } finally {
+            // Reset the default value
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index",
+                    context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
+            );
+        }
     }
 
     /**
@@ -1266,10 +1282,57 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field(STRING_FIELD_NAME)
             .analyzer("stop")
             .toQuery(createShardContext());
-        BooleanQuery expected = new BooleanQuery.Builder()
-            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
-            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+        Query expected = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
             .build();
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        expected = new DisjunctionMaxQuery(
+            Arrays.asList(
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
+                    .build(),
+                new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME_2, "quick")), Occur.SHOULD)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME_2, "fox")), Occur.SHOULD)
+                    .build()
+            ), 0f);
+        assertEquals(expected, query);
+
+        query = new QueryStringQueryBuilder("the")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        assertEquals(new BooleanQuery.Builder().build(), query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new QueryStringQueryBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new BooleanQuery.Builder().build(), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new QueryStringQueryBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .field(STRING_FIELD_NAME_2)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
         assertEquals(expected, query);
     }
 
@@ -1284,6 +1347,44 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
             .build();
         assertEquals(expected, query);
+    }
+
+    public void testCrossFields() throws Exception {
+        final QueryShardContext context = createShardContext();
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(),
+                Settings.builder().putList("index.query.default_field",
+                    STRING_FIELD_NAME, STRING_FIELD_NAME_2).build())
+        );
+        try {
+            Term[] blendedTerms = new Term[2];
+            blendedTerms[0] = new Term(STRING_FIELD_NAME, "foo");
+            blendedTerms[1] = new Term(STRING_FIELD_NAME_2, "foo");
+
+            Query query = new QueryStringQueryBuilder("foo")
+                .analyzer("whitespace")
+                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                .toQuery(createShardContext());
+            Query expected = BlendedTermQuery.dismaxBlendedQuery(blendedTerms, 1.0f);
+            assertEquals(expected, query);
+
+            query = new QueryStringQueryBuilder("foo mapped_string:10")
+                .analyzer("whitespace")
+                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                .toQuery(createShardContext());
+            expected = new BooleanQuery.Builder()
+                .add(BlendedTermQuery.dismaxBlendedQuery(blendedTerms, 1.0f), Occur.SHOULD)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "10")), Occur.SHOULD)
+                .build();
+            assertEquals(expected, query);
+        } finally {
+            // Reset the default value
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index",
+                    context.getIndexSettings().getSettings(),
+                    Settings.builder().putList("index.query.default_field", "*").build())
+            );
+        }
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

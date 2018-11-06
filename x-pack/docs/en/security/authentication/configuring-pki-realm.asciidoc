@@ -10,7 +10,8 @@ NOTE: You cannot use PKI certificates to authenticate users in {kib}.
 
 To use PKI in {es}, you configure a PKI realm, enable client authentication on
 the desired network layers (transport or http), and map the Distinguished Names
-(DNs) from the user certificates to {security} roles in the role mapping file.
+(DNs) from the user certificates to {security} roles in the 
+<<security-api-role-mapping,role-mapping API>> or role-mapping file.
 
 You can also use a combination of PKI and username/password authentication. For
 example, you can enable SSL/TLS on the transport layer and define a PKI realm to
@@ -23,9 +24,9 @@ IMPORTANT:  You must enable SSL/TLS and enable client authentication to use PKI.
 
 For more information, see {xpack-ref}/pki-realm.html[PKI User Authentication].
 
-. Add a realm configuration of type `pki` to `elasticsearch.yml` under the
-`xpack.security.authc.realms` namespace. At a minimum, you must set the realm 
-`type` to `pki`. If you are configuring multiple realms, you should also 
+. Add a realm configuration for a `pki` realm to `elasticsearch.yml` under the
+`xpack.security.authc.realms.pki` namespace.
+If you are configuring multiple realms, you should 
 explicitly set the `order` attribute. See <<ref-pki-settings>> for all of the 
 options you can set for a `pki` realm.
 +
@@ -38,8 +39,9 @@ xpack:
   security:
     authc:
       realms:
-        pki1:
-          type: pki
+        pki:
+          pki1:
+            order: 1
 ------------------------------------------------------------
 
 With this configuration, any certificate trusted by the SSL/TLS layer is accepted
@@ -60,9 +62,9 @@ xpack:
   security:
     authc:
       realms:
-        pki1:
-          type: pki
-          username_pattern: "EMAILADDRESS=(.*?)(?:,|$)"
+        pki:
+          pki1:
+            username_pattern: "EMAILADDRESS=(.*?)(?:,|$)"
 ------------------------------------------------------------
 --
 
@@ -111,11 +113,11 @@ xpack:
   security:
     authc:
       realms:
-        pki1:
-          type: pki
-          truststore:
-            path: "/path/to/pki_truststore.jks"
-            password: "x-pack-test-password"
+        pki:
+          pki1:
+            truststore:
+              path: "/path/to/pki_truststore.jks"
+              password: "x-pack-test-password"
 ------------------------------------------------------------
 
 The `certificate_authorities` option can be used as an alternative to the
@@ -126,7 +128,7 @@ The `certificate_authorities` option can be used as an alternative to the
 +
 --
 You map roles for PKI users through the 
-<<security-api-role-mapping,role-mapping API>> or by using a file stored on
+<<security-role-mapping-apis,role mapping APIs>> or by using a file stored on
 each node. When a user authenticates against a PKI realm, the privileges for
 that user are the union of all privileges defined by the roles to which the
 user is mapped.
@@ -173,4 +175,9 @@ key. You can also use the authenticate API to validate your role mapping.
 
 For more information, see 
 {xpack-ref}/mapping-roles.html[Mapping Users and Groups to Roles].
+
+NOTE: The PKI realm supports
+{stack-ov}/realm-chains.html#authorization_realms[authorization realms] as an
+alternative to role mapping.
+
 --

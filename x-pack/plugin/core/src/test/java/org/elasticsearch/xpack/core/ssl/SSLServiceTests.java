@@ -19,6 +19,7 @@ import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -35,19 +36,29 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
+import javax.security.cert.X509Certificate;
 import java.nio.file.Path;
 import java.security.AccessController;
+import java.security.Principal;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -466,8 +477,8 @@ public class SSLServiceTests extends ESTestCase {
     public void testEmptyTrustManager() throws Exception {
         Settings settings = Settings.builder().build();
         final SSLService sslService = new SSLService(settings, env);
-        SSLConfiguration sslConfig = new SSLConfiguration(settings);
-        X509ExtendedTrustManager trustManager = sslService.sslContextHolder(sslConfig).getEmptyTrustManager();
+        X509ExtendedTrustManager trustManager = sslService.sslContextHolder(sslService.getSSLConfiguration("xpack.ssl"))
+            .getEmptyTrustManager();
         assertThat(trustManager.getAcceptedIssuers(), emptyArray());
     }
 
@@ -485,8 +496,8 @@ public class SSLServiceTests extends ESTestCase {
             "transport.profiles.prof1.xpack.security.ssl",
             "transport.profiles.prof2.xpack.security.ssl",
             "transport.profiles.prof3.xpack.security.ssl",
-            "xpack.security.authc.realms.realm1.ssl",
-            "xpack.security.authc.realms.realm2.ssl",
+            "xpack.security.authc.realms.ldap.realm1.ssl",
+            "xpack.security.authc.realms.saml.realm2.ssl",
             "xpack.monitoring.exporters.mon1.ssl",
             "xpack.monitoring.exporters.mon2.ssl"
         };
@@ -507,7 +518,7 @@ public class SSLServiceTests extends ESTestCase {
 
         final Settings settings = builder
             // Add a realm without SSL settings. This context name should be mapped to the global configuration
-            .put("xpack.security.authc.realms.realm3.type", "file")
+            .put("xpack.security.authc.realms.file.realm3.order", 4)
             // Add an exporter without SSL settings. This context name should be mapped to the global configuration
             .put("xpack.monitoring.exporters.mon3.type", "http")
             .setSecureSettings(secureSettings)
@@ -527,7 +538,7 @@ public class SSLServiceTests extends ESTestCase {
 
         // These contexts have no SSL settings, but for convenience we want those components to be able to access their context
         // by name, and get back the global configuration
-        final SSLConfiguration realm3Config = sslService.getSSLConfiguration("xpack.security.authc.realms.realm3.ssl");
+        final SSLConfiguration realm3Config = sslService.getSSLConfiguration("xpack.security.authc.realms.file.realm3.ssl");
         final SSLConfiguration mon3Config = sslService.getSSLConfiguration("xpack.monitoring.exporters.mon3.ssl.");
         final SSLConfiguration global = globalConfiguration(sslService);
         assertThat(realm3Config, sameInstance(global));
@@ -549,8 +560,7 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.keystore.path", jksPath)
                 .put("xpack.ssl.truststore.path", jksPath)
                 .put("xpack.http.ssl.keystore.path", p12Path)
-                .put("xpack.security.authc.realms.ad.type", "ad")
-                .put("xpack.security.authc.realms.ad.ssl.certificate_authorities", pemPath)
+                .put("xpack.security.authc.realms.active_directory.ad.ssl.certificate_authorities", pemPath)
                 .setSecureSettings(secureSettings)
                 .build();
 
@@ -652,6 +662,57 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(cert.hasPrivateKey(), equalTo(true));
 
         assertFalse(iterator.hasNext());
+    }
+
+    public void testSSLSessionInvalidationHandlesNullSessions() {
+        final int numEntries = randomIntBetween(1, 32);
+        final AtomicInteger invalidationCounter = new AtomicInteger();
+        int numNull = 0;
+        final Map<byte[], SSLSession> sessionMap = new HashMap<>();
+        for (int i = 0; i < numEntries; i++) {
+            final byte[] id = randomByteArrayOfLength(2);
+            final SSLSession sslSession;
+            if (rarely()) {
+                sslSession = null;
+                numNull++;
+            } else {
+                sslSession = new MockSSLSession(id, invalidationCounter::incrementAndGet);
+            }
+            sessionMap.put(id, sslSession);
+        }
+
+        SSLSessionContext sslSessionContext = new SSLSessionContext() {
+            @Override
+            public SSLSession getSession(byte[] sessionId) {
+                return sessionMap.get(sessionId);
+            }
+
+            @Override
+            public Enumeration<byte[]> getIds() {
+                return Collections.enumeration(sessionMap.keySet());
+            }
+
+            @Override
+            public void setSessionTimeout(int seconds) throws IllegalArgumentException {
+            }
+
+            @Override
+            public int getSessionTimeout() {
+                return 0;
+            }
+
+            @Override
+            public void setSessionCacheSize(int size) throws IllegalArgumentException {
+            }
+
+            @Override
+            public int getSessionCacheSize() {
+                return 0;
+            }
+        };
+
+        SSLService.invalidateSessions(sslSessionContext);
+        assertEquals(numEntries - numNull, invalidationCounter.get());
     }
 
     @Network
@@ -761,4 +822,120 @@ public class SSLServiceTests extends ESTestCase {
         }
     }
 
+    private static final class MockSSLSession implements SSLSession {
+
+        private final byte[] id;
+        private final Runnable invalidation;
+
+        private MockSSLSession(byte[] id, Runnable invalidation) {
+            this.id = id;
+            this.invalidation = invalidation;
+        }
+
+        @Override
+        public byte[] getId() {
+            return id;
+        }
+
+        @Override
+        public SSLSessionContext getSessionContext() {
+            return null;
+        }
+
+        @Override
+        public long getCreationTime() {
+            return 0;
+        }
+
+        @Override
+        public long getLastAccessedTime() {
+            return 0;
+        }
+
+        @Override
+        public void invalidate() {
+            invalidation.run();
+        }
+
+        @Override
+        public boolean isValid() {
+            return false;
+        }
+
+        @Override
+        public void putValue(String name, Object value) {
+
+        }
+
+        @Override
+        public Object getValue(String name) {
+            return null;
+        }
+
+        @Override
+        public void removeValue(String name) {
+
+        }
+
+        @Override
+        public String[] getValueNames() {
+            return new String[0];
+        }
+
+        @Override
+        public Certificate[] getPeerCertificates() throws SSLPeerUnverifiedException {
+            return new Certificate[0];
+        }
+
+        @Override
+        public Certificate[] getLocalCertificates() {
+            return new Certificate[0];
+        }
+
+        @SuppressForbidden(reason = "need to reference deprecated class to implement JDK interface")
+        @Override
+        public X509Certificate[] getPeerCertificateChain() throws SSLPeerUnverifiedException {
+            return new X509Certificate[0];
+        }
+
+        @Override
+        public Principal getPeerPrincipal() throws SSLPeerUnverifiedException {
+            return null;
+        }
+
+        @Override
+        public Principal getLocalPrincipal() {
+            return null;
+        }
+
+        @Override
+        public String getCipherSuite() {
+            return null;
+        }
+
+        @Override
+        public String getProtocol() {
+            return null;
+        }
+
+        @Override
+        public String getPeerHost() {
+            return null;
+        }
+
+        @Override
+        public int getPeerPort() {
+            return 0;
+        }
+
+        @Override
+        public int getPacketBufferSize() {
+            return 0;
+        }
+
+        @Override
+        public int getApplicationBufferSize() {
+            return 0;
+        }
+    }
 }

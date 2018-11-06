@@ -91,9 +91,6 @@ using the `bin/elasticsearch-keystore add` command, call:
 [source,js]
 ----
 POST _nodes/reload_secure_settings
-{
-  "secure_settings_password": ""
-}
 ----
 // CONSOLE
 This API will decrypt and re-read the entire keystore, on every cluster node,

@@ -1,0 +1,106 @@
+[[java-rest-high-put-stored-script]]
+=== Put Stored Script API
+
+[[java-rest-high-put-stored-script-request]]
+==== Put Stored Script Request
+
+A `PutStoredScriptRequest` requires an `id` and `content`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-request]
+--------------------------------------------------
+<1> The id of the script
+<2> The content of the script
+
+[[java-rest-high-put-stored-script-content]]
+==== Content
+The content of a script can be written in different languages and provided in
+different ways:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-content-painless]
+--------------------------------------------------
+<1> Specify a painless script and provided as `XContentBuilder` object.
+Note that the builder needs to be passed as a `BytesReference` object
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-content-mustache]
+--------------------------------------------------
+<1> Specify a mustache script and provided as `XContentBuilder` object.
+Note that value of source can be directly provided as a JSON string
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-context]
+--------------------------------------------------
+<1> The context the script should be executed in.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-timeout]
+--------------------------------------------------
+<1> Timeout to wait for the all the nodes to acknowledge the script creation as a `TimeValue`
+<2> Timeout to wait for the all the nodes to acknowledge the script creation as a `String`
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-masterTimeout]
+--------------------------------------------------
+<1> Timeout to connect to the master node as a `TimeValue`
+<2> Timeout to connect to the master node as a `String`
+
+[[java-rest-high-put-stored-script-sync]]
+==== Synchronous Execution
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-execute]
+--------------------------------------------------
+
+[[java-rest-high-put-stored-script-async]]
+==== Asynchronous Execution
+
+The asynchronous execution of a put stored script request requires both the `PutStoredScriptRequest`
+instance and an `ActionListener` instance to be passed to the asynchronous method:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-execute-async]
+--------------------------------------------------
+<1> The `PutStoredScriptRequest` to execute and the `ActionListener` to use when
+the execution completes
+
+[[java-rest-high-put-stored-script-listener]]
+===== Action Listener
+
+The asynchronous method does not block and returns immediately. Once it is
+completed the `ActionListener` is called back using the `onResponse` method
+if the execution successfully completed or using the `onFailure` method if
+it failed.
+
+A typical listener for `AcknowledgedResponse` looks like:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-execute-listener]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-put-stored-script-response]]
+==== Put Stored Script Response
+
+The returned `AcknowledgedResponse` allows to retrieve information about the
+executed operation as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/StoredScriptsDocumentationIT.java[put-stored-script-response]
+--------------------------------------------------
+<1> Indicates whether all of the nodes have acknowledged the request

@@ -5,7 +5,7 @@
 
 Painless doesn't have a
 https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop[REPL]
-and while it'd be nice for it to have one one day, it wouldn't tell you the
+and while it'd be nice for it to have one day, it wouldn't tell you the
 whole story around debugging painless scripts embedded in Elasticsearch because
 the data that the scripts have access to or "context" is so important. For now
 the best way to debug embedded scripts is by throwing exceptions at choice

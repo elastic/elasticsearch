@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.client;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
@@ -59,48 +60,48 @@ public class MachineLearningClient {
     }
 
     public void deleteDatafeed(DeleteDatafeedAction.Request request,
-            ActionListener<DeleteDatafeedAction.Response> listener) {
+            ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteDatafeedAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<DeleteDatafeedAction.Response> deleteDatafeed(
+    public ActionFuture<AcknowledgedResponse> deleteDatafeed(
             DeleteDatafeedAction.Request request) {
-        PlainActionFuture<DeleteDatafeedAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(DeleteDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
 
     public void deleteFilter(DeleteFilterAction.Request request,
-            ActionListener<DeleteFilterAction.Response> listener) {
+            ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteFilterAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<DeleteFilterAction.Response> deleteFilter(
+    public ActionFuture<AcknowledgedResponse> deleteFilter(
             DeleteFilterAction.Request request) {
-        PlainActionFuture<DeleteFilterAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(DeleteFilterAction.INSTANCE, request, listener);
         return listener;
     }
 
     public void deleteJob(DeleteJobAction.Request request,
-            ActionListener<DeleteJobAction.Response> listener) {
+            ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteJobAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<DeleteJobAction.Response> deleteJob(DeleteJobAction.Request request) {
-        PlainActionFuture<DeleteJobAction.Response> listener = PlainActionFuture.newFuture();
+    public ActionFuture<AcknowledgedResponse> deleteJob(DeleteJobAction.Request request) {
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(DeleteJobAction.INSTANCE, request, listener);
         return listener;
     }
 
     public void deleteModelSnapshot(DeleteModelSnapshotAction.Request request,
-            ActionListener<DeleteModelSnapshotAction.Response> listener) {
+            ActionListener<AcknowledgedResponse> listener) {
         client.execute(DeleteModelSnapshotAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<DeleteModelSnapshotAction.Response> deleteModelSnapshot(
+    public ActionFuture<AcknowledgedResponse> deleteModelSnapshot(
             DeleteModelSnapshotAction.Request request) {
-        PlainActionFuture<DeleteModelSnapshotAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(DeleteModelSnapshotAction.INSTANCE, request, listener);
         return listener;
     }
@@ -233,12 +234,12 @@ public class MachineLearningClient {
     }
 
     public void openJob(OpenJobAction.Request request,
-            ActionListener<OpenJobAction.Response> listener) {
+            ActionListener<AcknowledgedResponse> listener) {
         client.execute(OpenJobAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<OpenJobAction.Response> openJob(OpenJobAction.Request request) {
-        PlainActionFuture<OpenJobAction.Response> listener = PlainActionFuture.newFuture();
+    public ActionFuture<AcknowledgedResponse> openJob(OpenJobAction.Request request) {
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(OpenJobAction.INSTANCE, request, listener);
         return listener;
     }
@@ -300,13 +301,13 @@ public class MachineLearningClient {
     }
 
     public void startDatafeed(StartDatafeedAction.Request request,
-            ActionListener<StartDatafeedAction.Response> listener) {
+            ActionListener<AcknowledgedResponse> listener) {
         client.execute(StartDatafeedAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<StartDatafeedAction.Response> startDatafeed(
+    public ActionFuture<AcknowledgedResponse> startDatafeed(
             StartDatafeedAction.Request request) {
-        PlainActionFuture<StartDatafeedAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(StartDatafeedAction.INSTANCE, request, listener);
         return listener;
     }
@@ -359,25 +360,25 @@ public class MachineLearningClient {
     }
 
     public void validateDetector(ValidateDetectorAction.Request request,
-                                    ActionListener<ValidateDetectorAction.Response> listener) {
+                                    ActionListener<AcknowledgedResponse> listener) {
         client.execute(ValidateDetectorAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<ValidateDetectorAction.Response> validateDetector(
+    public ActionFuture<AcknowledgedResponse> validateDetector(
             ValidateDetectorAction.Request request) {
-        PlainActionFuture<ValidateDetectorAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(ValidateDetectorAction.INSTANCE, request, listener);
         return listener;
     }
 
     public void validateJobConfig(ValidateJobConfigAction.Request request,
-                                 ActionListener<ValidateJobConfigAction.Response> listener) {
+                                 ActionListener<AcknowledgedResponse> listener) {
         client.execute(ValidateJobConfigAction.INSTANCE, request, listener);
     }
 
-    public ActionFuture<ValidateJobConfigAction.Response> validateJobConfig(
+    public ActionFuture<AcknowledgedResponse> validateJobConfig(
             ValidateJobConfigAction.Request request) {
-        PlainActionFuture<ValidateJobConfigAction.Response> listener = PlainActionFuture.newFuture();
+        PlainActionFuture<AcknowledgedResponse> listener = PlainActionFuture.newFuture();
         client.execute(ValidateJobConfigAction.INSTANCE, request, listener);
         return listener;
     }

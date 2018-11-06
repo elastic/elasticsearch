@@ -1,6 +1,6 @@
 {
   "xpack.security.enable_user": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-users.html#security-api-enable-user",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html",
     "methods": [ "PUT", "POST" ],
     "url": {
       "path": "/_xpack/security/user/{username}/_enable",

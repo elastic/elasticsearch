@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -127,9 +126,7 @@ public class FlushJobAction extends Action<FlushJobAction.Response> {
             start = in.readOptionalString();
             end = in.readOptionalString();
             advanceTime = in.readOptionalString();
-            if (in.getVersion().after(Version.V_5_5_0)) {
-                skipTime = in.readOptionalString();
-            }
+            skipTime = in.readOptionalString();
         }
 
         @Override
@@ -139,9 +136,7 @@ public class FlushJobAction extends Action<FlushJobAction.Response> {
             out.writeOptionalString(start);
             out.writeOptionalString(end);
             out.writeOptionalString(advanceTime);
-            if (out.getVersion().after(Version.V_5_5_0)) {
-                out.writeOptionalString(skipTime);
-            }
+            out.writeOptionalString(skipTime);
         }
 
         @Override
@@ -222,18 +217,14 @@ public class FlushJobAction extends Action<FlushJobAction.Response> {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             flushed = in.readBoolean();
-            if (in.getVersion().after(Version.V_5_5_0)) {
-                lastFinalizedBucketEnd = new Date(in.readVLong());
-            }
+            lastFinalizedBucketEnd = new Date(in.readVLong());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(flushed);
-            if (out.getVersion().after(Version.V_5_5_0)) {
-                out.writeVLong(lastFinalizedBucketEnd.getTime());
-            }
+            out.writeVLong(lastFinalizedBucketEnd.getTime());
         }
 
         @Override

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.sql.client.Version;
 import org.jline.terminal.TerminalBuilder;
 import java.io.IOException;
 import java.net.ConnectException;
+import java.sql.SQLInvalidAuthorizationSpecException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.logging.LogManager;
@@ -139,6 +140,10 @@ public class Cli extends LoggingAwareCommand {
                 // Most likely Elasticsearch is not running
                 throw new UserException(ExitCodes.IO_ERROR,
                         "Cannot connect to the server " + con.connectionString() + " - " + ex.getCause().getMessage());
+            } else if (ex.getCause() != null && ex.getCause() instanceof SQLInvalidAuthorizationSpecException) {
+                throw new UserException(ExitCodes.NOPERM,
+                        "Cannot establish a secure connection to the server " + 
+                                con.connectionString() + " - " + ex.getCause().getMessage());
             } else {
                 // Most likely we connected to something other than Elasticsearch
                 throw new UserException(ExitCodes.DATA_ERROR,

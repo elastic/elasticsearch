@@ -15,7 +15,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -238,22 +238,17 @@ public class RoleDescriptor implements ToXContentObject {
         int size = in.readVInt();
         IndicesPrivileges[] indicesPrivileges = new IndicesPrivileges[size];
         for (int i = 0; i < size; i++) {
-            indicesPrivileges[i] = IndicesPrivileges.createFrom(in);
+            indicesPrivileges[i] = new IndicesPrivileges(in);
         }
         String[] runAs = in.readStringArray();
         Map<String, Object> metadata = in.readMap();
 
-        final Map<String, Object> transientMetadata;
-        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
-            transientMetadata = in.readMap();
-        } else {
-            transientMetadata = Collections.emptyMap();
-        }
+        final Map<String, Object> transientMetadata = in.readMap();
 
         final ApplicationResourcePrivileges[] applicationPrivileges;
         final ConditionalClusterPrivilege[] conditionalClusterPrivileges;
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            applicationPrivileges = in.readArray(ApplicationResourcePrivileges::createFrom, ApplicationResourcePrivileges[]::new);
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
+            applicationPrivileges = in.readArray(ApplicationResourcePrivileges::new, ApplicationResourcePrivileges[]::new);
             conditionalClusterPrivileges = ConditionalClusterPrivileges.readArray(in);
         } else {
             applicationPrivileges = ApplicationResourcePrivileges.NONE;
@@ -273,10 +268,8 @@ public class RoleDescriptor implements ToXContentObject {
         }
         out.writeStringArray(descriptor.runAs);
         out.writeMap(descriptor.metadata);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
-            out.writeMap(descriptor.transientMetadata);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        out.writeMap(descriptor.transientMetadata);
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeArray(ApplicationResourcePrivileges::write, descriptor.applicationPrivileges);
             ConditionalClusterPrivileges.writeArray(out, descriptor.getConditionalClusterPrivileges());
         }
@@ -588,7 +581,7 @@ public class RoleDescriptor implements ToXContentObject {
      * A class representing permissions for a group of indices mapped to
      * privileges, field permissions, and a query.
      */
-    public static class IndicesPrivileges implements ToXContentObject, Streamable {
+    public static class IndicesPrivileges implements ToXContentObject, Writeable {
 
         private static final IndicesPrivileges[] NONE = new IndicesPrivileges[0];
 
@@ -599,6 +592,23 @@ public class RoleDescriptor implements ToXContentObject {
         private BytesReference query;
 
         private IndicesPrivileges() {
+        }
+
+        public IndicesPrivileges(StreamInput in) throws IOException {
+            this.indices = in.readStringArray();
+            this.grantedFields = in.readOptionalStringArray();
+            this.deniedFields = in.readOptionalStringArray();
+            this.privileges = in.readStringArray();
+            this.query = in.readOptionalBytesReference();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringArray(indices);
+            out.writeOptionalStringArray(grantedFields);
+            out.writeOptionalStringArray(deniedFields);
+            out.writeStringArray(privileges);
+            out.writeOptionalBytesReference(query);
         }
 
         public static Builder builder() {
@@ -729,30 +739,6 @@ public class RoleDescriptor implements ToXContentObject {
             return builder.endObject();
         }
 
-        public static IndicesPrivileges createFrom(StreamInput in) throws IOException {
-            IndicesPrivileges ip = new IndicesPrivileges();
-            ip.readFrom(in);
-            return ip;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            this.indices = in.readStringArray();
-            this.grantedFields = in.readOptionalStringArray();
-            this.deniedFields = in.readOptionalStringArray();
-            this.privileges = in.readStringArray();
-            this.query = in.readOptionalBytesReference();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeStringArray(indices);
-            out.writeOptionalStringArray(grantedFields);
-            out.writeOptionalStringArray(deniedFields);
-            out.writeStringArray(privileges);
-            out.writeOptionalBytesReference(query);
-        }
-
         public static class Builder {
 
             private IndicesPrivileges indicesPrivileges = new IndicesPrivileges();
@@ -768,6 +754,10 @@ public class RoleDescriptor implements ToXContentObject {
             public Builder privileges(String... privileges) {
                 indicesPrivileges.privileges = privileges;
                 return this;
+            }
+
+            public Builder privileges(Collection<String> privileges) {
+                return privileges(privileges.toArray(new String[privileges.size()]));
             }
 
             public Builder grantedFields(String... grantedFields) {
@@ -805,7 +795,7 @@ public class RoleDescriptor implements ToXContentObject {
         }
     }
 
-    public static class ApplicationResourcePrivileges implements ToXContentObject, Streamable {
+    public static class ApplicationResourcePrivileges implements ToXContentObject, Writeable {
 
         private static final ApplicationResourcePrivileges[] NONE = new ApplicationResourcePrivileges[0];
         private static final ObjectParser<ApplicationResourcePrivileges.Builder, Void> PARSER = new ObjectParser<>("application",
@@ -822,6 +812,19 @@ public class RoleDescriptor implements ToXContentObject {
         private String[] resources;
 
         private ApplicationResourcePrivileges() {
+        }
+
+        public ApplicationResourcePrivileges(StreamInput in) throws IOException {
+            this.application = in.readString();
+            this.privileges = in.readStringArray();
+            this.resources = in.readStringArray();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(application);
+            out.writeStringArray(privileges);
+            out.writeStringArray(resources);
         }
 
         public static Builder builder() {
@@ -885,26 +888,6 @@ public class RoleDescriptor implements ToXContentObject {
             return builder.endObject();
         }
 
-        public static ApplicationResourcePrivileges createFrom(StreamInput in) throws IOException {
-            ApplicationResourcePrivileges ip = new ApplicationResourcePrivileges();
-            ip.readFrom(in);
-            return ip;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            this.application = in.readString();
-            this.privileges = in.readStringArray();
-            this.resources = in.readStringArray();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(application);
-            out.writeStringArray(privileges);
-            out.writeStringArray(resources);
-        }
-
         public static void write(StreamOutput out, ApplicationResourcePrivileges privileges) throws IOException {
             privileges.writeTo(out);
         }
@@ -926,7 +909,7 @@ public class RoleDescriptor implements ToXContentObject {
                 return this;
             }
 
-            public Builder resources(List<String> resources) {
+            public Builder resources(Collection<String> resources) {
                 return resources(resources.toArray(new String[resources.size()]));
             }
 

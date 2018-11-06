@@ -95,15 +95,18 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
     private final AtomicReference<ClusterState> state; // last applied state
 
+    private final String nodeName;
+
     private NodeConnectionsService nodeConnectionsService;
 
-    public ClusterApplierService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+    public ClusterApplierService(String nodeName, Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         super(settings);
         this.clusterSettings = clusterSettings;
         this.threadPool = threadPool;
         this.state = new AtomicReference<>();
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
         this.localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
+        this.nodeName = nodeName;
     }
 
     public void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
@@ -130,8 +133,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         Objects.requireNonNull(state.get(), "please set initial state before starting");
         addListener(localNodeMasterListeners);
         threadPoolExecutor = EsExecutors.newSinglePrioritizing(
-                nodeName() + "/" + CLUSTER_UPDATE_THREAD_NAME,
-                daemonThreadFactory(settings, CLUSTER_UPDATE_THREAD_NAME),
+                nodeName + "/" + CLUSTER_UPDATE_THREAD_NAME,
+                daemonThreadFactory(nodeName, CLUSTER_UPDATE_THREAD_NAME),
                 threadPool.getThreadContext(),
                 threadPool.scheduler());
     }
@@ -256,13 +259,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /**
-     * Remove the given listener for on/off local master events
-     */
-    public void removeLocalNodeMasterListener(LocalNodeMasterListener listener) {
-        localNodeMasterListeners.remove(listener);
-    }
-
-    /**
      * Adds a cluster state listener that is expected to be removed during a short period of time.
      * If provided, the listener will be notified once a specific time has elapsed.
      *
@@ -347,13 +343,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 throw e;
             }
         }
-    }
-
-    /** asserts that the current thread is the cluster state update thread */
-    public static boolean assertClusterStateUpdateThread() {
-        assert Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME) :
-            "not called from the cluster state update thread";
-        return true;
     }
 
     /** asserts that the current thread is <b>NOT</b> the cluster state update thread */
@@ -607,13 +596,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             listeners.add(listener);
         }
 
-        private void remove(LocalNodeMasterListener listener) {
-            listeners.remove(listener);
-        }
-
-        private void clear() {
-            listeners.clear();
-        }
     }
 
     private static class OnMasterRunnable implements Runnable {

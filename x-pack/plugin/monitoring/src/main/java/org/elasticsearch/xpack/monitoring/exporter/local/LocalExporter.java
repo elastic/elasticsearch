@@ -6,14 +6,13 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -28,7 +27,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -82,7 +80,7 @@ import static org.elasticsearch.xpack.monitoring.Monitoring.CLEAN_WATCHER_HISTOR
 
 public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener {
 
-    private static final Logger logger = Loggers.getLogger(LocalExporter.class);
+    private static final Logger logger = LogManager.getLogger(LocalExporter.class);
 
     public static final String TYPE = "local";
 
@@ -402,7 +400,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     }
 
     // FIXME this should use the IndexTemplateMetaDataUpgrader
-    private void putTemplate(String template, String source, ActionListener<PutIndexTemplateResponse> listener) {
+    private void putTemplate(String template, String source, ActionListener<AcknowledgedResponse> listener) {
         logger.debug("installing template [{}]", template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source, XContentType.JSON);
@@ -547,9 +545,9 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         logger.trace("deleting {} indices: [{}]", indices.size(), collectionToCommaDelimitedString(indices));
         final DeleteIndexRequest request = new DeleteIndexRequest(indices.toArray(new String[indices.size()]));
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, request,
-                new ActionListener<DeleteIndexResponse>() {
+                new ActionListener<AcknowledgedResponse>() {
                     @Override
-                    public void onResponse(DeleteIndexResponse response) {
+                    public void onResponse(AcknowledgedResponse response) {
                         if (response.isAcknowledged()) {
                             logger.debug("{} indices deleted", indices.size());
                         } else {

@@ -362,8 +362,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                 IndicesAliasesAction.NAME, "create_test_aliases_alias");
 
         //fails: user doesn't have manage_aliases on test_*, wildcards can't get replaced
-        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
-                client.admin().indices().prepareAliases().removeAlias("test_*", "alias_1")::get);
+        expectThrows(IndexNotFoundException.class, client.admin().indices().prepareAliases().removeAlias("test_*", "alias_1")::get);
         }
 
     public void testGetAliasesCreateAndAliasesPermission2() {
@@ -510,7 +509,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         //security plugin lets it through, but es core intercepts it due to strict indices options and throws index not found
         IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class, client.admin().indices()
                 .prepareGetAliases("alias_1").addIndices("test_1").setIndicesOptions(IndicesOptions.strictExpandOpen())::get);
-        assertEquals("no such index", indexNotFoundException.getMessage());
+        assertEquals("no such index [test_1]", indexNotFoundException.getMessage());
 
         //fails: no manage_aliases privilege on non_authorized alias
         assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases("non_authorized").addIndices("test_1")

@@ -96,7 +96,7 @@ see <<http-exporter-settings>>.
 [[http-exporter-dns]]
 ==== Using DNS Hosts in HTTP Exporters
 
-{monitoring} runs inside of the the JVM security manager. When the JVM has the
+{monitoring} runs inside of the JVM security manager. When the JVM has the
 security manager enabled, the JVM changes the duration so that it caches DNS
 lookups indefinitely (for example, the mapping of a DNS hostname to an IP 
 address). For this reason, if you are in an environment where the DNS response 

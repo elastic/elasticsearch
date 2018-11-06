@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
+import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -75,8 +76,7 @@ public class SearchInputTests extends ESTestCase {
         engines.put(MockMustacheScriptEngine.NAME, new MockMustacheScriptEngine());
         Map<String, ScriptContext<?>> contexts = new HashMap<>();
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
-        contexts.put(Watcher.SCRIPT_SEARCH_CONTEXT.name, Watcher.SCRIPT_SEARCH_CONTEXT);
-        contexts.put(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
         scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
 
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -100,9 +100,9 @@ public class SearchInputTests extends ESTestCase {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery().must(matchQuery("event_type", "a")));
 
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder);
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null),
                 client, watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
 
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
@@ -126,9 +126,9 @@ public class SearchInputTests extends ESTestCase {
         SearchType searchType = getRandomSupportedSearchType();
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder, searchType);
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null),
                 client, watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
-        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+        WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
         assertThat(result.status(), is(Input.Result.Status.SUCCESS));
@@ -178,7 +178,7 @@ public class SearchInputTests extends ESTestCase {
             assertThat(input.getRequest().getSearchSource(), is(BytesArray.EMPTY));
 
             ExecutableSearchInput executableSearchInput = factory.createExecutable(input);
-            WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext(logger);
+            WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
             SearchInput.Result result = executableSearchInput.execute(ctx, Payload.Simple.EMPTY);
             assertThat(result.status(), is(Input.Result.Status.SUCCESS));
             // no body in the search request
@@ -189,6 +189,6 @@ public class SearchInputTests extends ESTestCase {
 
     private WatcherSearchTemplateService watcherSearchTemplateService() {
         SearchModule module = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
-        return new WatcherSearchTemplateService(Settings.EMPTY, scriptService, new NamedXContentRegistry(module.getNamedXContents()));
+        return new WatcherSearchTemplateService(scriptService, new NamedXContentRegistry(module.getNamedXContents()));
     }
 }

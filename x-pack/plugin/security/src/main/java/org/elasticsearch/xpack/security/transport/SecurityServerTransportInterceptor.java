@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -49,7 +49,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
-public class SecurityServerTransportInterceptor extends AbstractComponent implements TransportInterceptor {
+public class SecurityServerTransportInterceptor implements TransportInterceptor {
 
     private static final Function<String, Setting<String>> TRANSPORT_TYPE_SETTING_TEMPLATE = key -> new Setting<>(key, "node", v -> {
         if (v.equals("node") || v.equals("client")) {
@@ -58,6 +58,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
         throw new IllegalArgumentException("type must be one of [client, node]");
     }, Setting.Property.NodeScope);
     private static final String TRANSPORT_TYPE_SETTING_KEY = "xpack.security.type";
+    private static final Logger logger = LogManager.getLogger(SecurityServerTransportInterceptor.class);
 
     public static final Setting.AffixSetting<String> TRANSPORT_TYPE_PROFILE_SETTING = Setting.affixKeySetting("transport.profiles.",
             TRANSPORT_TYPE_SETTING_KEY, TRANSPORT_TYPE_SETTING_TEMPLATE);
@@ -83,7 +84,6 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                                               SecurityContext securityContext,
                                               DestructiveOperations destructiveOperations,
                                               ClusterService clusterService) {
-        super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.authcService = authcService;
@@ -107,7 +107,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
                 // guarantee we use the same value wherever we would check the value for the state
                 // being recovered
                 final boolean stateNotRecovered = isStateNotRecovered;
-                final boolean sendWithAuth = (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) || stateNotRecovered;
+                final boolean sendWithAuth = licenseState.isAuthAllowed() || stateNotRecovered;
                 if (sendWithAuth) {
                     // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                     // ourselves otherwise we wind up using a version newer than what we can actually send
@@ -266,7 +266,7 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             final AbstractRunnable receiveMessage = getReceiveRunnable(request, channel, task);
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
-                if (licenseState.isSecurityEnabled() && licenseState.isAuthAllowed()) {
+                if (licenseState.isAuthAllowed()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 

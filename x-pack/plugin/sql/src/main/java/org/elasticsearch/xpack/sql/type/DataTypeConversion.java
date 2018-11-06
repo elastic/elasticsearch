@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -101,7 +102,10 @@ public abstract class DataTypeConversion {
         if (from == to) {
             return Conversion.IDENTITY;
         }
-        if (to == DataType.NULL) {
+        if (to == DataType.NULL || from == DataType.NULL) {
+            return Conversion.NULL;
+        }
+        if (from == DataType.NULL) {
             return Conversion.NULL;
         }
         
@@ -117,6 +121,8 @@ public abstract class DataTypeConversion {
             case KEYWORD:
             case TEXT:
                 return conversionToString(from);
+            case IP:
+                return conversionToIp(from);
             case LONG:
                 return conversionToLong(from);
             case INTEGER:
@@ -144,6 +150,13 @@ public abstract class DataTypeConversion {
             return Conversion.DATE_TO_STRING;
         }
         return Conversion.OTHER_TO_STRING;
+    }
+
+    private static Conversion conversionToIp(DataType from) {
+        if (from.isString()) {
+            return Conversion.STRING_TO_IP;
+        }
+        return null;
     }
 
     private static Conversion conversionToLong(DataType from) {
@@ -409,7 +422,14 @@ public abstract class DataTypeConversion {
         STRING_TO_BOOLEAN(fromString(DataTypeConversion::convertToBoolean, "Boolean")),
         DATE_TO_BOOLEAN(fromDate(value -> value != 0)),
 
-        BOOL_TO_LONG(fromBool(value -> value ? 1L : 0L));
+        BOOL_TO_LONG(fromBool(value -> value ? 1L : 0L)),
+
+        STRING_TO_IP(o -> {
+            if (!InetAddresses.isInetAddress(o.toString())) {
+                throw new SqlIllegalArgumentException( "[" + o + "] is not a valid IPv4 or IPv6 address");
+            }
+            return o;
+        });
 
         private final Function<Object, Object> converter;
 

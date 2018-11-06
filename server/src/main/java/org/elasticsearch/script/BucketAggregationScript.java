@@ -46,7 +46,7 @@ public abstract class BucketAggregationScript {
         return params;
     }
 
-    public abstract double execute();
+    public abstract Double execute();
 
     public interface Factory {
         BucketAggregationScript newInstance(Map<String, Object> params);

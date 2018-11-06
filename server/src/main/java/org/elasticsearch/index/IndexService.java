@@ -24,6 +24,8 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.Assertions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -64,6 +66,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -185,8 +188,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexStore = indexStore;
         indexFieldData.setListener(new FieldDataCacheListener(this));
         this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
-        this.warmer = new IndexWarmer(indexSettings.getSettings(), threadPool, indexFieldData,
-            bitsetFilterCache.createListener(threadPool));
+        this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
         this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
@@ -377,7 +379,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     warmer.warm(searcher, shard, IndexService.this.indexSettings);
                 }
             };
-            store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock,
+            // TODO we can remove either IndexStore or DirectoryService. All we need is a simple Supplier<Directory>
+            DirectoryService directoryService = indexStore.newDirectoryService(path);
+            store = new Store(shardId, this.indexSettings, directoryService.newDirectory(), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
             indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
                 indexCache, mapperService, similarityService, engineFactory,
@@ -522,8 +526,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     @Override
-    public boolean updateMapping(IndexMetaData indexMetaData) throws IOException {
-        return mapperService().updateMapping(indexMetaData);
+    public boolean updateMapping(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) throws IOException {
+        return mapperService().updateMapping(currentIndexMetaData, newIndexMetaData);
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -614,9 +618,27 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     @Override
-    public synchronized void updateMetaData(final IndexMetaData metadata) {
+    public synchronized void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
         final Translog.Durability oldTranslogDurability = indexSettings.getTranslogDurability();
-        if (indexSettings.updateIndexMetaData(metadata)) {
+
+        final boolean updateIndexMetaData = indexSettings.updateIndexMetaData(newIndexMetaData);
+
+        if (Assertions.ENABLED
+                && currentIndexMetaData != null
+                && currentIndexMetaData.getCreationVersion().onOrAfter(Version.V_6_5_0)) {
+            final long currentSettingsVersion = currentIndexMetaData.getSettingsVersion();
+            final long newSettingsVersion = newIndexMetaData.getSettingsVersion();
+            if (currentSettingsVersion == newSettingsVersion) {
+                assert updateIndexMetaData == false;
+            } else {
+                assert updateIndexMetaData;
+                assert currentSettingsVersion < newSettingsVersion :
+                        "expected current settings version [" + currentSettingsVersion + "] "
+                                + "to be less than new settings version [" + newSettingsVersion + "]";
+            }
+        }
+
+        if (updateIndexMetaData) {
             for (final IndexShard shard : this.shards.values()) {
                 try {
                     shard.onSettingsChanged();

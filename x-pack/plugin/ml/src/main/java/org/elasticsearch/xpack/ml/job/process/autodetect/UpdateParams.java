@@ -66,6 +66,7 @@ public final class UpdateParams {
         return new Builder(jobUpdate.getJobId())
                 .modelPlotConfig(jobUpdate.getModelPlotConfig())
                 .detectorUpdates(jobUpdate.getDetectorUpdates())
+                .updateScheduledEvents(jobUpdate.getGroups() != null)
                 .build();
     }
 

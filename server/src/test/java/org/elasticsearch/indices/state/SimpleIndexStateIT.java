@@ -19,17 +19,17 @@
 
 package org.elasticsearch.indices.state;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SimpleIndexStateIT extends ESIntegTestCase {
-    private final Logger logger = Loggers.getLogger(SimpleIndexStateIT.class);
+    private final Logger logger = LogManager.getLogger(SimpleIndexStateIT.class);
 
     public void testSimpleOpenClose() {
         logger.info("--> creating test index");
@@ -61,7 +61,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
 
         logger.info("--> closing test index...");
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").get();
+        AcknowledgedResponse closeIndexResponse = client().admin().indices().prepareClose("test").get();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
 
         stateResponse = client().admin().cluster().prepareState().get();

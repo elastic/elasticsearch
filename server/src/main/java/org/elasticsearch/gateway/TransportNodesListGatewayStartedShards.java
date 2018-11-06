@@ -67,17 +67,22 @@ public class TransportNodesListGatewayStartedShards extends
         TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
+    private final Settings settings;
     private final NodeEnvironment nodeEnv;
     private final IndicesService indicesService;
+    private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
     public TransportNodesListGatewayStartedShards(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                                   TransportService transportService, ActionFilters actionFilters,
-                                                  NodeEnvironment env, IndicesService indicesService) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+                                                  NodeEnvironment env, IndicesService indicesService,
+                                                  NamedXContentRegistry namedXContentRegistry) {
+        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
             Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED, NodeGatewayStartedShards.class);
+        this.settings = settings;
         this.nodeEnv = env;
         this.indicesService = indicesService;
+        this.namedXContentRegistry = namedXContentRegistry;
     }
 
     @Override
@@ -112,7 +117,7 @@ public class TransportNodesListGatewayStartedShards extends
         try {
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);
-            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+            ShardStateMetaData shardStateMetaData = ShardStateMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
                 nodeEnv.availableShardPaths(request.shardId));
             if (shardStateMetaData != null) {
                 IndexMetaData metaData = clusterService.state().metaData().index(shardId.getIndex());
@@ -120,7 +125,7 @@ public class TransportNodesListGatewayStartedShards extends
                     // we may send this requests while processing the cluster state that recovered the index
                     // sometimes the request comes in before the local node processed that cluster state
                     // in such cases we can load it from disk
-                    metaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+                    metaData = IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
                         nodeEnv.indexPaths(shardId.getIndex()));
                 }
                 if (metaData == null) {

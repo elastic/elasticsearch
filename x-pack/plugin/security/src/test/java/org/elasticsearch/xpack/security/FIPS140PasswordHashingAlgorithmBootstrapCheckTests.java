@@ -25,7 +25,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
                     .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2_10000")
                     .build();
             final BootstrapCheck.BootstrapCheckResult result =
-                    new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings).check(new BootstrapContext(settings, null));
+                    new FIPS140PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null));
             assertFalse(result.isFailure());
         }
 
@@ -35,7 +35,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
                     .put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), "PBKDF2")
                     .build();
             final BootstrapCheck.BootstrapCheckResult result =
-                    new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings).check(new BootstrapContext(settings, null));
+                    new FIPS140PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null));
             assertFalse(result.isFailure());
         }
     }
@@ -55,7 +55,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheckTests extends ESTestCa
         }
         final Settings settings = builder.build();
         final BootstrapCheck.BootstrapCheckResult result =
-                new FIPS140PasswordHashingAlgorithmBootstrapCheck(settings).check(new BootstrapContext(settings, null));
+                new FIPS140PasswordHashingAlgorithmBootstrapCheck().check(new BootstrapContext(settings, null));
         assertThat(result.isFailure(), equalTo(fipsModeEnabled));
     }
 

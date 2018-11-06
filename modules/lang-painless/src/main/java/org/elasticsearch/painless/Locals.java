@@ -295,7 +295,6 @@ public final class Locals {
         public final Class<?> clazz;
         public final boolean readonly;
         private final int slot;
-        private boolean used;
 
         public Variable(Location location, String name, Class<?> clazz, int slot, boolean readonly) {
             this.location = location;

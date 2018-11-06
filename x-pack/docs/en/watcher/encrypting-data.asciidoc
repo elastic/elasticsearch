@@ -6,8 +6,8 @@ information or details about your SMTP email service. You can encrypt this
 data by generating a key and adding some secure settings on each node in your
 cluster.
 
-Every `password` field that is used in your watch within a HTTP basic
-authentication block - for example within a webhook, a HTTP input or when using
+Every `password` field that is used in your watch within an HTTP basic
+authentication block - for example within a webhook, an HTTP input or when using
 the reporting email attachment - will not be stored as plain text anymore. Also
 be aware, that there is no way to configure your own fields in a watch to be
 encrypted.

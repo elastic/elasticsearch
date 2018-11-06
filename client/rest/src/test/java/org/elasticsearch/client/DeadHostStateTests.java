@@ -36,6 +36,7 @@ public class DeadHostStateTests extends RestClientTestCase {
     private static long[] EXPECTED_TIMEOUTS_SECONDS = new long[]{60, 84, 120, 169, 240, 339, 480, 678, 960, 1357, 1800};
 
     public void testInitialDeadHostStateDefaultTimeSupplier() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/33747", System.getProperty("os.name").startsWith("Windows"));
         DeadHostState deadHostState = new DeadHostState(DeadHostState.TimeSupplier.DEFAULT);
         long currentTime = System.nanoTime();
         assertThat(deadHostState.getDeadUntilNanos(), greaterThan(currentTime));
@@ -54,6 +55,7 @@ public class DeadHostStateTests extends RestClientTestCase {
     }
 
     public void testCompareToDefaultTimeSupplier() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/33747", System.getProperty("os.name").startsWith("Windows"));
         int numObjects = randomIntBetween(EXPECTED_TIMEOUTS_SECONDS.length, 30);
         DeadHostState[] deadHostStates = new DeadHostState[numObjects];
         for (int i = 0; i < numObjects; i++) {

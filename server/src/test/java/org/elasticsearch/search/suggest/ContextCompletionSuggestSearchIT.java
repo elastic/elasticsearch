@@ -275,7 +275,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("foo", typeFilterSuggest, "suggestion9", "suggestion6", "suggestion5", "suggestion2", "suggestion1");
     }
 
-    @AwaitsFix(bugUrl = "multiple context boosting is broken, as a suggestion, contexts pair is treated as (num(context) entries)")
     public void testMultiContextBoosting() throws Exception {
         LinkedHashMap<String, ContextMapping<?>> map = new LinkedHashMap<>();
         map.put("cat", ContextBuilder.category("cat").field("cat").build());
@@ -328,7 +327,8 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
             CategoryQueryContext.builder().setCategory("cat1").build())
         );
         multiContextBoostSuggest.contexts(contextMap);
-        assertSuggestions("foo", multiContextBoostSuggest, "suggestion9", "suggestion6", "suggestion5", "suggestion2", "suggestion1");
+        // the score of each suggestion is the maximum score among the matching contexts
+        assertSuggestions("foo", multiContextBoostSuggest, "suggestion9", "suggestion8", "suggestion5", "suggestion6", "suggestion4");
     }
 
     public void testSeveralContexts() throws Exception {
@@ -493,15 +493,24 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void testGeoField() throws Exception {
-//        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha5);
-//        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
         mapping.startObject(TYPE);
         mapping.startObject("properties");
+        mapping.startObject("location");
+        mapping.startObject("properties");
         mapping.startObject("pin");
         mapping.field("type", "geo_point");
+        // Enable store and disable indexing sometimes
+        if (randomBoolean()) {
+            mapping.field("store", "true");
+        }
+        if (randomBoolean()) {
+            mapping.field("index", "false");
+        }
+        mapping.endObject(); // pin
         mapping.endObject();
+        mapping.endObject(); // location
         mapping.startObject(FIELD);
         mapping.field("type", "completion");
         mapping.field("analyzer", "simple");
@@ -510,7 +519,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         mapping.startObject();
         mapping.field("name", "st");
         mapping.field("type", "geo");
-        mapping.field("path", "pin");
+        mapping.field("path", "location.pin");
         mapping.field("precision", 5);
         mapping.endObject();
         mapping.endArray();
@@ -524,7 +533,9 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder source1 = jsonBuilder()
                 .startObject()
+                .startObject("location")
                 .latlon("pin", 52.529172, 13.407333)
+                .endObject()
                 .startObject(FIELD)
                 .array("input", "Hotel Amsterdam in Berlin")
                 .endObject()
@@ -533,7 +544,9 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder source2 = jsonBuilder()
                 .startObject()
+                .startObject("location")
                 .latlon("pin", 52.363389, 4.888695)
+                .endObject()
                 .startObject(FIELD)
                 .array("input", "Hotel Berlin in Amsterdam")
                 .endObject()
@@ -600,6 +613,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     private void createIndexAndMapping(CompletionMappingBuilder completionMappingBuilder) throws IOException {
         createIndexAndMappingAndSettings(Settings.EMPTY, completionMappingBuilder);
     }
+
     private void createIndexAndMappingAndSettings(Settings settings, CompletionMappingBuilder completionMappingBuilder) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")

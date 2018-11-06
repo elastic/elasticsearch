@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.snapshots.SnapshotInfo.VERBOSE_INTRODUCED;
 
 /**
  * Get snapshot request
@@ -75,9 +74,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         repository = in.readString();
         snapshots = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
-        if (in.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
-            verbose = in.readBoolean();
-        }
+        verbose = in.readBoolean();
     }
 
     @Override
@@ -86,9 +83,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         out.writeString(repository);
         out.writeStringArray(snapshots);
         out.writeBoolean(ignoreUnavailable);
-        if (out.getVersion().onOrAfter(VERBOSE_INTRODUCED)) {
-            out.writeBoolean(verbose);
-        }
+        out.writeBoolean(verbose);
     }
 
     @Override

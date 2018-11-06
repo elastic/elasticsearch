@@ -41,8 +41,9 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * This is a testing plugin that registers a generic {@link org.elasticsearch.test.MockIndexEventListener.TestEventListener} as a node level service as well as a listener
- * on every index. Tests can access it like this:
+ * This is a testing plugin that registers a generic
+ * {@link MockIndexEventListener.TestEventListener} as a node level service
+ * as well as a listener on every index. Tests can access it like this:
  * <pre>
  *     TestEventListener listener = internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node1);
  *     listener.setNewDelegate(new IndexEventListener() {
@@ -109,7 +110,8 @@ public final class MockIndexEventListener {
         }
 
         @Override
-        public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {
+        public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState,
+                IndexShardState currentState, @Nullable String reason) {
             delegate.indexShardStateChanged(indexShard, previousState, currentState, reason);
         }
 

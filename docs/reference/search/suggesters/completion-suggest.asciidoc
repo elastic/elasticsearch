@@ -258,7 +258,7 @@ Which should look like:
     },
     "hits": {
         "total" : 0,
-        "max_score" : 0.0,
+        "max_score" : null,
         "hits" : []
     },
     "suggest": {

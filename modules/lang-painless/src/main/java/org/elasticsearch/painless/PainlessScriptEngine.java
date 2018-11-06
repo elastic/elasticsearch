@@ -19,18 +19,14 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.SearchScript;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -57,7 +53,7 @@ import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 /**
  * Implementation of a ScriptEngine for the Painless language.
  */
-public final class PainlessScriptEngine extends AbstractComponent implements ScriptEngine {
+public final class PainlessScriptEngine implements ScriptEngine {
 
     /**
      * Standard name of the Painless language.
@@ -93,21 +89,14 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
      * @param settings The settings to initialize the engine with.
      */
     public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
-        super(settings);
-
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
 
         Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
 
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
-            if (context.instanceClazz.equals(SearchScript.class) || context.instanceClazz.equals(ExecutableScript.class)) {
-                contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, null, null,
-                        PainlessLookupBuilder.buildFromWhitelists(entry.getValue())));
-            } else {
-                contextsToCompilers.put(context, new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz,
-                        PainlessLookupBuilder.buildFromWhitelists(entry.getValue())));
-            }
+            contextsToCompilers.put(context, new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz,
+                    PainlessLookupBuilder.buildFromWhitelists(entry.getValue())));
         }
 
         this.contextsToCompilers = Collections.unmodifiableMap(contextsToCompilers);
@@ -126,47 +115,24 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         Compiler compiler = contextsToCompilers.get(context);
 
-        if (context.instanceClazz.equals(SearchScript.class)) {
-            GenericElasticsearchScript painlessScript =
-                (GenericElasticsearchScript)compile(compiler, scriptName, scriptSource, params);
+        // Check we ourselves are not being called by unprivileged code.
+        SpecialPermission.check();
 
-            SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
-                @Override
-                public SearchScript newInstance(final LeafReaderContext context) {
-                    return new ScriptImpl(painlessScript, p, lookup, context);
-                }
-                @Override
-                public boolean needs_score() {
-                    return painlessScript.needs_score();
-                }
-            };
-            return context.factoryClazz.cast(factory);
-        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
-            GenericElasticsearchScript painlessScript =
-                (GenericElasticsearchScript)compile(compiler, scriptName, scriptSource, params);
-
-            ExecutableScript.Factory factory = (p) -> new ScriptImpl(painlessScript, p, null, null);
-            return context.factoryClazz.cast(factory);
-        } else {
-            // Check we ourselves are not being called by unprivileged code.
-            SpecialPermission.check();
-
-            // Create our loader (which loads compiled code with no permissions).
-            final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
-                @Override
-                public Loader run() {
-                    return compiler.createLoader(getClass().getClassLoader());
-                }
-            });
-
-            MainMethodReserved reserved = new MainMethodReserved();
-            compile(contextsToCompilers.get(context), loader, reserved, scriptName, scriptSource, params);
-
-            if (context.statefulFactoryClazz != null) {
-                return generateFactory(loader, context, reserved, generateStatefulFactory(loader, context, reserved));
-            } else {
-                return generateFactory(loader, context, reserved, WriterConstants.CLASS_TYPE);
+        // Create our loader (which loads compiled code with no permissions).
+        final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
+            @Override
+            public Loader run() {
+                return compiler.createLoader(getClass().getClassLoader());
             }
+        });
+
+        MainMethodReserved reserved = new MainMethodReserved();
+        compile(contextsToCompilers.get(context), loader, reserved, scriptName, scriptSource, params);
+
+        if (context.statefulFactoryClazz != null) {
+            return generateFactory(loader, context, reserved, generateStatefulFactory(loader, context, reserved));
+        } else {
+            return generateFactory(loader, context, reserved, WriterConstants.CLASS_TYPE);
         }
     }
 
@@ -367,7 +333,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         }
     }
 
-    Object compile(Compiler compiler, String scriptName, String source, Map<String, String> params, Object... args) {
+    Constructor<?> compile(Compiler compiler, String scriptName, String source, Map<String, String> params) {
         final CompilerSettings compilerSettings = buildCompilerSettings(params);
 
         // Check we ourselves are not being called by unprivileged code.
@@ -383,14 +349,14 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
         try {
             // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<Object>() {
+            return AccessController.doPrivileged(new PrivilegedAction<Constructor<?>>() {
                 @Override
-                public Object run() {
+                public Constructor<?> run() {
                     String name = scriptName == null ? source : scriptName;
                     Constructor<?> constructor = compiler.compile(loader, new MainMethodReserved(), name, source, compilerSettings);
 
                     try {
-                        return constructor.newInstance(args);
+                        return constructor;
                     } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
                         throw new IllegalStateException(
                             "An internal error occurred attempting to define the script [" + name + "].", exception);

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -42,8 +41,7 @@ public class MetaStateService extends AbstractComponent {
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry namedXContentRegistry;
 
-    public MetaStateService(Settings settings, NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) {
-        super(settings);
+    public MetaStateService(NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) {
         this.nodeEnv = nodeEnv;
         this.namedXContentRegistry = namedXContentRegistry;
     }
@@ -85,10 +83,9 @@ public class MetaStateService extends AbstractComponent {
      */
     List<IndexMetaData> loadIndicesStates(Predicate<String> excludeIndexPathIdsPredicate) throws IOException {
         List<IndexMetaData> indexMetaDataList = new ArrayList<>();
-        for (String indexFolderName : nodeEnv.availableIndexFolders()) {
-            if (excludeIndexPathIdsPredicate.test(indexFolderName)) {
-                continue;
-            }
+        for (String indexFolderName : nodeEnv.availableIndexFolders(excludeIndexPathIdsPredicate)) {
+            assert excludeIndexPathIdsPredicate.test(indexFolderName) == false :
+                "unexpected folder " + indexFolderName + " which should have been excluded";
             IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry,
                 nodeEnv.resolveIndexFolder(indexFolderName));
             if (indexMetaData != null) {

@@ -35,6 +35,8 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -256,7 +258,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         Terms termsAgg = searchResponse.getAggregations().get("agg1");
         assertEquals("agg1", termsAgg.getName());
         assertEquals(2, termsAgg.getBuckets().size());
@@ -293,7 +295,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(5, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         Range rangeAgg = searchResponse.getAggregations().get("agg1");
         assertEquals("agg1", rangeAgg.getName());
         assertEquals(2, rangeAgg.getBuckets().size());
@@ -323,7 +325,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertNull(searchResponse.getSuggest());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         Terms termsAgg = searchResponse.getAggregations().get("agg1");
         assertEquals("agg1", termsAgg.getName());
         assertEquals(2, termsAgg.getBuckets().size());
@@ -375,7 +377,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(5, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(1, searchResponse.getAggregations().asList().size());
         MatrixStats matrixStats = searchResponse.getAggregations().get("agg1");
         assertEquals(5, matrixStats.getFieldCount("num"));
@@ -474,7 +476,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(3, searchResponse.getHits().totalHits);
         assertEquals(0, searchResponse.getHits().getHits().length);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(1, searchResponse.getAggregations().asList().size());
         Terms terms = searchResponse.getAggregations().get("top-tags");
         assertEquals(0, terms.getDocCountError());
@@ -513,7 +515,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertNull(searchResponse.getAggregations());
         assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
         assertEquals(0, searchResponse.getHits().totalHits);
-        assertEquals(0f, searchResponse.getHits().getMaxScore(), 0f);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
         assertEquals(0, searchResponse.getHits().getHits().length);
         assertEquals(1, searchResponse.getSuggest().size());
 
@@ -1034,7 +1036,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertTrue(explainResponse.isExists());
             assertTrue(explainResponse.isMatch());
             assertTrue(explainResponse.hasExplanation());
-            assertThat(explainResponse.getExplanation().getValue(), greaterThan(0.0f));
+            assertThat(explainResponse.getExplanation().getValue().floatValue(), greaterThan(0.0f));
             assertNull(explainResponse.getGetResult());
         }
         {
@@ -1079,7 +1081,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
             assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
             assertThat(exception.getIndex().getName(), equalTo("non_existent_index"));
             assertThat(exception.getDetailedMessage(),
-                containsString("Elasticsearch exception [type=index_not_found_exception, reason=no such index]"));
+                containsString("Elasticsearch exception [type=index_not_found_exception, reason=no such index [non_existent_index]]"));
         }
         {
             ExplainRequest explainRequest = new ExplainRequest("index1", "doc", "999");
@@ -1232,5 +1234,70 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(searchResponse.getTotalShards(), searchResponse.getSuccessfulShards());
         assertEquals(0, searchResponse.getShardFailures().length);
         assertEquals(SearchResponse.Clusters.EMPTY, searchResponse.getClusters());
+    }
+
+    public void testCountOneIndexNoQuery() throws IOException {
+        CountRequest countRequest = new CountRequest("index");
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(5, countResponse.getCount());
+    }
+
+    public void testCountMultipleIndicesNoQuery() throws IOException {
+        CountRequest countRequest = new CountRequest("index", "index1");
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(7, countResponse.getCount());
+    }
+
+    public void testCountAllIndicesNoQuery() throws IOException {
+        CountRequest countRequest = new CountRequest();
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(12, countResponse.getCount());
+    }
+
+    public void testCountOneIndexMatchQuery() throws IOException {
+        CountRequest countRequest = new CountRequest("index");
+        countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("num", 10)));
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(1, countResponse.getCount());
+    }
+
+    public void testCountMultipleIndicesMatchQueryUsingConstructor() throws IOException {
+
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1"));
+        CountRequest countRequest = new CountRequest(new String[]{"index1", "index2", "index3"}, sourceBuilder);
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(3, countResponse.getCount());
+
+    }
+
+    public void testCountMultipleIndicesMatchQuery() throws IOException {
+
+        CountRequest countRequest = new CountRequest("index1", "index2", "index3");
+        countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(3, countResponse.getCount());
+    }
+
+    public void testCountAllIndicesMatchQuery() throws IOException {
+
+        CountRequest countRequest = new CountRequest();
+        countRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("field", "value1")));
+        CountResponse countResponse = execute(countRequest, highLevelClient()::count, highLevelClient()::countAsync);
+        assertCountHeader(countResponse);
+        assertEquals(3, countResponse.getCount());
+    }
+
+    private static void assertCountHeader(CountResponse countResponse) {
+        assertEquals(0, countResponse.getSkippedShards());
+        assertEquals(0, countResponse.getFailedShards());
+        assertThat(countResponse.getTotalShards(), greaterThan(0));
+        assertEquals(countResponse.getTotalShards(), countResponse.getSuccessfulShards());
+        assertEquals(0, countResponse.getShardFailures().length);
     }
 }

@@ -21,7 +21,6 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -152,17 +151,13 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
         forceSource(in.readOptionalBoolean());
-        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
-            boundaryScannerType(in.readOptionalWriteable(BoundaryScannerType::readFromStream));
-        }
+        boundaryScannerType(in.readOptionalWriteable(BoundaryScannerType::readFromStream));
         boundaryMaxScan(in.readOptionalVInt());
         if (in.readBoolean()) {
             boundaryChars(in.readString().toCharArray());
         }
-        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
-            if (in.readBoolean()) {
-                boundaryScannerLocale(in.readString());
-            }
+        if (in.readBoolean()) {
+            boundaryScannerLocale(in.readString());
         }
         noMatchSize(in.readOptionalVInt());
         phraseLimit(in.readOptionalVInt());
@@ -191,21 +186,17 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);
         out.writeOptionalBoolean(forceSource);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
-            out.writeOptionalWriteable(boundaryScannerType);
-        }
+        out.writeOptionalWriteable(boundaryScannerType);
         out.writeOptionalVInt(boundaryMaxScan);
         boolean hasBounaryChars = boundaryChars != null;
         out.writeBoolean(hasBounaryChars);
         if (hasBounaryChars) {
             out.writeString(String.valueOf(boundaryChars));
         }
-        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
-            boolean hasBoundaryScannerLocale = boundaryScannerLocale != null;
-            out.writeBoolean(hasBoundaryScannerLocale);
-            if (hasBoundaryScannerLocale) {
-                out.writeString(boundaryScannerLocale.toLanguageTag());
-            }
+        boolean hasBoundaryScannerLocale = boundaryScannerLocale != null;
+        out.writeBoolean(hasBoundaryScannerLocale);
+        if (hasBoundaryScannerLocale) {
+            out.writeString(boundaryScannerLocale.toLanguageTag());
         }
         out.writeOptionalVInt(noMatchSize);
         out.writeOptionalVInt(phraseLimit);

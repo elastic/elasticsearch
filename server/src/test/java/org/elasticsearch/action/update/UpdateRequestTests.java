@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -132,12 +131,10 @@ public class UpdateRequestTests extends ESTestCase {
                     return null;
                 });
         scripts.put("return", vars -> null);
-        final MockScriptEngine engine = new MockScriptEngine("mock", scripts);
+        final MockScriptEngine engine = new MockScriptEngine("mock", scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS);
-        final Settings settings = settings(Version.CURRENT).build();
-
-        updateHelper = new UpdateHelper(settings, scriptService);
+        updateHelper = new UpdateHelper(scriptService);
     }
 
     @SuppressWarnings("unchecked")

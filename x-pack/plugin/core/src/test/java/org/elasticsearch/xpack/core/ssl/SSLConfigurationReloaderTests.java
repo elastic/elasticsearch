@@ -78,7 +78,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     /**
      * Tests reloading a keystore that is used in the KeyManager of SSLContext
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32124")
     public void testReloadingKeyStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         final Path tempDir = createTempDir();
@@ -192,7 +191,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Tests the reloading of SSLContext when the trust store is modified. The same store is used as a TrustStore (for the
      * reloadable SSLContext used in the HTTPClient) and as a KeyStore for the MockWebServer
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/32124")
     public void testReloadingTrustStore() throws Exception {
         assumeFalse("Can't run in a FIPS JVM", inFipsJvm());
         Path tempDir = createTempDir();
@@ -309,7 +307,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [keystore reload exception]");
@@ -350,7 +348,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [pem key reload exception]");
@@ -385,7 +383,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [truststore reload exception]");
@@ -417,7 +415,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = randomBoolean() ? null : TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 fail("reload should not be called! [pem trust reload exception]");
@@ -446,7 +444,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final CountDownLatch reloadLatch = new CountDownLatch(1);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.getSSLConfiguration("xpack.ssl");
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
+        new SSLConfigurationReloader(env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
                 super.reloadSSLContext(configuration);

@@ -5,13 +5,15 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,6 +28,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 
@@ -34,36 +37,42 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
-public class FileRolesStore extends AbstractComponent {
+public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
     private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
+    private static final Logger logger = LogManager.getLogger(FileRolesStore.class);
 
+    private final Settings settings;
     private final Path file;
     private final XPackLicenseState licenseState;
-    private final List<Runnable> listeners = new ArrayList<>();
+    private final List<Consumer<Set<String>>> listeners = new ArrayList<>();
 
     private volatile Map<String, RoleDescriptor> permissions;
 
     public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, XPackLicenseState licenseState)
             throws IOException {
-        this(settings, env, watcherService, () -> {}, licenseState);
+        this(settings, env, watcherService, null, licenseState);
     }
 
-    FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Runnable listener,
+    FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Consumer<Set<String>> listener,
                    XPackLicenseState licenseState) throws IOException {
-        super(settings);
+        this.settings = settings;
         this.file = resolveFile(env);
         if (listener != null) {
             listeners.add(listener);
@@ -75,10 +84,17 @@ public class FileRolesStore extends AbstractComponent {
         permissions = parseFile(file, logger, settings, licenseState);
     }
 
-    public Set<RoleDescriptor> roleDescriptors(Set<String> roleNames) {
+
+    @Override
+    public void accept(Set<String> names, ActionListener<RoleRetrievalResult> listener) {
+        listener.onResponse(RoleRetrievalResult.success(roleDescriptors(names)));
+    }
+
+    Set<RoleDescriptor> roleDescriptors(Set<String> roleNames) {
+        final Map<String, RoleDescriptor> localPermissions = permissions;
         Set<RoleDescriptor> descriptors = new HashSet<>();
         roleNames.forEach((name) -> {
-            RoleDescriptor descriptor = permissions.get(name);
+            RoleDescriptor descriptor = localPermissions.get(name);
             if (descriptor != null) {
                 descriptors.add(descriptor);
             }
@@ -87,12 +103,13 @@ public class FileRolesStore extends AbstractComponent {
     }
 
     public Map<String, Object> usageStats() {
+        final Map<String, RoleDescriptor> localPermissions = permissions;
         Map<String, Object> usageStats = new HashMap<>(3);
-        usageStats.put("size", permissions.size());
+        usageStats.put("size", localPermissions.size());
 
         boolean dls = false;
         boolean fls = false;
-        for (RoleDescriptor descriptor : permissions.values()) {
+        for (RoleDescriptor descriptor : localPermissions.values()) {
             for (IndicesPrivileges indicesPrivileges : descriptor.getIndicesPrivileges()) {
                 fls = fls || indicesPrivileges.getGrantedFields() != null || indicesPrivileges.getDeniedFields() != null;
                 dls = dls || indicesPrivileges.getQuery() != null;
@@ -107,15 +124,25 @@ public class FileRolesStore extends AbstractComponent {
         return usageStats;
     }
 
-    public void addListener(Runnable runnable) {
-        Objects.requireNonNull(runnable);
+    public void addListener(Consumer<Set<String>> consumer) {
+        Objects.requireNonNull(consumer);
         synchronized (this) {
-            listeners.add(runnable);
+            listeners.add(consumer);
         }
     }
 
     public Path getFile() {
         return file;
+    }
+
+    // package private for testing
+    Set<String> getAllRoleNames() {
+        return permissions.keySet();
+    }
+
+    @Override
+    public String toString() {
+        return "file roles store (" + file + ")";
     }
 
     public static Path resolveFile(Environment env) {
@@ -319,11 +346,13 @@ public class FileRolesStore extends AbstractComponent {
         }
 
         @Override
-        public void onFileChanged(Path file) {
+        public synchronized void onFileChanged(Path file) {
             if (file.equals(FileRolesStore.this.file)) {
+                final Map<String, RoleDescriptor> previousPermissions = permissions;
                 try {
                     permissions = parseFile(file, logger, settings, licenseState);
-                    logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(), Files.exists(file) ? "changed" : "removed");
+                    logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(),
+                        Files.exists(file) ? "changed" : "removed");
                 } catch (Exception e) {
                     logger.error(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -331,9 +360,13 @@ public class FileRolesStore extends AbstractComponent {
                     return;
                 }
 
-                synchronized (FileRolesStore.this) {
-                    listeners.forEach(Runnable::run);
-                }
+                final Set<String> changedOrMissingRoles = Sets.difference(previousPermissions.entrySet(), permissions.entrySet())
+                        .stream()
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toSet());
+                final Set<String> addedRoles = Sets.difference(permissions.keySet(), previousPermissions.keySet());
+                final Set<String> changedRoles = Collections.unmodifiableSet(Sets.union(changedOrMissingRoles, addedRoles));
+                listeners.forEach(c -> c.accept(changedRoles));
             }
         }
     }

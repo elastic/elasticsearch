@@ -27,6 +27,8 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.ExtractedField;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -61,7 +63,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private List<String> capturedContinueScrollIds;
     private ArgumentCaptor<ClearScrollRequest> capturedClearScrollRequests;
     private String jobId;
-    private ExtractedFields extractedFields;
+    private TimeBasedExtractedFields extractedFields;
     private List<String> types;
     private List<String> indices;
     private QueryBuilder query;
@@ -128,7 +130,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         capturedContinueScrollIds = new ArrayList<>();
         jobId = "test-job";
         ExtractedField timeField = ExtractedField.newField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
-        extractedFields = new ExtractedFields(timeField,
+        extractedFields = new TimeBasedExtractedFields(timeField,
                 Arrays.asList(timeField, ExtractedField.newField("field_1", ExtractedField.ExtractionMethod.DOC_VALUE)));
         indices = Arrays.asList("index-1", "index-2");
         types = Arrays.asList("type-1", "type-2");
@@ -392,7 +394,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         output = extractor.next();
         assertThat(output.isPresent(), is(true));
-        assertEquals(new Long(1400L), extractor.getLastTimestamp());
+        assertEquals(Long.valueOf(1400L), extractor.getLastTimestamp());
         // A second failure is not tolerated
         assertThat(extractor.hasNext(), is(true));
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
@@ -454,8 +456,6 @@ public class ScrollDataExtractorTests extends ESTestCase {
         // Check for the scripts
         assertThat(searchRequest, containsString("{\"script\":{\"source\":\"return 1 + 1;\",\"lang\":\"mockscript\"}"
                 .replaceAll("\\s", "")));
-        assertThat(searchRequest, containsString("List domainSplit(String host, Map params)".replaceAll("\\s", "")));
-        assertThat(searchRequest, containsString("String replaceDots(String input) {".replaceAll("\\s", "")));
 
         assertThat(capturedContinueScrollIds.size(), equalTo(1));
         assertThat(capturedContinueScrollIds.get(0), equalTo(response1.getScrollId()));

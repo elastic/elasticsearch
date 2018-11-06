@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -47,6 +48,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.indexlifecycle.AllocateAction;
+import org.elasticsearch.client.indexlifecycle.DeleteAction;
+import org.elasticsearch.client.indexlifecycle.ForceMergeAction;
+import org.elasticsearch.client.indexlifecycle.LifecycleAction;
+import org.elasticsearch.client.indexlifecycle.ReadOnlyAction;
+import org.elasticsearch.client.indexlifecycle.RolloverAction;
+import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -616,7 +624,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
-        assertEquals(10, namedXContents.size());
+        assertEquals(16, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         List<String> names = new ArrayList<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
@@ -626,7 +634,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals(3, categories.size());
+        assertEquals(4, categories.size());
         assertEquals(Integer.valueOf(2), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
@@ -640,16 +648,20 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(names.contains(MeanReciprocalRank.NAME));
         assertTrue(names.contains(DiscountedCumulativeGain.NAME));
         assertTrue(names.contains(ExpectedReciprocalRank.NAME));
+        assertEquals(Integer.valueOf(6), categories.get(LifecycleAction.class));
+        assertTrue(names.contains(AllocateAction.NAME));
+        assertTrue(names.contains(DeleteAction.NAME));
+        assertTrue(names.contains(ForceMergeAction.NAME));
+        assertTrue(names.contains(ReadOnlyAction.NAME));
+        assertTrue(names.contains(RolloverAction.NAME));
+        assertTrue(names.contains(ShrinkAction.NAME));
     }
 
     public void testApiNamingConventions() throws Exception {
         //this list should be empty once the high-level client is feature complete
         String[] notYetSupportedApi = new String[]{
             "cluster.remote_info",
-            "count",
             "create",
-            "delete_by_query",
-            "exists_source",
             "get_source",
             "indices.delete_alias",
             "indices.delete_template",
@@ -658,14 +670,9 @@ public class RestHighLevelClientTests extends ESTestCase {
             "indices.get_upgrade",
             "indices.put_alias",
             "mtermvectors",
-            "put_script",
-            "reindex",
-            "reindex_rethrottle",
             "render_search_template",
             "scripts_painless_execute",
-            "tasks.get",
-            "termvectors",
-            "update_by_query"
+            "tasks.get"
         };
         //These API are not required for high-level client feature completeness
         String[] notRequiredApi = new String[] {
@@ -684,6 +691,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             "nodes.stats",
             "nodes.hot_threads",
             "nodes.usage",
+            "nodes.reload_secure_settings",
             "search_shards",
         };
         Set<String> deprecatedMethods = new HashSet<>();
@@ -715,35 +723,50 @@ public class RestHighLevelClientTests extends ESTestCase {
 
             assertTrue("method [" + apiName + "] is not final",
                     Modifier.isFinal(method.getClass().getModifiers()) || Modifier.isFinal(method.getModifiers()));
-            assertTrue(Modifier.isPublic(method.getModifiers()));
+            assertTrue("method [" + method + "] should be public", Modifier.isPublic(method.getModifiers()));
 
             //we convert all the method names to snake case, hence we need to look for the '_async' suffix rather than 'Async'
             if (apiName.endsWith("_async")) {
                 assertTrue("async method [" + method.getName() + "] doesn't have corresponding sync method",
                         methods.containsKey(apiName.substring(0, apiName.length() - 6)));
-                assertThat(method.getReturnType(), equalTo(Void.TYPE));
-                assertEquals(0, method.getExceptionTypes().length);
-                assertEquals(3, method.getParameterTypes().length);
-                assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-                assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
-                assertThat(method.getParameterTypes()[2], equalTo(ActionListener.class));
+                assertThat("async method [" + method + "] should return void", method.getReturnType(), equalTo(Void.TYPE));
+                assertEquals("async method [" + method + "] should not throw any exceptions", 0, method.getExceptionTypes().length);
+                if (apiName.equals("security.authenticate_async") || apiName.equals("security.get_ssl_certificates_async")) {
+                    assertEquals(2, method.getParameterTypes().length);
+                    assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
+                    assertThat(method.getParameterTypes()[1], equalTo(ActionListener.class));
+                } else {
+                    assertEquals("async method [" + method + "] has the wrong number of arguments", 3, method.getParameterTypes().length);
+                    assertThat("the first parameter to async method [" + method + "] should be a request type",
+                        method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                    assertThat("the second parameter to async method [" + method + "] is the wrong type",
+                        method.getParameterTypes()[1], equalTo(RequestOptions.class));
+                    assertThat("the third parameter to async method [" + method + "] is the wrong type",
+                        method.getParameterTypes()[2], equalTo(ActionListener.class));
+                }
             } else {
                 //A few methods return a boolean rather than a response object
                 if (apiName.equals("ping") || apiName.contains("exist")) {
-                    assertThat(method.getReturnType().getSimpleName(), equalTo("boolean"));
+                    assertThat("the return type for method [" + method + "] is incorrect",
+                        method.getReturnType().getSimpleName(), equalTo("boolean"));
                 } else {
-                    assertThat(method.getReturnType().getSimpleName(), endsWith("Response"));
+                    assertThat("the return type for method [" + method + "] is incorrect",
+                        method.getReturnType().getSimpleName(), endsWith("Response"));
                 }
 
-                assertEquals(1, method.getExceptionTypes().length);
+                assertEquals("incorrect number of exceptions for method [" + method + "]", 1, method.getExceptionTypes().length);
                 //a few methods don't accept a request object as argument
-                if (apiName.equals("ping") || apiName.equals("info")) {
-                    assertEquals(1, method.getParameterTypes().length);
-                    assertThat(method.getParameterTypes()[0], equalTo(RequestOptions.class));
+                if (apiName.equals("ping") || apiName.equals("info") || apiName.equals("security.get_ssl_certificates")
+                    || apiName.equals("security.authenticate")) {
+                    assertEquals("incorrect number of arguments for method [" + method + "]", 1, method.getParameterTypes().length);
+                    assertThat("the parameter to method [" + method + "] is the wrong type",
+                        method.getParameterTypes()[0], equalTo(RequestOptions.class));
                 } else {
-                    assertEquals(apiName, 2, method.getParameterTypes().length);
-                    assertThat(method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
-                    assertThat(method.getParameterTypes()[1], equalTo(RequestOptions.class));
+                    assertEquals("incorrect number of arguments for method [" + method + "]", 2, method.getParameterTypes().length);
+                    assertThat("the first parameter to method [" + method + "] is the wrong type",
+                        method.getParameterTypes()[0].getSimpleName(), endsWith("Request"));
+                    assertThat("the second parameter to method [" + method + "] is the wrong type",
+                        method.getParameterTypes()[1], equalTo(RequestOptions.class));
                 }
 
                 boolean remove = apiSpec.remove(apiName);
@@ -756,8 +779,12 @@ public class RestHighLevelClientTests extends ESTestCase {
                         if (apiName.startsWith("xpack.") == false &&
                             apiName.startsWith("license.") == false &&
                             apiName.startsWith("machine_learning.") == false &&
+                            apiName.startsWith("rollup.") == false &&
                             apiName.startsWith("watcher.") == false &&
-                            apiName.startsWith("migration.") == false) {
+                            apiName.startsWith("graph.") == false &&
+                            apiName.startsWith("migration.") == false &&
+                            apiName.startsWith("security.") == false &&
+                            apiName.startsWith("index_lifecycle.") == false) {
                             apiNotFound.add(apiName);
                         }
                     }

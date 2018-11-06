@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
 
@@ -76,7 +76,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
         Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
+        RealmConfig config = getRealmConfig(fileSettings);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         FileUserPasswdStore store = new FileUserPasswdStore(config, watcherService);
         assertThat(store.usersCount(), is(0));
@@ -90,7 +90,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Files.copy(users, file, StandardCopyOption.REPLACE_EXISTING);
         final Hasher hasher = Hasher.resolve(settings.get("xpack.security.authc.password_hashing.algorithm"));
         Settings fileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("files.users", file.toAbsolutePath()).build();
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
+        RealmConfig config = getRealmConfig(fileSettings);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -120,6 +120,11 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(result.getUser(), is(user));
     }
 
+    private RealmConfig getRealmConfig(Settings fileSettings) {
+        final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("file", "file-test");
+        return new RealmConfig(identifier, fileSettings, settings, env, threadPool.getThreadContext());
+    }
+
     public void testStore_AutoReload_WithParseFailures() throws Exception {
         Path users = getDataPath("users");
         Path xpackConf = env.configFile();
@@ -131,7 +136,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
                 .put("files.users", testUsers.toAbsolutePath())
                 .build();
 
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, threadPool.getThreadContext());
+        RealmConfig config = getRealmConfig(fileSettings);
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -185,7 +190,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testParseFile_Empty() throws Exception {
         Path empty = createTempFile();
-        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG, null);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(empty, logger, Settings.EMPTY);
         assertThat(users.isEmpty(), is(true));
         List<String> events = CapturingLogger.output(logger.getName(), Level.DEBUG);
@@ -195,7 +200,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
         Path file = createTempDir().resolve(randomAlphaOfLength(10));
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(file, logger, Settings.EMPTY);
         assertThat(users, nullValue());
         users = FileUserPasswdStore.parseFileLenient(file, logger, Settings.EMPTY);
@@ -207,7 +212,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         try {
             FileUserPasswdStore.parseFile(file, logger, Settings.EMPTY);
             fail("expected a parse failure");
@@ -228,7 +233,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO, null);
         Map<String, char[]> users = FileUserPasswdStore.parseFileLenient(file, logger, Settings.EMPTY);
         assertThat(users, notNullValue());
         assertThat(users.isEmpty(), is(true));

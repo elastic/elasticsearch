@@ -20,8 +20,9 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
-import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.geoip.IngestGeoIpPlugin.GeoIpCache;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.InputStream;
@@ -40,7 +41,8 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCity() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-                new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
+                new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
+            new GeoIpCache(1000));
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "8.8.8.8");
@@ -64,7 +66,8 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testNullValueWithIgnoreMissing() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), true);
+            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), true,
+            new GeoIpCache(1000));
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
@@ -75,7 +78,8 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testNonExistentWithIgnoreMissing() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), true);
+            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), true,
+            new GeoIpCache(1000));
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         processor.execute(ingestDocument);
@@ -85,7 +89,8 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testNullWithoutIgnoreMissing() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
+            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
+            new GeoIpCache(1000));
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
             Collections.singletonMap("source_field", null));
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
@@ -96,7 +101,8 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testNonExistentWithoutIgnoreMissing() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
+            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
+            new GeoIpCache(1000));
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
@@ -106,7 +112,8 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCity_withIpV6() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-                new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
+                new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
+            new GeoIpCache(1000));
 
         String address = "2602:306:33d3:8000::3257:9652";
         Map<String, Object> document = new HashMap<>();
@@ -127,15 +134,16 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("city_name"), equalTo("Hollywood"));
         assertThat(geoData.get("timezone"), equalTo("America/New_York"));
         Map<String, Object> location = new HashMap<>();
-        location.put("lat", 26.0252d);
-        location.put("lon", -80.296d);
+        location.put("lat", 25.9825d);
+        location.put("lon", -80.3434d);
         assertThat(geoData.get("location"), equalTo(location));
     }
 
     public void testCityWithMissingLocation() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
+            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
+            new GeoIpCache(1000));
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "80.231.5.0");
@@ -152,7 +160,8 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCountry() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-Country.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-                new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
+                new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
+            new GeoIpCache(1000));
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "82.170.213.79");
@@ -172,7 +181,8 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testCountryWithMissingLocation() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-Country.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
+            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
+            new GeoIpCache(1000));
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "80.231.5.0");
@@ -187,10 +197,11 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testAsn() throws Exception {
-        String ip = "82.170.213.79";
+        String ip = "82.171.64.0";
         InputStream database = getDatabaseFileInputStream("/GeoLite2-ASN.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
+            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
+            new GeoIpCache(1000));
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", ip);
@@ -202,14 +213,15 @@ public class GeoIpProcessorTests extends ESTestCase {
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(3));
         assertThat(geoData.get("ip"), equalTo(ip));
-        assertThat(geoData.get("asn"), equalTo(5615));
+        assertThat(geoData.get("asn"), equalTo(1136));
         assertThat(geoData.get("organization_name"), equalTo("KPN B.V."));
     }
 
     public void testAddressIsNotInTheDatabase() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-                new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
+                new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
+            new GeoIpCache(1000));
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "127.0.0.1");
@@ -222,7 +234,8 @@ public class GeoIpProcessorTests extends ESTestCase {
     public void testInvalid() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb");
         GeoIpProcessor processor = new GeoIpProcessor(randomAlphaOfLength(10), "source_field",
-                new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false);
+                new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class), false,
+            new GeoIpCache(1000));
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "www.google.com");

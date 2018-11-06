@@ -55,7 +55,7 @@ final class DocumentParser {
         this.docMapper = docMapper;
     }
 
-    ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
+    ParsedDocument parseDocument(SourceToParse source, MetadataFieldMapper[] metadataFieldsMappers) throws MapperParsingException {
         validateType(source);
 
         final Mapping mapping = docMapper.mapping();
@@ -64,9 +64,9 @@ final class DocumentParser {
 
         try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(),
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new ParseContext.InternalParseContext(indexSettings.getSettings(), docMapperParser, docMapper, source, parser);
+            context = new ParseContext.InternalParseContext(indexSettings, docMapperParser, docMapper, source, parser);
             validateStart(parser);
-            internalParseDocument(mapping, context, parser);
+            internalParseDocument(mapping, metadataFieldsMappers, context, parser);
             validateEnd(parser);
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
@@ -81,10 +81,11 @@ final class DocumentParser {
         return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper, context.getDynamicMappers()));
     }
 
-    private static void internalParseDocument(Mapping mapping, ParseContext.InternalParseContext context, XContentParser parser) throws IOException {
+    private static void internalParseDocument(Mapping mapping, MetadataFieldMapper[] metadataFieldsMappers,
+                                              ParseContext.InternalParseContext context, XContentParser parser) throws IOException {
         final boolean emptyDoc = isEmptyDoc(mapping, parser);
 
-        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+        for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.preParse(context);
         }
 
@@ -95,7 +96,7 @@ final class DocumentParser {
             parseObjectOrNested(context, mapping.root);
         }
 
-        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+        for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.postParse(context);
         }
     }
@@ -106,7 +107,8 @@ final class DocumentParser {
         }
 
         if (Objects.equals(source.type(), docMapper.type()) == false) {
-            throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + docMapper.type() + "]");
+            throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type ["
+                + docMapper.type() + "]");
         }
     }
 
@@ -135,7 +137,8 @@ final class DocumentParser {
                 // empty doc, we can handle it...
                 return true;
             } else if (token != XContentParser.Token.FIELD_NAME) {
-                throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
+                throw new MapperParsingException("Malformed content, after first object, either the type field"
+                    + " or the actual properties should exist");
             }
         }
         return false;
@@ -354,7 +357,8 @@ final class DocumentParser {
 
         String currentFieldName = parser.currentName();
         if (token.isValue()) {
-            throw new MapperParsingException("object mapping for [" + mapper.name() + "] tried to parse field [" + currentFieldName + "] as object, but found a concrete value");
+            throw new MapperParsingException("object mapping for [" + mapper.name() + "] tried to parse field [" + currentFieldName
+                + "] as object, but found a concrete value");
         }
 
         ObjectMapper.Nested nested = mapper.nested();
@@ -378,7 +382,8 @@ final class DocumentParser {
         }
     }
 
-    private static void innerParseObject(ParseContext context, ObjectMapper mapper, XContentParser parser, String currentFieldName, XContentParser.Token token) throws IOException {
+    private static void innerParseObject(ParseContext context, ObjectMapper mapper, XContentParser parser,
+                                         String currentFieldName, XContentParser.Token token) throws IOException {
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, currentFieldName);
@@ -387,12 +392,14 @@ final class DocumentParser {
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 if (MapperService.isMetadataField(context.path().pathAsText(currentFieldName))) {
-                    throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside a document. Use the index API request parameters.");
+                    throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside"
+                        + " a document. Use the index API request parameters.");
                 }
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 parseNullValue(context, mapper, currentFieldName);
             } else if (token == null) {
-                throw new MapperParsingException("object mapping for [" + mapper.name() + "] tried to parse field [" + currentFieldName + "] as object, but got EOF, has a concrete value been provided to it?");
+                throw new MapperParsingException("object mapping for [" + mapper.name() + "] tried to parse field [" + currentFieldName
+                    + "] as object, but got EOF, has a concrete value been provided to it?");
             } else if (token.isValue()) {
                 parseValue(context, mapper, currentFieldName, token);
             }
@@ -461,10 +468,7 @@ final class DocumentParser {
             parseObjectOrNested(context, (ObjectMapper) mapper);
         } else if (mapper instanceof FieldMapper) {
             FieldMapper fieldMapper = (FieldMapper) mapper;
-            Mapper update = fieldMapper.parse(context);
-            if (update != null) {
-                context.addDynamicMapper(update);
-            }
+            fieldMapper.parse(context);
             parseCopyFields(context, fieldMapper.copyTo().copyToFields());
         } else if (mapper instanceof FieldAliasMapper) {
             throw new IllegalArgumentException("Cannot write to a field alias [" + mapper.name() + "].");
@@ -495,7 +499,7 @@ final class DocumentParser {
                 if (builder == null) {
                     builder = new ObjectMapper.Builder(currentFieldName).enabled(true);
                 }
-                Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
+                Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
                 objectMapper = builder.build(builderContext);
                 context.addDynamicMapper(objectMapper);
                 context.path().add(currentFieldName);
@@ -538,7 +542,7 @@ final class DocumentParser {
                 if (builder == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 } else {
-                    Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
+                    Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
                     mapper = builder.build(builderContext);
                     assert mapper != null;
                     if (mapper instanceof ArrayValueMapperParser) {
@@ -560,7 +564,8 @@ final class DocumentParser {
         }
     }
 
-    private static void parseNonDynamicArray(ParseContext context, ObjectMapper mapper, String lastFieldName, String arrayFieldName) throws IOException {
+    private static void parseNonDynamicArray(ParseContext context, ObjectMapper mapper,
+                                             String lastFieldName, String arrayFieldName) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -573,16 +578,19 @@ final class DocumentParser {
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 parseNullValue(context, mapper, lastFieldName);
             } else if (token == null) {
-                throw new MapperParsingException("object mapping for [" + mapper.name() + "] with array for [" + arrayFieldName + "] tried to parse as array, but got EOF, is there a mismatch in types for the same field?");
+                throw new MapperParsingException("object mapping for [" + mapper.name() + "] with array for [" + arrayFieldName
+                    + "] tried to parse as array, but got EOF, is there a mismatch in types for the same field?");
             } else {
                 parseValue(context, mapper, lastFieldName, token);
             }
         }
     }
 
-    private static void parseValue(final ParseContext context, ObjectMapper parentMapper, String currentFieldName, XContentParser.Token token) throws IOException {
+    private static void parseValue(final ParseContext context, ObjectMapper parentMapper,
+                                   String currentFieldName, XContentParser.Token token) throws IOException {
         if (currentFieldName == null) {
-            throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with no field associated with it, current value [" + context.parser().textOrNull() + "]");
+            throw new MapperParsingException("object mapping [" + parentMapper.name() + "] trying to serialize a value with"
+                + " no field associated with it, current value [" + context.parser().textOrNull() + "]");
         }
 
         final String[] paths = splitAndValidatePath(currentFieldName);
@@ -611,7 +619,8 @@ final class DocumentParser {
         }
     }
 
-    private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context, MappedFieldType fieldType, String currentFieldName) {
+    private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context,
+                                                                  MappedFieldType fieldType, String currentFieldName) {
         Mapper.Builder builder = null;
         if (fieldType instanceof TextFieldType) {
             builder = context.root().findTemplateBuilder(context, currentFieldName, "text", XContentFieldType.STRING);
@@ -673,7 +682,9 @@ final class DocumentParser {
         return builder;
     }
 
-    private static Mapper.Builder<?,?> createBuilderFromDynamicValue(final ParseContext context, XContentParser.Token token, String currentFieldName) throws IOException {
+    private static Mapper.Builder<?,?> createBuilderFromDynamicValue(final ParseContext context,
+                                                                     XContentParser.Token token,
+                                                                     String currentFieldName) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
             String text = context.parser().text();
 
@@ -696,13 +707,13 @@ final class DocumentParser {
             if (parseableAsLong && context.root().numericDetection()) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
-                    builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
+                    builder = newLongBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());
                 }
                 return builder;
             } else if (parseableAsDouble && context.root().numericDetection()) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
                 if (builder == null) {
-                    builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
+                    builder = newFloatBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());
                 }
                 return builder;
             } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
@@ -718,7 +729,7 @@ final class DocumentParser {
                     }
                     Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
                     if (builder == null) {
-                        builder = newDateBuilder(currentFieldName, dateTimeFormatter, Version.indexCreated(context.indexSettings()));
+                        builder = newDateBuilder(currentFieldName, dateTimeFormatter, context.indexSettings().getIndexVersionCreated());
                     }
                     if (builder instanceof DateFieldMapper.Builder) {
                         DateFieldMapper.Builder dateBuilder = (DateFieldMapper.Builder) builder;
@@ -741,7 +752,7 @@ final class DocumentParser {
             if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
                 Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
                 if (builder == null) {
-                    builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
+                    builder = newLongBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());
                 }
                 return builder;
             } else if (numberType == XContentParser.NumberType.FLOAT || numberType == XContentParser.NumberType.DOUBLE) {
@@ -750,7 +761,7 @@ final class DocumentParser {
                     // no templates are defined, we use float by default instead of double
                     // since this is much more space-efficient and should be enough most of
                     // the time
-                    builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
+                    builder = newFloatBuilder(currentFieldName, context.indexSettings().getIndexVersionCreated());
                 }
                 return builder;
             }
@@ -773,10 +784,12 @@ final class DocumentParser {
             }
         }
         // TODO how do we identify dynamically that its a binary value?
-        throw new IllegalStateException("Can't handle serializing a dynamic type with content token [" + token + "] and field name [" + currentFieldName + "]");
+        throw new IllegalStateException("Can't handle serializing a dynamic type with content token [" + token + "] and field name ["
+            + currentFieldName + "]");
     }
 
-    private static void parseDynamicValue(final ParseContext context, ObjectMapper parentMapper, String currentFieldName, XContentParser.Token token) throws IOException {
+    private static void parseDynamicValue(final ParseContext context, ObjectMapper parentMapper,
+                                          String currentFieldName, XContentParser.Token token) throws IOException {
         ObjectMapper.Dynamic dynamic = dynamicOrDefault(parentMapper, context);
         if (dynamic == ObjectMapper.Dynamic.STRICT) {
             throw new StrictDynamicMappingException(parentMapper.fullPath(), currentFieldName);
@@ -785,7 +798,7 @@ final class DocumentParser {
             return;
         }
         final String path = context.path().pathAsText(currentFieldName);
-        final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
+        final Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(), context.path());
         final MappedFieldType existingFieldType = context.mapperService().fullName(path);
         final Mapper.Builder builder;
         if (existingFieldType != null) {
@@ -883,11 +896,12 @@ final class DocumentParser {
                         if (builder == null) {
                             builder = new ObjectMapper.Builder(paths[i]).enabled(true);
                         }
-                        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings(), context.path());
+                        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(context.indexSettings().getSettings(),
+                            context.path());
                         mapper = (ObjectMapper) builder.build(builderContext);
                         if (mapper.nested() != ObjectMapper.Nested.NO) {
-                            throw new MapperParsingException("It is forbidden to create dynamic nested objects ([" + context.path().pathAsText(paths[i])
-                                    + "]) through `copy_to` or dots in field names");
+                            throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
+                                + context.path().pathAsText(paths[i]) + "]) through `copy_to` or dots in field names");
                         }
                         context.addDynamicMapper(mapper);
                         break;

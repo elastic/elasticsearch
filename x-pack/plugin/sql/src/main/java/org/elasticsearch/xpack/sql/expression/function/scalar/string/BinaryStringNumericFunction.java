@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -19,12 +22,18 @@ public abstract class BinaryStringNumericFunction extends BinaryStringFunction<N
     }
 
     @Override
-    protected TypeResolution resolveSecondParameterInputType(DataType inputType) {
-        return inputType.isNumeric() ? 
-                TypeResolution.TYPE_RESOLVED : 
-                new TypeResolution("'%s' requires second parameter to be a numeric type, received %s", functionName(), inputType);
+    protected abstract BinaryStringNumericOperation operation();
+
+    @Override
+    protected TypeResolution resolveSecondParameterInputType(Expression e) {
+        return Expressions.typeMustBeNumeric(e,functionName(), Expressions.ParamOrdinal.SECOND);
     }
-    
+
+    @Override
+    protected Pipe makePipe() {
+        return new BinaryStringNumericPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()), operation());
+    }
+
     @Override
     public DataType dataType() {
         return DataType.KEYWORD;

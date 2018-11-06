@@ -35,7 +35,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.IndexFolderUpgrader;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.MetaDataUpgrader;
@@ -70,7 +69,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
                             MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) throws IOException {
-        super(settings);
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
 
@@ -84,7 +82,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
                 ensureNoPre019State();
-                IndexFolderUpgrader.upgradeIndicesIfNeeded(settings, nodeEnv);
                 final MetaData metaData = metaStateService.loadFullState();
                 final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
                 // We finished global state validation and successfully checked all indices for backward compatibility
@@ -168,7 +165,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
 
             relevantIndices = getRelevantIndices(event.state(), event.previousState(), previouslyWrittenIndices);
-            final Iterable<IndexMetaWriteInfo> writeInfo = resolveStatesToBeWritten(previouslyWrittenIndices, relevantIndices, previousMetaData, event.state().metaData());
+            final Iterable<IndexMetaWriteInfo> writeInfo = resolveStatesToBeWritten(previouslyWrittenIndices, relevantIndices,
+                previousMetaData, event.state().metaData());
             // check and write changes in indices
             for (IndexMetaWriteInfo indexMetaWrite : writeInfo) {
                 try {
@@ -305,11 +303,14 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
      *
      * @param previouslyWrittenIndices    A list of indices for which the state was already written before
      * @param potentiallyUnwrittenIndices The list of indices for which state should potentially be written
-     * @param previousMetaData            The last meta data we know of. meta data for all indices in previouslyWrittenIndices list is persisted now
+     * @param previousMetaData            The last meta data we know of. meta data for all indices in previouslyWrittenIndices list is
+     *                                    persisted now
      * @param newMetaData                 The new metadata
      * @return iterable over all indices states that should be written to disk
      */
-    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> resolveStatesToBeWritten(Set<Index> previouslyWrittenIndices, Set<Index> potentiallyUnwrittenIndices, MetaData previousMetaData, MetaData newMetaData) {
+    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> resolveStatesToBeWritten(Set<Index> previouslyWrittenIndices,
+                                                                                         Set<Index> potentiallyUnwrittenIndices,
+                                                                                         MetaData previousMetaData, MetaData newMetaData) {
         List<GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new ArrayList<>();
         for (Index index : potentiallyUnwrittenIndices) {
             IndexMetaData newIndexMetaData = newMetaData.getIndexSafe(index);
@@ -318,7 +319,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
             if (previouslyWrittenIndices.contains(index) == false || previousIndexMetaData == null) {
                 writeReason = "freshly created";
             } else if (previousIndexMetaData.getVersion() != newIndexMetaData.getVersion()) {
-                writeReason = "version changed from [" + previousIndexMetaData.getVersion() + "] to [" + newIndexMetaData.getVersion() + "]";
+                writeReason = "version changed from [" + previousIndexMetaData.getVersion() + "] to [" +
+                    newIndexMetaData.getVersion() + "]";
             }
             if (writeReason != null) {
                 indicesToWrite.add(new GatewayMetaState.IndexMetaWriteInfo(newIndexMetaData, previousIndexMetaData, writeReason));
@@ -327,7 +329,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         return indicesToWrite;
     }
 
-    public static Set<Index> getRelevantIndicesOnDataOnlyNode(ClusterState state, ClusterState previousState, Set<Index> previouslyWrittenIndices) {
+    public static Set<Index> getRelevantIndicesOnDataOnlyNode(ClusterState state, ClusterState previousState,
+                                                              Set<Index> previouslyWrittenIndices) {
         RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         if (newRoutingNode == null) {
             throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");
@@ -336,7 +339,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         for (ShardRouting routing : newRoutingNode) {
             indices.add(routing.index());
         }
-        // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if we have it written on disk previously
+        // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if
+        // we have it written on disk previously
         for (IndexMetaData indexMetaData : state.metaData()) {
             boolean isOrWasClosed = indexMetaData.getState().equals(IndexMetaData.State.CLOSE);
             // if the index is open we might still have to write the state if it just transitioned from closed to open

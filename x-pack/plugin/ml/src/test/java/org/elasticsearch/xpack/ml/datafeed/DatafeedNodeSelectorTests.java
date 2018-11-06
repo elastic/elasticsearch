@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -57,7 +56,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
 
     @Before
     public void init() {
-        resolver = new IndexNameExpressionResolver(Settings.EMPTY);
+        resolver = new IndexNameExpressionResolver();
         nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("node_name", "node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
                         Collections.emptyMap(), Collections.emptySet(), Version.CURRENT))
@@ -349,7 +348,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                         true, ShardRoutingState.RELOCATING);
             } else {
                 shardRouting = ShardRouting.newUnassigned(shardId, true,
-                        RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
+                        RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
             }
 

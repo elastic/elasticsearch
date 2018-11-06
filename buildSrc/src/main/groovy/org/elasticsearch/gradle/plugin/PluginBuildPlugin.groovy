@@ -19,27 +19,21 @@
 package org.elasticsearch.gradle.plugin
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
-import nebula.plugin.info.scm.ScmInfoPlugin
+import nebula.plugin.publishing.maven.MavenScmPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.NoticeTask
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
-import org.gradle.api.InvalidUserDataException
-import org.gradle.api.JavaVersion
 import org.gradle.api.Project
-import org.gradle.api.Task
-import org.gradle.api.XmlProvider
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
+import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.bundling.Zip
+import org.gradle.jvm.tasks.Jar
 
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.util.regex.Matcher
 import java.util.regex.Pattern
-
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
@@ -57,16 +51,10 @@ public class PluginBuildPlugin extends BuildPlugin {
             String name = project.pluginProperties.extension.name
             project.archivesBaseName = name
 
-            if (project.pluginProperties.extension.hasClientJar) {
-                // for plugins which work with the transport client, we copy the jar
-                // file to a new name, copy the nebula generated pom to the same name,
-                // and generate a different pom for the zip
-                addClientJarPomGeneration(project)
-                addClientJarTask(project)
-            }
-            // while the jar isn't normally published, we still at least build a pom of deps
-            // in case it is published, for instance when other plugins extend this plugin
-            configureJarPom(project)
+            // set teh project description so it will be picked up by publishing
+            project.description = project.pluginProperties.extension.description
+
+            configurePublishing(project)
 
             project.integTestCluster.dependsOn(project.bundlePlugin)
             project.tasks.run.dependsOn(project.bundlePlugin)
@@ -94,6 +82,32 @@ public class PluginBuildPlugin extends BuildPlugin {
         createBundleTask(project)
         project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
         project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
+    }
+
+    private void configurePublishing(Project project) {
+        // Only configure publishing if applied externally
+        if (project.pluginProperties.extension.hasClientJar) {
+            project.plugins.apply(MavenScmPlugin.class)
+            // Only change Jar tasks, we don't want a -client zip so we can't change archivesBaseName
+            project.tasks.withType(Jar) {
+                baseName = baseName + "-client"
+            }
+            // always configure publishing for client jars
+            project.plugins.apply(MavenScmPlugin.class)
+            project.publishing.publications.nebula(MavenPublication).artifactId(
+                    project.pluginProperties.extension.name + "-client"
+            )
+            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
+                generatePOMTask.ext.pomFileName = "${project.archivesBaseName}-client-${project.versions.elasticsearch}.pom"
+            }
+        } else {
+            project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
+                project.publishing.publications.nebula(MavenPublication).artifactId(
+                        project.pluginProperties.extension.name
+                )
+            }
+
+        }
     }
 
     private static void configureDependencies(Project project) {
@@ -143,11 +157,10 @@ public class PluginBuildPlugin extends BuildPlugin {
             from pluginMetadata // metadata (eg custom security policy)
             /*
              * If the plugin is using the shadow plugin then we need to bundle
-             * "shadow" things rather than the default jar and dependencies so
-             * we don't hit jar hell.
+             * that shadow jar.
              */
             from { project.plugins.hasPlugin(ShadowPlugin) ? project.shadowJar : project.jar }
-            from { project.plugins.hasPlugin(ShadowPlugin) ? project.configurations.shadow : project.configurations.runtime - project.configurations.compileOnly }
+            from project.configurations.runtime - project.configurations.compileOnly
             // extra files for the plugin to go into the zip
             from('src/main/packaging') // TODO: move all config/bin/_size/etc into packaging
             from('src/main') {
@@ -163,33 +176,6 @@ public class PluginBuildPlugin extends BuildPlugin {
     }
 
     /** Adds a task to move jar and associated files to a "-client" name. */
-    protected static void addClientJarTask(Project project) {
-        Task clientJar = project.tasks.create('clientJar')
-        clientJar.dependsOn(project.jar, project.tasks.generatePomFileForClientJarPublication, project.javadocJar, project.sourcesJar)
-        clientJar.doFirst {
-            Path jarFile = project.jar.outputs.files.singleFile.toPath()
-            String clientFileName = jarFile.fileName.toString().replace(project.version, "client-${project.version}")
-            Files.copy(jarFile, jarFile.resolveSibling(clientFileName), StandardCopyOption.REPLACE_EXISTING)
-
-            String clientPomFileName = clientFileName.replace('.jar', '.pom')
-            Files.copy(
-                    project.tasks.generatePomFileForClientJarPublication.outputs.files.singleFile.toPath(),
-                    jarFile.resolveSibling(clientPomFileName),
-                    StandardCopyOption.REPLACE_EXISTING
-            )
-
-            String sourcesFileName = jarFile.fileName.toString().replace('.jar', '-sources.jar')
-            String clientSourcesFileName = clientFileName.replace('.jar', '-sources.jar')
-            Files.copy(jarFile.resolveSibling(sourcesFileName), jarFile.resolveSibling(clientSourcesFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
-
-            String javadocFileName = jarFile.fileName.toString().replace('.jar', '-javadoc.jar')
-            String clientJavadocFileName = clientFileName.replace('.jar', '-javadoc.jar')
-            Files.copy(jarFile.resolveSibling(javadocFileName), jarFile.resolveSibling(clientJavadocFileName),
-                    StandardCopyOption.REPLACE_EXISTING)
-        }
-        project.assemble.dependsOn(clientJar)
-    }
 
     static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
 
@@ -211,39 +197,11 @@ public class PluginBuildPlugin extends BuildPlugin {
 
     /** Adds nebula publishing task to generate a pom file for the plugin. */
     protected static void addClientJarPomGeneration(Project project) {
-        project.plugins.apply(MavenPublishPlugin.class)
-
-        project.publishing {
-            publications {
-                clientJar(MavenPublication) {
-                    from project.components.java
-                    artifactId = project.pluginProperties.extension.name + '-client'
-                    pom.withXml { XmlProvider xml ->
-                        Node root = xml.asNode()
-                        root.appendNode('name', project.pluginProperties.extension.name)
-                        root.appendNode('description', project.pluginProperties.extension.description)
-                        root.appendNode('url', urlFromOrigin(project.scminfo.origin))
-                        Node scmNode = root.appendNode('scm')
-                        scmNode.appendNode('url', project.scminfo.origin)
-                    }
-                }
-            }
-        }
+        project.plugins.apply(MavenScmPlugin.class)
+        project.description = project.pluginProperties.extension.description
     }
 
     /** Configure the pom for the main jar of this plugin */
-    protected static void configureJarPom(Project project) {
-        project.plugins.apply(ScmInfoPlugin.class)
-        project.plugins.apply(MavenPublishPlugin.class)
-
-        project.publishing {
-            publications {
-                nebula(MavenPublication) {
-                    artifactId project.pluginProperties.extension.name
-                }
-            }
-        }
-    }
 
     protected void addNoticeGeneration(Project project) {
         File licenseFile = project.pluginProperties.extension.licenseFile

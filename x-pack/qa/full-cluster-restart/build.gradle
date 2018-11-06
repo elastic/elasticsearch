@@ -11,7 +11,8 @@ apply plugin: 'elasticsearch.build'
 test.enabled = false
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'shadow')
+    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile (project(path: xpackModule('security'), configuration: 'runtime')) {
         // Need to drop the guava dependency here or we get a conflict with watcher's guava dependency.
         // This is total #$%, but the solution is to get the SAML realm (which uses guava) out of security proper
@@ -141,7 +142,12 @@ subprojects {
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
       if (version.before('6.3.0')) {
-        mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${version}"
+          String depVersion = version;
+          if (project.bwcVersions.unreleased.contains(version)) {
+              depVersion += "-SNAPSHOT"
+          }
+          mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${depVersion}"
+
       }
       bwcVersion = version
       numBwcNodes = 2
@@ -153,9 +159,6 @@ subprojects {
 
       // some tests rely on the translog not being flushed
       setting 'indices.memory.shard_inactive_time', '20m'
-
-      // debug logging for testRecovery see https://github.com/elastic/x-pack-elasticsearch/issues/2691
-      setting 'logger.level', 'DEBUG'
 
       setting 'xpack.security.enabled', 'true'
       setting 'xpack.security.transport.ssl.enabled', 'true'
@@ -184,6 +187,7 @@ subprojects {
       systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
       systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
       exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+      exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
       exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
     }
 
@@ -199,9 +203,6 @@ subprojects {
       cleanShared = false // We want to keep snapshots made by the old cluster!
       setupCommand 'setupTestUser', 'bin/elasticsearch-users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
       waitCondition = waitWithAuth
-
-      // debug logging for testRecovery see https://github.com/elastic/x-pack-elasticsearch/issues/2691
-      setting 'logger.level', 'DEBUG'
 
       // some tests rely on the translog not being flushed
       setting 'indices.memory.shard_inactive_time', '20m'
@@ -223,6 +224,7 @@ subprojects {
       systemProperty 'tests.old_cluster_version', version.toString().minus("-SNAPSHOT")
       systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
       exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
+      exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
       exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
     }
 
@@ -240,7 +242,7 @@ subprojects {
   // basic integ tests includes testing bwc against the most recent version
   task integTest {
     if (project.bwc_tests_enabled) {
-      for (final def version : bwcVersions.snapshotsIndexCompatible) {
+      for (final def version : bwcVersions.unreleasedIndexCompatible) {
         dependsOn "v${version}#bwcTest"
       }
     }
@@ -249,7 +251,8 @@ subprojects {
   check.dependsOn(integTest)
 
   dependencies {
-      testCompile project(path: xpackModule('core'), configuration: 'shadow')
+      // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+      testCompile project(path: xpackModule('core'), configuration: 'default')
       testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
       testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
       testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')

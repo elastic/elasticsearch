@@ -21,10 +21,11 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -59,7 +60,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -84,8 +84,10 @@ import java.util.function.Function;
  */
 public final class IndexModule {
 
+    public static final Setting<Boolean> NODE_STORE_ALLOW_MMAPFS = Setting.boolSetting("node.store.allow_mmapfs", true, Property.NodeScope);
+
     public static final Setting<String> INDEX_STORE_TYPE_SETTING =
-        new Setting<>("index.store.type", "", Function.identity(), Property.IndexScope, Property.NodeScope);
+            new Setting<>("index.store.type", "", Function.identity(), Property.IndexScope, Property.NodeScope);
 
     /** On which extensions to load data into the file-system cache upon opening of files.
      *  This only works with the mmap directory, and even in that case is still
@@ -289,7 +291,7 @@ public final class IndexModule {
         }
     }
 
-    private static boolean isBuiltinType(String storeType) {
+    public static boolean isBuiltinType(String storeType) {
         for (Type type : Type.values()) {
             if (type.match(storeType)) {
                 return true;
@@ -298,21 +300,48 @@ public final class IndexModule {
         return false;
     }
 
+
     public enum Type {
-        NIOFS,
-        MMAPFS,
-        SIMPLEFS,
-        FS;
+        NIOFS("niofs"),
+        MMAPFS("mmapfs"),
+        SIMPLEFS("simplefs"),
+        FS("fs");
+
+        private final String settingsKey;
+
+        Type(final String settingsKey) {
+            this.settingsKey = settingsKey;
+        }
+
+        private static final Map<String, Type> TYPES;
+
+        static {
+            final Map<String, Type> types = new HashMap<>(4);
+            for (final Type type : values()) {
+                types.put(type.settingsKey, type);
+            }
+            TYPES = Collections.unmodifiableMap(types);
+        }
 
         public String getSettingsKey() {
-            return this.name().toLowerCase(Locale.ROOT);
+            return this.settingsKey;
         }
+
+        public static Type fromSettingsKey(final String key) {
+            final Type type = TYPES.get(key);
+            if (type == null) {
+                throw new IllegalArgumentException("no matching type for [" + key + "]");
+            }
+            return type;
+        }
+
         /**
          * Returns true iff this settings matches the type.
          */
         public boolean match(String setting) {
             return getSettingsKey().equals(setting);
         }
+
     }
 
     /**
@@ -323,6 +352,16 @@ public final class IndexModule {
          * Returns a new IndexSearcherWrapper. This method is called once per index per node
          */
         IndexSearcherWrapper newWrapper(IndexService indexService);
+    }
+
+    public static Type defaultStoreType(final boolean allowMmapfs) {
+        if (allowMmapfs && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+            return Type.MMAPFS;
+        } else if (Constants.WINDOWS) {
+            return Type.SIMPLEFS;
+        } else {
+            return Type.NIOFS;
+        }
     }
 
     public IndexService newIndexService(
@@ -343,20 +382,7 @@ public final class IndexModule {
         IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null
             ? (shard) -> null : indexSearcherWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
-        final String storeType = indexSettings.getValue(INDEX_STORE_TYPE_SETTING);
-        final IndexStore store;
-        if (Strings.isEmpty(storeType) || isBuiltinType(storeType)) {
-            store = new IndexStore(indexSettings);
-        } else {
-            Function<IndexSettings, IndexStore> factory = indexStoreFactories.get(storeType);
-            if (factory == null) {
-                throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
-            }
-            store = factory.apply(indexSettings);
-            if (store == null) {
-                throw new IllegalStateException("store must not be null");
-            }
-        }
+        final IndexStore store = getIndexStore(indexSettings, indexStoreFactories);
         final QueryCache queryCache;
         if (indexSettings.getValue(INDEX_QUERY_CACHE_ENABLED_SETTING)) {
             BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = forceQueryCacheProvider.get();
@@ -373,6 +399,39 @@ public final class IndexModule {
                 shardStoreDeleter, analysisRegistry, engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService,
                 client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
                 indicesFieldDataCache, searchOperationListeners, indexOperationListeners, namedWriteableRegistry);
+    }
+
+    private static IndexStore getIndexStore(
+            final IndexSettings indexSettings, final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
+        final String storeType = indexSettings.getValue(INDEX_STORE_TYPE_SETTING);
+        final Type type;
+        final Boolean allowMmapfs = NODE_STORE_ALLOW_MMAPFS.get(indexSettings.getNodeSettings());
+        if (storeType.isEmpty() || Type.FS.getSettingsKey().equals(storeType)) {
+            type = defaultStoreType(allowMmapfs);
+        } else {
+            if (isBuiltinType(storeType)) {
+                type = Type.fromSettingsKey(storeType);
+            } else {
+                type = null;
+            }
+        }
+        if (type != null && type == Type.MMAPFS && allowMmapfs == false) {
+            throw new IllegalArgumentException("store type [mmapfs] is not allowed");
+        }
+        final IndexStore store;
+        if (storeType.isEmpty() || isBuiltinType(storeType)) {
+            store = new IndexStore(indexSettings);
+        } else {
+            Function<IndexSettings, IndexStore> factory = indexStoreFactories.get(storeType);
+            if (factory == null) {
+                throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
+            }
+            store = factory.apply(indexSettings);
+            if (store == null) {
+                throw new IllegalStateException("store must not be null");
+            }
+        }
+        return store;
     }
 
     /**

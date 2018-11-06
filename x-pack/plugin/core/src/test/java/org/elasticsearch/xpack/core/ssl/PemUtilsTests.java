@@ -32,6 +32,16 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(privateKey, equalTo(key));
     }
 
+    public void testReadPKCS8RsaKeyWithBagAttrs() throws Exception {
+        Key key = getKeyFromKeystore("RSA");
+        assertThat(key, notNullValue());
+        assertThat(key, instanceOf(PrivateKey.class));
+        PrivateKey privateKey = PemUtils.readPrivateKey(getDataPath
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_with_bagattrs.pem"), ""::toCharArray);
+        assertThat(privateKey, notNullValue());
+        assertThat(privateKey, equalTo(key));
+    }
+
     public void testReadPKCS8DsaKey() throws Exception {
         Key key = getKeyFromKeystore("DSA");
         assertThat(key, notNullValue());

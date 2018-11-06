@@ -91,9 +91,9 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         return groupOrJobLookup.expandJobIds(expression, allowNoJobs);
     }
 
-    public boolean isJobDeleted(String jobId) {
+    public boolean isJobDeleting(String jobId) {
         Job job = jobs.get(jobId);
-        return job == null || job.isDeleted();
+        return job == null || job.isDeleting();
     }
 
     public SortedMap<String, DatafeedConfig> getDatafeeds() {
@@ -115,7 +115,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_5_4_0;
+        return Version.V_6_0_0_alpha1;
     }
 
     @Override
@@ -287,7 +287,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             if (job == null) {
                 throw new ResourceNotFoundException("job [" + jobId + "] does not exist");
             }
-            if (job.isDeleted() == false) {
+            if (job.isDeleting() == false) {
                 throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because it hasn't marked as deleted");
             }
             return this;
@@ -318,7 +318,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
 
         private void checkJobIsAvailableForDatafeed(String jobId) {
             Job job = jobs.get(jobId);
-            if (job == null || job.isDeleted()) {
+            if (job == null || job.isDeleting()) {
                 throw ExceptionsHelper.missingJobException(jobId);
             }
             Optional<DatafeedConfig> existingDatafeed = getDatafeedByJobId(jobId);
@@ -387,14 +387,14 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return new MlMetadata(jobs, datafeeds);
         }
 
-        public void markJobAsDeleted(String jobId, PersistentTasksCustomMetaData tasks, boolean allowDeleteOpenJob) {
+        public void markJobAsDeleting(String jobId, PersistentTasksCustomMetaData tasks, boolean allowDeleteOpenJob) {
             Job job = jobs.get(jobId);
             if (job == null) {
                 throw ExceptionsHelper.missingJobException(jobId);
             }
-            if (job.isDeleted()) {
+            if (job.isDeleting()) {
                 // Job still exists but is already being deleted
-                throw new JobAlreadyMarkedAsDeletedException();
+                return;
             }
 
             checkJobHasNoDatafeed(jobId);
@@ -408,7 +408,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
                 }
             }
             Job.Builder jobBuilder = new Job.Builder(job);
-            jobBuilder.setDeleted(true);
+            jobBuilder.setDeleting(true);
             putJob(jobBuilder.build(), true);
         }
 
@@ -429,8 +429,5 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return EMPTY_METADATA;
         }
         return mlMetadata;
-    }
-
-    public static class JobAlreadyMarkedAsDeletedException extends RuntimeException {
     }
 }

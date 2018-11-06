@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.multi_node;
 
-import org.apache.http.HttpStatus;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -20,16 +19,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.rollup.job.RollupJob;
-import org.elasticsearch.xpack.core.watcher.support.xcontent.ObjectPath;
-import org.junit.After;
+import org.elasticsearch.common.xcontent.ObjectPath;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -66,13 +59,6 @@ public class RollupIT extends ESRestTestCase {
 
     static Map<String, Object> toMap(String response) throws IOException {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
-    }
-
-    @After
-    public void clearRollupMetadata() throws Exception {
-        deleteAllJobs();
-        waitForPendingTasks();
-        // indices will be deleted by the ESRestTestCase class
     }
 
     public void testBigRollup() throws Exception {
@@ -173,7 +159,7 @@ public class RollupIT extends ESRestTestCase {
             "    \"date_histo\": {\n" +
             "      \"date_histogram\": {\n" +
             "        \"field\": \"timestamp\",\n" +
-            "        \"interval\": \"1h\",\n" +
+            "        \"interval\": \"60m\",\n" +
             "        \"format\": \"date_time\"\n" +
             "      },\n" +
             "      \"aggs\": {\n" +
@@ -292,61 +278,5 @@ public class RollupIT extends ESRestTestCase {
             }
         }
         return null;
-    }
-
-    private void waitForPendingTasks() throws Exception {
-        ESTestCase.assertBusy(() -> {
-            try {
-                Request request = new Request("GET", "/_cat/tasks");
-                request.addParameter("detailed", "true");
-                Response response = adminClient().performRequest(request);
-                if (response.getStatusLine().getStatusCode() == HttpStatus.SC_OK) {
-                    try (BufferedReader responseReader = new BufferedReader(
-                        new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
-                        int activeTasks = 0;
-                        String line;
-                        StringBuilder tasksListString = new StringBuilder();
-                        while ((line = responseReader.readLine()) != null) {
-
-                            // We only care about Rollup jobs, otherwise this fails too easily due to unrelated tasks
-                            if (line.startsWith(RollupJob.NAME) == true) {
-                                activeTasks++;
-                                tasksListString.append(line);
-                                tasksListString.append('\n');
-                            }
-                        }
-                        assertEquals(activeTasks + " active tasks found:\n" + tasksListString, 0, activeTasks);
-                    }
-                }
-            } catch (IOException e) {
-                throw new AssertionError("Error getting active tasks list", e);
-            }
-        });
-    }
-
-    @SuppressWarnings("unchecked")
-    private void deleteAllJobs() throws Exception {
-        Request request = new Request("GET", "/_xpack/rollup/job/_all");
-        Response response = adminClient().performRequest(request);
-        Map<String, Object> jobs = ESRestTestCase.entityAsMap(response);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> jobConfigs =
-            (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
-
-        if (jobConfigs == null) {
-            return;
-        }
-
-        for (Map<String, Object> jobConfig : jobConfigs) {
-            logger.debug(jobConfig);
-            String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            logger.debug("Deleting job " + jobId);
-            try {
-                request = new Request("DELETE", "/_xpack/rollup/job/" + jobId);
-                adminClient().performRequest(request);
-            } catch (Exception e) {
-                // ok
-            }
-        }
     }
 }

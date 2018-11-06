@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -16,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -88,7 +88,7 @@ public class IndexUpgradeTasksIT extends ESIntegTestCase {
 
         @Override
         public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
-            return new MockScriptEngine(pluginScriptLang(), pluginScripts());
+            return new MockScriptEngine(pluginScriptLang(), pluginScripts(), Collections.emptyMap());
         }
 
         public String pluginScriptLang() {
@@ -97,8 +97,8 @@ public class IndexUpgradeTasksIT extends ESIntegTestCase {
 
         public MockUpgradePlugin(Settings settings) {
             this.settings = settings;
-            this.upgrade = new Upgrade(settings);
-            Loggers.getLogger(IndexUpgradeTasksIT.class).info("MockUpgradePlugin is created");
+            this.upgrade = new Upgrade();
+            LogManager.getLogger(IndexUpgradeTasksIT.class).info("MockUpgradePlugin is created");
         }
 
 
@@ -121,8 +121,8 @@ public class IndexUpgradeTasksIT extends ESIntegTestCase {
                                                    ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                    NamedXContentRegistry xContentRegistry, Environment environment,
                                                    NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-            return Arrays.asList(new IndexUpgradeService(settings, Collections.singletonList(
-                    new IndexUpgradeCheck("test", settings,
+            return Arrays.asList(new IndexUpgradeService(Collections.singletonList(
+                    new IndexUpgradeCheck("test",
                             new Function<IndexMetaData, UpgradeActionRequired>() {
                                 @Override
                                 public UpgradeActionRequired apply(IndexMetaData indexMetaData) {

@@ -1,0 +1,40 @@
+--
+:api: get-job-stats
+:request: GetJobStatsRequest
+:response: GetJobStatsResponse
+--
+[id="{upid}-{api}"]
+=== Get Job Stats API
+
+The Get Job Stats API provides the ability to get any number of
+ {ml} job's statistics in the cluster.
+It accepts a +{request}+ object and responds
+with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Get Job Stats Request
+
+A `GetJobsStatsRequest` object can have any number of `jobId`
+entries. However, they all must be non-null. An empty list is the same as
+requesting statistics for all jobs.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new request referencing existing `jobIds`, can contain wildcards
+<2> Whether to ignore if a wildcard expression matches no jobs.
+ (This includes `_all` string or when no jobs have been specified)
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Get Job Stats Response
+The returned +{response}+ contains the requested job statistics:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `getCount()` indicates the number of jobs statistics found
+<2> `getJobStats()` is the collection of {ml} `JobStats` objects found

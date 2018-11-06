@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -172,7 +174,7 @@ setup:
             "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
             "types":["type-bar"],
-            "query":{"match_all_mispelled":{}}
+            "query":{"match_all_misspelled":{}}
           }
 
 ---

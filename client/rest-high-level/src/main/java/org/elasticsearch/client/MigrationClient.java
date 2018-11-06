@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoResponse;
+import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,7 +49,7 @@ public final class MigrationClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public IndexUpgradeInfoResponse getAssistance(IndexUpgradeInfoRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, RequestConverters::getMigrationAssistance, options,
+        return restHighLevelClient.performRequestAndParseEntity(request, MigrationRequestConverters::getMigrationAssistance, options,
             IndexUpgradeInfoResponse::fromXContent, Collections.emptySet());
     }
 }

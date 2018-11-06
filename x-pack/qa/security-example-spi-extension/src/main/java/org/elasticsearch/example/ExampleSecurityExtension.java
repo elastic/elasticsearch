@@ -13,8 +13,8 @@ import org.elasticsearch.example.role.CustomInMemoryRolesProvider;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
+import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -54,13 +54,13 @@ public class ExampleSecurityExtension implements SecurityExtension {
 
 
     @Override
-    public List<BiConsumer<Set<String>, ActionListener<Set<RoleDescriptor>>>>
+    public List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
     getRolesProviders(Settings settings, ResourceWatcherService resourceWatcherService) {
-        CustomInMemoryRolesProvider rp1 = new CustomInMemoryRolesProvider(settings, Collections.singletonMap(ROLE_A, "read"));
+        CustomInMemoryRolesProvider rp1 = new CustomInMemoryRolesProvider(Collections.singletonMap(ROLE_A, "read"));
         Map<String, String> roles = new HashMap<>();
         roles.put(ROLE_A, "all");
         roles.put(ROLE_B, "all");
-        CustomInMemoryRolesProvider rp2 = new CustomInMemoryRolesProvider(settings, roles);
+        CustomInMemoryRolesProvider rp2 = new CustomInMemoryRolesProvider(roles);
         return Arrays.asList(rp1, rp2);
     }
 }

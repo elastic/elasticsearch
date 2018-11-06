@@ -27,13 +27,11 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.DateTimeZone;
-
-import java.io.IOException;
 
 /**
  * A configuration that tells aggregations how to retrieve data from the index
@@ -66,7 +64,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 // on Bytes
                 valuesSourceType = ValuesSourceType.BYTES;
             }
-            ValuesSourceConfig<VS> config = new ValuesSourceConfig<VS>(valuesSourceType);
+            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
             config.missing(missing);
             config.timezone(timeZone);
             config.format(resolveFormat(format, valueType));
@@ -113,11 +111,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return config;
     }
 
-    private static SearchScript.LeafFactory createScript(Script script, QueryShardContext context) {
+    private static AggregationScript.LeafFactory createScript(Script script, QueryShardContext context) {
         if (script == null) {
             return null;
         } else {
-            SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.AGGS_CONTEXT);
+            AggregationScript.Factory factory = context.getScriptService().compile(script, AggregationScript.CONTEXT);
             return factory.newFactory(script.getParams(), context.lookup());
         }
     }
@@ -135,7 +133,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
     private final ValuesSourceType valueSourceType;
     private FieldContext fieldContext;
-    private SearchScript.LeafFactory script;
+    private AggregationScript.LeafFactory script;
     private ValueType scriptValueType;
     private boolean unmapped = false;
     private DocValueFormat format = DocValueFormat.RAW;
@@ -154,7 +152,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return fieldContext;
     }
 
-    public SearchScript.LeafFactory script() {
+    public AggregationScript.LeafFactory script() {
         return script;
     }
 
@@ -171,7 +169,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this;
     }
 
-    public ValuesSourceConfig<VS> script(SearchScript.LeafFactory script) {
+    public ValuesSourceConfig<VS> script(AggregationScript.LeafFactory script) {
         this.script = script;
         return this;
     }
@@ -220,7 +218,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     /** Get a value source given its configuration. A return value of null indicates that
      *  no value source could be built. */
     @Nullable
-    public VS toValuesSource(QueryShardContext context) throws IOException {
+    public VS toValuesSource(QueryShardContext context) {
         if (!valid()) {
             throw new IllegalStateException(
                     "value source config is invalid; must have either a field context or a script or marked as unwrapped");
@@ -271,7 +269,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     /**
      * Return the original values source, before we apply `missing`.
      */
-    private VS originalValuesSource() throws IOException {
+    private VS originalValuesSource() {
         if (fieldContext() == null) {
             if (valueSourceType() == ValuesSourceType.NUMERIC) {
                 return (VS) numericScript();
@@ -293,11 +291,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return (VS) bytesField();
     }
 
-    private ValuesSource.Numeric numericScript() throws IOException {
+    private ValuesSource.Numeric numericScript() {
         return new ValuesSource.Numeric.Script(script(), scriptValueType());
     }
 
-    private ValuesSource.Numeric numericField() throws IOException {
+    private ValuesSource.Numeric numericField() {
 
         if (!(fieldContext().indexFieldData() instanceof IndexNumericFieldData)) {
             throw new IllegalArgumentException("Expected numeric type on field [" + fieldContext().field() +
@@ -311,7 +309,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return dataSource;
     }
 
-    private ValuesSource bytesField() throws IOException {
+    private ValuesSource bytesField() {
         final IndexFieldData<?> indexFieldData = fieldContext().indexFieldData();
         ValuesSource dataSource;
         if (indexFieldData instanceof IndexOrdinalsFieldData) {
@@ -325,11 +323,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return dataSource;
     }
 
-    private ValuesSource.Bytes bytesScript() throws IOException {
+    private ValuesSource.Bytes bytesScript() {
         return new ValuesSource.Bytes.Script(script());
     }
 
-    private ValuesSource.GeoPoint geoPointField() throws IOException {
+    private ValuesSource.GeoPoint geoPointField() {
 
         if (!(fieldContext().indexFieldData() instanceof IndexGeoPointFieldData)) {
             throw new IllegalArgumentException("Expected geo_point type on field [" + fieldContext().field() +

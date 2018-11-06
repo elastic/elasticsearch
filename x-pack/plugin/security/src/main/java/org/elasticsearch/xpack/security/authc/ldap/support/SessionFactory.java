@@ -11,11 +11,11 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -62,9 +62,9 @@ public abstract class SessionFactory {
 
     protected SessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         this.config = config;
-        this.logger = config.logger(getClass());
-        final Settings settings = config.settings();
-        TimeValue searchTimeout = settings.getAsTime(SessionFactorySettings.TIMEOUT_LDAP_SETTING, SessionFactorySettings.TIMEOUT_DEFAULT);
+        this.logger = LogManager.getLogger(getClass());
+        TimeValue searchTimeout = config.getSetting(SessionFactorySettings.TIMEOUT_LDAP_SETTING,
+                () -> SessionFactorySettings.TIMEOUT_DEFAULT);
         if (searchTimeout.millis() < 1000L) {
             logger.warn("ldap_search timeout [{}] is less than the minimum supported search " +
                             "timeout of 1s. using 1s",
@@ -74,10 +74,10 @@ public abstract class SessionFactory {
         this.timeout = searchTimeout;
         this.sslService = sslService;
         this.threadPool = threadPool;
-        LDAPServers ldapServers = ldapServers(settings);
+        LDAPServers ldapServers = ldapServers(config);
         this.serverSet = serverSet(config, sslService, ldapServers);
         this.sslUsed = ldapServers.ssl;
-        this.ignoreReferralErrors = SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING.get(settings);
+        this.ignoreReferralErrors = config.getSetting(SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING);
     }
 
     /**
@@ -115,32 +115,22 @@ public abstract class SessionFactory {
 
     protected static LDAPConnectionOptions connectionOptions(RealmConfig config,
                                                              SSLService sslService, Logger logger) {
-        Settings realmSettings = config.settings();
         LDAPConnectionOptions options = new LDAPConnectionOptions();
-        options.setConnectTimeoutMillis(Math.toIntExact(
-                realmSettings.getAsTime(SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING,
-                        SessionFactorySettings.TIMEOUT_DEFAULT).millis()
-        ));
-        options.setFollowReferrals(realmSettings.getAsBoolean(SessionFactorySettings.FOLLOW_REFERRALS_SETTING, true));
-        options.setResponseTimeoutMillis(
-                realmSettings.getAsTime(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, SessionFactorySettings.TIMEOUT_DEFAULT).millis()
-        );
+        options.setConnectTimeoutMillis(Math.toIntExact(config.getSetting(SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING).millis()));
+        options.setFollowReferrals(config.getSetting(SessionFactorySettings.FOLLOW_REFERRALS_SETTING));
+        options.setResponseTimeoutMillis(config.getSetting(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING).millis());
         options.setAllowConcurrentSocketFactoryUse(true);
 
-        final SSLConfigurationSettings sslConfigurationSettings =
-                SSLConfigurationSettings.withoutPrefix();
-        final Settings realmSSLSettings = realmSettings.getByPrefix("ssl.");
-        final boolean verificationModeExists =
-                sslConfigurationSettings.verificationMode.exists(realmSSLSettings);
-        final boolean hostnameVerificationExists =
-                realmSettings.get(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, null) != null;
+        final boolean verificationModeExists = config.hasSetting(SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM);
+        final boolean hostnameVerificationExists = config.hasSetting(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING);
 
         if (verificationModeExists && hostnameVerificationExists) {
-            throw new IllegalArgumentException("[" + SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING + "] and [" +
-                    sslConfigurationSettings.verificationMode.getKey() +
+            throw new IllegalArgumentException("[" +
+                    RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING) + "] and [" +
+                    RealmSettings.getFullSettingKey(config, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM) +
                     "] may not be used at the same time");
         } else if (verificationModeExists) {
-            final String sslKey = RealmSettings.getFullSettingKey(config, "ssl");
+            final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
             final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
             if (sslConfiguration == null) {
                 throw new IllegalStateException("cannot find SSL configuration for " + sslKey);
@@ -152,9 +142,8 @@ public abstract class SessionFactory {
             new DeprecationLogger(logger).deprecated("the setting [{}] has been deprecated and " +
                             "will be removed in a future version. use [{}] instead",
                     RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING),
-                    RealmSettings.getFullSettingKey(config, "ssl." +
-                            sslConfigurationSettings.verificationMode.getKey()));
-            if (realmSettings.getAsBoolean(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, true)) {
+                    RealmSettings.getFullSettingKey(config, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM));
+            if (config.getSetting(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING)) {
                 options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
             }
         } else {
@@ -163,34 +152,34 @@ public abstract class SessionFactory {
         return options;
     }
 
-    private LDAPServers ldapServers(Settings settings) {
+    private LDAPServers ldapServers(RealmConfig config) {
         // Parse LDAP urls
-        List<String> ldapUrls = settings.getAsList(SessionFactorySettings.URLS_SETTING, getDefaultLdapUrls(settings));
+        List<String> ldapUrls = config.getSetting(SessionFactorySettings.URLS_SETTING, () -> getDefaultLdapUrls(config));
         if (ldapUrls == null || ldapUrls.isEmpty()) {
-            throw new IllegalArgumentException("missing required LDAP setting [" + SessionFactorySettings.URLS_SETTING +
-                    "]");
+            throw new IllegalArgumentException("missing required LDAP setting ["
+                    + RealmSettings.getFullSettingKey(config, SessionFactorySettings.URLS_SETTING) + "]");
         }
         return new LDAPServers(ldapUrls.toArray(new String[ldapUrls.size()]));
     }
 
-    protected List<String> getDefaultLdapUrls(Settings settings) {
+    protected List<String> getDefaultLdapUrls(RealmConfig config) {
         return null;
     }
 
     private ServerSet serverSet(RealmConfig realmConfig, SSLService clientSSLService,
                                 LDAPServers ldapServers) {
-        Settings settings = realmConfig.settings();
         SocketFactory socketFactory = null;
         if (ldapServers.ssl()) {
-            SSLConfiguration ssl = clientSSLService.getSSLConfiguration(RealmSettings.getFullSettingKey(realmConfig, "ssl"));
+            final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
+            final SSLConfiguration ssl = clientSSLService.getSSLConfiguration(sslKey);
             socketFactory = clientSSLService.sslSocketFactory(ssl);
-            if (settings.getAsBoolean(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, true)) {
+            if (ssl.verificationMode().isHostnameVerificationEnabled()) {
                 logger.debug("using encryption for LDAP connections with hostname verification");
             } else {
                 logger.debug("using encryption for LDAP connections without hostname verification");
             }
         }
-        return LdapLoadBalancing.serverSet(ldapServers.addresses(), ldapServers.ports(), settings,
+        return LdapLoadBalancing.serverSet(ldapServers.addresses(), ldapServers.ports(), realmConfig,
                 socketFactory, connectionOptions(realmConfig, sslService, logger));
     }
 
@@ -254,7 +243,7 @@ public abstract class SessionFactory {
                 //No mixing is allowed because we use the same socketfactory
                 throw new IllegalArgumentException(
                         "configured LDAP protocols are not all equal (ldaps://.. and ldap://..): ["
-                                +  Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
+                                + Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
             }
 
             return allSecure;

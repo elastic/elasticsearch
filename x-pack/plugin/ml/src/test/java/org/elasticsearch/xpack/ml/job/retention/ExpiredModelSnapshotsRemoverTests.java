@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -270,8 +271,8 @@ public class ExpiredModelSnapshotsRemoverTests extends ESTestCase {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) {
                 capturedDeleteModelSnapshotRequests.add((DeleteModelSnapshotAction.Request) invocationOnMock.getArguments()[1]);
-                ActionListener<DeleteModelSnapshotAction.Response> listener =
-                        (ActionListener<DeleteModelSnapshotAction.Response>) invocationOnMock.getArguments()[2];
+                ActionListener<AcknowledgedResponse> listener =
+                        (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
                 if (shouldDeleteSnapshotRequestsSucceed) {
                     listener.onResponse(null);
                 } else {

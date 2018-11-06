@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -49,13 +48,10 @@ import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
 /**
  * {@link org.elasticsearch.test.NodeConfigurationSource} subclass that allows to set all needed settings for x-pack security.
- * Unicast discovery is configured through {@link org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration.UnicastZen},
- * also x-pack is installed with all the needed configuration and files.
+ * X-pack is installed with all the needed configuration and files.
  * To avoid conflicts, every cluster should have its own instance of this class as some configuration files need to be created.
  */
-public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.UnicastZen {
-
-    public static final Settings DEFAULT_SETTINGS = Settings.EMPTY;
+public class SecuritySettingsSource extends NodeConfigurationSource {
 
     public static final String TEST_USER_NAME = "test_user";
     public static final String TEST_PASSWORD_HASHED =
@@ -93,13 +89,11 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     /**
      * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.
      *
-     * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
      * @param sslEnabled whether ssl is enabled
      * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
      * @param scope the scope of the test that is requiring an instance of SecuritySettingsSource
      */
-    public SecuritySettingsSource(int numOfNodes, boolean sslEnabled, Path parentFolder, Scope scope) {
-        super(numOfNodes, DEFAULT_SETTINGS);
+    public SecuritySettingsSource(boolean sslEnabled, Path parentFolder, Scope scope) {
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
         this.sslEnabled = sslEnabled;
@@ -129,7 +123,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
 
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        Settings.Builder builder = Settings.builder()
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
                 .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
@@ -137,13 +131,12 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
                 .put(XPackSettings.AUDIT_ENABLED.getKey(), randomBoolean())
-                .put(LoggingAuditTrail.HOST_ADDRESS_SETTING.getKey(), randomBoolean())
-                .put(LoggingAuditTrail.HOST_NAME_SETTING.getKey(), randomBoolean())
-                .put(LoggingAuditTrail.NODE_NAME_SETTING.getKey(), randomBoolean())
-                .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.file.order", 0)
-                .put("xpack.security.authc.realms.index.type", NativeRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.index.order", "1");
+                .put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
+                .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
+                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
+                .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1");
         addNodeSSLSettings(builder);
         return builder.build();
     }
@@ -155,10 +148,9 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Settings transportClientSettings() {
-        Settings superSettings = super.transportClientSettings();
-        Settings.Builder builder = Settings.builder().put(superSettings);
+        Settings.Builder builder = Settings.builder();
         addClientSSLSettings(builder, "");
-        addDefaultSecurityTransportType(builder, superSettings);
+        addDefaultSecurityTransportType(builder, Settings.EMPTY);
 
         if (randomBoolean()) {
             builder.put(SecurityField.USER_SETTING.getKey(),
@@ -250,16 +242,6 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
             addSSLSettingsForStore(builder, prefix, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks",
                 "testclient", sslEnabled, hostnameVerificationEnabled, true);
         }
-    }
-
-    /**
-     * Returns the configuration settings given the location of a certificate and its password
-     *
-     * @param resourcePathToStore the location of the keystore or truststore
-     * @param password the password
-     */
-    public static void addSSLSettingsForStore(Settings.Builder builder, String resourcePathToStore, String password) {
-        addSSLSettingsForStore(builder, "", resourcePathToStore, password, true, true, true);
     }
 
     private static void addSSLSettingsForStore(Settings.Builder builder, String prefix, String resourcePathToStore, String password,

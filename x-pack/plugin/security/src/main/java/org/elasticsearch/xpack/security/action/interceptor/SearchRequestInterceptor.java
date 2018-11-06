@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.action.interceptor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -18,8 +17,8 @@ import org.elasticsearch.transport.TransportRequest;
  */
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor<SearchRequest> {
 
-    public SearchRequestInterceptor(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState) {
-        super(settings, threadPool.getThreadContext(), licenseState);
+    public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
+        super(threadPool.getThreadContext(), licenseState);
     }
 
     @Override

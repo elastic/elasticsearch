@@ -56,6 +56,8 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.core.CountRequest;
+import org.elasticsearch.client.core.CountResponse;
 import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
@@ -225,6 +227,7 @@ public class RestHighLevelClient implements Closeable {
     private final MigrationClient migrationClient = new MigrationClient(this);
     private final MachineLearningClient machineLearningClient = new MachineLearningClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
+    private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
 
     /**
@@ -370,6 +373,17 @@ public class RestHighLevelClient implements Closeable {
      * Licensing APIs on elastic.co</a> for more information.
      */
     public LicenseClient license() { return licenseClient; }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for
+     * accessing the Elastic Index Lifecycle APIs.
+     * <p>
+     * See the <a href="http://FILL-ME-IN-WE-HAVE-NO-DOCS-YET.com"> X-Pack APIs
+     * on elastic.co</a> for more information.
+     */
+    public IndexLifecycleClient indexLifecycle() {
+        return ilmClient;
+    }
 
     /**
      * Provides methods for accessing the Elastic Licensed Licensing APIs that
@@ -792,6 +806,31 @@ public class RestHighLevelClient implements Closeable {
     public final void indexAsync(IndexRequest indexRequest, RequestOptions options, ActionListener<IndexResponse> listener) {
         performRequestAsyncAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, listener,
                 emptySet());
+    }
+
+    /**
+     * Executes a count request using the Count API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html">Count API on elastic.co</a>
+     * @param countRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public final CountResponse count(CountRequest countRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(countRequest, RequestConverters::count, options, CountResponse::fromXContent,
+        emptySet());
+    }
+
+    /**
+     * Asynchronously executes a count request using the Count API.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-count.html">Count API on elastic.co</a>
+     * @param countRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public final void countAsync(CountRequest countRequest, RequestOptions options, ActionListener<CountResponse> listener) {
+        performRequestAsyncAndParseEntity(countRequest, RequestConverters::count,  options,CountResponse::fromXContent,
+            listener, emptySet());
     }
 
     /**

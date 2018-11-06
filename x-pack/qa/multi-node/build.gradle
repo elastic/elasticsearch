@@ -8,6 +8,7 @@ dependencies {
 integTestCluster {
   numNodes = 2
   clusterName = 'multi-node'
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'

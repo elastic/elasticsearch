@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ml.datafeed.extractor.fields.TimeBasedExtractedFields;
 
 import java.util.List;
 import java.util.Map;
@@ -15,7 +16,7 @@ import java.util.Objects;
 class ScrollDataExtractorContext {
 
     final String jobId;
-    final ExtractedFields extractedFields;
+    final TimeBasedExtractedFields extractedFields;
     final String[] indices;
     final String[] types;
     final QueryBuilder query;
@@ -25,7 +26,7 @@ class ScrollDataExtractorContext {
     final long end;
     final Map<String, String> headers;
 
-    ScrollDataExtractorContext(String jobId, ExtractedFields extractedFields, List<String> indices, List<String> types,
+    ScrollDataExtractorContext(String jobId, TimeBasedExtractedFields extractedFields, List<String> indices, List<String> types,
                                       QueryBuilder query, List<SearchSourceBuilder.ScriptField> scriptFields, int scrollSize,
                                       long start, long end, Map<String, String> headers) {
         this.jobId = Objects.requireNonNull(jobId);

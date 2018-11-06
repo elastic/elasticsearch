@@ -337,6 +337,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-get-role-mappings>>
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
+* <<{upid}-invalidate-token>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
@@ -350,6 +351,7 @@ include::security/put-role-mapping.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/delete-role-mapping.asciidoc[]
 include::security/create-token.asciidoc[]
+include::security/invalidate-token.asciidoc[]
 
 == Watcher APIs
 

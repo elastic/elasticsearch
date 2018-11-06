@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Grea
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -1313,7 +1314,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             // false for equality
-            if (bc instanceof GreaterThan || bc instanceof LessThan) {
+            if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
                 if (!l.nullable() && !r.nullable() && l.semanticEquals(r)) {
                     return FALSE;
                 }

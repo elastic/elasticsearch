@@ -46,7 +46,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ActionFilters.class), rolesStore, transportService);
+        TransportPutRoleAction action = new TransportPutRoleAction(mock(ActionFilters.class), rolesStore, transportService);
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);
@@ -76,7 +76,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ActionFilters.class), rolesStore, transportService);
+        TransportPutRoleAction action = new TransportPutRoleAction(mock(ActionFilters.class), rolesStore, transportService);
 
         final boolean created = randomBoolean();
         PutRoleRequest request = new PutRoleRequest();
@@ -119,7 +119,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportPutRoleAction action = new TransportPutRoleAction(Settings.EMPTY, mock(ActionFilters.class), rolesStore, transportService);
+        TransportPutRoleAction action = new TransportPutRoleAction(mock(ActionFilters.class), rolesStore, transportService);
 
         PutRoleRequest request = new PutRoleRequest();
         request.name(roleName);

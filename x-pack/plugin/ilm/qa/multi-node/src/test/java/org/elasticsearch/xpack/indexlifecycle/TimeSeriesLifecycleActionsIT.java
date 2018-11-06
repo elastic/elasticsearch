@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
+import org.elasticsearch.xpack.core.indexlifecycle.ErrorStep;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecyclePolicy;
@@ -190,6 +191,39 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         index(client(), originalIndex, "_id", "foo", "bar");
         assertBusy(() -> assertTrue(indexExists(secondIndex)));
         assertBusy(() -> assertTrue(indexExists(originalIndex)));
+    }
+
+    public void testRolloverAlreadyExists() throws Exception {
+        String originalIndex = index + "-000001";
+        String secondIndex = index + "-000002";
+        createIndexWithSettings(originalIndex, Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, "alias"));
+
+        // create policy
+        createNewSingletonPolicy("hot", new RolloverAction(null, null, 1L));
+        // update policy on index
+        updatePolicy(originalIndex, policy);
+
+        // Manually create the new index
+        Request request = new Request("PUT", "/" + secondIndex);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build()) + "}");
+        client().performRequest(request);
+        // wait for the shards to initialize
+        ensureGreen(secondIndex);
+
+        // index another doc to trigger the policy
+        index(client(), originalIndex, "_id", "foo", "bar");
+
+        assertBusy(() -> {
+            logger.info(originalIndex + ": " + getStepKeyForIndex(originalIndex));
+            logger.info(secondIndex + ": " + getStepKeyForIndex(secondIndex));
+            assertThat(getStepKeyForIndex(originalIndex), equalTo(new StepKey("hot", RolloverAction.NAME, ErrorStep.NAME)));
+            assertThat(getFailedStepForIndex(originalIndex), equalTo("update-rollover-lifecycle-date"));
+            assertThat(getReasonForIndex(originalIndex), equalTo("no rollover info found for [" + originalIndex + "], either the index " +
+                "has not yet rolled over or a subsequent index was created outside of Index Lifecycle Management"));
+        });
     }
 
     public void testAllocateOnlyAllocation() throws Exception {
@@ -436,6 +470,33 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     private StepKey getStepKeyForIndex(String indexName) throws IOException {
+        Map<String, Object> indexResponse = explainIndex(indexName);
+        if (indexResponse == null) {
+            return new StepKey(null, null, null);
+        }
+
+        String phase = (String) indexResponse.get("phase");
+        String action = (String) indexResponse.get("action");
+        String step = (String) indexResponse.get("step");
+        return new StepKey(phase, action, step);
+    }
+
+    private String getFailedStepForIndex(String indexName) throws IOException {
+        Map<String, Object> indexResponse = explainIndex(indexName);
+        if (indexResponse == null) return null;
+
+        return (String) indexResponse.get("failed_step");
+    }
+
+    @SuppressWarnings("unchecked")
+    private String getReasonForIndex(String indexName) throws IOException {
+        Map<String, Object> indexResponse = explainIndex(indexName);
+        if (indexResponse == null) return null;
+
+        return ((Map<String, String>) indexResponse.get("step_info")).get("reason");
+    }
+
+    private Map<String, Object> explainIndex(String indexName) throws IOException {
         Request explainRequest = new Request("GET", indexName + "/_ilm/explain");
         Response response = client().performRequest(explainRequest);
         Map<String, Object> responseMap;
@@ -443,15 +504,9 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
 
-        @SuppressWarnings("unchecked") Map<String, String> indexResponse = ((Map<String, Map<String, String>>) responseMap.get("indices"))
+        @SuppressWarnings("unchecked") Map<String, Object> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"))
             .get(indexName);
-        if (indexResponse == null) {
-            return new StepKey(null, null, null);
-        }
-        String phase = indexResponse.get("phase");
-        String action = indexResponse.get("action");
-        String step = indexResponse.get("step");
-        return new StepKey(phase, action, step);
+        return indexResponse;
     }
 
     private void indexDocument() throws IOException {

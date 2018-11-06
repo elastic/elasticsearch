@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
@@ -44,8 +43,10 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Bina
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
@@ -536,16 +537,15 @@ final class QueryTranslator {
                 //
                 // Agg context means HAVING -> PipelineAggs
                 //
-                ScriptTemplate script = bc.asScript();
                 if (onAggs) {
-                    aggFilter = new AggFilter(at.id().toString(), script);
+                    aggFilter = new AggFilter(at.id().toString(), bc.asScript());
                 }
                 else {
                     // query directly on the field
                     if (at instanceof FieldAttribute) {
                         query = wrapIfNested(translateQuery(bc), ne);
                     } else {
-                        query = new ScriptQuery(at.location(), script);
+                        query = new ScriptQuery(at.location(), bc.asScript());
                     }
                 }
                 return new QueryTranslation(query, aggFilter);
@@ -576,7 +576,7 @@ final class QueryTranslator {
             if (bc instanceof LessThanOrEqual) {
                 return new RangeQuery(loc, name, null, false, value, true, format);
             }
-            if (bc instanceof Equals) {
+            if (bc instanceof Equals || bc instanceof NotEquals) {
                 if (bc.left() instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) bc.left();
                     // equality should always be against an exact match
@@ -585,7 +585,11 @@ final class QueryTranslator {
                         name = fa.exactAttribute().name();
                     }
                 }
-                return new TermQuery(loc, name, value);
+                Query query = new TermQuery(loc, name, value);
+                if (bc instanceof NotEquals) {
+                    query = new NotQuery(loc, query);
+                }
+                return query;
             }
 
             throw new SqlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(),
@@ -655,11 +659,10 @@ final class QueryTranslator {
                 //
                 // Agg context means HAVING -> PipelineAggs
                 //
-                ScriptTemplate script = r.asScript();
                 Attribute at = ((NamedExpression) e).toAttribute();
 
                 if (onAggs) {
-                    aggFilter = new AggFilter(at.id().toString(), script);
+                    aggFilter = new AggFilter(at.id().toString(), r.asScript());
                 } else {
                     // typical range; no scripting involved
                     if (at instanceof FieldAttribute) {
@@ -669,7 +672,7 @@ final class QueryTranslator {
                     }
                     // scripted query
                     else {
-                        query = new ScriptQuery(at.location(), script);
+                        query = new ScriptQuery(at.location(), r.asScript());
                     }
                 }
                 return new QueryTranslation(query, aggFilter);

@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -112,16 +113,19 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                             TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
                 }
             } catch (Exception e) {
-                logger.error("failed to bootstrap, exiting...", e);
+                logger.error("failed to process on-disk metadata on startup, exiting...", e);
                 throw e;
             }
         }
     }
 
-    public MetaData getMetaData() {
+    /**
+     * Returns current metadata stored on disk. If there is no metadata on disk, {@link MetaData#EMPTY_META_DATA}  is returned.
+     */
+    public MetaData getMetaDataOrDefault() {
         MetaData metaData = metaStateService.getMetaData();
         //although metadata returned by MetaStateService is nullable, our callers expect non-nullable metadata
-        return metaData == null ? MetaData.builder().build() : metaData;
+        return metaData == null ? MetaData.EMPTY_META_DATA : metaData;
     }
 
     @Override
@@ -159,7 +163,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                 metaStateService.writeManifest("changed");
                 previousMetaData = newMetaData;
             } catch (WriteStateException e) {
-                logger.error("Exception occurred", e);
+                logger.error(() -> new ParameterizedMessage("Failed to process new cluster state version {}", state.version()), e);
             }
         }
     }

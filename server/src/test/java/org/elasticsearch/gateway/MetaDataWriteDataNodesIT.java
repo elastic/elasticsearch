@@ -191,7 +191,7 @@ public class MetaDataWriteDataNodesIT extends ESIntegTestCase {
 
     private ImmutableOpenMap<String, IndexMetaData> getIndicesMetaDataOnNode(String nodeName) {
         GatewayMetaState nodeMetaState = ((InternalTestCluster) cluster()).getInstance(GatewayMetaState.class, nodeName);
-        MetaData nodeMetaData = nodeMetaState.getMetaData();
+        MetaData nodeMetaData = nodeMetaState.getMetaDataOrDefault();
         return nodeMetaData.getIndices();
     }
 }

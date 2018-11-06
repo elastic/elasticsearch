@@ -89,7 +89,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
 
     @Override
     protected NodeGatewayMetaState nodeOperation(NodeRequest request) {
-        return new NodeGatewayMetaState(clusterService.localNode(), metaState.getMetaData());
+        return new NodeGatewayMetaState(clusterService.localNode(), metaState.getMetaDataOrDefault());
     }
 
     public static class Request extends BaseNodesRequest<Request> {

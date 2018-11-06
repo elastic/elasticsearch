@@ -79,22 +79,22 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     KerberosRealm(final RealmConfig config, final NativeRoleMappingStore nativeRoleMappingStore,
             final KerberosTicketValidator kerberosTicketValidator, final ThreadPool threadPool,
             final Cache<String, User> userPrincipalNameToUserCache) {
-        super(KerberosRealmSettings.TYPE, config);
+        super(config);
         this.userRoleMapper = nativeRoleMappingStore;
         this.userRoleMapper.refreshRealmOnChange(this);
-        final TimeValue ttl = KerberosRealmSettings.CACHE_TTL_SETTING.get(config.settings());
+        final TimeValue ttl = config.getSetting(KerberosRealmSettings.CACHE_TTL_SETTING);
         if (ttl.getNanos() > 0) {
             this.userPrincipalNameToUserCache = (userPrincipalNameToUserCache == null)
                     ? CacheBuilder.<String, User>builder()
-                            .setExpireAfterWrite(KerberosRealmSettings.CACHE_TTL_SETTING.get(config.settings()))
-                            .setMaximumWeight(KerberosRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings())).build()
+                            .setExpireAfterWrite(config.getSetting(KerberosRealmSettings.CACHE_TTL_SETTING))
+                            .setMaximumWeight(config.getSetting(KerberosRealmSettings.CACHE_MAX_USERS_SETTING)).build()
                     : userPrincipalNameToUserCache;
         } else {
             this.userPrincipalNameToUserCache = null;
         }
         this.kerberosTicketValidator = kerberosTicketValidator;
         this.threadPool = threadPool;
-        this.keytabPath = config.env().configFile().resolve(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.get(config.settings()));
+        this.keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
 
         if (Files.exists(keytabPath) == false) {
             throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] does not exist");
@@ -105,8 +105,9 @@ public final class KerberosRealm extends Realm implements CachingRealm {
         if (Files.isReadable(keytabPath) == false) {
             throw new IllegalArgumentException("configured service key tab file [" + keytabPath + "] must have read permission");
         }
-        this.enableKerberosDebug = KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE.get(config.settings());
-        this.removeRealmName = KerberosRealmSettings.SETTING_REMOVE_REALM_NAME.get(config.settings());
+
+        this.enableKerberosDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
+        this.removeRealmName = config.getSetting(KerberosRealmSettings.SETTING_REMOVE_REALM_NAME);
         this.delegatedRealms = null;
     }
 

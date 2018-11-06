@@ -27,7 +27,7 @@ public class BinaryLogicProcessor extends FunctionalBinaryProcessor<Boolean, Boo
                 return null;
             }
             return Boolean.logicalAnd(l.booleanValue(), r.booleanValue());
-        }, "&&"),
+        }, "AND"),
         OR((l, r) -> {
             if (Boolean.TRUE.equals(l) || Boolean.TRUE.equals(r)) {
                 return Boolean.TRUE;
@@ -36,7 +36,7 @@ public class BinaryLogicProcessor extends FunctionalBinaryProcessor<Boolean, Boo
                 return null;
             }
             return Boolean.logicalOr(l.booleanValue(), r.booleanValue());
-        }, "||");
+        }, "OR");
 
         private final BiFunction<Boolean, Boolean, Boolean> process;
         private final String symbol;

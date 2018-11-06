@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.bootstrap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.coordination.Coordinator;
@@ -32,7 +33,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportBootstrapClusterAction extends TransportAction<BootstrapClusterRequest, AcknowledgedResponse> {
+public class TransportBootstrapClusterAction extends HandledTransportAction<BootstrapClusterRequest, AcknowledgedResponse> {
 
     @Nullable // TODO make this not nullable
     private final Coordinator coordinator;
@@ -41,7 +42,7 @@ public class TransportBootstrapClusterAction extends TransportAction<BootstrapCl
     @Inject
     public TransportBootstrapClusterAction(Settings settings, ActionFilters actionFilters, TransportService transportService,
                                            Discovery discovery) {
-        super(settings, BootstrapClusterAction.NAME, actionFilters, transportService.getTaskManager());
+        super(settings, BootstrapClusterAction.NAME, transportService, actionFilters, BootstrapClusterRequest::new);
         this.transportService = transportService;
         if (discovery instanceof Coordinator) {
             coordinator = (Coordinator) discovery;

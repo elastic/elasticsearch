@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.bootstrap;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration.NodeDescription;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -83,7 +82,7 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         transportService.sendRequest(discoveryNode, BootstrapClusterAction.NAME, exampleRequest(), new ResponseHandler() {
             @Override
-            public void handleResponse(AcknowledgedResponse response) {
+            public void handleResponse(BootstrapClusterResponse response) {
                 throw new AssertionError("should not be called");
             }
 
@@ -123,7 +122,7 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         transportService.sendRequest(discoveryNode, BootstrapClusterAction.NAME, exampleRequest(), new ResponseHandler() {
             @Override
-            public void handleResponse(AcknowledgedResponse response) {
+            public void handleResponse(BootstrapClusterResponse response) {
                 throw new AssertionError("should not be called");
             }
 
@@ -170,8 +169,8 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
             final CountDownLatch countDownLatch = new CountDownLatch(1);
             transportService.sendRequest(discoveryNode, BootstrapClusterAction.NAME, request, new ResponseHandler() {
                 @Override
-                public void handleResponse(AcknowledgedResponse response) {
-                    assertTrue(response.isAcknowledged());
+                public void handleResponse(BootstrapClusterResponse response) {
+                    assertFalse(response.getAlreadyBootstrapped());
                     countDownLatch.countDown();
                 }
 
@@ -190,8 +189,8 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
             final CountDownLatch countDownLatch = new CountDownLatch(1);
             transportService.sendRequest(discoveryNode, BootstrapClusterAction.NAME, request, new ResponseHandler() {
                 @Override
-                public void handleResponse(AcknowledgedResponse response) {
-                    assertFalse(response.isAcknowledged());
+                public void handleResponse(BootstrapClusterResponse response) {
+                    assertTrue(response.getAlreadyBootstrapped());
                     countDownLatch.countDown();
                 }
 
@@ -207,17 +206,15 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
         threadPool.shutdown();
     }
 
-    private abstract class ResponseHandler implements TransportResponseHandler<AcknowledgedResponse> {
+    private abstract class ResponseHandler implements TransportResponseHandler<BootstrapClusterResponse> {
         @Override
         public String executor() {
             return Names.SAME;
         }
 
         @Override
-        public AcknowledgedResponse read(StreamInput in) throws IOException {
-            AcknowledgedResponse acknowledgedResponse = new AcknowledgedResponse();
-            acknowledgedResponse.readFrom(in);
-            return acknowledgedResponse;
+        public BootstrapClusterResponse read(StreamInput in) throws IOException {
+            return new BootstrapClusterResponse(in);
         }
     }
 }

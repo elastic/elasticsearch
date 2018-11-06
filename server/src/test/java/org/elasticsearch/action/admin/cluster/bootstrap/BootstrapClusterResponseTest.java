@@ -18,18 +18,16 @@
  */
 package org.elasticsearch.action.admin.cluster.bootstrap;
 
-import org.elasticsearch.action.Action;
+import org.elasticsearch.test.ESTestCase;
 
-public class BootstrapClusterAction extends Action<BootstrapClusterResponse> {
-    public static final BootstrapClusterAction INSTANCE = new BootstrapClusterAction();
-    public static final String NAME = "cluster:admin/bootstrap_cluster";
+import java.io.IOException;
 
-    private BootstrapClusterAction() {
-        super(NAME);
-    }
+import static org.hamcrest.Matchers.equalTo;
 
-    @Override
-    public BootstrapClusterResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+public class BootstrapClusterResponseTest extends ESTestCase {
+    public void testSerialization() throws IOException {
+        final BootstrapClusterResponse original = new BootstrapClusterResponse(randomBoolean());
+        final BootstrapClusterResponse deserialized = copyWriteable(original, writableRegistry(), BootstrapClusterResponse::new);
+        assertThat(deserialized.getAlreadyBootstrapped(), equalTo(original.getAlreadyBootstrapped()));
     }
 }

@@ -22,8 +22,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -33,7 +31,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportBootstrapClusterAction extends HandledTransportAction<BootstrapClusterRequest, AcknowledgedResponse> {
+public class TransportBootstrapClusterAction extends HandledTransportAction<BootstrapClusterRequest, BootstrapClusterResponse> {
 
     @Nullable // TODO make this not nullable
     private final Coordinator coordinator;
@@ -52,7 +50,7 @@ public class TransportBootstrapClusterAction extends HandledTransportAction<Boot
     }
 
     @Override
-    protected void doExecute(Task task, BootstrapClusterRequest request, ActionListener<AcknowledgedResponse> listener) {
+    protected void doExecute(Task task, BootstrapClusterRequest request, ActionListener<BootstrapClusterResponse> listener) {
         if (coordinator == null) { // TODO remove when not nullable
             throw new IllegalStateException("cluster bootstrapping is not supported by this discovery type");
         }
@@ -67,7 +65,8 @@ public class TransportBootstrapClusterAction extends HandledTransportAction<Boot
             @Override
             public void run() {
                 try {
-                    listener.onResponse(new AcknowledgedResponse(coordinator.setInitialConfiguration(request.getBootstrapConfiguration())));
+                    listener.onResponse(new BootstrapClusterResponse(
+                        coordinator.setInitialConfiguration(request.getBootstrapConfiguration()) == false));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }
@@ -79,5 +78,4 @@ public class TransportBootstrapClusterAction extends HandledTransportAction<Boot
             }
         });
     }
-
 }

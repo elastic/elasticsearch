@@ -67,6 +67,7 @@ in the cluster state, or set on dynamic settings updates, we will automatically
 upgrade the setting from `search.remote.*` to `cluster.remote.*`. The fallback
 settings will be removed in 8.0.0.
 
+[float]
 [[include-realm-type-in-setting]]
 ==== Security realms settings
 

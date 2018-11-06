@@ -20,8 +20,8 @@ public class BinaryLogicProcessorTests extends AbstractWireSerializingTestCase<B
 
     public static BinaryLogicProcessor randomProcessor() {
         return new BinaryLogicProcessor(
-                new ConstantProcessor(randomBooleanOrNull()),
-                new ConstantProcessor(randomBoolean()),
+                new ConstantProcessor(randomFrom(Boolean.FALSE, Boolean.TRUE, null)),
+                new ConstantProcessor(randomFrom(Boolean.FALSE, Boolean.TRUE, null)),
                 randomFrom(BinaryLogicProcessor.BinaryLogicOperation.values()));
     }
 
@@ -68,19 +68,5 @@ public class BinaryLogicProcessorTests extends AbstractWireSerializingTestCase<B
         assertEquals(false, new BinaryLogicProcessor(FALSE, NULL, BinaryLogicProcessor.BinaryLogicOperation.AND).process(null));
         assertEquals(false, new BinaryLogicProcessor(NULL, FALSE, BinaryLogicProcessor.BinaryLogicOperation.AND).process(null));
         assertNull(new BinaryLogicProcessor(NULL, NULL, BinaryLogicProcessor.BinaryLogicOperation.AND).process(null));
-    }
-
-    private static Boolean randomBooleanOrNull() {
-        int i = randomIntBetween(0, 2);
-        switch (i) {
-            case 0:
-                return null;
-            case 1:
-                return Boolean.FALSE;
-            case 2:
-                return Boolean.TRUE;
-            default:
-                return Boolean.FALSE;
-        }
     }
 }

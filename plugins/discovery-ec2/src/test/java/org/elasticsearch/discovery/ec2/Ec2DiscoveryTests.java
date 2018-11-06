@@ -298,7 +298,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     }
 
     public void testGetNodeListEmptyCache() throws Exception {
-        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(Settings.EMPTY, 1, null);
+        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(1, null);
         DummyEc2HostProvider provider = new DummyEc2HostProvider(Settings.EMPTY, transportService, awsEc2Service) {
             @Override
             protected List<TransportAddress> fetchDynamicNodes() {

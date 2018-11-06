@@ -40,13 +40,15 @@ public final class PainlessLookup {
 
     private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
+    private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
     PainlessLookup(
             Map<String, Class<?>> javaClassNamesToClasses,
             Map<String, Class<?>> canonicalClassNamesToClasses,
             Map<Class<?>, PainlessClass> classesToPainlessClasses,
             Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
-            Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings) {
+            Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
+            Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings) {
 
         Objects.requireNonNull(javaClassNamesToClasses);
         Objects.requireNonNull(canonicalClassNamesToClasses);
@@ -54,6 +56,7 @@ public final class PainlessLookup {
 
         Objects.requireNonNull(painlessMethodKeysToImportedPainlessMethods);
         Objects.requireNonNull(painlessMethodKeysToPainlessClassBindings);
+        Objects.requireNonNull(painlessMethodKeysToPainlessInstanceBindings);
 
         this.javaClassNamesToClasses = javaClassNamesToClasses;
         this.canonicalClassNamesToClasses = Collections.unmodifiableMap(canonicalClassNamesToClasses);
@@ -61,6 +64,7 @@ public final class PainlessLookup {
 
         this.painlessMethodKeysToImportedPainlessMethods = Collections.unmodifiableMap(painlessMethodKeysToImportedPainlessMethods);
         this.painlessMethodKeysToPainlessClassBindings = Collections.unmodifiableMap(painlessMethodKeysToPainlessClassBindings);
+        this.painlessMethodKeysToPainlessInstanceBindings = Collections.unmodifiableMap(painlessMethodKeysToPainlessInstanceBindings);
     }
 
     public Class<?> javaClassNameToClass(String javaClassName) {
@@ -198,6 +202,14 @@ public final class PainlessLookup {
         String painlessMethodKey = buildPainlessMethodKey(methodName, arity);
 
         return painlessMethodKeysToPainlessClassBindings.get(painlessMethodKey);
+    }
+
+    public PainlessInstanceBinding lookupPainlessInstanceBinding(String methodName, int arity) {
+        Objects.requireNonNull(methodName);
+
+        String painlessMethodKey = buildPainlessMethodKey(methodName, arity);
+
+        return painlessMethodKeysToPainlessInstanceBindings.get(painlessMethodKey);
     }
 
     public PainlessMethod lookupFunctionalInterfacePainlessMethod(Class<?> targetClass) {

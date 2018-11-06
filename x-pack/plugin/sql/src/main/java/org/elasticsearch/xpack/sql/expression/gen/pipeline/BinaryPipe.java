@@ -41,7 +41,7 @@ public abstract class BinaryPipe extends Pipe {
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return left.supportedByAggsOnlyQuery() && right.supportedByAggsOnlyQuery();
+        return left.supportedByAggsOnlyQuery() || right.supportedByAggsOnlyQuery();
     }
 
     @Override

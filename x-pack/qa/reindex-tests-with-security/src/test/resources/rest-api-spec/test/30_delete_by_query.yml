@@ -1,3 +1,6 @@
+setup:
+  - skip:
+      features: headers
 ---
 "Delete_by_query as same user works":
 

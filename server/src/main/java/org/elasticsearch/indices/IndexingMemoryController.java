@@ -94,7 +94,6 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     private final ShardsIndicesStatusChecker statusChecker;
 
     IndexingMemoryController(Settings settings, ThreadPool threadPool, Iterable<IndexShard> indexServices) {
-        super(settings);
         this.indexShards = indexServices;
 
         ByteSizeValue indexingBuffer = INDEX_BUFFER_SIZE_SETTING.get(settings);
@@ -103,8 +102,8 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         // null means we used the default (10%)
         if (indexingBufferSetting == null || indexingBufferSetting.endsWith("%")) {
             // We only apply the min/max when % value was used for the index buffer:
-            ByteSizeValue minIndexingBuffer = MIN_INDEX_BUFFER_SIZE_SETTING.get(this.settings);
-            ByteSizeValue maxIndexingBuffer = MAX_INDEX_BUFFER_SIZE_SETTING.get(this.settings);
+            ByteSizeValue minIndexingBuffer = MIN_INDEX_BUFFER_SIZE_SETTING.get(settings);
+            ByteSizeValue maxIndexingBuffer = MAX_INDEX_BUFFER_SIZE_SETTING.get(settings);
             if (indexingBuffer.getBytes() < minIndexingBuffer.getBytes()) {
                 indexingBuffer = minIndexingBuffer;
             }
@@ -114,9 +113,9 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         }
         this.indexingBuffer = indexingBuffer;
 
-        this.inactiveTime = SHARD_INACTIVE_TIME_SETTING.get(this.settings);
+        this.inactiveTime = SHARD_INACTIVE_TIME_SETTING.get(settings);
         // we need to have this relatively small to free up heap quickly enough
-        this.interval = SHARD_MEMORY_INTERVAL_TIME_SETTING.get(this.settings);
+        this.interval = SHARD_MEMORY_INTERVAL_TIME_SETTING.get(settings);
 
         this.statusChecker = new ShardsIndicesStatusChecker();
 

@@ -11,7 +11,6 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xpack.sql.cli.Cli;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
@@ -151,10 +150,22 @@ public class EmbeddedCli implements Closeable {
                 assertEquals("", readLine());
             }
 
-            // Throw out the logo
-            while (false == readLine().contains("SQL")) {
-                ;
+            // Read until the first "good" line (skip the logo or read until an exception)
+            boolean isLogoOrException = false;
+            while (!isLogoOrException) {
+                String line = readLine();
+                isLogoOrException = line.contains("SQL");
+                if (isLogoOrException) {
+                    // which one is it? The "SQL" line in the logo or an .SQL*Exception?
+                    if (!line.contains(".SQL")) {
+                        // it's not an exception, so read the version and break out of the loop
+                        readLine();
+                    }
+                    // if it's an exception, just break out of the loop and don't read the next line
+                    // as it will swallow the exception and IT tests won't catch it
+                }
             }
+            
             assertConnectionTest();
         } catch (IOException e) {
             try {

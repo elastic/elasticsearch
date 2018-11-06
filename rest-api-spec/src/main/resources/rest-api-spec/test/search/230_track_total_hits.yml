@@ -3,7 +3,7 @@
 
   - skip:
       version: " - 6.99.99"
-      reason:  track_total_hits was introduced in 7.0.0
+      reason:  track_total_hits as a number was introduced in 7.0.0
 
   - do:
       search:

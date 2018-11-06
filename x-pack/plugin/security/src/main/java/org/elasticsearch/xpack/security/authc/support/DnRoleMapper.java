@@ -30,7 +30,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -59,8 +58,8 @@ public class DnRoleMapper implements UserRoleMapper {
     public DnRoleMapper(RealmConfig config, ResourceWatcherService watcherService) {
         this.config = config;
 
-        useUnmappedGroupsAsRoles = DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.get(config.settings());
-        file = resolveFile(config.settings(), config.env());
+        useUnmappedGroupsAsRoles = config.getSetting(DnRoleMapperSettings.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING);
+        file = resolveFile(config);
         dnRoles = parseFileLenient(file, logger, config.type(), config.name());
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
@@ -80,9 +79,9 @@ public class DnRoleMapper implements UserRoleMapper {
         listeners.add(Objects.requireNonNull(listener, "listener cannot be null"));
     }
 
-    public static Path resolveFile(Settings settings, Environment env) {
-        String location = DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.get(settings);
-        return XPackPlugin.resolveConfigFile(env, location);
+    public static Path resolveFile(RealmConfig realmConfig) {
+        String location = realmConfig.getSetting(DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING);
+        return XPackPlugin.resolveConfigFile(realmConfig.env(), location);
     }
 
     /**

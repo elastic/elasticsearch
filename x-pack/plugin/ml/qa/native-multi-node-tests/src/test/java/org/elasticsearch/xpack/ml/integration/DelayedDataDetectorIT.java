@@ -12,42 +12,31 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.datafeed.DelayedDataDetector;
+import org.elasticsearch.xpack.ml.datafeed.DelayedDataDetector.BucketWithMissingData;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeedBuilder;
-import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.getDataCounts;
-import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
@@ -61,7 +50,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         client().admin().indices().prepareCreate(index)
             .addMapping("type", "time", "type=date", "value", "type=long")
             .get();
-        numDocs = randomIntBetween(32, 2048);
+        numDocs = randomIntBetween(32, 128);
         long oneDayAgo = now - 86400000;
         writeData(logger, index, numDocs, oneDayAgo, now);
     }
@@ -92,7 +81,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
             new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
 
         delayedDataDetector.missingData(lastBucket.getEpoch()*1000, ActionListener.wrap(
-            response -> assertThat(response, equalTo(0L)),
+            response -> assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(0L)),
             e -> fail()
         ));
     }
@@ -118,11 +107,50 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         DelayedDataDetector delayedDataDetector =
             new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
 
-        long missingDocs = randomIntBetween(32, 2048);
+        long missingDocs = randomIntBetween(32, 128);
         writeData(logger, index, missingDocs, now - 43100000, lastBucket.getEpoch()*1000);
 
         delayedDataDetector.missingData(lastBucket.getEpoch()*1000, ActionListener.wrap(
-            response -> assertThat(response, equalTo(missingDocs)),
+            response -> assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(missingDocs)),
+            e -> fail()
+        ));
+    }
+
+    public void testWithMissingInSpecificBucket() throws Exception {
+        final String jobId = "delayed-data-detection-job-missing-test";
+        Job.Builder job = createJob(jobId, TimeValue.timeValueMinutes(5), "count", null);
+
+        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
+        registerJob(job);
+        putJob(job);
+        openJob(job.getId());
+
+        registerDatafeed(datafeedConfig);
+        putDatafeed(datafeedConfig);
+
+        startDatafeed(datafeedConfig.getId(), 0L, now);
+        waitUntilJobIsClosed(jobId);
+
+        // Get the latest finalized bucket
+        Bucket lastBucket = getLatestFinalizedBucket(jobId);
+
+        DelayedDataDetector delayedDataDetector =
+            new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
+
+        long missingDocs = randomIntBetween(1, 10);
+        writeData(logger, index, missingDocs, (lastBucket.getEpoch() - lastBucket.getBucketSpan())*1000, lastBucket.getEpoch()*1000);
+
+        delayedDataDetector.missingData(lastBucket.getEpoch()*1000, ActionListener.wrap(
+            response -> {
+                boolean hasBucketWithMissing = false;
+                for (BucketWithMissingData bucketWithMissingData : response) {
+                    if (bucketWithMissingData.getBucket().getEpoch() == lastBucket.getEpoch() - lastBucket.getBucketSpan()) {
+                        assertThat(bucketWithMissingData.getMissingData(), equalTo(missingDocs));
+                        hasBucketWithMissing = true;
+                    }
+                }
+                assertThat(hasBucketWithMissing, equalTo(true));
+            },
             e -> fail()
         ));
     }
@@ -160,7 +188,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
             new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
 
         delayedDataDetector.missingData(lastBucket.getEpoch()*1000, ActionListener.wrap(
-            response -> assertThat(response, equalTo(0L)),
+            response -> assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(0L)),
             e -> fail()
         ));
     }
@@ -180,7 +208,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
                 .field("time")
                 .interval(TimeValue.timeValueMinutes(5).millis())));
         datafeedConfigBuilder.setFrequency(TimeValue.timeValueMinutes(5));
-        datafeedConfigBuilder.setQuery(new RangeQueryBuilder("value").gt(numDocs/2));
+        datafeedConfigBuilder.setQuery(new RangeQueryBuilder("value").gte(numDocs/2));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         registerJob(job);
         putJob(job);
@@ -201,7 +229,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         writeData(logger, index, missingDocs, now - 43100000, lastBucket.getEpoch()*1000);
 
         delayedDataDetector.missingData(lastBucket.getEpoch()*1000, ActionListener.wrap(
-            response -> assertThat(response, equalTo(missingDocs/2)),
+            response -> assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo((missingDocs+1)/2)),
             e -> fail()
         ));
     }

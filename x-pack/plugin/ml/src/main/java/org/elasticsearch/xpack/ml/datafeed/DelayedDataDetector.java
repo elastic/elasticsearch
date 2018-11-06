@@ -1,7 +1,5 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -16,6 +14,7 @@ import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.joda.time.DateTime;
 
@@ -49,23 +48,22 @@ public class DelayedDataDetector {
         this.client = client;
     }
 
-    public void missingData(long latestFinalizedBucket, ActionListener<Long> listener) {
+    public void missingData(long latestFinalizedBucket, ActionListener<List<BucketWithMissingData>> listener) {
         final long end = Intervals.alignToFloor(latestFinalizedBucket, bucketSpan);
         final long start = Intervals.alignToFloor(latestFinalizedBucket - window, bucketSpan);
         checkBucketEvents(start, end, ActionListener.wrap(
             finalizedBuckets -> checkTrueData(start, end, ActionListener.wrap(
-                    indexedData -> listener.onResponse(finalizedBuckets.entrySet()
-                        .stream()
-                        .map((entry) -> indexedData.getOrDefault(entry.getKey(), 0L) - entry.getValue())
-                        .filter(v -> v > 0)
-                        .collect(Collectors.summingLong(Long::longValue))),
+                    indexedData -> listener.onResponse(finalizedBuckets.stream()
+                        .filter(bucket -> calculateMissing(indexedData, bucket) > 0)
+                        .map(bucket -> BucketWithMissingData.fromMissingAndBucket(calculateMissing(indexedData, bucket), bucket))
+                        .collect(Collectors.toList())),
                     listener::onFailure)
             ),
             listener::onFailure
         ));
     }
 
-    private void checkBucketEvents(long start, long end, ActionListener<Map<Long, Long>> listener) {
+    private void checkBucketEvents(long start, long end, ActionListener<List<Bucket>> listener) {
         GetBucketsAction.Request request = new GetBucketsAction.Request(job.getId());
         request.setStart(Long.toString(start));
         request.setEnd(Long.toString(end));
@@ -73,11 +71,7 @@ public class DelayedDataDetector {
         request.setPageParams(new PageParams(0, (int)((end - start)/bucketSpan)));
 
         ClientHelper.executeAsyncWithOrigin(client, ClientHelper.ML_ORIGIN, GetBucketsAction.INSTANCE, request, ActionListener.wrap(
-            response -> {
-                Map<Long, Long> map = new HashMap<>((int)response.getBuckets().count());
-                response.getBuckets().results().forEach(bucket -> map.put(bucket.getEpoch() * 1000, bucket.getEventCount()));
-                listener.onResponse(map);
-            },
+            response -> listener.onResponse(response.getBuckets().results()),
             listener::onFailure
         ));
     }
@@ -118,6 +112,33 @@ public class DelayedDataDetector {
             return (Long)key;
         } else {
             return -1L;
+        }
+    }
+
+    private static long calculateMissing(Map<Long, Long> indexedData, Bucket bucket) {
+        return indexedData.getOrDefault(bucket.getEpoch() * 1000, 0L) - bucket.getEventCount();
+    }
+
+    public static class BucketWithMissingData {
+
+        private final long missingData;
+        private final Bucket bucket;
+
+        static BucketWithMissingData fromMissingAndBucket(long missingData, Bucket bucket) {
+            return new BucketWithMissingData(missingData, bucket);
+        }
+
+        private BucketWithMissingData(long missingData, Bucket bucket) {
+           this.missingData = missingData;
+           this.bucket = bucket;
+        }
+
+        public Bucket getBucket() {
+            return bucket;
+        }
+
+        public long getMissingData() {
+            return missingData;
         }
     }
 }

@@ -136,9 +136,9 @@ with <<keyword, `keyword`>>. The following parameters are accepted:
 
 <<ignore-above,`ignore_above`>>::
 
-    Leaf values longer than this limit will not be indexed. Defaults to the maximum integer value
-    `2147483647` so that no values are skipped. Note that this limit applies to the leaf values
-    within the JSON field, and not the length of the entire field.
+    Leaf values longer than this limit will not be indexed. By default, there is no limit
+    and all values will be indexed. Note that this limit applies to the leaf values within
+    the JSON field, and not the length of the entire field.
 
 <<mapping-index,`index`>>::
 

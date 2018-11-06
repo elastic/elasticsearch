@@ -108,6 +108,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -191,7 +192,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
     }
 
-    public void testBlocks() throws ExecutionException, InterruptedException {
+    public void testBlocksInReroutePhase() throws Exception {
         Request request = new Request();
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
@@ -246,6 +247,53 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase = action.new ReroutePhase(task, new Request().timeout("5ms"), listener);
         reroutePhase.run();
         assertListenerThrows("should fail with an IndexNotFoundException when no blocks checked", listener, IndexNotFoundException.class);
+    }
+
+    public void testBlocksInPrimaryAction() {
+        final boolean globalBlock = randomBoolean();
+
+        final TestAction actionWithBlocks =
+            new TestAction(Settings.EMPTY, "internal:actionWithBlocks", transportService, clusterService, shardStateAction, threadPool) {
+                @Override
+                protected ClusterBlockLevel globalBlockLevel() {
+                    return globalBlock ? ClusterBlockLevel.WRITE : null;
+                }
+
+                @Override
+                protected ClusterBlockLevel indexBlockLevel() {
+                    return globalBlock == false ? ClusterBlockLevel.WRITE : null;
+                }
+            };
+
+        final String index = "index";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, stateWithActivePrimary(index, true, randomInt(5)));
+
+        final ClusterBlocks.Builder block = ClusterBlocks.builder();
+        if (globalBlock) {
+            block.addGlobalBlock(new ClusterBlock(randomIntBetween(1, 16), "test global block", randomBoolean(), randomBoolean(),
+                randomBoolean(), RestStatus.BAD_REQUEST, ClusterBlockLevel.ALL));
+        } else {
+            block.addIndexBlock(index, new ClusterBlock(randomIntBetween(1, 16), "test index block", randomBoolean(), randomBoolean(),
+                randomBoolean(), RestStatus.FORBIDDEN, ClusterBlockLevel.READ_WRITE));
+        }
+        setState(clusterService, ClusterState.builder(clusterService.state()).blocks(block));
+
+        final ClusterState clusterState = clusterService.state();
+        final String targetAllocationID = clusterState.getRoutingTable().shardRoutingTable(shardId).primaryShard().allocationId().getId();
+        final long primaryTerm = clusterState.metaData().index(index).primaryTerm(shardId.id());
+        final Request request = new Request(shardId);
+        final ReplicationTask task = maybeTask();
+        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+
+        final TransportReplicationAction.AsyncPrimaryAction asyncPrimaryActionWithBlocks =
+            actionWithBlocks.new AsyncPrimaryAction(request, targetAllocationID, primaryTerm, createTransportChannel(listener), task);
+        asyncPrimaryActionWithBlocks.run();
+
+        final ExecutionException exception = expectThrows(ExecutionException.class, listener::get);
+        assertThat(exception.getCause(), instanceOf(ClusterBlockException.class));
+        assertThat(exception.getCause(), hasToString(containsString("test " + (globalBlock ? "global" : "index") + " block")));
+        assertPhase(task, "finished");
     }
 
     public void assertIndexShardUninitialized() {
@@ -1109,15 +1157,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         TestAction(Settings settings, String actionName, TransportService transportService,
                    ClusterService clusterService, ShardStateAction shardStateAction,
                    ThreadPool threadPool) {
-            super(settings, actionName, transportService, clusterService, mockIndicesService(clusterService), threadPool,
-                shardStateAction,
-                new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),
-                Request::new, Request::new, ThreadPool.Names.SAME);
-        }
-
-        TestAction(Settings settings, String actionName, TransportService transportService,
-                   ClusterService clusterService, ShardStateAction shardStateAction,
-                   ThreadPool threadPool, boolean withDocumentFailureOnPrimary, boolean withDocumentFailureOnReplica) {
             super(settings, actionName, transportService, clusterService, mockIndicesService(clusterService), threadPool,
                 shardStateAction,
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(),

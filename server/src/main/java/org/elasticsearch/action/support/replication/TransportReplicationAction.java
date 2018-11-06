@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -235,6 +236,32 @@ public abstract class TransportReplicationAction<
         return TransportRequestOptions.EMPTY;
     }
 
+    private String concreteIndex(final ClusterState state, final ReplicationRequest request) {
+        return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request).getName() : request.index();
+    }
+
+    private boolean handleBlockExceptions(final ClusterState state,
+                                          final ReplicationRequest request,
+                                          final CheckedConsumer<ClusterBlockException, ClusterBlockException> consumer) {
+        ClusterBlockLevel globalBlockLevel = globalBlockLevel();
+        if (globalBlockLevel != null) {
+            ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel);
+            if (blockException != null) {
+                consumer.accept(blockException);
+                return true;
+            }
+        }
+        ClusterBlockLevel indexBlockLevel = indexBlockLevel();
+        if (indexBlockLevel != null) {
+            ClusterBlockException blockException = state.blocks().indexBlockedException(indexBlockLevel, concreteIndex(state, request));
+            if (blockException != null) {
+                consumer.accept(blockException);
+                return true;
+            }
+        }
+        return false;
+    }
+
     protected boolean retryPrimaryException(final Throwable e) {
         return e.getClass() == ReplicationOperation.RetryOnPrimaryException.class
                 || TransportActions.isShardNotAvailableException(e);
@@ -310,6 +337,10 @@ public abstract class TransportReplicationAction<
         @Override
         public void onResponse(PrimaryShardReference primaryShardReference) {
             try {
+                final ClusterState clusterState = clusterService.state();
+                if (handleBlockExceptions(clusterState, request, this::handleBlockException)) {
+                    return;
+                }
                 if (primaryShardReference.isRelocated()) {
                     primaryShardReference.close(); // release shard operation lock as soon as possible
                     setPhase(replicationTask, "primary_delegation");
@@ -323,7 +354,7 @@ public abstract class TransportReplicationAction<
                         response.readFrom(in);
                         return response;
                     };
-                    DiscoveryNode relocatingNode = clusterService.state().nodes().get(primary.relocatingNodeId());
+                    DiscoveryNode relocatingNode = clusterState.nodes().get(primary.relocatingNodeId());
                     transportService.sendRequest(relocatingNode, transportPrimaryAction,
                         new ConcreteShardRequest<>(request, primary.allocationId().getRelocationId(), primaryTerm),
                         transportOptions,
@@ -354,6 +385,11 @@ public abstract class TransportReplicationAction<
                 Releasables.closeWhileHandlingException(primaryShardReference); // release shard operation lock before responding to caller
                 onFailure(e);
             }
+        }
+
+        private void handleBlockException(final ClusterBlockException blockException) {
+            logger.trace("cluster is blocked, action failed on primary", blockException);
+            throw blockException;
         }
 
         @Override
@@ -696,12 +732,12 @@ public abstract class TransportReplicationAction<
         protected void doRun() {
             setPhase(task, "routing");
             final ClusterState state = observer.setAndGetObservedState();
-            if (handleBlockExceptions(state)) {
+            if (handleBlockExceptions(state, request, this::handleBlockException)) {
                 return;
             }
 
             // request does not have a shardId yet, we need to pass the concrete index to resolve shardId
-            final String concreteIndex = concreteIndex(state);
+            final String concreteIndex = concreteIndex(state, request);
             final IndexMetaData indexMetaData = state.metaData().index(concreteIndex);
             if (indexMetaData == null) {
                 retry(new IndexNotFoundException(concreteIndex));
@@ -776,33 +812,9 @@ public abstract class TransportReplicationAction<
             return false;
         }
 
-        private String concreteIndex(ClusterState state) {
-            return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request).getName() : request.index();
-        }
-
         private ShardRouting primary(ClusterState state) {
             IndexShardRoutingTable indexShard = state.getRoutingTable().shardRoutingTable(request.shardId());
             return indexShard.primaryShard();
-        }
-
-        private boolean handleBlockExceptions(ClusterState state) {
-            ClusterBlockLevel globalBlockLevel = globalBlockLevel();
-            if (globalBlockLevel != null) {
-                ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel);
-                if (blockException != null) {
-                    handleBlockException(blockException);
-                    return true;
-                }
-            }
-            ClusterBlockLevel indexBlockLevel = indexBlockLevel();
-            if (indexBlockLevel != null) {
-                ClusterBlockException blockException = state.blocks().indexBlockedException(indexBlockLevel, concreteIndex(state));
-                if (blockException != null) {
-                    handleBlockException(blockException);
-                    return true;
-                }
-            }
-            return false;
         }
 
         private void handleBlockException(ClusterBlockException blockException) {

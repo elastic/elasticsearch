@@ -216,7 +216,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
             final int hitCount = hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
             final TopDocsCollector<?> topDocsCollector;
             if (hitCount == -1) {
-                topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, trackTotalHits);
+                topDocsCollector = createCollector(sortAndFormats, numHits, searchAfter, Math.max(1, trackTotalHits));
                 topDocsSupplier = new CachedSupplier<>(topDocsCollector::topDocs);
                 totalHitsSupplier = () -> topDocsSupplier.get().totalHits;
             } else {

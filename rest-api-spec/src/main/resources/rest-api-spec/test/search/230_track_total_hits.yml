@@ -7,7 +7,7 @@
 
   - do:
       search:
-        index: test_1
+        index: test_*
         track_total_hits: false
 
   - match: { hits.total: -1 }
@@ -15,7 +15,7 @@
 
   - do:
       search:
-        index: test_1
+        index: test_*
         track_total_hits: true
 
   - match: { hits.total: 0 }
@@ -23,7 +23,7 @@
 
   - do:
       search:
-        index: test_1
+        index: test_*
         track_total_hits: 10
 
   - match: { hits.total: -1 }

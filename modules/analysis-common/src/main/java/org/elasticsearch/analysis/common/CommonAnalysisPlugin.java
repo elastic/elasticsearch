@@ -44,7 +44,6 @@ import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.DecimalDigitFilter;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.LetterTokenizer;
-import org.apache.lucene.analysis.core.LowerCaseTokenizer;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
@@ -308,7 +307,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.put("char_group", CharGroupTokenizerFactory::new);
         tokenizers.put("classic", ClassicTokenizerFactory::new);
         tokenizers.put("letter", LetterTokenizerFactory::new);
-        tokenizers.put("lowercase", LowerCaseTokenizerFactory::new);
+        // TODO deprecate and remove in API
+        tokenizers.put("lowercase", XLowerCaseTokenizerFactory::new);
         tokenizers.put("path_hierarchy", PathHierarchyTokenizerFactory::new);
         tokenizers.put("PathHierarchy", PathHierarchyTokenizerFactory::new);
         tokenizers.put("pattern", PatternTokenizerFactory::new);
@@ -503,7 +503,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
             () -> new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE), null));
         tokenizers.add(PreConfiguredTokenizer.singleton("pattern", () -> new PatternTokenizer(Regex.compile("\\W+", null), -1), null));
         tokenizers.add(PreConfiguredTokenizer.singleton("thai", ThaiTokenizer::new, null));
-        tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", LowerCaseTokenizer::new, () -> new TokenFilterFactory() {
+        // TODO deprecate and remove in API
+        tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", XLowerCaseTokenizer::new, () -> new TokenFilterFactory() {
             @Override
             public String name() {
                 return "lowercase";

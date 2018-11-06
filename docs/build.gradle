@@ -1128,3 +1128,33 @@ buildRestTests.setups['remote_cluster_and_leader_index'] = buildRestTests.setups
             index.number_of_shards: 1
             index.soft_deletes.enabled: true
 '''
+
+buildRestTests.setups['seats'] = '''
+  - do:
+        indices.create:
+          index: seats
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              _doc:
+                properties:
+                  theatre:
+                    type: keyword
+                  cost:
+                    type: long
+  - do:
+        bulk:
+          index: seats
+          type: _doc
+          refresh: true
+          body: |
+            {"index":{}}
+            {"theatre": "Skyline", "cost": 1}
+            {"index":{}}
+            {"theatre": "Graye", "cost": 5}
+            {"index":{}}
+            {"theatre": "Graye", "cost": 8}
+            {"index":{}}
+            {"theatre": "Skyline", "cost": 10}'''

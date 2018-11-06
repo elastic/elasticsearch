@@ -170,16 +170,9 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             s -> existingSettings.get(s) == null || existingSettings.get(s).equals(settings.get(s)) == false
                         );
 
-                        // Figure out whether the updated settings are all dynamic settings:
-                        boolean onlyDynamicSettings = true;
-                        for (String key : updatedSettings.keySet()) {
-                            if (indexScopedSettings.isDynamicSetting(key) == false) {
-                                onlyDynamicSettings = false;
-                                break;
-                            }
-                        }
-
-                        if (onlyDynamicSettings) {
+                        // Figure out whether the updated settings are all dynamic settings and
+                        // if so just update the follower index's settings:
+                        if (updatedSettings.keySet().stream().allMatch(indexScopedSettings::isDynamicSetting)) {
                             // If only dynamic settings have been updated then just update these settings in follower index:
                             final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex.getName());
                             updateSettingsRequest.settings(updatedSettings);
@@ -189,29 +182,37 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             // If one or more setting are not dynamic then close follow index, update leader settings and
                             // then open leader index:
                             Runnable handler = () -> finalHandler.accept(leaderIMD.getSettingsVersion());
-                            closeIndex(followIndex.getName(), updatedSettings, handler, errorHandler);
+                            closeIndexUpdateSettingsAndOpenIndex(followIndex.getName(), updatedSettings, handler, errorHandler);
                         }
                     }
                 };
                 leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
             }
 
-            private void closeIndex(String followIndex, Settings updatedSettings, Runnable handler, Consumer<Exception> onFailure) {
+            private void closeIndexUpdateSettingsAndOpenIndex(String followIndex,
+                                                              Settings updatedSettings,
+                                                              Runnable handler,
+                                                              Consumer<Exception> onFailure) {
                 CloseIndexRequest closeRequest = new CloseIndexRequest(followIndex);
                 CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> {
-                    updateSettings(followIndex, updatedSettings, handler, onFailure);
+                    updateSettingsAndOpenIndex(followIndex, updatedSettings, handler, onFailure);
                 };
                 followerClient.admin().indices().close(closeRequest, ActionListener.wrap(onResponse, onFailure));
             }
 
-            private void updateSettings(String followIndex, Settings updatedSettings, Runnable handler, Consumer<Exception> onFailure) {
+            private void updateSettingsAndOpenIndex(String followIndex,
+                                                    Settings updatedSettings,
+                                                    Runnable handler,
+                                                    Consumer<Exception> onFailure) {
                 final UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(followIndex);
                 updateSettingsRequest.settings(updatedSettings);
                 CheckedConsumer<AcknowledgedResponse, Exception> onResponse = response -> openIndex(followIndex, handler, onFailure);
                 followerClient.admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(onResponse, onFailure));
             }
 
-            private void openIndex(String followIndex, Runnable handler, Consumer<Exception> onFailure) {
+            private void openIndex(String followIndex,
+                                   Runnable handler,
+                                   Consumer<Exception> onFailure) {
                 OpenIndexRequest openIndexRequest = new OpenIndexRequest(followIndex);
                 CheckedConsumer<OpenIndexResponse, Exception> onResponse = response -> handler.run();
                 followerClient.admin().indices().open(openIndexRequest, ActionListener.wrap(onResponse, onFailure));

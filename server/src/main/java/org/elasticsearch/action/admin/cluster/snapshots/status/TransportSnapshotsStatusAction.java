@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -65,11 +64,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     private final TransportNodesSnapshotsStatus transportNodesSnapshotsStatus;
 
     @Inject
-    public TransportSnapshotsStatusAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportSnapshotsStatusAction(TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, SnapshotsService snapshotsService,
                                           TransportNodesSnapshotsStatus transportNodesSnapshotsStatus,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
               SnapshotsStatusRequest::new, indexNameExpressionResolver);
         this.snapshotsService = snapshotsService;
         this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;

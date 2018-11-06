@@ -63,10 +63,12 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -468,50 +470,56 @@ public class NodeJoinTests extends ESTestCase {
         possiblyFailingJoinRequests.addAll(randomSubsetOf(possiblyFailingJoinRequests));
 
         CyclicBarrier barrier = new CyclicBarrier(correctJoinRequests.size() + possiblyFailingJoinRequests.size() + 1);
-        List<Thread> threads = new ArrayList<>();
-        threads.add(new Thread(() -> {
+
+        final AtomicBoolean stopAsserting = new AtomicBoolean();
+        final Thread assertionThread = new Thread(() -> {
             try {
                 barrier.await();
             } catch (InterruptedException | BrokenBarrierException e) {
                 throw new RuntimeException(e);
             }
-            for (int i = 0; i < 30; i++) {
+            while (stopAsserting.get() == false) {
                 coordinator.invariant();
             }
-        }));
-        threads.addAll(correctJoinRequests.stream().map(joinRequest -> new Thread(
-            () -> {
-                try {
-                    barrier.await();
-                } catch (InterruptedException | BrokenBarrierException e) {
-                    throw new RuntimeException(e);
-                }
-                joinNode(joinRequest);
-            })).collect(Collectors.toList()));
-        threads.addAll(possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
-            try {
-                barrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                throw new RuntimeException(e);
-            }
-            try {
-                joinNode(joinRequest);
-            } catch (CoordinationStateRejectedException ignore) {
-                // ignore
-            }
-        })).collect(Collectors.toList()));
+        }, "assert invariants");
 
-        threads.forEach(Thread::start);
-        threads.forEach(t -> {
+        final List<Thread> joinThreads = Stream.concat(correctJoinRequests.stream(), possiblyFailingJoinRequests.stream())
+            .map(joinRequest ->
+                new Thread(() -> {
+                    try {
+                        barrier.await();
+                    } catch (InterruptedException | BrokenBarrierException e) {
+                        throw new RuntimeException(e);
+                    }
+                    try {
+                        joinNode(joinRequest);
+                    } catch (CoordinationStateRejectedException ignore) {
+                        // ignore: even the "correct" requests may fail as a duplicate because a concurrent election may cause a node to
+                        // spontaneously join.
+                    }
+                }, "process " + joinRequest)).collect(Collectors.toList());
+
+        assertionThread.start();
+        joinThreads.forEach(Thread::start);
+        joinThreads.forEach(t -> {
             try {
                 t.join();
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         });
+        stopAsserting.set(true);
+        try {
+            assertionThread.join();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
 
         assertTrue(MasterServiceTests.discoveryState(masterService).nodes().isLocalNodeElectedMaster());
-        successfulNodes.forEach(node -> assertTrue(clusterStateHasNode(node)));
+        for (DiscoveryNode successfulNode : successfulNodes) {
+            assertTrue(successfulNode.toString(), clusterStateHasNode(successfulNode));
+            assertTrue(successfulNode.toString(), coordinator.hasJoinVoteFrom(successfulNode));
+        }
     }
 
     private boolean isLocalNodeElectedMaster() {

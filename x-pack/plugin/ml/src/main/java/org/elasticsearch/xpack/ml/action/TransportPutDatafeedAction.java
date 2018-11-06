@@ -60,8 +60,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                       ClusterService clusterService, ThreadPool threadPool, Client client,
                                       XPackLicenseState licenseState, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PutDatafeedAction.NAME, transportService, clusterService, threadPool,
-                actionFilters, indexNameExpressionResolver, PutDatafeedAction.Request::new);
+        super(PutDatafeedAction.NAME, transportService, clusterService, threadPool,
+            actionFilters, indexNameExpressionResolver, PutDatafeedAction.Request::new);
         this.licenseState = licenseState;
         this.client = client;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?

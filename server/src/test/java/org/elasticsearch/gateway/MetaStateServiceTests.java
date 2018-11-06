@@ -27,11 +27,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MetaStateServiceTests extends ESTestCase {
+    private NodeEnvironment env;
 
     private static IndexMetaData indexMetaData(String name) {
         return IndexMetaData.builder(name).settings(
@@ -44,145 +47,166 @@ public class MetaStateServiceTests extends ESTestCase {
         ).build();
     }
 
-    public void testWriteLoadGlobal() throws Exception {
-        try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+    @Override
+    public void setUp() throws Exception {
+        env = newNodeEnvironment();
+        super.setUp();
+    }
 
-            MetaData metaData = MetaData.builder()
-                    .persistentSettings(Settings.builder().put("test1", "value1").build())
-                    .build();
-            metaStateService.writeGlobalState("test_write", metaData);
-            metaStateService.writeManifest("test");
-            assertThat(metaStateService.getMetaData().persistentSettings(), equalTo(metaData.persistentSettings()));
+    @Override
+    public void tearDown() throws Exception {
+        env.close();
+        super.tearDown();
+    }
+
+    private MetaStateService newMetaStateService() throws IOException {
+        return new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+    }
+
+    private MetaStateService maybeNew(MetaStateService metaStateService) throws IOException {
+        if (randomBoolean()) {
+            return metaStateService;
+        } else {
+            return newMetaStateService();
         }
+    }
+
+    public void testWriteLoadGlobal() throws Exception {
+        MetaStateService metaStateService = newMetaStateService();
+
+        MetaData metaData = MetaData.builder()
+                .persistentSettings(Settings.builder().put("test1", "value1").build())
+                .build();
+        metaStateService.writeGlobalState("test_write", metaData);
+        metaStateService.writeManifest("test");
+        assertTrue(metaStateService.hasNoPendingWrites());
+
+        assertThat(maybeNew(metaStateService).getMetaData().persistentSettings(), equalTo(metaData.persistentSettings()));
     }
 
     public void testWriteGlobalStateWithIndexAndNoIndexIsLoaded() throws Exception {
-        try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+        MetaStateService metaStateService = newMetaStateService();
 
-            MetaData metaData = MetaData.builder()
-                    .persistentSettings(Settings.builder().put("test1", "value1").build())
-                    .build();
-            IndexMetaData index = indexMetaData("test1");
-            MetaData metaDataWithIndex = MetaData.builder(metaData).put(index, true).build();
+        MetaData metaData = MetaData.builder()
+                .persistentSettings(Settings.builder().put("test1", "value1").build())
+                .build();
+        IndexMetaData index = indexMetaData("test1");
+        MetaData metaDataWithIndex = MetaData.builder(metaData).put(index, true).build();
 
-            metaStateService.writeGlobalState("test_write", metaDataWithIndex);
-            metaStateService.writeManifest("test");
+        metaStateService.writeGlobalState("test_write", metaDataWithIndex);
+        metaStateService.writeManifest("test");
+        assertTrue(metaStateService.hasNoPendingWrites());
 
-            MetaData loadedMetaData = metaStateService.getMetaData();
-            assertThat(loadedMetaData.persistentSettings(), equalTo(metaData.persistentSettings()));
-            assertThat(loadedMetaData.hasIndex("test1"), equalTo(false));
-        }
+        MetaData loadedMetaData = maybeNew(metaStateService).getMetaData();
+        assertThat(loadedMetaData.persistentSettings(), equalTo(metaData.persistentSettings()));
+        assertThat(loadedMetaData.hasIndex("test1"), equalTo(false));
     }
 
     public void testWriteLoadIndex() throws Exception {
-        try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
-            MetaData metaData = MetaData.builder()
-                    .persistentSettings(Settings.builder().put("test1", "value1").build())
-                    .build();
+        MetaStateService metaStateService = newMetaStateService();
+        MetaData metaData = MetaData.builder()
+                .persistentSettings(Settings.builder().put("test1", "value1").build())
+                .build();
 
-            metaStateService.writeGlobalState("test_write", metaData);
+        metaStateService.writeGlobalState("test_write", metaData);
+        IndexMetaData index = indexMetaData("index1");
+        metaStateService.writeIndex("test_write_index", index);
+        metaStateService.writeManifest("test");
+        assertTrue(metaStateService.hasNoPendingWrites());
 
-            IndexMetaData index = indexMetaData("index1");
-            metaStateService.writeIndex("test_write_index", index);
-
-            metaStateService.writeManifest("test");
-
-            assertThat(metaStateService.getMetaData().index("index1"), equalTo(index));
-        }
+        assertThat(maybeNew(metaStateService).getMetaData().index("index1"), equalTo(index));
     }
 
     public void testOverwriteGlobal() throws Exception {
-        try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
-            MetaData metaData = MetaData.builder()
-                    .persistentSettings(Settings.builder().put("test1", "value1").build())
-                    .build();
+        MetaStateService metaStateService = newMetaStateService();
+        MetaData metaData = MetaData.builder()
+                .persistentSettings(Settings.builder().put("test1", "value1").build())
+                .build();
 
-            metaStateService.writeGlobalState("test_write1", metaData);
-            metaStateService.writeManifest("test1");
+        metaStateService.writeGlobalState("test_write1", metaData);
+        metaStateService.writeManifest("test1");
+        assertTrue(metaStateService.hasNoPendingWrites());
 
-            MetaData newMetaData = MetaData.builder()
-                    .persistentSettings(Settings.builder().put("test1", "value2").build())
-                    .build();
+        MetaData newMetaData = MetaData.builder()
+                .persistentSettings(Settings.builder().put("test1", "value2").build())
+                .build();
+        metaStateService = maybeNew(metaStateService);
 
-            metaStateService.writeGlobalState("test_write2", newMetaData);
-            metaStateService.writeManifest("test2");
+        metaStateService.writeGlobalState("test_write2", newMetaData);
+        metaStateService.writeManifest("test2");
 
-            assertTrue(MetaData.isGlobalStateEquals(metaStateService.getMetaData(), newMetaData));
-        }
+        assertTrue(MetaData.isGlobalStateEquals(maybeNew(metaStateService).getMetaData(), newMetaData));
     }
 
     public void testIndices() throws Exception {
-        try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
-            MetaData metaData = MetaData.builder()
-                    .persistentSettings(Settings.builder().put("test1", "value1").build())
-                    .build();
-            IndexMetaData notChangedIndex = indexMetaData("not_changed_index");
-            logger.error(notChangedIndex.getIndexUUID());
-            IndexMetaData removedIndex = indexMetaData("removed_index");
+        MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+        MetaData metaData = MetaData.builder()
+                .persistentSettings(Settings.builder().put("test1", "value1").build())
+                .build();
+        IndexMetaData notChangedIndex = indexMetaData("not_changed_index");
+        IndexMetaData removedIndex = indexMetaData("removed_index");
 
-            IndexMetaData changedIndex_v1 = indexMetaData("changed_index");
-            IndexMetaData changedIndex_v2 = IndexMetaData.builder(changedIndex_v1).version(changedIndex_v1.getVersion() + 1).build();
+        IndexMetaData changedIndex_v1 = indexMetaData("changed_index");
+        IndexMetaData changedIndex_v2 = IndexMetaData.builder(changedIndex_v1).version(changedIndex_v1.getVersion() + 1).build();
 
-            IndexMetaData newIndex = indexMetaData("new_index");
+        IndexMetaData newIndex = indexMetaData("new_index");
 
-            metaStateService.writeGlobalState("write1", metaData);
-            metaStateService.writeIndex("write1", notChangedIndex);
-            metaStateService.writeIndex("write1", removedIndex);
-            metaStateService.writeIndex("write1", changedIndex_v1);
-            metaStateService.writeManifest("write1");
+        metaStateService.writeGlobalState("write1", metaData);
+        metaStateService.writeIndex("write1", notChangedIndex);
+        metaStateService.writeIndex("write1", removedIndex);
+        metaStateService.writeIndex("write1", changedIndex_v1);
+        metaStateService.writeManifest("write1");
+        assertTrue(metaStateService.hasNoPendingWrites());
 
-            metaStateService.keepGlobalState();
-            metaStateService.keepIndex(notChangedIndex.getIndex());
-            metaStateService.writeIndex("write2", changedIndex_v2);
-            metaStateService.writeIndex("write2", newIndex);
-            metaStateService.writeManifest("write2");
+        metaStateService = maybeNew(metaStateService);
 
-            MetaData loadedMetaData = metaStateService.getMetaData();
-            assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, metaData));
-            assertThat(loadedMetaData.index("not_changed_index"), equalTo(notChangedIndex));
-            assertThat(loadedMetaData.index("removed_index"), is(nullValue()));
-            assertThat(loadedMetaData.index("changed_index"), equalTo(changedIndex_v2));
-            assertThat(loadedMetaData.index("new_index"), equalTo(newIndex));
-        }
+        metaStateService.keepGlobalState();
+        metaStateService.keepIndex(notChangedIndex.getIndex());
+        metaStateService.writeIndex("write2", changedIndex_v2);
+        metaStateService.writeIndex("write2", newIndex);
+        metaStateService.writeManifest("write2");
+        assertTrue(metaStateService.hasNoPendingWrites());
+
+        MetaData loadedMetaData = maybeNew(metaStateService).getMetaData();
+        assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, metaData));
+        assertThat(loadedMetaData.index("not_changed_index"), equalTo(notChangedIndex));
+        assertThat(loadedMetaData.index("removed_index"), is(nullValue()));
+        assertThat(loadedMetaData.index("changed_index"), equalTo(changedIndex_v2));
+        assertThat(loadedMetaData.index("new_index"), equalTo(newIndex));
     }
 
     public void testLoadManifestlessBwc() throws Exception {
-        try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
-            MetaData metaData_v1 = MetaData.builder()
-                    .persistentSettings(Settings.builder().put("test1", "value1").build())
-                    .build();
-            MetaData metaData_v2 = MetaData.builder()
-                    .persistentSettings(Settings.builder().put("test1", "value2").build())
-                    .build();
+        MetaStateService metaStateService = newMetaStateService();
+        MetaData metaData_v1 = MetaData.builder()
+                .persistentSettings(Settings.builder().put("test1", "value1").build())
+                .build();
+        MetaData metaData_v2 = MetaData.builder()
+                .persistentSettings(Settings.builder().put("test1", "value2").build())
+                .build();
 
-            IndexMetaData index_v1 = indexMetaData("index");
-            IndexMetaData index_v2 = IndexMetaData.builder(index_v1).version(index_v1.getVersion() + 1).build();
+        IndexMetaData index_v1 = indexMetaData("index");
+        IndexMetaData index_v2 = IndexMetaData.builder(index_v1).version(index_v1.getVersion() + 1).build();
 
-            metaStateService.writeGlobalState("write1", metaData_v1);
-            metaStateService.writeIndex("write1", index_v1);
-            metaStateService.writeManifest("write1");
+        metaStateService.writeGlobalState("write1", metaData_v1);
+        metaStateService.writeIndex("write1", index_v1);
+        metaStateService.writeManifest("write1");
+        assertTrue(metaStateService.hasNoPendingWrites());
 
-            metaStateService.writeGlobalState("write2", metaData_v2);
-            metaStateService.writeIndex("write2", index_v2);
-            //we don't write manifest file here
+        metaStateService.writeGlobalState("write2", metaData_v2);
+        metaStateService.writeIndex("write2", index_v2);
+        assertFalse(metaStateService.hasNoPendingWrites());
+        //we don't write manifest file here
 
-            metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
-            MetaData loadedMetaData = metaStateService.getMetaData(); //this must load old metadata
-            assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, metaData_v1));
-            assertThat(loadedMetaData.index("index"), equalTo(index_v1));
+        metaStateService = maybeNew(metaStateService);
+        MetaData loadedMetaData = metaStateService.getMetaData(); //this must load old metadata
+        assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, metaData_v1));
+        assertThat(loadedMetaData.index("index"), equalTo(index_v1));
 
-            Manifest.FORMAT.cleanupOldFiles(Long.MAX_VALUE, env.nodeDataPaths()); // this will erase manifest file
-            metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
-            loadedMetaData = metaStateService.getMetaData(); //this must load new metadata, because manifest file is gone
-            assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, metaData_v2));
-            assertThat(loadedMetaData.index("index"), equalTo(index_v2));
-        }
+        Manifest.FORMAT.cleanupOldFiles(Long.MAX_VALUE, env.nodeDataPaths()); // this will erase manifest file
+        metaStateService = newMetaStateService();
+        loadedMetaData = metaStateService.getMetaData(); //this must load new metadata, because manifest file is gone
+        assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, metaData_v2));
+        assertThat(loadedMetaData.index("index"), equalTo(index_v2));
     }
 
 }

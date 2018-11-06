@@ -44,6 +44,17 @@ import java.util.function.Function;
  * {@link Engine#acquireSearcher(String)}. The index reader opened is maintained until there are no reference to it anymore and then
  * releases itself from the engine. The readers returned from this engine are lazy which allows release after and reset before a search
  * phase starts. This allows releasing references as soon as possible on the search layer.
+ *
+ * Internally this class uses a set of wrapper abstractions to allow a reader that is used inside the {@link Engine.Searcher} returned from
+ * {@link #acquireSearcher(String, SearcherScope)} to release and reset it's internal resources. This is necessary to for instance release
+ * all SegmentReaders after a search phase finishes and reopen them before the next search phase starts. This together with a throttled
+ * threadpool (search_throttled) guarantees that at most N frozen shards have a low level index reader open at the same time.
+ *
+ * In particular we have LazyDirectoryReader that wraps its LeafReaders (the actual segment readers) inside LazyLeafReaders. Each of the
+ * LazyLeafReader delegates to segment LeafReader that can be reset (it's reference decremented and nulled out) on a search phase is
+ * finished. Before the next search phase starts we can reopen the corresponding reader and reset the reference to execute the search phase.
+ * This allows the SearchContext to hold on to the same LazyDirectoryReader across its lifecycle but under the hood resources (memory) is
+ * released while the SearchContext phases are not executing.  
  */
 public final class FrozenEngine extends ReadOnlyEngine {
     private final CounterMetric openedReaders = new CounterMetric();

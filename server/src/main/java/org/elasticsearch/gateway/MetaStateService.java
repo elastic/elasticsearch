@@ -63,12 +63,12 @@ public class MetaStateService extends AbstractComponent {
     private final NamedXContentRegistry namedXContentRegistry;
 
     private Manifest currentManifest;
-    private Long globalGeneration;
-    private Map<Index, Long> newIndices;
-    private List<Runnable> cleanupActions;
+    private Long pendingGlobalGeneration;
+    private Map<Index, Long> pendingIndexGenerations;
+    private List<Runnable> pendingCleanupActions;
 
     private volatile MetaData currentMetaData;
-    private MetaData.Builder metaDataBuilder;
+    private MetaData.Builder pendingMetaDataBuilder;
     private boolean bwcMode;
 
     public MetaStateService(Settings settings, NodeEnvironment nodeEnv, NamedXContentRegistry namedXContentRegistry) throws IOException {
@@ -109,8 +109,8 @@ public class MetaStateService extends AbstractComponent {
         Long generation = currentManifest.getIndexGenerations().get(index);
         assert generation != null;
         logger.trace("[{}] keep index", index);
-        newIndices.put(index, generation);
-        metaDataBuilder.put(metaData, false);
+        pendingIndexGenerations.put(index, generation);
+        pendingMetaDataBuilder.put(metaData, false);
     }
 
     /**
@@ -124,9 +124,9 @@ public class MetaStateService extends AbstractComponent {
         try {
             long generation = IndexMetaData.FORMAT.write(indexMetaData, nodeEnv.indexPaths(indexMetaData.getIndex()));
             logger.trace("[{}] state written", index);
-            newIndices.put(index, generation);
-            metaDataBuilder.put(indexMetaData, false);
-            cleanupActions.add(() -> IndexMetaData.FORMAT.cleanupOldFiles(generation, nodeEnv.indexPaths(index)));
+            pendingIndexGenerations.put(index, generation);
+            pendingMetaDataBuilder.put(indexMetaData, false);
+            pendingCleanupActions.add(() -> IndexMetaData.FORMAT.cleanupOldFiles(generation, nodeEnv.indexPaths(index)));
         } catch (WriteStateException ex) {
             resetState();
             throw new WriteStateException(false, "[" + index + "]: failed to write index state", ex);
@@ -134,7 +134,7 @@ public class MetaStateService extends AbstractComponent {
     }
 
     private void copyGlobalMetaDataToBuilder(MetaData metaData) {
-        metaDataBuilder.
+        pendingMetaDataBuilder.
                 version(metaData.version()).
                 clusterUUID(metaData.clusterUUID()).
                 persistentSettings(metaData.persistentSettings()).
@@ -148,9 +148,9 @@ public class MetaStateService extends AbstractComponent {
     void writeGlobalState(String reason, MetaData metaData) throws WriteStateException {
         logger.trace("[_global] writing state, reason [{}]", reason);
         try {
-            globalGeneration = MetaData.FORMAT.write(metaData, nodeEnv.nodeDataPaths());
-            logger.trace("[_global] state written (generation: {})", globalGeneration);
-            cleanupActions.add(() -> MetaData.FORMAT.cleanupOldFiles(globalGeneration, nodeEnv.nodeDataPaths()));
+            pendingGlobalGeneration = MetaData.FORMAT.write(metaData, nodeEnv.nodeDataPaths());
+            logger.trace("[_global] state written (generation: {})", pendingGlobalGeneration);
+            pendingCleanupActions.add(() -> MetaData.FORMAT.cleanupOldFiles(pendingGlobalGeneration, nodeEnv.nodeDataPaths()));
             copyGlobalMetaDataToBuilder(metaData);
         } catch (WriteStateException ex) {
             resetState();
@@ -160,21 +160,21 @@ public class MetaStateService extends AbstractComponent {
 
     public void keepGlobalState() {
         assert currentMetaData != null;
-        globalGeneration = currentManifest.getGlobalGeneration();
+        pendingGlobalGeneration = currentManifest.getGlobalGeneration();
         copyGlobalMetaDataToBuilder(currentMetaData);
     }
 
     public void writeManifest(String reason) throws WriteStateException {
-        assert globalGeneration != null;
-        Manifest manifest = new Manifest(globalGeneration, newIndices);
+        assert pendingGlobalGeneration != null;
+        Manifest manifest = new Manifest(pendingGlobalGeneration, pendingIndexGenerations);
         logger.trace("[_manifest] writing state, reason [{}]", reason);
         try {
             long generation = Manifest.FORMAT.write(manifest, nodeEnv.nodeDataPaths());
             logger.trace("[_manifest] state written (generation: {})", generation);
-            cleanupActions.add(() -> Manifest.FORMAT.cleanupOldFiles(generation, nodeEnv.nodeDataPaths()));
-            cleanupActions.forEach(Runnable::run);
+            pendingCleanupActions.add(() -> Manifest.FORMAT.cleanupOldFiles(generation, nodeEnv.nodeDataPaths()));
+            pendingCleanupActions.forEach(Runnable::run);
 
-            this.currentMetaData = metaDataBuilder.build();
+            this.currentMetaData = pendingMetaDataBuilder.build();
             this.currentManifest = manifest;
         } catch (WriteStateException ex) {
             throw new WriteStateException(ex.isDirty(), "[_manifest]: failed to write state", ex);
@@ -184,10 +184,10 @@ public class MetaStateService extends AbstractComponent {
     }
 
     private void resetState() {
-        this.globalGeneration = null;
-        this.cleanupActions = new ArrayList<>();
-        this.newIndices = new HashMap<>();
-        this.metaDataBuilder = MetaData.builder();
+        this.pendingGlobalGeneration = null;
+        this.pendingCleanupActions = new ArrayList<>();
+        this.pendingIndexGenerations = new HashMap<>();
+        this.pendingMetaDataBuilder = MetaData.builder();
     }
 
     private void loadFullState() throws IOException {
@@ -256,6 +256,6 @@ public class MetaStateService extends AbstractComponent {
     }
 
     public boolean hasNoPendingWrites() {
-        return globalGeneration == null && cleanupActions.isEmpty() && newIndices.isEmpty();
+        return pendingGlobalGeneration == null && pendingCleanupActions.isEmpty() && pendingIndexGenerations.isEmpty();
     }
 }

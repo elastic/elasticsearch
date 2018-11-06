@@ -273,7 +273,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         final GeoShapeFieldMapper mapperBuilder = new GeoShapeFieldMapper.Builder("test").ignoreZValue(true).build(mockBuilderContext);
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).build());
+            ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).buildS4J());
         }
     }
 
@@ -464,7 +464,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertPolygon(shape);
         }
@@ -485,7 +485,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertMultiPolygon(shape);
         }
@@ -506,7 +506,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertPolygon(shape);
         }
@@ -527,7 +527,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertMultiPolygon(shape);
         }
@@ -556,7 +556,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertPolygon(shape);
         }
@@ -583,7 +583,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertMultiPolygon(shape);
         }
@@ -610,7 +610,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertPolygon(shape);
         }
@@ -638,7 +638,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertMultiPolygon(shape);
         }
@@ -1030,7 +1030,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertPolygon(shape);
         }
@@ -1060,7 +1060,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertPolygon(shape);
         }
@@ -1090,7 +1090,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertPolygon(shape);
         }
@@ -1120,7 +1120,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertMultiPolygon(shape);
         }
@@ -1150,7 +1150,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertMultiPolygon(shape);
         }
@@ -1180,7 +1180,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            Shape shape = ShapeParser.parse(parser).build();
+            Shape shape = ShapeParser.parse(parser).buildS4J();
 
             ElasticsearchGeoAssertions.assertMultiPolygon(shape);
         }

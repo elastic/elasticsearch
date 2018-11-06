@@ -42,7 +42,7 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
         addModifier(new Modifier("strategy", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setStrategyName("term");
+                ((GeoShapeFieldMapper.GeoShapeFieldType)ft).setStrategy(SpatialStrategy.TERM);
             }
         });
         addModifier(new Modifier("tree_levels", false) {
@@ -72,15 +72,15 @@ public class GeoShapeFieldTypeTests extends FieldTypeTestCase {
     }
 
     /**
-     * Test for {@link GeoShapeFieldType#setStrategyName(String)} that checks that {@link GeoShapeFieldType#pointsOnly()}
+     * Test for {@link GeoShapeFieldType#setStrategy(SpatialStrategy)} that checks that {@link GeoShapeFieldType#pointsOnly()}
      * gets set as a side effect when using SpatialStrategy.TERM
      */
     public void testSetStrategyName() throws IOException {
         GeoShapeFieldType fieldType = new GeoShapeFieldMapper.GeoShapeFieldType();
         assertFalse(fieldType.pointsOnly());
-        fieldType.setStrategyName(SpatialStrategy.RECURSIVE.getStrategyName());
+        fieldType.setStrategy(SpatialStrategy.RECURSIVE);
         assertFalse(fieldType.pointsOnly());
-        fieldType.setStrategyName(SpatialStrategy.TERM.getStrategyName());
+        fieldType.setStrategy(SpatialStrategy.TERM);
         assertTrue(fieldType.pointsOnly());
     }
 }

@@ -66,13 +66,17 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         return doCreateTestQueryBuilder(randomBoolean());
     }
     private GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape) {
-        ShapeType shapeType = ShapeType.randomType(random());
-        ShapeBuilder<?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
+        ShapeType shapeType;
+        ShapeBuilder<?, ?> shape;
         GeoShapeQueryBuilder builder;
         clearShapeFields();
         if (indexedShape == false) {
+            shapeType = randomFrom(new ShapeType[] {ShapeType.LINESTRING, ShapeType.MULTILINESTRING, ShapeType.POLYGON});
+            shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
             builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
         } else {
+            shapeType = ShapeType.randomType(random());
+            shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
             indexedShapeToReturn = shape;
             indexedShapeId = randomAlphaOfLengthBetween(3, 20);
             indexedShapeType = randomAlphaOfLengthBetween(3, 20);
@@ -94,13 +98,26 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             SpatialStrategy strategy = randomFrom(SpatialStrategy.values());
             // ShapeType.MULTILINESTRING + SpatialStrategy.TERM can lead to large queries and will slow down tests, so
             // we try to avoid that combination
-            while (shapeType == ShapeType.MULTILINESTRING && strategy == SpatialStrategy.TERM) {
+            // Also, SpatialStrategy.VECTOR does not support POINT or MULTIPOINT Queries
+            while ((shapeType == ShapeType.MULTILINESTRING && strategy == SpatialStrategy.TERM)
+                || (strategy == SpatialStrategy.VECTOR && (shapeType == ShapeType.MULTIPOINT || shapeType == ShapeType.POINT))) {
                 strategy = randomFrom(SpatialStrategy.values());
             }
             builder.strategy(strategy);
-            if (strategy != SpatialStrategy.TERM) {
+            if (strategy == SpatialStrategy.VECTOR) {
+                ShapeRelation relation;
+                if (shapeType != ShapeType.LINESTRING && shapeType != ShapeType.MULTILINESTRING) {
+                    // vector strategy does not yet support WITHIN for linestrings
+                    relation = randomFrom(new ShapeRelation[] {ShapeRelation.INTERSECTS, ShapeRelation.DISJOINT, ShapeRelation.WITHIN});
+                } else {
+                    relation = randomFrom(new ShapeRelation[] {ShapeRelation.INTERSECTS, ShapeRelation.DISJOINT});
+                }
+                builder.relation(relation);
+            } else if (strategy != SpatialStrategy.TERM) {
                 builder.relation(randomFrom(ShapeRelation.values()));
             }
+        } else if (shapeType == ShapeType.MULTIPOINT || shapeType == ShapeType.POINT) {
+            builder.strategy(randomFrom(new SpatialStrategy[] {SpatialStrategy.TERM, SpatialStrategy.RECURSIVE}));
         }
 
         if (randomBoolean()) {
@@ -131,7 +148,8 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         } catch (IOException ex) {
             throw new ElasticsearchException("boom", ex);
         }
-        return new GetResponse(new GetResult(indexedShapeIndex, indexedShapeType, indexedShapeId, 0, true, new BytesArray(json), null));
+        return new GetResponse(new GetResult(indexedShapeIndex, indexedShapeType, indexedShapeId,
+            0, true, new BytesArray(json), null));
     }
 
     @After

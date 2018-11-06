@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.geo.Line;
+import org.apache.lucene.geo.Polygon;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -36,8 +40,9 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
@@ -329,9 +334,14 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         if (relation == null) {
             throw new IllegalArgumentException("No Shape Relation defined");
         }
-        if (strategy != null && strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
-            throw new IllegalArgumentException("current strategy [" + strategy.getStrategyName() + "] only supports relation ["
+        if (strategy != null) {
+            if (strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
+                throw new IllegalArgumentException("current strategy [" + strategy.getStrategyName() + "] only supports relation ["
                     + ShapeRelation.INTERSECTS.getRelationName() + "] found relation [" + relation.getRelationName() + "]");
+            } else if (strategy == SpatialStrategy.VECTOR && relation == ShapeRelation.CONTAINS) {
+                throw new IllegalArgumentException("current strategy [" + strategy.getStrategyName() + "] does not support relation ["
+                    + ShapeRelation.CONTAINS.getRelationName() + "]");
+            }
         }
         this.relation = relation;
         return this;
@@ -383,25 +393,69 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
 
         final GeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (GeoShapeFieldMapper.GeoShapeFieldType) fieldType;
 
-        PrefixTreeStrategy strategy = shapeFieldType.defaultStrategy();
-        if (this.strategy != null) {
-            strategy = shapeFieldType.resolveStrategy(this.strategy);
+        SpatialStrategy spatialStrategy = shapeFieldType.strategy();
+        if(this.strategy != null) {
+            spatialStrategy = this.strategy;
         }
         Query query;
-        if (strategy instanceof RecursivePrefixTreeStrategy && relation == ShapeRelation.DISJOINT) {
-            // this strategy doesn't support disjoint anymore: but it did
-            // before, including creating lucene fieldcache (!)
-            // in this case, execute disjoint as exists && !intersects
-            BooleanQuery.Builder bool = new BooleanQuery.Builder();
-            Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
-            Query intersects = strategy.makeQuery(getArgs(shapeToQuery, ShapeRelation.INTERSECTS));
-            bool.add(exists, BooleanClause.Occur.MUST);
-            bool.add(intersects, BooleanClause.Occur.MUST_NOT);
-            query = new ConstantScoreQuery(bool.build());
+        if (spatialStrategy != SpatialStrategy.VECTOR) {
+            PrefixTreeStrategy prefixTreeStrategy = shapeFieldType.resolvePrefixTreeStrategy(spatialStrategy);
+            if (prefixTreeStrategy instanceof RecursivePrefixTreeStrategy && relation == ShapeRelation.DISJOINT) {
+                // this strategy doesn't support disjoint anymore: but it did
+                // before, including creating lucene fieldcache (!)
+                // in this case, execute disjoint as exists && !intersects
+                BooleanQuery.Builder bool = new BooleanQuery.Builder();
+                Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
+                Query intersects = prefixTreeStrategy.makeQuery(getArgs(shapeToQuery, ShapeRelation.INTERSECTS));
+                bool.add(exists, BooleanClause.Occur.MUST);
+                bool.add(intersects, BooleanClause.Occur.MUST_NOT);
+                query = new ConstantScoreQuery(bool.build());
+            } else {
+                query = new ConstantScoreQuery(prefixTreeStrategy.makeQuery(getArgs(shapeToQuery, relation)));
+            }
         } else {
-            query = new ConstantScoreQuery(strategy.makeQuery(getArgs(shapeToQuery, relation)));
+            query = getVectorQuery(context, shapeFieldType, shapeToQuery);
         }
         return query;
+    }
+
+    private Query getVectorQuery(QueryShardContext context, GeoShapeFieldMapper.GeoShapeFieldType shapeFieldType,
+                                 ShapeBuilder queryShapeBuilder) {
+        // CONTAINS queries are not yet supported by VECTOR strategy
+        if (relation == ShapeRelation.CONTAINS) {
+            throw new QueryShardException(context,
+                ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName
+                    + "] when using Strategy [" + shapeFieldType.strategy() + "]");
+        }
+
+        Object queryShape = queryShapeBuilder.buildLucene();
+        Query geoQuery;
+        if (queryShape instanceof Line[]) {
+            geoQuery = LatLonShape.newLineQuery(fieldName(), relation.getLuceneRelation(), (Line[]) queryShape);
+        } else if (queryShape instanceof Polygon[]) {
+            geoQuery = LatLonShape.newPolygonQuery(fieldName(), relation.getLuceneRelation(), (Polygon[]) queryShape);
+        } else if (queryShape instanceof Line) {
+            geoQuery = LatLonShape.newLineQuery(fieldName(), relation.getLuceneRelation(), (Line) queryShape);
+        } else if (queryShape instanceof Polygon) {
+            geoQuery = LatLonShape.newPolygonQuery(fieldName(), relation.getLuceneRelation(), (Polygon) queryShape);
+        } else if (queryShape instanceof Rectangle) {
+            Rectangle r = (Rectangle) queryShape;
+            geoQuery = LatLonShape.newBoxQuery(fieldName(), relation.getLuceneRelation(),
+                r.minLat, r.maxLat, r.minLon, r.maxLon);
+        } else {
+            // geometry types not yet supported by Lucene's LatLonShape
+            GeoShapeType geometryType = null;
+            if (queryShape instanceof double[][]) {
+                geometryType = GeoShapeType.MULTIPOINT;
+            } else if (queryShape instanceof double[] || queryShape instanceof GeoPoint) {
+                geometryType = GeoShapeType.POINT;
+            } else if (queryShape instanceof Object[]) {
+                geometryType = GeoShapeType.GEOMETRYCOLLECTION;
+            }
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + geometryType + " queries");
+        }
+        // wrap geoQuery as a ConstantScoreQuery
+        return new ConstantScoreQuery(geoQuery);
     }
 
     /**
@@ -414,9 +468,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      *            Shape itself is located
      */
     private void fetch(Client client, GetRequest getRequest, String path, ActionListener<ShapeBuilder> listener) {
-        if (ShapesAvailability.JTS_AVAILABLE == false) {
-            throw new IllegalStateException("JTS not available");
-        }
         getRequest.preference("_local");
         client.get(getRequest, new ActionListener<GetResponse>(){
 
@@ -472,13 +523,13 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     public static SpatialArgs getArgs(ShapeBuilder shape, ShapeRelation relation) {
         switch (relation) {
         case DISJOINT:
-            return new SpatialArgs(SpatialOperation.IsDisjointTo, shape.build());
+            return new SpatialArgs(SpatialOperation.IsDisjointTo, shape.buildS4J());
         case INTERSECTS:
-            return new SpatialArgs(SpatialOperation.Intersects, shape.build());
+            return new SpatialArgs(SpatialOperation.Intersects, shape.buildS4J());
         case WITHIN:
-            return new SpatialArgs(SpatialOperation.IsWithin, shape.build());
+            return new SpatialArgs(SpatialOperation.IsWithin, shape.buildS4J());
         case CONTAINS:
-            return new SpatialArgs(SpatialOperation.Contains, shape.build());
+            return new SpatialArgs(SpatialOperation.Contains, shape.buildS4J());
         default:
             throw new IllegalArgumentException("invalid relation [" + relation + "]");
         }

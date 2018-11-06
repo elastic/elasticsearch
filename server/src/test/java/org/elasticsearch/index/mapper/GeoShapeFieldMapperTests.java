@@ -64,11 +64,6 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
-
-        assertThat(strategy.getDistErrPct(), equalTo(0.025d));
-        assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
-        assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoShapeFieldMapper.Defaults.GEOHASH_LEVELS));
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION));
     }
 
@@ -238,7 +233,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
         assertThat(strategy.getDistErrPct(), equalTo(0.1));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
@@ -262,7 +257,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
         assertThat(strategy.getDistErrPct(), equalTo(0.5));
         assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
@@ -290,7 +285,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
@@ -314,7 +309,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
             // distance_error_pct was not specified so we expect the mapper to take the highest precision between "precision" and
             // "tree_levels" setting distErrPct to 0 to guarantee desired precision
@@ -340,7 +335,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
@@ -364,7 +359,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
@@ -387,7 +382,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
@@ -410,7 +405,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.isPointsOnly(), equalTo(true));
@@ -433,7 +428,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
@@ -455,7 +450,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
             GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+            PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
@@ -495,7 +490,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
         assertThat(strategy, instanceOf(RecursivePrefixTreeStrategy.class));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
@@ -505,7 +500,10 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
         // correct mapping
         stage2Mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("shape").field("type", "geo_shape").field("precision", "1m")
+                .startObject("properties").startObject("shape").field("type", "geo_shape")
+                .field("tree", "geohash")
+                .field("strategy", "recursive")
+                .field("precision", "1m")
                 .field("tree_levels", 8).field("distance_error_pct", 0.001)
                 .field("orientation", "cw").endObject().endObject().endObject().endObject());
         docMapper = mapperService.merge("type", new CompressedXContent(stage2Mapping), MapperService.MergeReason.MAPPING_UPDATE);
@@ -514,7 +512,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+        strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
         assertThat(strategy, instanceOf(RecursivePrefixTreeStrategy.class));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
@@ -622,7 +620,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultPrefixTreeStrategy();
 
         assertThat(strategy.getDistErrPct(), equalTo(0.0));
         assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));

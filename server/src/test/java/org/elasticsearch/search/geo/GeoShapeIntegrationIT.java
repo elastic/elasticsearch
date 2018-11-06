@@ -144,9 +144,8 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
         String source = "{\n" +
             "    \"shape\" : {\n" +
-            "        \"type\" : \"circle\",\n" +
-            "        \"coordinates\" : [-45.0, 45.0],\n" +
-            "        \"radius\" : \"100m\"\n" +
+            "        \"type\" : \"bbox\",\n" +
+            "        \"coordinates\" : [[-45.0, 45.0], [45.0, -45.0]]\n" +
             "    }\n" +
             "}";
 

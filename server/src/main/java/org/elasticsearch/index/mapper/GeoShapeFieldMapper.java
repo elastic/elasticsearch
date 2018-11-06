@@ -18,6 +18,11 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.geo.Line;
+import org.apache.lucene.geo.Polygon;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -30,9 +35,12 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
@@ -92,30 +100,16 @@ public class GeoShapeFieldMapper extends FieldMapper {
     }
 
     public static class Defaults {
-        public static final String TREE = Names.TREE_GEOHASH;
-        public static final String STRATEGY = SpatialStrategy.RECURSIVE.getStrategyName();
+        public static final String TREE = "NONE";
         public static final boolean POINTS_ONLY = false;
         public static final int GEOHASH_LEVELS = GeoUtils.geoHashLevelsForPrecision("50m");
         public static final int QUADTREE_LEVELS = GeoUtils.quadTreeLevelsForPrecision("50m");
         public static final Orientation ORIENTATION = Orientation.RIGHT;
         public static final double LEGACY_DISTANCE_ERROR_PCT = 0.025d;
+        public static final Explicit<SpatialStrategy> STRATEGY = new Explicit<>(SpatialStrategy.VECTOR, false);
         public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
-
-        public static final MappedFieldType FIELD_TYPE = new GeoShapeFieldType();
-
-        static {
-            // setting name here is a hack so freeze can be called...instead all these options should be
-            // moved to the default ctor for GeoShapeFieldType, and defaultFieldType() should be removed from mappers...
-            FIELD_TYPE.setName("DoesNotExist");
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setStoreTermVectors(false);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
-        }
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, GeoShapeFieldMapper> {
@@ -125,7 +119,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         private Boolean ignoreZValue;
 
         public Builder(String name) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, new GeoShapeFieldType(), new GeoShapeFieldType());
         }
 
         @Override
@@ -180,6 +174,68 @@ public class GeoShapeFieldMapper extends FieldMapper {
             return this;
         }
 
+        private void setupPrefixTrees() {
+            SpatialPrefixTree prefixTree;
+            String tree = fieldType().tree().equals("NONE") ? "quadtree" : fieldType().tree();
+            int treeLevels = fieldType().treeLevels();
+            double precisionInMeters = fieldType().precisionInMeters();
+            if ("geohash".equals(tree)) {
+                prefixTree = new GeohashPrefixTree(ShapeBuilder.SPATIAL_CONTEXT,
+                    getLevels(treeLevels, precisionInMeters, Defaults.GEOHASH_LEVELS, true));
+            } else if ("legacyquadtree".equals(tree)) {
+                prefixTree = new QuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT,
+                    getLevels(treeLevels, precisionInMeters, Defaults.QUADTREE_LEVELS, false));
+            } else if ("quadtree".equals(tree)) {
+                prefixTree = new PackedQuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT,
+                    getLevels(treeLevels, precisionInMeters, Defaults.QUADTREE_LEVELS, false));
+            } else {
+                throw new IllegalArgumentException("Unknown prefix tree type [" + tree + "]");
+            }
+
+            RecursivePrefixTreeStrategy rpts = new RecursivePrefixTreeStrategy(prefixTree, name());
+            rpts.setDistErrPct(fieldType().distanceErrorPct());
+            rpts.setPruneLeafyBranches(false);
+            fieldType().recursiveStrategy = rpts;
+
+            TermQueryPrefixTreeStrategy termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, name());
+            termStrategy.setDistErrPct(fieldType().distanceErrorPct());
+            fieldType().termStrategy = termStrategy;
+        }
+
+        @Override
+        protected void setupFieldType(BuilderContext context) {
+            super.setupFieldType(context);
+
+            // field mapper handles this at build time
+            // but prefix tree strategies require a name, so throw a similar exception
+            if (name().isEmpty()) {
+                throw new IllegalArgumentException("name cannot be empty string");
+            }
+
+            // throw an exception if spatial strategy is set to vector and a "tree" was explicitly set
+            if (fieldType().strategy() == SpatialStrategy.VECTOR && fieldType().tree().equals("NONE") == false) {
+                throw new IllegalArgumentException("prefix trees cannot be used when index strategy is set to ["
+                    + SpatialStrategy.VECTOR + "]");
+            }
+
+            // setup prefix trees regardless of strategy (this is used for the QueryBuilder)
+            setupPrefixTrees();
+
+            // set the default PrefixTree Strategy if the spatial strategy is not set to "VECTOR"
+            if (fieldType().strategy() != SpatialStrategy.VECTOR) {
+                fieldType().defaultPrefixTreeStrategy = fieldType().resolvePrefixTreeStrategy(fieldType().strategy());
+                fieldType().defaultPrefixTreeStrategy.setPointsOnly(fieldType().pointsOnly());
+            }
+        }
+
+        private static int getLevels(int treeLevels, double precisionInMeters, int defaultLevels, boolean geoHash) {
+            if (treeLevels > 0 || precisionInMeters >= 0) {
+                return Math.max(treeLevels, precisionInMeters >= 0 ? (geoHash ? GeoUtils.geoHashLevelsForPrecision(precisionInMeters)
+                    : GeoUtils.quadTreeLevelsForPrecision(precisionInMeters)) : 0);
+            }
+            return defaultLevels;
+        }
+
         @Override
         public GeoShapeFieldMapper build(BuilderContext context) {
             GeoShapeFieldType geoShapeFieldType = (GeoShapeFieldType)fieldType;
@@ -189,8 +245,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
             }
             setupFieldType(context);
 
-            return new GeoShapeFieldMapper(name, fieldType, ignoreMalformed(context), coerce(context), ignoreZValue(context),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new GeoShapeFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
+                    ignoreZValue(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -205,9 +261,15 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (Names.TREE.equals(fieldName)) {
+                    checkPrefixTreeSupport(fieldName);
                     builder.fieldType().setTree(fieldNode.toString());
+                    // explicitly set strategy
+                    if (builder.fieldType().strategy() == Defaults.STRATEGY.value()) {
+                        builder.fieldType().setStrategy(SpatialStrategy.RECURSIVE);
+                    }
                     iterator.remove();
                 } else if (Names.TREE_LEVELS.equals(fieldName)) {
+                    checkPrefixTreeSupport(fieldName);
                     builder.fieldType().setTreeLevels(Integer.parseInt(fieldNode.toString()));
                     iterator.remove();
                 } else if (Names.TREE_PRESISION.equals(fieldName)) {
@@ -215,13 +277,19 @@ public class GeoShapeFieldMapper extends FieldMapper {
                         DistanceUnit.DEFAULT, DistanceUnit.DEFAULT));
                     iterator.remove();
                 } else if (Names.DISTANCE_ERROR_PCT.equals(fieldName)) {
+                    checkPrefixTreeSupport(fieldName);
                     builder.fieldType().setDistanceErrorPct(Double.parseDouble(fieldNode.toString()));
                     iterator.remove();
                 } else if (Names.ORIENTATION.equals(fieldName)) {
                     builder.fieldType().setOrientation(ShapeBuilder.Orientation.fromString(fieldNode.toString()));
                     iterator.remove();
                 } else if (Names.STRATEGY.equals(fieldName)) {
-                    builder.fieldType().setStrategyName(fieldNode.toString());
+                    SpatialStrategy strategy = SpatialStrategy.fromString(fieldNode.toString());
+                    String prefixTree = builder.fieldType().tree();
+                    if (strategy == SpatialStrategy.VECTOR && prefixTree.equals("NONE") == false) {
+                        throw new ElasticsearchParseException("Strategy [{}] cannot be used with PrefixTree [{}]", strategy, prefixTree);
+                    }
+                    builder.fieldType().setStrategy(strategy);
                     iterator.remove();
                 } else if (IGNORE_MALFORMED.equals(fieldName)) {
                     builder.ignoreMalformed(XContentMapValues.nodeBooleanValue(fieldNode, name + ".ignore_malformed"));
@@ -239,7 +307,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 }
             }
             if (pointsOnly != null) {
-                if (builder.fieldType().strategyName.equals(SpatialStrategy.TERM.getStrategyName()) && pointsOnly == false) {
+                if (builder.fieldType().strategy == SpatialStrategy.TERM && pointsOnly == false) {
                     throw new IllegalArgumentException("points_only cannot be set to false for term strategy");
                 } else {
                     builder.fieldType().setPointsOnly(pointsOnly);
@@ -247,12 +315,18 @@ public class GeoShapeFieldMapper extends FieldMapper {
             }
             return builder;
         }
+
+        private void checkPrefixTreeSupport(String fieldName) {
+            if (ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
+                throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type", fieldName, CONTENT_TYPE);
+            }
+        }
     }
 
     public static final class GeoShapeFieldType extends MappedFieldType {
 
         private String tree = Defaults.TREE;
-        private String strategyName = Defaults.STRATEGY;
+        private SpatialStrategy strategy = Defaults.STRATEGY.value();
         private boolean pointsOnly = Defaults.POINTS_ONLY;
         private int treeLevels = 0;
         private double precisionInMeters = -1;
@@ -261,16 +335,23 @@ public class GeoShapeFieldMapper extends FieldMapper {
         private Orientation orientation = Defaults.ORIENTATION;
 
         // these are built when the field type is frozen
-        private PrefixTreeStrategy defaultStrategy;
+        private PrefixTreeStrategy defaultPrefixTreeStrategy;
         private RecursivePrefixTreeStrategy recursiveStrategy;
         private TermQueryPrefixTreeStrategy termStrategy;
 
-        public GeoShapeFieldType() {}
+        public GeoShapeFieldType() {
+            setIndexOptions(IndexOptions.DOCS);
+            setTokenized(false);
+            setStored(false);
+            setStoreTermVectors(false);
+            setOmitNorms(true);
+        }
 
         protected GeoShapeFieldType(GeoShapeFieldType ref) {
             super(ref);
             this.tree = ref.tree;
-            this.strategyName = ref.strategyName;
+            this.strategy = ref.strategy;
+//            this.strategyName = ref.strategyName;
             this.pointsOnly = ref.pointsOnly;
             this.treeLevels = ref.treeLevels;
             this.precisionInMeters = ref.precisionInMeters;
@@ -292,7 +373,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 precisionInMeters == that.precisionInMeters &&
                 defaultDistanceErrorPct == that.defaultDistanceErrorPct &&
                 Objects.equals(tree, that.tree) &&
-                Objects.equals(strategyName, that.strategyName) &&
+                Objects.equals(strategy, that.strategy) &&
+//                Objects.equals(strategyName, that.strategyName) &&
                 pointsOnly == that.pointsOnly &&
                 Objects.equals(distanceErrorPct, that.distanceErrorPct) &&
                 orientation == that.orientation;
@@ -300,7 +382,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
         @Override
         public int hashCode() {
-            return Objects.hash(super.hashCode(), tree, strategyName, pointsOnly, treeLevels, precisionInMeters, distanceErrorPct,
+            return Objects.hash(super.hashCode(), tree, strategy, pointsOnly, treeLevels, precisionInMeters, distanceErrorPct,
                     defaultDistanceErrorPct, orientation);
         }
 
@@ -310,39 +392,11 @@ public class GeoShapeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public void freeze() {
-            super.freeze();
-            // This is a bit hackish: we need to setup the spatial tree and strategies once the field name is set, which
-            // must be by the time freeze is called.
-            SpatialPrefixTree prefixTree;
-            if ("geohash".equals(tree)) {
-                prefixTree = new GeohashPrefixTree(ShapeBuilder.SPATIAL_CONTEXT,
-                    getLevels(treeLevels, precisionInMeters, Defaults.GEOHASH_LEVELS, true));
-            } else if ("legacyquadtree".equals(tree)) {
-                prefixTree = new QuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT,
-                    getLevels(treeLevels, precisionInMeters, Defaults.QUADTREE_LEVELS, false));
-            } else if ("quadtree".equals(tree)) {
-                prefixTree = new PackedQuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT,
-                    getLevels(treeLevels, precisionInMeters, Defaults.QUADTREE_LEVELS, false));
-            } else {
-                throw new IllegalArgumentException("Unknown prefix tree type [" + tree + "]");
-            }
-
-            recursiveStrategy = new RecursivePrefixTreeStrategy(prefixTree, name());
-            recursiveStrategy.setDistErrPct(distanceErrorPct());
-            recursiveStrategy.setPruneLeafyBranches(false);
-            termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, name());
-            termStrategy.setDistErrPct(distanceErrorPct());
-            defaultStrategy = resolveStrategy(strategyName);
-            defaultStrategy.setPointsOnly(pointsOnly);
-        }
-
-        @Override
         public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts) {
             super.checkCompatibility(fieldType, conflicts);
             GeoShapeFieldType other = (GeoShapeFieldType)fieldType;
             // prevent user from changing strategies
-            if (strategyName().equals(other.strategyName()) == false) {
+            if (strategy() != other.strategy()) {
                 conflicts.add("mapper [" + name() + "] has different [strategy]");
             }
 
@@ -382,14 +436,14 @@ public class GeoShapeFieldMapper extends FieldMapper {
             this.tree = tree;
         }
 
-        public String strategyName() {
-            return strategyName;
+        public SpatialStrategy strategy() {
+            return strategy;
         }
 
-        public void setStrategyName(String strategyName) {
+        public void setStrategy(SpatialStrategy strategy) {
             checkIfFrozen();
-            this.strategyName = strategyName;
-            if (this.strategyName.equals(SpatialStrategy.TERM.getStrategyName())) {
+            this.strategy = strategy;
+            if (this.strategy.equals(SpatialStrategy.TERM)) {
                 this.pointsOnly = true;
             }
         }
@@ -441,15 +495,15 @@ public class GeoShapeFieldMapper extends FieldMapper {
             this.orientation = orientation;
         }
 
-        public PrefixTreeStrategy defaultStrategy() {
-            return this.defaultStrategy;
+        public PrefixTreeStrategy defaultPrefixTreeStrategy() {
+            return this.defaultPrefixTreeStrategy;
         }
 
-        public PrefixTreeStrategy resolveStrategy(SpatialStrategy strategy) {
-            return resolveStrategy(strategy.getStrategyName());
+        public PrefixTreeStrategy resolvePrefixTreeStrategy(SpatialStrategy strategy) {
+            return resolvePrefixTreeStrategy(strategy.getStrategyName());
         }
 
-        public PrefixTreeStrategy resolveStrategy(String strategyName) {
+        public PrefixTreeStrategy resolvePrefixTreeStrategy(String strategyName) {
             if (SpatialStrategy.RECURSIVE.getStrategyName().equals(strategyName)) {
                 return recursiveStrategy;
             }
@@ -474,10 +528,11 @@ public class GeoShapeFieldMapper extends FieldMapper {
     protected Explicit<Boolean> ignoreMalformed;
     protected Explicit<Boolean> ignoreZValue;
 
-    public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, Explicit<Boolean> ignoreMalformed,
-                               Explicit<Boolean> coerce, Explicit<Boolean> ignoreZValue, Settings indexSettings,
+    public GeoShapeFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                               Explicit<Boolean> ignoreZValue, Settings indexSettings,
                                MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.coerce = coerce;
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
@@ -487,8 +542,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
     public GeoShapeFieldType fieldType() {
         return (GeoShapeFieldType) super.fieldType();
     }
-    @Override
-    public void parse(ParseContext context) throws IOException {
+
+    public void parseForInvertedIndexing(ParseContext context) throws IOException {
         try {
             Shape shape = context.parseExternalValue(Shape.class);
             if (shape == null) {
@@ -496,7 +551,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 if (shapeBuilder == null) {
                     return;
                 }
-                shape = shapeBuilder.build();
+                shape = shapeBuilder.buildS4J();
             }
             if (fieldType().pointsOnly() == true) {
                 // index configured for pointsOnly
@@ -517,17 +572,92 @@ public class GeoShapeFieldMapper extends FieldMapper {
         } catch (Exception e) {
             if (ignoreMalformed.value() == false) {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
-                        fieldType().typeName());
+                    fieldType().typeName());
             }
             context.addIgnoredField(fieldType.name());
         }
     }
 
+    /** parsing logic for {@link LatLonShape} indexing */
+    public void parseForPointsIndexing(ParseContext context) throws IOException {
+        try {
+            Object shape = context.parseExternalValue(Object.class);
+            if (shape == null) {
+                ShapeBuilder shapeBuilder = ShapeParser.parse(context.parser(), this);
+                if (shapeBuilder == null) {
+                    return;
+                }
+                shape = shapeBuilder.buildLucene();
+            }
+            indexShape(context, shape);
+        } catch (Exception e) {
+            if (ignoreMalformed.value() == false) {
+                throw new MapperParsingException("failed to parse field [{}] of type [{}]", e, fieldType().name(),
+                    fieldType().typeName());
+            }
+            context.addIgnoredField(fieldType().name());
+        }
+    }
+
+    @Override
+    public void parse(ParseContext context) throws IOException {
+        if (fieldType().strategy() == SpatialStrategy.VECTOR) {
+            parseForPointsIndexing(context);
+        } else {
+            parseForInvertedIndexing(context);
+        }
+    }
+
     private void indexShape(ParseContext context, Shape shape) {
-        List<IndexableField> fields = new ArrayList<>(Arrays.asList(fieldType().defaultStrategy().createIndexableFields(shape)));
+        List<IndexableField> fields = new ArrayList<>(Arrays.asList(fieldType().defaultPrefixTreeStrategy().createIndexableFields(shape)));
         createFieldNamesField(context, fields);
         for (IndexableField field : fields) {
             context.doc().add(field);
+        }
+    }
+
+    private void indexShape(ParseContext context, Object luceneShape) {
+        if (luceneShape instanceof GeoPoint) {
+            GeoPoint pt = (GeoPoint)luceneShape;
+            indexFields(context, LatLonShape.createIndexableFields(name(), pt.lat(), pt.lon()));
+        } else if (luceneShape instanceof Line) {
+            indexFields(context, LatLonShape.createIndexableFields(name(), (Line)luceneShape));
+        } else if (luceneShape instanceof Polygon) {
+            indexFields(context, LatLonShape.createIndexableFields(name(), (Polygon) luceneShape));
+        } else if (luceneShape instanceof double[][]) {
+            double[][] pts = (double[][])luceneShape;
+            for (int i = 0; i < pts.length; ++i) {
+                indexFields(context, LatLonShape.createIndexableFields(name(), pts[i][1], pts[i][0]));
+            }
+        } else if (luceneShape instanceof Line[]) {
+            Line[] lines = (Line[]) luceneShape;
+            for (int i = 0; i < lines.length; ++i) {
+                indexFields(context, LatLonShape.createIndexableFields(name(), lines[i]));
+            }
+        } else if (luceneShape instanceof Polygon[]) {
+            Polygon[] polys = (Polygon[]) luceneShape;
+            for (int i = 0; i < polys.length; ++i) {
+                indexFields(context, LatLonShape.createIndexableFields(name(), polys[i]));
+            }
+        } else if (luceneShape instanceof Rectangle) {
+            // index rectangle as a polygon
+            Rectangle r = (Rectangle) luceneShape;
+            Polygon p = new Polygon(new double[]{r.minLat, r.minLat, r.maxLat, r.maxLat, r.minLat},
+                new double[]{r.minLon, r.maxLon, r.maxLon, r.minLon, r.minLon});
+            indexFields(context, LatLonShape.createIndexableFields(name(), p));
+        } else if (luceneShape instanceof Object[]) {
+            // recurse to index geometry collection
+            for (Object o : (Object[])luceneShape) {
+                indexShape(context, o);
+            }
+        } else {
+            throw new IllegalArgumentException("invalid shape type found [" + luceneShape.getClass().getName() + "] while indexing shape");
+        }
+    }
+
+    private void indexFields(ParseContext context, Field[] fields) {
+        for (Field f : fields) {
+            context.doc().add(f);
         }
     }
 
@@ -577,8 +707,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
         } else if (includeDefaults && fieldType().treeLevels() == 0) { // defaults only make sense if tree levels are not specified
             builder.field(Names.TREE_PRESISION, DistanceUnit.METERS.toString(50));
         }
-        if (includeDefaults || fieldType().strategyName().equals(Defaults.STRATEGY) == false) {
-            builder.field(Names.STRATEGY, fieldType().strategyName());
+        if (includeDefaults || fieldType().strategy() != Defaults.STRATEGY.value()) {
+            builder.field(Names.STRATEGY, fieldType().strategy().getStrategyName());
         }
         if (includeDefaults || fieldType().distanceErrorPct() != fieldType().defaultDistanceErrorPct) {
             builder.field(Names.DISTANCE_ERROR_PCT, fieldType().distanceErrorPct());
@@ -586,7 +716,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
         if (includeDefaults || fieldType().orientation() != Defaults.ORIENTATION) {
             builder.field(Names.ORIENTATION, fieldType().orientation());
         }
-        if (fieldType().strategyName().equals(SpatialStrategy.TERM.getStrategyName())) {
+        if (fieldType().strategy() == SpatialStrategy.TERM) {
             // For TERMs strategy the defaults for points only change to true
             if (includeDefaults || fieldType().pointsOnly() != true) {
                 builder.field(Names.STRATEGY_POINTS_ONLY, fieldType().pointsOnly());

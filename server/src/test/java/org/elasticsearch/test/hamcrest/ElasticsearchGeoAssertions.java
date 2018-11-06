@@ -256,7 +256,7 @@ public class ElasticsearchGeoAssertions {
 
     public static void assertValidException(XContentParser parser, Class<?> expectedException) {
         try {
-            ShapeParser.parse(parser).build();
+            ShapeParser.parse(parser).buildS4J();
             Assert.fail("process completed successfully when " + expectedException.getName() + " expected");
         } catch (Exception e) {
             assert(e.getClass().equals(expectedException)):

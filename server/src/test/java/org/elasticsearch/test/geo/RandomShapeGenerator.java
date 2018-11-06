@@ -204,7 +204,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                 numPoints = RandomNumbers.randomIntBetween(r, 5, 25);
                 Coordinate[] coordinates = new Coordinate[numPoints];
                 for (int i=0; i<numPoints; ++i) {
-                    p = (Point) createShape(r, nearPoint, within, ShapeType.POINT, false).build();
+                    p = (Point) createShape(r, nearPoint, within, ShapeType.POINT, false).buildS4J();
                     coordinates[i] = new Coordinate(p.getX(), p.getY());
                 }
                 // random point order or random linestrings can lead to invalid self-crossing polygons,
@@ -227,7 +227,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                     // intent for ambiguous polygons. Therefore, an invalid oriented dateline crossing polygon could be built.
                     // The validate flag will check for these possibilities and bail if an incorrect geometry is created
                     try {
-                        pgb.build();
+                        pgb.buildS4J();
                     } catch (AssertionError | InvalidShapeException e) {
                         // jts bug may occasionally misinterpret coordinate order causing an unhelpful ('geom' assertion)
                         // or InvalidShapeException

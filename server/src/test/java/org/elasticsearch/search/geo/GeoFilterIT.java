@@ -123,7 +123,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                     .coordinate(-10, 10)
                     .coordinate(10, -10)
                     .close())
-                    .build();
+                    .buildS4J();
             fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
         }
@@ -132,14 +132,14 @@ public class GeoFilterIT extends ESIntegTestCase {
         new PolygonBuilder(new CoordinatesBuilder()
                 .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
                 .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()))
-                .build();
+                .buildS4J();
         try {
             // polygon with overlapping hole
             new PolygonBuilder(new CoordinatesBuilder()
                     .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
                     .hole(new LineStringBuilder(new CoordinatesBuilder()
                     .coordinate(-5, -5).coordinate(-5, 11).coordinate(5, 11).coordinate(5, -5).close()))
-                    .build();
+                    .buildS4J();
 
             fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
@@ -151,7 +151,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                     .coordinate(-10, -10).coordinate(-10, 10).coordinate(10, 10).coordinate(10, -10).close())
                     .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -5).coordinate(-5, 5).coordinate(5, 5).coordinate(5, -5).close()))
                     .hole(new LineStringBuilder(new CoordinatesBuilder().coordinate(-5, -6).coordinate(5, -6).coordinate(5, -4).coordinate(-5, -4).close()))
-                    .build();
+                    .buildS4J();
             fail("Intersection of holes not detected");
         } catch (InvalidShapeException e) {
         }
@@ -167,7 +167,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                     .coordinate(10, 20)
                     .coordinate(10, -10)
                     .close())
-                    .build();
+                    .buildS4J();
             fail("Self intersection not detected");
         } catch (InvalidShapeException e) {
         }
@@ -190,7 +190,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                             .coordinate(-4, 4)
                             .coordinate(4, 4)
                             .coordinate(4, -4).close()))
-                .build();
+                .buildS4J();
     }
 
     public void testShapeRelations() throws Exception {
@@ -375,6 +375,7 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject()
                 .startObject("location")
                 .field("type", "geo_shape")
+                .field("ignore_malformed", true)
                 .endObject()
                 .endObject()
                 .endObject()

@@ -24,8 +24,8 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.locationtech.spatial4j.shape.Point;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -182,8 +182,12 @@ public class ExternalMapper extends FieldMapper {
         pointMapper.parse(context.createExternalValueContext(point));
 
         // Let's add a Dummy Shape
-        Point shape = new PointBuilder(-100, 45).build();
-        shapeMapper.parse(context.createExternalValueContext(shape));
+        PointBuilder pb = new PointBuilder(-100, 45);
+        if (shapeMapper.fieldType().strategy() == SpatialStrategy.VECTOR) {
+            shapeMapper.parse(context.createExternalValueContext(pb.buildLucene()));
+        } else {
+            shapeMapper.parse(context.createExternalValueContext(pb.buildS4J()));
+        }
 
         context = context.createExternalValueContext(generatedValue);
 

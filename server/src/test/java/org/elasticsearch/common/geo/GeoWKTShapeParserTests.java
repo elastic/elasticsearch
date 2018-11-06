@@ -386,10 +386,10 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
             // assert empty shape collection
             GeometryCollectionBuilder builder = new GeometryCollectionBuilder();
             Shape[] expected = new Shape[0];
-            assertEquals(shapeCollection(expected).isEmpty(), builder.build().isEmpty());
+            assertEquals(shapeCollection(expected).isEmpty(), builder.buildS4J().isEmpty());
         } else {
             GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
-            assertExpected(gcb.build(), gcb);
+            assertExpected(gcb.buildS4J(), gcb);
         }
     }
 

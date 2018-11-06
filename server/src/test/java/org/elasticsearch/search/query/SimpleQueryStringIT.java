@@ -571,7 +571,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 containsString("NumberFormatException[For input string: \"foo123\"]"));
     }
 
-
     public void testLimitOnExpandedFields() throws Exception {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
@@ -589,7 +588,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                         CLUSTER_MAX_CLAUSE_COUNT + 100))
                 .addMapping("type1", builder));
 
-        client().prepareIndex("toomanyfields", "type1", "1").setSource("field171", "foo bar baz").get();
+        client().prepareIndex("toomanyfields", "type1", "1").setSource("field1", "foo bar baz").get();
         refresh();
 
         Exception e = expectThrows(Exception.class, () -> {
@@ -597,7 +596,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 if (randomBoolean()) {
                     qb.useAllFields(true);
                 }
-                logger.info("--> using {}", qb);
                 client().prepareSearch("toomanyfields").setQuery(qb).get();
                 });
         assertThat(ExceptionsHelper.detailedMessage(e),

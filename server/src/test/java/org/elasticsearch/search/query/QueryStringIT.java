@@ -282,7 +282,7 @@ public class QueryStringIT extends ESIntegTestCase {
                         CLUSTER_MAX_CLAUSE_COUNT + 100))
                 .addMapping("type1", builder));
 
-        client().prepareIndex("toomanyfields", "type1", "1").setSource("field171", "foo bar baz").get();
+        client().prepareIndex("toomanyfields", "type1", "1").setSource("field1", "foo bar baz").get();
         refresh();
 
         Exception e = expectThrows(Exception.class, () -> {
@@ -290,7 +290,6 @@ public class QueryStringIT extends ESIntegTestCase {
                 if (randomBoolean()) {
                     qb.useAllFields(true);
                 }
-                logger.info("--> using {}", qb);
                 client().prepareSearch("toomanyfields").setQuery(qb).get();
                 });
         assertThat(ExceptionsHelper.detailedMessage(e),

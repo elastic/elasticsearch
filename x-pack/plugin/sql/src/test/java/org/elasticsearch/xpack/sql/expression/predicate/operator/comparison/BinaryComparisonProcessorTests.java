@@ -11,6 +11,12 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
@@ -19,7 +25,7 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
         return new BinaryComparisonProcessor(
                 new ConstantProcessor(randomLong()),
                 new ConstantProcessor(randomLong()),
-            randomOperation());
+                randomFrom(BinaryComparisonProcessor.BinaryComparisonOperation.values()));
     }
 
     @Override
@@ -73,19 +79,8 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
         assertNull(new LessThan(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
         assertNull(new LessThanOrEqual(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
     }
-
-    public void testHandleNaN() {
-        assertNull(randomOperation().apply(Double.NaN, 10));
-        assertNull(randomOperation().apply(10, Double.NaN));
-        assertNull(randomOperation().apply(Float.NaN, 10));
-        assertNull(randomOperation().apply(10, Float.NaN));
-    }
     
     private static Literal l(Object value) {
         return Literal.of(EMPTY, value);
-    }
-
-    private static BinaryComparisonProcessor.BinaryComparisonOperation randomOperation() {
-        return randomFrom(BinaryComparisonProcessor.BinaryComparisonOperation.values());
     }
 }

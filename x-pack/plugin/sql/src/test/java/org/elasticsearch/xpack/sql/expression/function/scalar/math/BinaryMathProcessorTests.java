@@ -21,7 +21,7 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         return new BinaryMathProcessor(
                 new ConstantProcessor(randomLong()),
                 new ConstantProcessor(randomLong()),
-            randomOperation());
+                randomFrom(BinaryMathProcessor.BinaryMathOperation.values()));
     }
 
     @Override
@@ -116,19 +116,8 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
         assertNull(new ATan2(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
         assertNull(new Power(EMPTY, l(null), l(null)).makePipe().asProcessor().process(null));
     }
-
-    public void testHandleNaN() {
-        assertNull(randomOperation().apply(Double.NaN, 10));
-        assertNull(randomOperation().apply(10, Double.NaN));
-        assertNull(randomOperation().apply(Float.NaN, 10));
-        assertNull(randomOperation().apply(10, Float.NaN));
-    }
     
     private static Literal l(Object value) {
         return Literal.of(EMPTY, value);
-    }
-
-    private static BinaryMathProcessor.BinaryMathOperation randomOperation() {
-        return randomFrom(BinaryMathProcessor.BinaryMathOperation.values());
     }
 }

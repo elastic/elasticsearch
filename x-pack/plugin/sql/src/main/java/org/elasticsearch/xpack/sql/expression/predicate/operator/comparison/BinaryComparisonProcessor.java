@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.FunctionalBinaryProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.predicate.PredicateBiFunction;
@@ -40,7 +39,7 @@ public class BinaryComparisonProcessor extends FunctionalBinaryProcessor<Object,
 
         @Override
         public final Boolean doApply(Object left, Object right) {
-            return process.apply(MathProcessor.nanSafe(left), MathProcessor.nanSafe(right));
+            return process.apply(left, right);
         }
 
         @Override

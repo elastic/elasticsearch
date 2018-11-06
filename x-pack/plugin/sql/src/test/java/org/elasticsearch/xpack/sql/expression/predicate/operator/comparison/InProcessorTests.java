@@ -47,11 +47,6 @@ public class InProcessorTests extends AbstractWireSerializingTestCase<InProcesso
         assertEquals(false, new In(EMPTY, THREE, Arrays.asList(ONE, TWO)).makePipe().asProcessor().process(null));
     }
 
-    public void testHandleNaN() {
-        assertNull(InProcessor.apply(Double.NaN, Arrays.asList(1, 2, 3)));
-        assertNull(InProcessor.apply(Float.NaN, Arrays.asList(1, 2, 3)));
-    }
-
     public void testHandleNullOnLeftValue() {
         assertNull(new In(EMPTY, NULL, Arrays.asList(ONE, TWO, THREE)).makePipe().asProcessor().process(null));
         assertNull(new In(EMPTY, NULL, Arrays.asList(ONE, NULL, TWO)).makePipe().asProcessor().process(null));

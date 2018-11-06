@@ -13,6 +13,13 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 
@@ -21,7 +28,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         return new BinaryArithmeticProcessor(
                 new ConstantProcessor(randomLong()),
                 new ConstantProcessor(randomLong()),
-            randomOperation());
+                randomFrom(BinaryArithmeticProcessor.BinaryArithmeticOperation.values()));
     }
 
     @Override
@@ -91,19 +98,8 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         assertNull(new Mod(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
         assertNull(new Neg(EMPTY, l(null)).makePipe().asProcessor().process(null));
     }
-
-    public void testHandleNaN() {
-        assertNull(randomOperation().doApply(Double.NaN, 10));
-        assertNull(randomOperation().doApply(10, Double.NaN));
-        assertNull(randomOperation().doApply(Float.NaN, 10));
-        assertNull(randomOperation().doApply(10, Float.NaN));
-    }
     
     private static Literal l(Object value) {
         return Literal.of(EMPTY, value);
-    }
-
-    private static BinaryArithmeticProcessor.BinaryArithmeticOperation randomOperation() {
-        return randomFrom(BinaryArithmeticProcessor.BinaryArithmeticOperation.values());
     }
 }

@@ -1026,7 +1026,7 @@ public final class TokenService {
      * @param source The token document source as retrieved
      * @param filter an optional Predicate to test the source of the UserToken against
      * @return A {@link Tuple} of access-token and refresh-token-id or null if a Predicate is defined and the userToken source doesn't
-     * satisfy it
+     *         0satisfy it
      */
     private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate filter) throws IOException {
 
@@ -1066,7 +1066,7 @@ public final class TokenService {
     }
 
     private static String getTokenDocumentId(String id) {
-        if (id.substring(0, "token_".length()).equals("token_")) {
+        if (id.substring(0, "token_".length()).equals("token_") == false) {
             return "token_" + id;
         } else {
             return id;

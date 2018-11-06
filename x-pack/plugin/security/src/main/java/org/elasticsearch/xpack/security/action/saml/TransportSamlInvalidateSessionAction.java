@@ -95,17 +95,17 @@ public final class TransportSamlInvalidateSessionAction
         }
 
         tokenService.findActiveTokensForRealm(realm.name(), ActionListener.wrap(tokens -> {
-            logger.debug("Found [{}] token pairs to invalidate for SAML metadata [{}]", tokens.size(), tokenMetadata);
-            if (tokens.isEmpty()) {
-                        listener.onResponse(0);
-                    } else {
-                GroupedActionListener<TokensInvalidationResult> groupedListener = new GroupedActionListener<>(
-                                ActionListener.wrap(collection -> listener.onResponse(collection.size()), listener::onFailure),
-                    tokens.size(), Collections.emptyList()
-                        );
-                tokens.forEach(tuple -> invalidateTokenPair(tuple, groupedListener));
-                    }
-                }, e -> listener.onFailure(e)
+                logger.debug("Found [{}] token pairs to invalidate for SAML metadata [{}]", tokens.size(), tokenMetadata);
+                if (tokens.isEmpty()) {
+                    listener.onResponse(0);
+                } else {
+                    GroupedActionListener<TokensInvalidationResult> groupedListener = new GroupedActionListener<>(
+                        ActionListener.wrap(collection -> listener.onResponse(collection.size()), listener::onFailure),
+                        tokens.size(), Collections.emptyList()
+                    );
+                    tokens.forEach(tuple -> invalidateTokenPair(tuple, groupedListener));
+                }
+            }, e -> listener.onFailure(e)
         ), containsMetadata(tokenMetadata));
     }
 

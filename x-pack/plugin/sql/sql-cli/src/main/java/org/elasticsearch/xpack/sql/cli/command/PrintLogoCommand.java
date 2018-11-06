@@ -53,7 +53,7 @@ public class PrintLogoCommand extends AbstractCliCommand {
         }
 
         // print the version centered on the last line
-        char[] whitespaces = new char[lineLength / 2 - Version.CURRENT.version.length() / 2];
+        char[] whitespaces = new char[(lineLength - Version.CURRENT.version.length()) / 2];
         Arrays.fill(whitespaces, ' ');
         terminal.println(new StringBuilder().append(whitespaces).append(Version.CURRENT.version).toString());
         terminal.println();

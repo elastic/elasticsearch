@@ -79,7 +79,7 @@ public class IndicesOptionsTests extends ESTestCase {
     public void testSerializationPre70() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            Version version = randomVersionBetween(random(), null, Version.V_6_4_0);
+            Version version = randomVersionBetween(random(), null, Version.V_6_6_0);
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                     randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
@@ -100,7 +100,12 @@ public class IndicesOptionsTests extends ESTestCase {
             assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
 
             assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
-            assertFalse(indicesOptions2.ignoreThrottled()); // make sure we never write this option to pre 7.0
+            if (output.getVersion().onOrAfter(Version.V_6_6_0)) {
+                assertEquals(indicesOptions2.ignoreThrottled(), indicesOptions.ignoreThrottled());
+            } else {
+                assertFalse(indicesOptions2.ignoreThrottled()); // make sure we never write this option to pre 6.6
+            }
+
         }
     }
 

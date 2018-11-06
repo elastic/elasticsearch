@@ -124,4 +124,11 @@ public class QueryRewriteContext {
         }
     }
 
+    /**
+     * @return whether the query rewrite context supports 'now' (current time) in range queries with data ranges.
+     */
+    public boolean supportsNowInRangeQueries() {
+        return true;
+    }
+
 }

@@ -459,6 +459,13 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (queryRewriteContext.supportsNowInRangeQueries() == false) {
+            if ((from() != null && from().toString().contains("now")) ||
+                (to() != null && to().toString().contains("now"))) {
+                return new MatchAllQueryBuilder();
+            }
+        }
+
         final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
         switch (relation) {
         case DISJOINT:

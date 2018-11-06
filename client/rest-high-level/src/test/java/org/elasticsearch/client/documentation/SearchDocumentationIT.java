@@ -1304,19 +1304,12 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::count-request-basic
         }
         {
-            // tag::count-request-indices-types
-            CountRequest countRequest = new CountRequest("blog"); // <1>
-            countRequest.types("doc"); // <2>
-            // end::count-request-indices-types
-            // tag::count-request-routing
-            countRequest.routing("routing"); // <1>
-            // end::count-request-routing
-            // tag::count-request-indicesOptions
-            countRequest.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
-            // end::count-request-indicesOptions
-            // tag::count-request-preference
-            countRequest.preference("_local"); // <1>
-            // end::count-request-preference
+            // tag::count-request-args
+            CountRequest countRequest = new CountRequest("blog") // <1>
+                .routing("routing") // <2>
+                .indicesOptions(IndicesOptions.lenientExpandOpen()) // <3>
+                .preference("_local"); // <4>
+            // end::count-request-args
             assertNotNull(client.count(countRequest, RequestOptions.DEFAULT));
         }
         {

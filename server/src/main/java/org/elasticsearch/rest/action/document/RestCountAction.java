@@ -19,11 +19,13 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -44,6 +46,11 @@ import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHead
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestCountAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying types in count requests is deprecated.";
+
     public RestCountAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_count", this);
@@ -80,7 +87,12 @@ public class RestCountAction extends BaseRestHandler {
         if (minScore != -1f) {
             searchSourceBuilder.minScore(minScore);
         }
-        countRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+
+        if (request.hasParam("type")) {
+            deprecationLogger.deprecated(TYPES_DEPRECATION_MESSAGE);
+            countRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        }
+
         countRequest.preference(request.param("preference"));
 
         final int terminateAfter = request.paramAsInt("terminate_after", DEFAULT_TERMINATE_AFTER);

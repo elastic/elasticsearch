@@ -42,8 +42,8 @@ public final class DeleteUserResponse {
         return this.found;
     }
 
-    private static final ConstructingObjectParser<DeleteUserResponse, Void> PARSER = new ConstructingObjectParser<>("delete_user_response",
-        true, args -> new DeleteUserResponse((boolean) args[0]));
+    private static final ConstructingObjectParser<DeleteUserResponse, Void> PARSER =
+        new ConstructingObjectParser<>("delete_user_response", true, args -> new DeleteUserResponse((boolean) args[0]));
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("found"));

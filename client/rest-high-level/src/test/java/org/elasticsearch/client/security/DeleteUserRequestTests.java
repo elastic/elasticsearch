@@ -39,12 +39,14 @@ public class DeleteUserRequestTests extends ESTestCase {
     }
 
     public void testDeleteUserRequestThrowsExceptionForNullName() {
-        final NullPointerException ile = expectThrows(NullPointerException.class, () -> new DeleteUserRequest(null, randomFrom(RefreshPolicy.values())));
+        final NullPointerException ile =
+            expectThrows(NullPointerException.class, () -> new DeleteUserRequest(null, randomFrom(RefreshPolicy.values())));
         assertThat(ile.getMessage(), equalTo("user name is required"));
     }
 
     public void testDeleteUserRequestThrowsExceptionForNullRefreshPolicy() {
-        final NullPointerException ile = expectThrows(NullPointerException.class, () -> new DeleteUserRequest(randomAlphaOfLength(10), null));
+        final NullPointerException ile =
+            expectThrows(NullPointerException.class, () -> new DeleteUserRequest(randomAlphaOfLength(10), null));
         assertThat(ile.getMessage(), equalTo("refresh policy is required"));
     }
 

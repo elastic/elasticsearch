@@ -150,13 +150,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
         String types = request.param("type");
         if (types != null) {
-            if (includeTypeName == false) {
-                throw new IllegalArgumentException("You may only use the [include_type_name=false] option with the search API with the " +
-                        "[{index}/_search] endpoint.");
-            }
             deprecationLogger.deprecated("The {index}/{type}/_search endpoint is deprecated, use {index}/_search instead");
         }
         searchRequest.types(Strings.splitStringByCommaToArray(types));

@@ -60,7 +60,6 @@ public class TriggeredWatchStore extends AbstractComponent {
     private final BulkProcessor bulkProcessor;
 
     public TriggeredWatchStore(Settings settings, Client client, TriggeredWatch.Parser triggeredWatchParser, BulkProcessor bulkProcessor) {
-        super(settings);
         this.scrollSize = settings.getAsInt("xpack.watcher.execution.scroll.size", 1000);
         this.client = ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN);
         this.scrollTimeout = settings.getAsTime("xpack.watcher.execution.scroll.timeout", TimeValue.timeValueMinutes(5));

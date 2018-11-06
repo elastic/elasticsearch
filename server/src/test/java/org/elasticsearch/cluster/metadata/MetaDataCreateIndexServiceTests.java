@@ -124,9 +124,9 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 MetaDataCreateIndexService.validateShrinkIndex(state, "target", Collections.emptySet(), "source", Settings.EMPTY)
             ).getMessage());
 
-        assertEquals("no such index",
+        assertEquals("no such index [no_such_index]",
             expectThrows(IndexNotFoundException.class, () ->
-                MetaDataCreateIndexService.validateShrinkIndex(state, "no such index", Collections.emptySet(), "target", Settings.EMPTY)
+                MetaDataCreateIndexService.validateShrinkIndex(state, "no_such_index", Collections.emptySet(), "target", Settings.EMPTY)
             ).getMessage());
 
         Settings targetSettings = Settings.builder().put("index.number_of_shards", 1).build();
@@ -171,8 +171,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -200,9 +200,9 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                 MetaDataCreateIndexService.validateSplitIndex(state, "target", Collections.emptySet(), "source", targetSettings)
             ).getMessage());
 
-        assertEquals("no such index",
+        assertEquals("no such index [no_such_index]",
             expectThrows(IndexNotFoundException.class, () ->
-                MetaDataCreateIndexService.validateSplitIndex(state, "no such index", Collections.emptySet(), "target", targetSettings)
+                MetaDataCreateIndexService.validateSplitIndex(state, "no_such_index", Collections.emptySet(), "target", targetSettings)
             ).getMessage());
 
         assertEquals("the number of source shards [10] must be less that the number of target shards [5]",
@@ -241,8 +241,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).put("index.number_of_routing_shards", targetShards).build()))
             .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -375,9 +375,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                         .build();
 
         final AllocationService service = new AllocationService(
-                Settings.builder().build(),
-                new AllocationDeciders(Settings.EMPTY,
-                Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+                new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
                 new TestGatewayAllocator(),
                 new BalancedShardsAllocator(Settings.EMPTY),
                 EmptyClusterInfoService.INSTANCE);

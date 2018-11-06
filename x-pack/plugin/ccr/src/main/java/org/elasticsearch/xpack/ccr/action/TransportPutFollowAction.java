@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -52,7 +54,6 @@ public final class TransportPutFollowAction
 
     @Inject
     public TransportPutFollowAction(
-            final Settings settings,
             final ThreadPool threadPool,
             final TransportService transportService,
             final ClusterService clusterService,
@@ -62,17 +63,16 @@ public final class TransportPutFollowAction
             final AllocationService allocationService,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(
-                settings,
                 PutFollowAction.NAME,
                 transportService,
                 clusterService,
                 threadPool,
                 actionFilters,
-                indexNameExpressionResolver,
-                PutFollowAction.Request::new);
+                PutFollowAction.Request::new,
+                indexNameExpressionResolver);
         this.client = client;
         this.allocationService = allocationService;
-        this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
 
@@ -83,7 +83,12 @@ public final class TransportPutFollowAction
 
     @Override
     protected PutFollowAction.Response newResponse() {
-        return new PutFollowAction.Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    protected PutFollowAction.Response read(StreamInput in) throws IOException {
+        return new PutFollowAction.Response(in);
     }
 
     @Override
@@ -95,22 +100,22 @@ public final class TransportPutFollowAction
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        String leaderCluster = request.getLeaderCluster();
+        String remoteCluster = request.getRemoteCluster();
         // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(leaderCluster);
+        client.getRemoteClusterClient(remoteCluster);
 
         String leaderIndex = request.getLeaderIndex();
-        createFollowerIndexAndFollowRemoteIndex(request, leaderCluster, leaderIndex, listener);
+        createFollowerIndexAndFollowRemoteIndex(request, remoteCluster, leaderIndex, listener);
     }
 
     private void createFollowerIndexAndFollowRemoteIndex(
             final PutFollowAction.Request request,
-            final String leaderCluster,
+            final String remoteCluster,
             final String leaderIndex,
             final ActionListener<PutFollowAction.Response> listener) {
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
                 client,
-                leaderCluster,
+                remoteCluster,
                 leaderIndex,
                 listener::onFailure,
                 (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
@@ -124,6 +129,10 @@ public final class TransportPutFollowAction
         if (leaderIndexMetaData == null) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
+        }
+        if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
+            listener.onFailure(
+                new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled"));
         }
 
         ActionListener<Boolean> handler = ActionListener.wrap(
@@ -160,7 +169,7 @@ public final class TransportPutFollowAction
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", historyUUIDs));
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetaData.getIndexUUID());
                 metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetaData.getIndex().getName());
-                metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_CLUSTER_NAME_KEY, request.getLeaderCluster());
+                metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, request.getRemoteCluster());
                 imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, metadata);
 
                 // Copy all settings, but overwrite a few settings.

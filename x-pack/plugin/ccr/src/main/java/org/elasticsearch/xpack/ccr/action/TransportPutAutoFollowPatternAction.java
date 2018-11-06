@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,7 +43,6 @@ public class TransportPutAutoFollowPatternAction extends
 
     @Inject
     public TransportPutAutoFollowPatternAction(
-            final Settings settings,
             final TransportService transportService,
             final ClusterService clusterService,
             final ThreadPool threadPool,
@@ -52,8 +50,8 @@ public class TransportPutAutoFollowPatternAction extends
             final Client client,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final CcrLicenseChecker ccrLicenseChecker) {
-        super(settings, PutAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, PutAutoFollowPatternAction.Request::new);
+        super(PutAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            PutAutoFollowPatternAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
     }
@@ -76,7 +74,7 @@ public class TransportPutAutoFollowPatternAction extends
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final Client leaderClient = client.getRemoteClusterClient(request.getLeaderCluster());
+        final Client leaderClient = client.getRemoteClusterClient(request.getRemoteCluster());
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
@@ -93,7 +91,7 @@ public class TransportPutAutoFollowPatternAction extends
                     ActionListener.wrap(
                         clusterStateResponse -> {
                             final ClusterState leaderClusterState = clusterStateResponse.getState();
-                            clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getLeaderCluster(),
+                            clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getRemoteCluster(),
                                 new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
 
                                     @Override
@@ -157,16 +155,19 @@ public class TransportPutAutoFollowPatternAction extends
         }
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
-            request.getLeaderCluster(),
+            request.getRemoteCluster(),
             request.getLeaderIndexPatterns(),
             request.getFollowIndexNamePattern(),
-            request.getMaxBatchOperationCount(),
+            request.getMaxReadRequestOperationCount(),
+            request.getMaxReadRequestSize(),
             request.getMaxConcurrentReadBatches(),
-            request.getMaxBatchSize(),
+            request.getMaxWriteRequestOperationCount(),
+            request.getMaxWriteRequestSize(),
             request.getMaxConcurrentWriteBatches(),
+            request.getMaxWriteBufferCount(),
             request.getMaxWriteBufferSize(),
             request.getMaxRetryDelay(),
-            request.getPollTimeout());
+            request.getReadPollTimeout());
         patterns.put(request.getName(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
         newState.metaData(MetaData.builder(localState.getMetaData())

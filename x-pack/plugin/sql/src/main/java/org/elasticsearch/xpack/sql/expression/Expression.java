@@ -35,7 +35,11 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
         public static final TypeResolution TYPE_RESOLVED = new TypeResolution(false, StringUtils.EMPTY);
 
-        public TypeResolution(String message, Object... args) {
+        public TypeResolution(String message) {
+            this(true, message);
+        }
+
+        TypeResolution(String message, Object... args) {
             this(true, format(Locale.ROOT, message, args));
         }
 
@@ -74,6 +78,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         throw new SqlIllegalArgumentException("Should not fold expression");
     }
 
+    // whether the expression becomes null if at least one param/input is null
     public abstract boolean nullable();
 
     // the references/inputs/leaves of the expression tree

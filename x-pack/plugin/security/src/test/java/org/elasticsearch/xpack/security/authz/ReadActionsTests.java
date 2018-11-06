@@ -73,7 +73,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("test1", "test2", "index1", "index2");
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("index*")
                 .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [index*]", e.getMessage());
     }
 
     public void testEmptyClusterSearchForAll() {
@@ -83,7 +83,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     public void testEmptyClusterSearchForAllDisallowNoIndices() {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch()
                 .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [[]]", e.getMessage());
     }
 
     public void testEmptyClusterSearchForWildcard() {
@@ -94,7 +94,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     public void testEmptyClusterSearchForWildcardDisallowNoIndices() {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("*")
                 .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [*]", e.getMessage());
     }
 
     public void testEmptyAuthorizedIndicesSearchForAll() {
@@ -106,7 +106,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("index1", "index2");
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch()
                 .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [[]]", e.getMessage());
     }
 
     public void testEmptyAuthorizedIndicesSearchForWildcard() {
@@ -118,7 +118,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("index1", "index2");
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("*")
                 .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
-        assertEquals("no such index", e.getMessage());
+        assertEquals("no such index [*]", e.getMessage());
     }
 
     public void testExplicitNonAuthorizedIndex() {
@@ -277,7 +277,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             assertReturnedIndices(multiSearchResponse.getResponses()[0].getResponse(), "test1", "test2", "test3");
             assertTrue(multiSearchResponse.getResponses()[1].isFailure());
             assertThat(multiSearchResponse.getResponses()[1].getFailure().toString(),
-                    equalTo("[test4] IndexNotFoundException[no such index]"));
+                    equalTo("[test4] IndexNotFoundException[no such index [test4]]"));
         }
         {
             //we set ignore_unavailable and allow_no_indices to true, no errors returned, second item doesn't have hits.

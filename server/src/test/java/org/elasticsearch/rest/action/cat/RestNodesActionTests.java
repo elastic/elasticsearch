@@ -47,9 +47,9 @@ public class RestNodesActionTests extends ESTestCase {
 
     @Before
     public void setUpAction() {
-        UsageService usageService = new UsageService(Settings.EMPTY);
+        UsageService usageService = new UsageService();
         action = new RestNodesAction(Settings.EMPTY,
-                new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null, usageService));
+                new RestController(Collections.emptySet(), null, null, null, usageService));
     }
 
     public void testBuildTableDoesNotThrowGivenNullNodeInfoAndStats() {

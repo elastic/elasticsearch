@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -56,10 +55,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     private final SnapshotsService snapshotsService;
 
     @Inject
-    public TransportGetSnapshotsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportGetSnapshotsAction(TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters,
             GetSnapshotsRequest::new, indexNameExpressionResolver);
         this.snapshotsService = snapshotsService;
     }

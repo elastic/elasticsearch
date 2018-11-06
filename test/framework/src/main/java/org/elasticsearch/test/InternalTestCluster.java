@@ -2212,7 +2212,6 @@ public final class InternalTestCluster extends TestCluster {
      */
     public static class FullRestartCallback extends RestartCallback {
         public void onAllNodesStopped(List<String> nodeNames) throws Exception {
-
         }
     }
 

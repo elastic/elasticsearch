@@ -185,5 +185,4 @@ public class MetaStateServiceTests extends ESTestCase {
         }
     }
 
-
 }

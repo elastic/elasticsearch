@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -12,7 +13,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -31,7 +31,7 @@ import java.util.Set;
  */
 public class WatcherExistsHttpResource extends PublishableHttpResource {
 
-    private static final Logger logger = Loggers.getLogger(WatcherExistsHttpResource.class);
+    private static final Logger logger = LogManager.getLogger(WatcherExistsHttpResource.class);
     /**
      * Use this to avoid getting any JSON response from a request.
      */

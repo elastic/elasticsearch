@@ -117,7 +117,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
                 .build();
 
-        indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
+        indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         final boolean withAlias = randomBoolean();
         final String securityIndexName = SECURITY_INDEX_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");

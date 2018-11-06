@@ -151,7 +151,7 @@ public class MetaStateServiceTests extends ESTestCase {
         }
     }
 
-    public void testLoadZen1BWC() throws Exception {
+    public void testLoadManifestlessBwc() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
             MetaData metaData_v1 = MetaData.builder()

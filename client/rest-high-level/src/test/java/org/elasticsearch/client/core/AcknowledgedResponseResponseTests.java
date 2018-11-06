@@ -16,25 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.client.core;
 
-package org.elasticsearch.client.ccr;
-
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public final class PauseFollowResponse extends AcknowledgedResponse {
+public class AcknowledgedResponseResponseTests extends AbstractXContentTestCase<AcknowledgedResponse> {
 
-    private static final ConstructingObjectParser<PauseFollowResponse, Void> PARSER = AcknowledgedResponse
-        .generateParser("pause_follow_response", PauseFollowResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
-
-    public static PauseFollowResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    @Override
+    protected AcknowledgedResponse createTestInstance() {
+        return new AcknowledgedResponse(randomBoolean());
     }
 
-    public PauseFollowResponse(boolean acknowledged) {
-        super(acknowledged);
+    @Override
+    protected AcknowledgedResponse doParseInstance(XContentParser parser) throws IOException {
+        return AcknowledgedResponse.fromXContent(parser);
     }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
 }

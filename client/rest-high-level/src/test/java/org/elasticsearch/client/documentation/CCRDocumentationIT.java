@@ -32,7 +32,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
-import org.elasticsearch.client.ccr.PauseFollowResponse;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
@@ -88,7 +88,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ccr-pause-follow-request
 
         // tag::ccr-pause-follow-execute
-        PauseFollowResponse response =
+        AcknowledgedResponse response =
             client.ccr().pauseFollow(request, RequestOptions.DEFAULT);
         // end::ccr-pause-follow-execute
 
@@ -97,10 +97,10 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ccr-pause-follow-response
 
         // tag::ccr-pause-follow-execute-listener
-        ActionListener<PauseFollowResponse> listener =
-            new ActionListener<PauseFollowResponse>() {
+        ActionListener<AcknowledgedResponse> listener =
+            new ActionListener<AcknowledgedResponse>() {
             @Override
-            public void onResponse(PauseFollowResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
                 boolean acknowledged = response.isAcknowledged(); // <1>
             }
 

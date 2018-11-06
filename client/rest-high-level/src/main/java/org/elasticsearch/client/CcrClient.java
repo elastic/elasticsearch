@@ -21,7 +21,7 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
-import org.elasticsearch.client.ccr.PauseFollowResponse;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -52,12 +52,12 @@ public final class CcrClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public PauseFollowResponse pauseFollow(PauseFollowRequest request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse pauseFollow(PauseFollowRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             CcrRequestConverters::pauseFollow,
             options,
-            PauseFollowResponse::fromXContent,
+            AcknowledgedResponse::fromXContent,
             Collections.emptySet()
         );
     }
@@ -73,12 +73,12 @@ public final class CcrClient {
      */
     public void pauseFollowAsync(PauseFollowRequest request,
                                  RequestOptions options,
-                                 ActionListener<PauseFollowResponse> listener) {
+                                 ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             CcrRequestConverters::pauseFollow,
             options,
-            PauseFollowResponse::fromXContent,
+            AcknowledgedResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

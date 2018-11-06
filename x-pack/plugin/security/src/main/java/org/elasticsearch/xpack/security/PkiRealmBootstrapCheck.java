@@ -9,6 +9,7 @@ import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
@@ -35,8 +37,10 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
         final Settings settings = context.settings;
-        final boolean pkiRealmEnabled = settings.getGroups(RealmSettings.PREFIX).values().stream()
-                .filter(s -> PkiRealmSettings.TYPE.equals(s.get("type")))
+        final Map<RealmConfig.RealmIdentifier, Settings> realms = RealmSettings.getRealmSettings(settings);
+        final boolean pkiRealmEnabled = realms.entrySet().stream()
+                .filter(e -> PkiRealmSettings.TYPE.equals(e.getKey().getType()))
+                .map(Map.Entry::getValue)
                 .anyMatch(s -> s.getAsBoolean("enabled", true));
         if (pkiRealmEnabled) {
             for (String contextName : getSslContextNames(settings)) {

@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
@@ -133,7 +134,7 @@ public abstract class TransportReplicationAction<
                                          IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
                                          Supplier<ReplicaRequest> replicaRequest, String executor,
                                          boolean syncGlobalCheckpointAfterOperation) {
-        super(settings, actionName, actionFilters, transportService.getTaskManager());
+        super(actionName, actionFilters, transportService.getTaskManager());
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -146,7 +147,7 @@ public abstract class TransportReplicationAction<
         this.transportReplicaAction = actionName + "[r]";
         registerRequestHandlers(actionName, transportService, request, replicaRequest, executor);
 
-        this.transportOptions = transportOptions();
+        this.transportOptions = transportOptions(settings);
 
         this.syncGlobalCheckpointAfterOperation = syncGlobalCheckpointAfterOperation;
     }
@@ -230,7 +231,7 @@ public abstract class TransportReplicationAction<
         return true;
     }
 
-    protected TransportRequestOptions transportOptions() {
+    protected TransportRequestOptions transportOptions(Settings settings) {
         return TransportRequestOptions.EMPTY;
     }
 
@@ -317,12 +318,17 @@ public abstract class TransportReplicationAction<
                     // phase is executed on local shard and all subsequent operations are executed on relocation target as primary phase.
                     final ShardRouting primary = primaryShardReference.routingEntry();
                     assert primary.relocating() : "indexShard is marked as relocated but routing isn't" + primary;
+                    final Writeable.Reader<Response> reader = in -> {
+                        Response response = TransportReplicationAction.this.newResponseInstance();
+                        response.readFrom(in);
+                        return response;
+                    };
                     DiscoveryNode relocatingNode = clusterService.state().nodes().get(primary.relocatingNodeId());
                     transportService.sendRequest(relocatingNode, transportPrimaryAction,
                         new ConcreteShardRequest<>(request, primary.allocationId().getRelocationId(), primaryTerm),
                         transportOptions,
                         new TransportChannelResponseHandler<Response>(logger, channel, "rerouting indexing to target primary " + primary,
-                            TransportReplicationAction.this::newResponseInstance) {
+                            reader) {
 
                             @Override
                             public void handleResponse(Response response) {
@@ -577,7 +583,7 @@ public abstract class TransportReplicationAction<
                         String extraMessage = "action [" + transportReplicaAction + "], request[" + request + "]";
                         TransportChannelResponseHandler<TransportResponse.Empty> handler =
                             new TransportChannelResponseHandler<>(logger, channel, extraMessage,
-                                () -> TransportResponse.Empty.INSTANCE);
+                                (in) -> TransportResponse.Empty.INSTANCE);
                         transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
                             new ConcreteReplicaRequest<>(request, targetAllocationID, primaryTerm,
                                 globalCheckpoint, maxSeqNoOfUpdatesOrDeletes),
@@ -813,8 +819,10 @@ public abstract class TransportReplicationAction<
             transportService.sendRequest(node, action, requestToPerform, transportOptions, new TransportResponseHandler<Response>() {
 
                 @Override
-                public Response newInstance() {
-                    return newResponseInstance();
+                public Response read(StreamInput in) throws IOException {
+                    Response response = newResponseInstance();
+                    response.readFrom(in);
+                    return response;
                 }
 
                 @Override
@@ -1186,7 +1194,11 @@ public abstract class TransportReplicationAction<
             final ConcreteReplicaRequest<ReplicaRequest> replicaRequest,
             final DiscoveryNode node,
             final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
-        final ActionListenerResponseHandler<ReplicaResponse> handler = new ActionListenerResponseHandler<>(listener, ReplicaResponse::new);
+        final ActionListenerResponseHandler<ReplicaResponse> handler = new ActionListenerResponseHandler<>(listener, in -> {
+            ReplicaResponse replicaResponse = new ReplicaResponse();
+            replicaResponse.readFrom(in);
+            return replicaResponse;
+        });
         transportService.sendRequest(node, transportReplicaAction, replicaRequest, transportOptions, handler);
     }
 

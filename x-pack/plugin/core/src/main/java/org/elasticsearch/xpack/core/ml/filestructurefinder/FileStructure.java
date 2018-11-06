@@ -32,11 +32,11 @@ public class FileStructure implements ToXContentObject, Writeable {
 
     public enum Format {
 
-        JSON, XML, DELIMITED, SEMI_STRUCTURED_TEXT;
+        NDJSON, XML, DELIMITED, SEMI_STRUCTURED_TEXT;
 
         public boolean supportsNesting() {
             switch (this) {
-                case JSON:
+                case NDJSON:
                 case XML:
                     return true;
                 case DELIMITED:
@@ -49,7 +49,7 @@ public class FileStructure implements ToXContentObject, Writeable {
 
         public boolean isStructured() {
             switch (this) {
-                case JSON:
+                case NDJSON:
                 case XML:
                 case DELIMITED:
                     return true;
@@ -62,7 +62,7 @@ public class FileStructure implements ToXContentObject, Writeable {
 
         public boolean isSemiStructured() {
             switch (this) {
-                case JSON:
+                case NDJSON:
                 case XML:
                 case DELIMITED:
                     return false;
@@ -645,7 +645,7 @@ public class FileStructure implements ToXContentObject, Writeable {
             }
 
             switch (format) {
-                case JSON:
+                case NDJSON:
                     if (shouldTrimFields != null) {
                         throw new IllegalArgumentException("Should trim fields may not be specified for [" + format + "] structures.");
                     }

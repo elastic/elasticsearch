@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
-import org.elasticsearch.xpack.sql.expression.UnaryExpression;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
@@ -45,8 +43,10 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Bina
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
@@ -354,11 +354,6 @@ final class QueryTranslator {
         return new BoolQuery(loc, false, left, right);
     }
 
-    static Query not(Query query) {
-        Check.isTrue(query != null, "Expressions is null");
-        return new NotQuery(query.location(), query);
-    }
-
     static String nameOf(Expression e) {
         if (e instanceof DateTimeFunction) {
             return nameOf(((DateTimeFunction) e).field());
@@ -484,20 +479,41 @@ final class QueryTranslator {
 
         @Override
         protected QueryTranslation asQuery(Not not, boolean onAggs) {
-            QueryTranslation translation = toQuery(not.field(), onAggs);
-            return new QueryTranslation(not(translation.query), translation.aggFilter);
+            Query query = null;
+            AggFilter aggFilter = null;
+
+            if (onAggs) {
+                aggFilter = new AggFilter(not.id().toString(), not.asScript());
+            } else {
+                query = new NotQuery(not.location(), toQuery(not.field(), false).query);
+                // query directly on the field
+                if (not.field() instanceof FieldAttribute) {
+                    query = wrapIfNested(query, not.field());
+                }
+            }
+
+            return new QueryTranslation(query, aggFilter);
         }
     }
 
-    static class Nulls extends ExpressionTranslator<UnaryExpression> {
+    static class Nulls extends ExpressionTranslator<IsNotNull> {
 
         @Override
-        protected QueryTranslation asQuery(UnaryExpression ue, boolean onAggs) {
-            // TODO: handle onAggs - missing bucket aggregation
-            if (ue instanceof IsNotNull) {
-                return new QueryTranslation(new ExistsQuery(ue.location(), nameOf(ue.child())));
+        protected QueryTranslation asQuery(IsNotNull inn, boolean onAggs) {
+            Query query = null;
+            AggFilter aggFilter = null;
+
+            if (onAggs) {
+                aggFilter = new AggFilter(inn.id().toString(), inn.asScript());
+            } else {
+                query = new ExistsQuery(inn.location(), nameOf(inn.field()));
+                // query directly on the field
+                if (inn.field() instanceof NamedExpression) {
+                    query = wrapIfNested(query, inn.field());
+                }
             }
-            return null;
+
+            return new QueryTranslation(query, aggFilter);
         }
     }
 
@@ -521,16 +537,15 @@ final class QueryTranslator {
                 //
                 // Agg context means HAVING -> PipelineAggs
                 //
-                ScriptTemplate script = bc.asScript();
                 if (onAggs) {
-                    aggFilter = new AggFilter(at.id().toString(), script);
+                    aggFilter = new AggFilter(at.id().toString(), bc.asScript());
                 }
                 else {
                     // query directly on the field
                     if (at instanceof FieldAttribute) {
                         query = wrapIfNested(translateQuery(bc), ne);
                     } else {
-                        query = new ScriptQuery(at.location(), script);
+                        query = new ScriptQuery(at.location(), bc.asScript());
                     }
                 }
                 return new QueryTranslation(query, aggFilter);
@@ -561,7 +576,7 @@ final class QueryTranslator {
             if (bc instanceof LessThanOrEqual) {
                 return new RangeQuery(loc, name, null, false, value, true, format);
             }
-            if (bc instanceof Equals) {
+            if (bc instanceof Equals || bc instanceof NotEquals) {
                 if (bc.left() instanceof FieldAttribute) {
                     FieldAttribute fa = (FieldAttribute) bc.left();
                     // equality should always be against an exact match
@@ -570,7 +585,11 @@ final class QueryTranslator {
                         name = fa.exactAttribute().name();
                     }
                 }
-                return new TermQuery(loc, name, value);
+                Query query = new TermQuery(loc, name, value);
+                if (bc instanceof NotEquals) {
+                    query = new NotQuery(loc, query);
+                }
+                return query;
             }
 
             throw new SqlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(),
@@ -640,11 +659,10 @@ final class QueryTranslator {
                 //
                 // Agg context means HAVING -> PipelineAggs
                 //
-                ScriptTemplate script = r.asScript();
                 Attribute at = ((NamedExpression) e).toAttribute();
 
                 if (onAggs) {
-                    aggFilter = new AggFilter(at.id().toString(), script);
+                    aggFilter = new AggFilter(at.id().toString(), r.asScript());
                 } else {
                     // typical range; no scripting involved
                     if (at instanceof FieldAttribute) {
@@ -654,7 +672,7 @@ final class QueryTranslator {
                     }
                     // scripted query
                     else {
-                        query = new ScriptQuery(at.location(), script);
+                        query = new ScriptQuery(at.location(), r.asScript());
                     }
                 }
                 return new QueryTranslation(query, aggFilter);

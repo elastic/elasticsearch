@@ -48,7 +48,6 @@ public class PersistentTasksClusterService extends AbstractComponent implements 
     private final EnableAssignmentDecider decider;
 
     public PersistentTasksClusterService(Settings settings, PersistentTasksExecutorRegistry registry, ClusterService clusterService) {
-        super(settings);
         this.clusterService = clusterService;
         clusterService.addListener(this);
         this.registry = registry;

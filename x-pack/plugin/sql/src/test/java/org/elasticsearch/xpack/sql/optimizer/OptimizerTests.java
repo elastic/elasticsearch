@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
@@ -28,10 +29,12 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
@@ -45,8 +48,10 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
@@ -56,6 +61,7 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.BooleanSimplification;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineBinaryComparisons;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineProjections;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ConstantFolding;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.FoldNull;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneSubqueryAliases;
@@ -82,6 +88,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
 import static org.hamcrest.Matchers.contains;
 
@@ -95,7 +102,6 @@ public class OptimizerTests extends ESTestCase {
     private static final Literal FOUR = L(4);
     private static final Literal FIVE = L(5);
     private static final Literal SIX = L(6);
-
 
     public static class DummyBooleanExpression extends Expression {
 
@@ -260,6 +266,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(Literal.FALSE, new ConstantFolding().rule(new GreaterThan(EMPTY, TWO, THREE)).canonical());
         assertEquals(Literal.FALSE, new ConstantFolding().rule(new GreaterThanOrEqual(EMPTY, TWO, THREE)).canonical());
         assertEquals(Literal.FALSE, new ConstantFolding().rule(new Equals(EMPTY, TWO, THREE)).canonical());
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new NotEquals(EMPTY, TWO, THREE)).canonical());
         assertEquals(Literal.TRUE, new ConstantFolding().rule(new LessThanOrEqual(EMPTY, TWO, THREE)).canonical());
         assertEquals(Literal.TRUE, new ConstantFolding().rule(new LessThan(EMPTY, TWO, THREE)).canonical());
     }
@@ -269,6 +276,20 @@ public class OptimizerTests extends ESTestCase {
                 new ConstantFolding().rule(new And(EMPTY, new GreaterThan(EMPTY, TWO, THREE), Literal.TRUE)).canonical());
         assertEquals(Literal.TRUE,
                 new ConstantFolding().rule(new Or(EMPTY, new GreaterThanOrEqual(EMPTY, TWO, THREE), Literal.TRUE)).canonical());
+    }
+
+    public void testConstantFoldingBinaryLogic_WithNullHandling() {
+        assertEquals(NULL, new ConstantFolding().rule(new And(EMPTY, NULL, Literal.TRUE)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new And(EMPTY, Literal.TRUE, NULL)).canonical());
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new And(EMPTY, NULL, Literal.FALSE)).canonical());
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new And(EMPTY, Literal.FALSE, NULL)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new And(EMPTY, NULL, NULL)).canonical());
+
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new Or(EMPTY, NULL, Literal.TRUE)).canonical());
+        assertEquals(Literal.TRUE, new ConstantFolding().rule(new Or(EMPTY, Literal.TRUE, NULL)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new Or(EMPTY, NULL, Literal.FALSE)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new Or(EMPTY, Literal.FALSE, NULL)).canonical());
+        assertEquals(NULL, new ConstantFolding().rule(new Or(EMPTY, NULL, NULL)).canonical());
     }
 
     public void testConstantFoldingRange() {
@@ -323,6 +344,18 @@ public class OptimizerTests extends ESTestCase {
         assertThat(Foldables.valuesOf(in.list(), DataType.INTEGER), contains(1 ,2 ,3 ,4));
     }
 
+    public void testConstantFoldingIn_RightValueIsNull() {
+        In in = new In(EMPTY, getFieldAttribute(), Arrays.asList(NULL, NULL));
+        Literal result= (Literal) new ConstantFolding().rule(in);
+        assertNull(result.value());
+    }
+
+    public void testConstantFoldingIn_LeftValueIsNull() {
+        In in = new In(EMPTY, NULL, Arrays.asList(ONE, TWO, THREE));
+        Literal result= (Literal) new ConstantFolding().rule(in);
+        assertNull(result.value());
+    }
+
     public void testArithmeticFolding() {
         assertEquals(10, foldOperator(new Add(EMPTY, L(7), THREE)));
         assertEquals(4, foldOperator(new Sub(EMPTY, L(7), THREE)));
@@ -348,12 +381,39 @@ public class OptimizerTests extends ESTestCase {
         return ((Literal) new ConstantFolding().rule(b)).value();
     }
 
+    public void testNullFoldingIsNotNull() {
+        assertEquals(Literal.TRUE, new FoldNull().rule(new IsNotNull(EMPTY, Literal.TRUE)));
+    }
+
+    public void testGenericNullableExpression() {
+        FoldNull rule = new FoldNull();
+        // date-time
+        assertNullLiteral(rule.rule(new DayName(EMPTY, Literal.NULL, randomTimeZone())));
+        // math function
+        assertNullLiteral(rule.rule(new Cos(EMPTY, Literal.NULL)));
+        // string function
+        assertNullLiteral(rule.rule(new Ascii(EMPTY, Literal.NULL)));
+        assertNullLiteral(rule.rule(new Repeat(EMPTY, getFieldAttribute(), Literal.NULL)));
+        // arithmetic
+        assertNullLiteral(rule.rule(new Add(EMPTY, getFieldAttribute(), Literal.NULL)));
+        // comparison
+        assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), Literal.NULL)));
+        // regex
+        assertNullLiteral(rule.rule(new RLike(EMPTY, getFieldAttribute(), Literal.NULL)));
+    }
+
     //
     // Logical simplifications
     //
 
+    private void assertNullLiteral(Expression expression) {
+        assertEquals(Literal.class, expression.getClass());
+        assertNull(expression.fold());
+    }
+
     public void testBinaryComparisonSimplification() {
         assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new Equals(EMPTY, FIVE, FIVE)));
+        assertEquals(Literal.FALSE, new BinaryComparisonSimplification().rule(new NotEquals(EMPTY, FIVE, FIVE)));
         assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new GreaterThanOrEqual(EMPTY, FIVE, FIVE)));
         assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new LessThanOrEqual(EMPTY, FIVE, FIVE)));
 

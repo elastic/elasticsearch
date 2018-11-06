@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -58,8 +57,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
 
-    public ShardFollowTasksExecutor(Settings settings, Client client, ThreadPool threadPool, ClusterService clusterService) {
-        super(settings, ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
+    public ShardFollowTasksExecutor(Client client, ThreadPool threadPool, ClusterService clusterService) {
+        super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -153,8 +152,8 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     new ShardChangesAction.Request(params.getLeaderShardId(), recordedLeaderShardHistoryUUID);
                 request.setFromSeqNo(from);
                 request.setMaxOperationCount(maxOperationCount);
-                request.setMaxBatchSize(params.getMaxBatchSize());
-                request.setPollTimeout(params.getPollTimeout());
+                request.setMaxBatchSize(params.getMaxReadRequestSize());
+                request.setPollTimeout(params.getReadPollTimeout());
                 leaderClient.execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
             }
         };
@@ -205,7 +204,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
         client.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
             IndexStats indexStats = r.getIndex(shardId.getIndexName());
             if (indexStats == null) {
-                errorHandler.accept(new IndexNotFoundException(shardId.getIndex()));
+                IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
+                if (indexMetaData != null) {
+                    errorHandler.accept(new ShardNotFoundException(shardId));
+                } else {
+                    errorHandler.accept(new IndexNotFoundException(shardId.getIndex()));
+                }
                 return;
             }
 

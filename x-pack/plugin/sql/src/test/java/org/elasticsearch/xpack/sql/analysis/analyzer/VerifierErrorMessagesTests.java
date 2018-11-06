@@ -49,6 +49,38 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testMissingColumn() {
         assertEquals("1:8: Unknown column [xxx]", verify("SELECT xxx FROM test"));
     }
+    
+    public void testMissingColumnWithWildcard() {
+        assertEquals("1:8: Unknown column [xxx]", verify("SELECT xxx.* FROM test"));
+    }
+    
+    public void testMisspelledColumnWithWildcard() {
+        assertEquals("1:8: Unknown column [tex], did you mean [text]?", verify("SELECT tex.* FROM test"));
+    }
+    
+    public void testColumnWithNoSubFields() {
+        assertEquals("1:8: Cannot determine columns for [text.*]", verify("SELECT text.* FROM test"));
+    }
+    
+    public void testMultipleColumnsWithWildcard1() {
+        assertEquals("1:14: Unknown column [a]\n" + 
+                "line 1:17: Unknown column [b]\n" + 
+                "line 1:22: Unknown column [c]\n" + 
+                "line 1:25: Unknown column [tex], did you mean [text]?", verify("SELECT bool, a, b.*, c, tex.* FROM test"));
+    }
+    
+    public void testMultipleColumnsWithWildcard2() {
+        assertEquals("1:8: Unknown column [tex], did you mean [text]?\n" + 
+                "line 1:21: Unknown column [a]\n" + 
+                "line 1:24: Unknown column [dat], did you mean [date]?\n" + 
+                "line 1:31: Unknown column [c]", verify("SELECT tex.*, bool, a, dat.*, c FROM test"));
+    }
+    
+    public void testMultipleColumnsWithWildcard3() {
+        assertEquals("1:8: Unknown column [ate], did you mean [date]?\n" + 
+                "line 1:21: Unknown column [keyw], did you mean [keyword]?\n" + 
+                "line 1:29: Unknown column [da], did you mean [date]?" , verify("SELECT ate.*, bool, keyw.*, da FROM test"));
+    }
 
     public void testMisspelledColumn() {
         assertEquals("1:8: Unknown column [txt], did you mean [text]?", verify("SELECT txt FROM test"));
@@ -118,6 +150,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY bool"));
     }
 
+    public void testGroupByOrderByNonGrouped_WithHaving() {
+        assertEquals("1:71: Cannot order by non-grouped column [bool], expected [text]",
+            verify("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY bool"));
+    }
+
     public void testGroupByOrderByAliasedInSelectAllowed() {
         LogicalPlan lp = accepted("SELECT text t FROM test GROUP BY text ORDER BY t");
         assertNotNull(lp);
@@ -128,6 +165,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 verify("SELECT MAX(int) FROM test GROUP BY text ORDER BY YEAR(date)"));
     }
 
+    public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
+        assertEquals("1:71: Cannot order by non-grouped column [YEAR(date [UTC])], expected [text]",
+            verify("SELECT MAX(int) FROM test GROUP BY text HAVING MAX(int) > 10 ORDER BY YEAR(date)"));
+    }
+
     public void testGroupByHavingNonGrouped() {
         assertEquals("1:48: Cannot filter by non-grouped column [int], expected [text]",
                 verify("SELECT AVG(int) FROM test GROUP BY text HAVING int > 10"));
@@ -136,11 +178,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByAggregate() {
         assertEquals("1:36: Cannot use an aggregate [AVG] for grouping",
                 verify("SELECT AVG(int) FROM test GROUP BY AVG(int)"));
-    }
-
-    public void testNotSupportedAggregateOnDate() {
-        assertEquals("1:8: Argument required to be numeric ('date' type is 'date')",
-            verify("SELECT AVG(date) FROM test"));
     }
 
     public void testGroupByOnNested() {
@@ -226,5 +263,71 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testInNestedWithDifferentDataTypesFromLeftValue_WhereClause() {
         assertEquals("1:46: expected data type [TEXT], value provided is of type [INTEGER]",
             verify("SELECT * FROM test WHERE int = 1 OR text IN (1, 2)"));
+    }
+
+    public void testNotSupportedAggregateOnDate() {
+        assertEquals("1:8: [AVG] argument must be [numeric], found value [date] type [date]",
+            verify("SELECT AVG(date) FROM test"));
+    }
+
+    public void testNotSupportedAggregateOnString() {
+        assertEquals("1:8: [MAX] argument must be [numeric or date], found value [keyword] type [keyword]",
+            verify("SELECT MAX(keyword) FROM test"));
+    }
+
+    public void testInvalidTypeForStringFunction_WithOneArg() {
+        assertEquals("1:8: [LENGTH] argument must be [string], found value [1] type [integer]",
+            verify("SELECT LENGTH(1)"));
+    }
+
+    public void testInvalidTypeForNumericFunction_WithOneArg() {
+        assertEquals("1:8: [COS] argument must be [numeric], found value [foo] type [keyword]",
+            verify("SELECT COS('foo')"));
+    }
+
+    public void testInvalidTypeForBooleanFunction_WithOneArg() {
+        assertEquals("1:8: [NOT] argument must be [boolean], found value [foo] type [keyword]",
+            verify("SELECT NOT 'foo'"));
+    }
+
+    public void testInvalidTypeForStringFunction_WithTwoArgs() {
+        assertEquals("1:8: [CONCAT] first argument must be [string], found value [1] type [integer]",
+            verify("SELECT CONCAT(1, 'bar')"));
+        assertEquals("1:8: [CONCAT] second argument must be [string], found value [2] type [integer]",
+            verify("SELECT CONCAT('foo', 2)"));
+    }
+
+    public void testInvalidTypeForNumericFunction_WithTwoArgs() {
+        assertEquals("1:8: [TRUNCATE] first argument must be [numeric], found value [foo] type [keyword]",
+            verify("SELECT TRUNCATE('foo', 2)"));
+        assertEquals("1:8: [TRUNCATE] second argument must be [numeric], found value [bar] type [keyword]",
+            verify("SELECT TRUNCATE(1.2, 'bar')"));
+    }
+
+    public void testInvalidTypeForBooleanFuntion_WithTwoArgs() {
+        assertEquals("1:8: [OR] first argument must be [boolean], found value [1] type [integer]",
+            verify("SELECT 1 OR true"));
+        assertEquals("1:8: [OR] second argument must be [boolean], found value [2] type [integer]",
+            verify("SELECT true OR 2"));
+    }
+
+    public void testInvalidTypeForFunction_WithThreeArgs() {
+        assertEquals("1:8: [REPLACE] first argument must be [string], found value [1] type [integer]",
+            verify("SELECT REPLACE(1, 'foo', 'bar')"));
+        assertEquals("1:8: [REPLACE] second argument must be [string], found value [2] type [integer]",
+            verify("SELECT REPLACE('text', 2, 'bar')"));
+        assertEquals("1:8: [REPLACE] third argument must be [string], found value [3] type [integer]",
+            verify("SELECT REPLACE('text', 'foo', 3)"));
+    }
+
+    public void testInvalidTypeForFunction_WithFourArgs() {
+        assertEquals("1:8: [INSERT] first argument must be [string], found value [1] type [integer]",
+            verify("SELECT INSERT(1, 1, 2, 'new')"));
+        assertEquals("1:8: [INSERT] second argument must be [numeric], found value [foo] type [keyword]",
+            verify("SELECT INSERT('text', 'foo', 2, 'new')"));
+        assertEquals("1:8: [INSERT] third argument must be [numeric], found value [bar] type [keyword]",
+            verify("SELECT INSERT('text', 1, 'bar', 'new')"));
+        assertEquals("1:8: [INSERT] fourth argument must be [string], found value [3] type [integer]",
+            verify("SELECT INSERT('text', 1, 2, 3)"));
     }
 }

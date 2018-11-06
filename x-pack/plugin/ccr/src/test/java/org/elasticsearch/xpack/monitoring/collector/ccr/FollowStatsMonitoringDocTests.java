@@ -91,24 +91,24 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         final long lastRequestedSeqNo = randomNonNegativeLong();
         final int numberOfConcurrentReads = randomIntBetween(1, Integer.MAX_VALUE);
         final int numberOfConcurrentWrites = randomIntBetween(1, Integer.MAX_VALUE);
-        final int numberOfQueuedWrites = randomIntBetween(0, Integer.MAX_VALUE);
-        final long bufferSize = randomNonNegativeLong();
-        final long mappingVersion = randomIntBetween(0, Integer.MAX_VALUE);
-        final long totalFetchTimeMillis = randomLongBetween(0, 4096);
-        final long totalFetchTookTimeMillis = randomLongBetween(0, 4096);
-        final long numberOfSuccessfulFetches = randomNonNegativeLong();
-        final long numberOfFailedFetches = randomLongBetween(0, 8);
-        final long operationsReceived = randomNonNegativeLong();
-        final long totalTransferredBytes = randomNonNegativeLong();
-        final long totalIndexTimeMillis = randomNonNegativeLong();
-        final long numberOfSuccessfulBulkOperations = randomNonNegativeLong();
-        final long numberOfFailedBulkOperations = randomNonNegativeLong();
-        final long numberOfOperationsIndexed = randomNonNegativeLong();
+        final int writeBufferOperationCount = randomIntBetween(0, Integer.MAX_VALUE);
+        final long writeBufferSizeInBytes = randomNonNegativeLong();
+        final long followerMappingVersion = randomIntBetween(0, Integer.MAX_VALUE);
+        final long totalReadTimeMillis = randomLongBetween(0, 4096);
+        final long totalReadRemoteExecTimeMillis = randomLongBetween(0, 4096);
+        final long successfulReadRequests = randomNonNegativeLong();
+        final long failedReadRequests = randomLongBetween(0, 8);
+        final long operationsRead = randomNonNegativeLong();
+        final long bytesRead = randomNonNegativeLong();
+        final long totalWriteTimeMillis = randomNonNegativeLong();
+        final long successfulWriteRequests = randomNonNegativeLong();
+        final long failedWriteRequests = randomNonNegativeLong();
+        final long operationWritten = randomNonNegativeLong();
         final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions =
                 new TreeMap<>(Collections.singletonMap(
                         randomNonNegativeLong(),
                         Tuple.tuple(randomIntBetween(0, Integer.MAX_VALUE), new ElasticsearchException("shard is sad"))));
-        final long timeSinceLastFetchMillis = randomNonNegativeLong();
+        final long timeSinceLastReadMillis = randomNonNegativeLong();
         final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
                 "leader_cluster",
                 "leader_index",
@@ -121,21 +121,21 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                 lastRequestedSeqNo,
                 numberOfConcurrentReads,
                 numberOfConcurrentWrites,
-                numberOfQueuedWrites,
-                bufferSize,
-                mappingVersion,
-                totalFetchTimeMillis,
-                totalFetchTookTimeMillis,
-                numberOfSuccessfulFetches,
-                numberOfFailedFetches,
-                operationsReceived,
-                totalTransferredBytes,
-                totalIndexTimeMillis,
-                numberOfSuccessfulBulkOperations,
-                numberOfFailedBulkOperations,
-                numberOfOperationsIndexed,
+                writeBufferOperationCount,
+                writeBufferSizeInBytes,
+                followerMappingVersion,
+                totalReadTimeMillis,
+                totalReadRemoteExecTimeMillis,
+                successfulReadRequests,
+                failedReadRequests,
+                operationsRead,
+                bytesRead,
+                totalWriteTimeMillis,
+                successfulWriteRequests,
+                failedWriteRequests,
+                operationWritten,
                 fetchExceptions,
-                timeSinceLastFetchMillis,
+                timeSinceLastReadMillis,
                 new ElasticsearchException("fatal error"));
         final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, status);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
@@ -165,22 +165,22 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"follower_global_checkpoint\":" + followerGlobalCheckpoint + ","
                                         + "\"follower_max_seq_no\":" + followerMaxSeqNo + ","
                                         + "\"last_requested_seq_no\":" + lastRequestedSeqNo + ","
-                                        + "\"number_of_concurrent_reads\":" + numberOfConcurrentReads + ","
-                                        + "\"number_of_concurrent_writes\":" + numberOfConcurrentWrites + ","
-                                        + "\"number_of_queued_writes\":" + numberOfQueuedWrites + ","
-                                        + "\"buffer_size_in_bytes\":" + bufferSize + ","
-                                        + "\"mapping_version\":" + mappingVersion + ","
-                                        + "\"total_fetch_time_millis\":" + totalFetchTimeMillis + ","
-                                        + "\"total_fetch_remote_time_millis\":" + totalFetchTookTimeMillis + ","
-                                        + "\"number_of_successful_fetches\":" + numberOfSuccessfulFetches + ","
-                                        + "\"number_of_failed_fetches\":" + numberOfFailedFetches + ","
-                                        + "\"operations_received\":" + operationsReceived + ","
-                                        + "\"total_transferred_bytes\":" + totalTransferredBytes + ","
-                                        + "\"total_index_time_millis\":" + totalIndexTimeMillis +","
-                                        + "\"number_of_successful_bulk_operations\":" + numberOfSuccessfulBulkOperations + ","
-                                        + "\"number_of_failed_bulk_operations\":" + numberOfFailedBulkOperations + ","
-                                        + "\"number_of_operations_indexed\":" + numberOfOperationsIndexed + ","
-                                        + "\"fetch_exceptions\":["
+                                        + "\"outstanding_read_requests\":" + numberOfConcurrentReads + ","
+                                        + "\"outstanding_write_requests\":" + numberOfConcurrentWrites + ","
+                                        + "\"write_buffer_operation_count\":" + writeBufferOperationCount + ","
+                                        + "\"write_buffer_size_in_bytes\":" + writeBufferSizeInBytes + ","
+                                        + "\"follower_mapping_version\":" + followerMappingVersion + ","
+                                        + "\"total_read_time_millis\":" + totalReadTimeMillis + ","
+                                        + "\"total_read_remote_exec_time_millis\":" + totalReadRemoteExecTimeMillis + ","
+                                        + "\"successful_read_requests\":" + successfulReadRequests + ","
+                                        + "\"failed_read_requests\":" + failedReadRequests + ","
+                                        + "\"operations_read\":" + operationsRead + ","
+                                        + "\"bytes_read\":" + bytesRead + ","
+                                        + "\"total_write_time_millis\":" + totalWriteTimeMillis +","
+                                        + "\"successful_write_requests\":" + successfulWriteRequests + ","
+                                        + "\"failed_write_requests\":" + failedWriteRequests + ","
+                                        + "\"operations_written\":" + operationWritten + ","
+                                        + "\"read_exceptions\":["
                                                 + "{"
                                                         + "\"from_seq_no\":" + fetchExceptions.keySet().iterator().next() + ","
                                                         + "\"retries\":" + fetchExceptions.values().iterator().next().v1() + ","
@@ -190,7 +190,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                                         + "}"
                                                 + "}"
                                         + "],"
-                                        + "\"time_since_last_fetch_millis\":" + timeSinceLastFetchMillis + ","
+                                        + "\"time_since_last_read_millis\":" + timeSinceLastReadMillis + ","
                                         + "\"fatal_exception\":{\"type\":\"exception\",\"reason\":\"fatal error\"}"
                                 + "}"
                         + "}"));
@@ -250,7 +250,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                     anyOf(equalTo("keyword"), equalTo("text")));
             } else {
                 // Manual test specific object fields and if not just fail:
-                if (fieldName.equals("fetch_exceptions")) {
+                if (fieldName.equals("read_exceptions")) {
                     assertThat(fieldType, equalTo("nested"));
                     assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(3));
                     assertThat(XContentMapValues.extractValue("properties.from_seq_no.type", fieldMapping), equalTo("long"));

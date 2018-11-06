@@ -6,11 +6,12 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContentTestCase<PutAutoFollowPatternAction.Request> {
+public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCase<PutAutoFollowPatternAction.Request> {
 
     @Override
     protected boolean supportsUnknownFields() {
@@ -34,8 +35,8 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
     }
 
     @Override
-    protected PutAutoFollowPatternAction.Request createBlankInstance() {
-        return new PutAutoFollowPatternAction.Request();
+    protected Writeable.Reader<PutAutoFollowPatternAction.Request> instanceReader() {
+        return PutAutoFollowPatternAction.Request::new;
     }
 
     @Override
@@ -48,13 +49,22 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
         if (randomBoolean()) {
-            request.setPollTimeout(TimeValue.timeValueMillis(500));
+            request.setReadPollTimeout(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
             request.setMaxRetryDelay(TimeValue.timeValueMillis(500));
         }
         if (randomBoolean()) {
-            request.setMaxBatchOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+            request.setMaxWriteRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            request.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+        }
+        if (randomBoolean()) {
+            request.setMaxReadRequestOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
             request.setMaxConcurrentReadBatches(randomIntBetween(0, Integer.MAX_VALUE));
@@ -63,7 +73,7 @@ public class PutAutoFollowPatternRequestTests extends AbstractStreamableXContent
             request.setMaxConcurrentWriteBatches(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            request.setMaxBatchSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            request.setMaxReadRequestSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
         }
         if (randomBoolean()) {
             request.setMaxWriteBufferCount(randomIntBetween(0, Integer.MAX_VALUE));

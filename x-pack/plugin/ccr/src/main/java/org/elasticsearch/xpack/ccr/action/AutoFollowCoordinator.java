@@ -324,14 +324,16 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
             ResumeFollowAction.Request followRequest = new ResumeFollowAction.Request();
             followRequest.setFollowerIndex(followIndexName);
-            followRequest.setMaxBatchOperationCount(pattern.getMaxBatchOperationCount());
-            followRequest.setMaxConcurrentReadBatches(pattern.getMaxConcurrentReadBatches());
-            followRequest.setMaxBatchSize(pattern.getMaxBatchSize());
-            followRequest.setMaxConcurrentWriteBatches(pattern.getMaxConcurrentWriteBatches());
+            followRequest.setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
+            followRequest.setMaxReadRequestSize(pattern.getMaxReadRequestSize());
+            followRequest.setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
+            followRequest.setMaxWriteRequestOperationCount(pattern.getMaxWriteRequestOperationCount());
+            followRequest.setMaxWriteRequestSize(pattern.getMaxWriteRequestSize());
+            followRequest.setMaxOutstandingWriteRequests(pattern.getMaxOutstandingWriteRequests());
             followRequest.setMaxWriteBufferCount(pattern.getMaxWriteBufferCount());
             followRequest.setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
             followRequest.setMaxRetryDelay(pattern.getMaxRetryDelay());
-            followRequest.setPollTimeout(pattern.getPollTimeout());
+            followRequest.setReadPollTimeout(pattern.getPollTimeout());
 
             PutFollowAction.Request request = new PutFollowAction.Request();
             request.setRemoteCluster(remoteCluster);

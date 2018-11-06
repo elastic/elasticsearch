@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -27,14 +28,16 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.FOLLOWER_INDEX_FIELD;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_BATCH_OPERATION_COUNT;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_BATCH_SIZE;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_CONCURRENT_READ_BATCHES;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_CONCURRENT_WRITE_BATCHES;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_OPERATION_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_READ_REQUEST_SIZE;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_READ_REQUESTS;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_OUTSTANDING_WRITE_REQUESTS;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_RETRY_DELAY_FIELD;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_COUNT;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_BUFFER_SIZE;
-import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.POLL_TIMEOUT;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_OPERATION_COUNT;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.MAX_WRITE_REQUEST_SIZE;
+import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request.READ_POLL_TIMEOUT;
 
 public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
@@ -47,7 +50,12 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -64,30 +72,36 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
         static {
             PARSER.declareString(Request::setRemoteCluster, REMOTE_CLUSTER_FIELD);
             PARSER.declareString(Request::setLeaderIndex, LEADER_INDEX_FIELD);
-            PARSER.declareString((request, value) -> request.followRequest.setFollowerIndex(value), FOLLOWER_INDEX_FIELD);
-            PARSER.declareInt((request, value) -> request.followRequest.setMaxBatchOperationCount(value), MAX_BATCH_OPERATION_COUNT);
-            PARSER.declareInt((request, value) -> request.followRequest.setMaxConcurrentReadBatches(value), MAX_CONCURRENT_READ_BATCHES);
+            PARSER.declareString((req, val) -> req.followRequest.setFollowerIndex(val), FOLLOWER_INDEX_FIELD);
+            PARSER.declareInt((req, val) -> req.followRequest.setMaxReadRequestOperationCount(val), MAX_READ_REQUEST_OPERATION_COUNT);
             PARSER.declareField(
-                (request, value) -> request.followRequest.setMaxBatchSize(value),
-                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_BATCH_SIZE.getPreferredName()),
-                MAX_BATCH_SIZE,
+                (req, val) -> req.followRequest.setMaxReadRequestSize(val),
+                (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_READ_REQUEST_SIZE.getPreferredName()),
+                MAX_READ_REQUEST_SIZE,
                 ObjectParser.ValueType.STRING);
-            PARSER.declareInt((request, value) -> request.followRequest.setMaxConcurrentWriteBatches(value), MAX_CONCURRENT_WRITE_BATCHES);
-            PARSER.declareInt((request, value) -> request.followRequest.setMaxWriteBufferCount(value), MAX_WRITE_BUFFER_COUNT);
+            PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingReadRequests(val), MAX_OUTSTANDING_READ_REQUESTS);
+            PARSER.declareInt((req, val) -> req.followRequest.setMaxWriteRequestOperationCount(val), MAX_WRITE_REQUEST_OPERATION_COUNT);
             PARSER.declareField(
-                (request, value) -> request.followRequest.setMaxWriteBufferSize(value),
+                    (req, val) -> req.followRequest.setMaxWriteRequestSize(val),
+                    (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_REQUEST_SIZE.getPreferredName()),
+                    MAX_WRITE_REQUEST_SIZE,
+                    ObjectParser.ValueType.STRING);
+            PARSER.declareInt((req, val) -> req.followRequest.setMaxOutstandingWriteRequests(val), MAX_OUTSTANDING_WRITE_REQUESTS);
+            PARSER.declareInt((req, val) -> req.followRequest.setMaxWriteBufferCount(val), MAX_WRITE_BUFFER_COUNT);
+            PARSER.declareField(
+                (req, val) -> req.followRequest.setMaxWriteBufferSize(val),
                 (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_WRITE_BUFFER_SIZE.getPreferredName()),
                 MAX_WRITE_BUFFER_SIZE,
                 ObjectParser.ValueType.STRING);
             PARSER.declareField(
-                (request, value) -> request.followRequest.setMaxRetryDelay(value),
+                (req, val) -> req.followRequest.setMaxRetryDelay(val),
                 (p, c) -> TimeValue.parseTimeValue(p.text(), MAX_RETRY_DELAY_FIELD.getPreferredName()),
                 MAX_RETRY_DELAY_FIELD,
                 ObjectParser.ValueType.STRING);
             PARSER.declareField(
-                (request, value) -> request.followRequest.setPollTimeout(value),
-                (p, c) -> TimeValue.parseTimeValue(p.text(), POLL_TIMEOUT.getPreferredName()),
-                POLL_TIMEOUT,
+                (req, val) -> req.followRequest.setReadPollTimeout(val),
+                (p, c) -> TimeValue.parseTimeValue(p.text(), READ_POLL_TIMEOUT.getPreferredName()),
+                READ_POLL_TIMEOUT,
                 ObjectParser.ValueType.STRING);
         }
 
@@ -158,13 +172,11 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             remoteCluster = in.readString();
             leaderIndex = in.readString();
-            followRequest = new ResumeFollowAction.Request();
-            followRequest.readFrom(in);
+            followRequest = new ResumeFollowAction.Request(in);
         }
 
         @Override
@@ -205,13 +217,9 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private boolean followIndexCreated;
-        private boolean followIndexShardsAcked;
-        private boolean indexFollowingStarted;
-
-        public Response() {
-
-        }
+        private final boolean followIndexCreated;
+        private final boolean followIndexShardsAcked;
+        private final boolean indexFollowingStarted;
 
         public Response(boolean followIndexCreated, boolean followIndexShardsAcked, boolean indexFollowingStarted) {
             this.followIndexCreated = followIndexCreated;
@@ -231,9 +239,8 @@ public final class PutFollowAction extends Action<PutFollowAction.Response> {
             return indexFollowingStarted;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Response(StreamInput in) throws IOException {
+            super(in);
             followIndexCreated = in.readBoolean();
             followIndexShardsAcked = in.readBoolean();
             indexFollowingStarted = in.readBoolean();

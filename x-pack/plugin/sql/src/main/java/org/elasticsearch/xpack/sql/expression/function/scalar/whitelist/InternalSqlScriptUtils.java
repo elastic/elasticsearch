@@ -21,13 +21,18 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.IsNotNullProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -35,6 +40,7 @@ import java.util.Map;
  * Acts as a registry of the various static methods used <b>internally</b> by the scalar functions
  * (to simplify the whitelist definition).
  */
+@SuppressWarnings("unused")
 public final class InternalSqlScriptUtils {
 
     private InternalSqlScriptUtils() {}
@@ -47,7 +53,7 @@ public final class InternalSqlScriptUtils {
     public static <T> Object docValue(Map<String, ScriptDocValues<T>> doc, String fieldName) {
         if (doc.containsKey(fieldName)) {
             ScriptDocValues<T> docValues = doc.get(fieldName);
-            if (docValues.size() > 0) {
+            if (!docValues.isEmpty()) {
                 return docValues.get(0);
             }
         }
@@ -78,6 +84,10 @@ public final class InternalSqlScriptUtils {
         return BinaryComparisonOperation.EQ.apply(left, right);
     }
 
+    public static Boolean neq(Object left, Object right) {
+        return BinaryComparisonOperation.NEQ.apply(left, right);
+    }
+
     public static Boolean lt(Object left, Object right) {
         return BinaryComparisonOperation.LT.apply(left, right);
     }
@@ -102,6 +112,18 @@ public final class InternalSqlScriptUtils {
         return BinaryLogicOperation.OR.apply(left, right);
     }
 
+    public static Boolean not(Boolean expression) {
+        return NotProcessor.apply(expression);
+    }
+
+    public static Boolean notNull(Object expression) {
+        return IsNotNullProcessor.apply(expression);
+    }
+
+    public static Boolean in(Object value, List<Object> values) {
+        return InProcessor.apply(value, values);
+    }
+
     //
     // Regex
     //
@@ -116,20 +138,24 @@ public final class InternalSqlScriptUtils {
         return BinaryArithmeticOperation.ADD.apply(left, right);
     }
 
-    public static Number sub(Number left, Number right) {
-        return BinaryArithmeticOperation.SUB.apply(left, right);
-    }
-
-    public static Number mul(Number left, Number right) {
-        return BinaryArithmeticOperation.MUL.apply(left, right);
-    }
-
     public static Number div(Number left, Number right) {
         return BinaryArithmeticOperation.DIV.apply(left, right);
     }
 
     public static Number mod(Number left, Number right) {
         return BinaryArithmeticOperation.MOD.apply(left, right);
+    }
+
+    public static Number mul(Number left, Number right) {
+        return BinaryArithmeticOperation.MUL.apply(left, right);
+    }
+
+    public static Number neg(Number value) {
+        return UnaryArithmeticOperation.NEGATE.apply(value);
+    }
+
+    public static Number sub(Number left, Number right) {
+        return BinaryArithmeticOperation.SUB.apply(left, right);
     }
 
     public static Number round(Number v, Number s) {

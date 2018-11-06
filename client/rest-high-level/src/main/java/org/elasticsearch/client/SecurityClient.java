@@ -38,6 +38,8 @@ import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesRequest;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
+import org.elasticsearch.client.security.InvalidateTokenRequest;
+import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleMappingResponse;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -408,4 +410,35 @@ public final class SecurityClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::createToken, options,
             CreateTokenResponse::fromXContent, listener, emptySet());
     }
+
+    /**
+     * Invalidates an OAuth2 token.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to invalidate the token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create token call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public InvalidateTokenResponse invalidateToken(InvalidateTokenRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::invalidateToken, options,
+            InvalidateTokenResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously invalidates an OAuth2 token.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to invalidate the token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void invalidateTokenAsync(InvalidateTokenRequest request, RequestOptions options,
+                                     ActionListener<InvalidateTokenResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateToken, options,
+            InvalidateTokenResponse::fromXContent, listener, emptySet());
+    }
+
 }

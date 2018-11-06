@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.predicate.In;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Grea
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
@@ -165,7 +166,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             case SqlBaseParser.EQ:
                 return new Equals(loc, left, right);
             case SqlBaseParser.NEQ:
-                return new Not(loc, new Equals(loc, left, right));
+                return new NotEquals(loc, left, right);
             case SqlBaseParser.LT:
                 return new LessThan(loc, left, right);
             case SqlBaseParser.LTE:

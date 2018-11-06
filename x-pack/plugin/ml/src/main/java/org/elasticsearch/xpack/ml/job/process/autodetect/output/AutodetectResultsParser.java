@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -27,11 +26,6 @@ import java.util.Iterator;
  * start array symbol and the data must be terminated with the end array symbol.
  */
 public class AutodetectResultsParser extends AbstractComponent {
-
-    public AutodetectResultsParser(Settings settings) {
-        super(settings);
-    }
-
     public Iterator<AutodetectResult> parseResults(InputStream in) throws ElasticsearchParseException {
         try {
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)

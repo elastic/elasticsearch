@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.NodeDisconnectedException;
@@ -416,6 +417,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof IndexClosedException || // If follow index is closed
             actual instanceof NodeDisconnectedException ||
             actual instanceof NodeNotConnectedException ||
+            actual instanceof NodeClosedException ||
             (actual.getMessage() != null && actual.getMessage().contains("TransportService is closed"));
     }
 

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -52,10 +51,10 @@ public class TransportClusterSearchShardsAction extends
     private final IndicesService indicesService;
 
     @Inject
-    public TransportClusterSearchShardsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportClusterSearchShardsAction(TransportService transportService, ClusterService clusterService,
                                               IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                               IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters,
             ClusterSearchShardsRequest::new, indexNameExpressionResolver);
         this.indicesService = indicesService;
     }

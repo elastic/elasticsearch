@@ -11,7 +11,7 @@ setup:
           settings:
             bucket: ${bucket}
             client: "integration_test"
-            base_path: ${base_path}
+            base_path: "${base_path}"
 
 ---
 "Snapshot/Restore with repository-gcs":
@@ -23,7 +23,7 @@ setup:
 
   - match: { repository.settings.bucket : ${bucket} }
   - match: { repository.settings.client : "integration_test" }
-  - match: { repository.settings.base_path : ${base_path} }
+  - match: { repository.settings.base_path : "${base_path}" }
 
   # Index documents
   - do:

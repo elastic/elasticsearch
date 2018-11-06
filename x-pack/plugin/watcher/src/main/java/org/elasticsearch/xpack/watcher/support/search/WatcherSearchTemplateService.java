@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.support.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -36,8 +35,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
 
-    public WatcherSearchTemplateService(Settings settings, ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
-        super(settings);
+    public WatcherSearchTemplateService(ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
     }

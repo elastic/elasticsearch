@@ -37,12 +37,10 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
@@ -59,8 +57,6 @@ import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -101,8 +97,9 @@ public class Netty4Transport extends TcpTransport {
     private final int workerCount;
     private final ByteSizeValue receivePredictorMin;
     private final ByteSizeValue receivePredictorMax;
-    private volatile Bootstrap clientBootstrap;
     private final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
+    private volatile Bootstrap clientBootstrap;
+    private volatile NioEventLoopGroup eventLoopGroup;
 
     public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                            NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
@@ -125,10 +122,12 @@ public class Netty4Transport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            clientBootstrap = createClientBootstrap();
+            ThreadFactory threadFactory = daemonThreadFactory(settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX);
+            eventLoopGroup = new NioEventLoopGroup(workerCount, threadFactory);
+            clientBootstrap = createClientBootstrap(eventLoopGroup);
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 for (ProfileSettings profileSettings : profileSettings) {
-                    createServerBootstrap(profileSettings);
+                    createServerBootstrap(profileSettings, eventLoopGroup);
                     bindServer(profileSettings);
                 }
             }
@@ -141,9 +140,9 @@ public class Netty4Transport extends TcpTransport {
         }
     }
 
-    private Bootstrap createClientBootstrap() {
+    private Bootstrap createClientBootstrap(NioEventLoopGroup eventLoopGroup) {
         final Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)));
+        bootstrap.group(eventLoopGroup);
         bootstrap.channel(NioSocketChannel.class);
 
         bootstrap.option(ChannelOption.TCP_NODELAY, TCP_NO_DELAY.get(settings));
@@ -167,7 +166,7 @@ public class Netty4Transport extends TcpTransport {
         return bootstrap;
     }
 
-    private void createServerBootstrap(ProfileSettings profileSettings) {
+    private void createServerBootstrap(ProfileSettings profileSettings, NioEventLoopGroup eventLoopGroup) {
         String name = profileSettings.profileName;
         if (logger.isDebugEnabled()) {
             logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
@@ -176,12 +175,9 @@ public class Netty4Transport extends TcpTransport {
                 receivePredictorMin, receivePredictorMax);
         }
 
-
-        final ThreadFactory workerFactory = daemonThreadFactory(this.settings, TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX, name);
-
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 
-        serverBootstrap.group(new NioEventLoopGroup(workerCount, workerFactory));
+        serverBootstrap.group(eventLoopGroup);
         serverBootstrap.channel(NioServerSocketChannel.class);
 
         serverBootstrap.childHandler(getServerChannelInitializer(name));
@@ -274,25 +270,14 @@ public class Netty4Transport extends TcpTransport {
     @SuppressForbidden(reason = "debug")
     protected void stopInternal() {
         Releasables.close(() -> {
-            final List<Tuple<String, Future<?>>> serverBootstrapCloseFutures = new ArrayList<>(serverBootstraps.size());
-            for (final Map.Entry<String, ServerBootstrap> entry : serverBootstraps.entrySet()) {
-                serverBootstrapCloseFutures.add(
-                    Tuple.tuple(entry.getKey(), entry.getValue().config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS)));
+            Future<?> shutdownFuture = eventLoopGroup.shutdownGracefully(0, 5, TimeUnit.SECONDS);
+            shutdownFuture.awaitUninterruptibly();
+            if (shutdownFuture.isSuccess() == false) {
+                logger.warn("Error closing netty event loop group", shutdownFuture.cause());
             }
-            for (final Tuple<String, Future<?>> future : serverBootstrapCloseFutures) {
-                future.v2().awaitUninterruptibly();
-                if (!future.v2().isSuccess()) {
-                    logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "Error closing server bootstrap for profile [{}]", future.v1()), future.v2().cause());
-                }
-            }
-            serverBootstraps.clear();
 
-            if (clientBootstrap != null) {
-                clientBootstrap.config().group().shutdownGracefully(0, 5, TimeUnit.SECONDS).awaitUninterruptibly();
-                clientBootstrap = null;
-            }
+            serverBootstraps.clear();
+            clientBootstrap = null;
         });
     }
 

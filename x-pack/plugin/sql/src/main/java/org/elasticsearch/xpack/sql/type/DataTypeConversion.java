@@ -105,6 +105,9 @@ public abstract class DataTypeConversion {
         if (to == DataType.NULL) {
             return Conversion.NULL;
         }
+        if (from == DataType.NULL) {
+            return Conversion.NULL;
+        }
         
         Conversion conversion = conversion(from, to);
         if (conversion == null) {

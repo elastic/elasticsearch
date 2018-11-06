@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -74,7 +73,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 
-public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, ClusterStateListener {
+public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
     public static final String REST_ORIGIN_FIELD_VALUE = "rest";
     public static final String LOCAL_ORIGIN_FIELD_VALUE = "local_node";
@@ -168,7 +167,6 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail, 
     }
 
     LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
-        super(settings);
         this.logger = logger;
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);

@@ -37,7 +37,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
 
     public void testDuplicateRecoveries() throws IOException {
         IndexShard primary = newStartedShard(true);
-        PeerRecoverySourceService peerRecoverySourceService = new PeerRecoverySourceService(Settings.EMPTY,
+        PeerRecoverySourceService peerRecoverySourceService = new PeerRecoverySourceService(
             mock(TransportService.class), mock(IndicesService.class),
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         StartRecoveryRequest startRecoveryRequest = new StartRecoveryRequest(primary.shardId(), randomAlphaOfLength(10),

@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttr
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.In;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
@@ -50,8 +49,10 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Bina
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -1313,7 +1314,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             // false for equality
-            if (bc instanceof GreaterThan || bc instanceof LessThan) {
+            if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
                 if (!l.nullable() && !r.nullable() && l.semanticEquals(r)) {
                     return FALSE;
                 }

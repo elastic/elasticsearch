@@ -58,10 +58,10 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
      * balance.*/
     public void testRandomDecisions() {
         RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(random());
-        AllocationService strategy = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
+        AllocationService strategy = new AllocationService(new AllocationDeciders(
                 new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY,
                         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-                    new ReplicaAfterPrimaryActiveAllocationDecider(Settings.EMPTY), randomAllocationDecider))),
+                    new ReplicaAfterPrimaryActiveAllocationDecider(), randomAllocationDecider))),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
         int indices = scaledRandomIntBetween(1, 20);
         Builder metaBuilder = MetaData.builder();
@@ -189,7 +189,6 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         private final Random random;
 
         public RandomAllocationDecider(Random random) {
-            super(Settings.EMPTY);
             this.random = random;
         }
 

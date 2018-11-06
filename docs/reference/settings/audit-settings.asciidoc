@@ -101,7 +101,7 @@ not print audit events for users in these realms.
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.roles`::
 A list of role names or wildcards. The specified policy will
 not print audit events for users 
-names or wildcards. If the user has several roles, some of which are *not*
+that have these roles. If the user has several roles, some of which are *not*
 covered by the policy, then the policy will *not* cover this event.
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.indices`::
 The value is a list of names or wildcards, and specifies that the policy will

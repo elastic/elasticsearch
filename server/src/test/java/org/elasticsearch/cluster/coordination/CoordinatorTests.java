@@ -170,7 +170,7 @@ public class CoordinatorTests extends ESTestCase {
         }
     }
 
-    public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksOnFailure() {
+    public void testExpandsConfigurationWhenGrowingFromThreeToFiveNodesAndShrinksBackToThreeOnFailure() {
         final Cluster cluster = new Cluster(3);
         cluster.runRandomly();
         cluster.stabilise();

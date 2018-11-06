@@ -52,6 +52,7 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
      * settings from the second policy are set ont he index (proving the second
      * policy was used for the warm phase)
      */
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35244")
     public void testChangePolicyForIndex() throws Exception {
         String indexName = "test-000001";
         // create policy_1 and policy_2
@@ -128,6 +129,11 @@ public class ChangePolicyforIndexIT extends ESRestTestCase {
         String includesAllocation = (String) ((Map<String, Object>) ((Map<String, Object>) routingSettings.get("allocation"))
                 .get("include")).get("_name");
         assertEquals("node-1,node-2", includesAllocation);
+    }
+
+    public void testTempAwaitFix() {
+        // this is a test stub since there is only one test in this class and it is
+        // awaits-fixed. This test is to be removed once testChangePolicyForIndex is resolved
     }
 
     private void assertStep(String indexName, StepKey expectedStep) throws IOException {

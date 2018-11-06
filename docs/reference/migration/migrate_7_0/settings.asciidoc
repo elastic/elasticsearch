@@ -66,3 +66,32 @@ used.  Therefore, these settings have been renamed from `search.remote.*` to
 in the cluster state, or set on dynamic settings updates, we will automatically
 upgrade the setting from `search.remote.*` to `cluster.remote.*`. The fallback
 settings will be removed in 8.0.0.
+
+[[include-realm-type-in-setting]]
+==== Security realms settings
+
+The settings for all security realms must now include the realm type as part
+of the setting name, and the explicit `type` setting has been removed.
+
+A realm that was previous configured as:
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms:
+  ldap1:
+    type: ldap
+    order: 1
+    url: "ldaps://ldap.example.com/"
+--------------------------------------------------
+
+Must be migrated to: 
+[source,yaml]
+--------------------------------------------------
+xpack.security.authc.realms:
+  ldap.ldap1:
+    order: 1
+    url: "ldaps://ldap.example.com/"
+--------------------------------------------------
+
+Any realm specific secure settings that have been stored in the elasticsearch
+keystore (such as ldap bind passwords, or passwords for ssl keys) must be updated
+in a similar way.

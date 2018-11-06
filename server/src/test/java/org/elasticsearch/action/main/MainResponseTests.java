@@ -64,7 +64,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
         final Build current = Build.CURRENT;
         Build build = new Build(
             current.flavor(), current.type(), current.shortHash(), current.date(), current.isSnapshot(),
-            current.getVersion()
+            current.getQualifiedVersion()
         );
         Version version = Version.CURRENT;
         MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), clusterUUID, build);
@@ -81,7 +81,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
                     + "\"build_hash\":\"" + current.shortHash() + "\","
                     + "\"build_date\":\"" + current.date() + "\","
                     + "\"build_snapshot\":" + current.isSnapshot() + ","
-                    + "\"build_version\":\"" + current.getVersion() + "\","
+                    + "\"build_version\":\"" + current.getQualifiedVersion() + "\","
                     + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
                     + "\"minimum_wire_compatibility_version\":\"" + version.minimumCompatibilityVersion().toString() + "\","
                     + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"},"
@@ -107,7 +107,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
                 // toggle the snapshot flag of the original Build parameter
                 build = new Build(
                     Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, build.shortHash(), build.date(), !build.isSnapshot(),
-                    build.getVersion()
+                    build.getQualifiedVersion()
                 );
                 break;
             case 3:

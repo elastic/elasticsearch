@@ -228,7 +228,7 @@ public class Build {
         if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             version = in.readString();
         } else {
-            version = "Unknown";
+            version = in.getVersion().toString();
         }
         return new Build(flavor, type, hash, date, snapshot, version);
     }
@@ -244,11 +244,11 @@ public class Build {
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeString(build.getVersion());
+            out.writeString(build.getQualifiedVersion());
         }
     }
 
-    public String getVersion() {
+    public String getQualifiedVersion() {
         return version;
     }
 

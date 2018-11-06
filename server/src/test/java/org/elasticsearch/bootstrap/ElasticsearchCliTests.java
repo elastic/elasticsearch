@@ -62,7 +62,7 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
 
     private void runTestThatVersionIsReturned(String... args) throws Exception {
         runTestVersion(ExitCodes.OK, output -> {
-            assertThat(output, containsString("Version: " + Build.CURRENT.getVersion()));
+            assertThat(output, containsString("Version: " + Build.CURRENT.getQualifiedVersion()));
             final String expectedBuildOutput = String.format(
                     Locale.ROOT,
                     "Build: %s/%s/%s/%s",

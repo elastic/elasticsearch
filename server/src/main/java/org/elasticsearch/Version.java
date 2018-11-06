@@ -390,7 +390,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         final String versionOutput = String.format(
                 Locale.ROOT,
                 "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
-            Build.CURRENT.getVersion(),
+            Build.CURRENT.getQualifiedVersion(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
                 Build.CURRENT.shortHash(),

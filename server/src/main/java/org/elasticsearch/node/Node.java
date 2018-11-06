@@ -278,7 +278,7 @@ public class Node implements Closeable {
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                Build.CURRENT.getVersion(),
+                Build.CURRENT.getQualifiedVersion(),
                 jvmInfo.pid(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
@@ -580,7 +580,7 @@ public class Node implements Closeable {
         if (build.isProductionRelease() == false) {
             logger.warn(
                 "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                Build.CURRENT.getVersion());
+                Build.CURRENT.getQualifiedVersion());
         }
     }
 

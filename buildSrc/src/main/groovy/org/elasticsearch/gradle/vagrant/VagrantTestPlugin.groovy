@@ -278,10 +278,13 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         Task createUpgradeFromFile = project.tasks.create('createUpgradeFromFile', FileContentsTask) {
+            String version = project.extensions.esvagrant.upgradeFromVersion
+            if (project.bwcVersions.unreleased.contains(project.extensions.esvagrant.upgradeFromVersion)) {
+                version += "-SNAPSHOT"
+            }
             dependsOn copyPackagingArchives
             file "${archivesDir}/upgrade_from_version"
-            contents "${project.extensions.esvagrant.upgradeFromVersion}"+
-                    "${project.bwcVersions.unreleased.contains(project.extensions.esvagrant.upgradeFromVersion)?"-SNAPSHOT": ""}"
+            contents version
         }
 
         Task createUpgradeIsOssFile = project.tasks.create('createUpgradeIsOssFile', FileContentsTask) {

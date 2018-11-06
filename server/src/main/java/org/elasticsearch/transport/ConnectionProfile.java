@@ -63,13 +63,15 @@ public final class ConnectionProfile {
     private final int numConnections;
     private final TimeValue connectTimeout;
     private final TimeValue handshakeTimeout;
+    private final boolean compressionEnabled;
 
     private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
-                              TimeValue handshakeTimeout) {
+                              TimeValue handshakeTimeout, boolean compressionEnabled) {
         this.handles = handles;
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
         this.handshakeTimeout = handshakeTimeout;
+        this.compressionEnabled = compressionEnabled;
     }
 
     /**
@@ -124,7 +126,8 @@ public final class ConnectionProfile {
     public static class Builder {
         private final List<ConnectionTypeHandle> handles = new ArrayList<>();
         private final Set<TransportRequestOptions.Type> addedTypes = EnumSet.noneOf(TransportRequestOptions.Type.class);
-        private int offset = 0;
+        private int numConnections = 0;
+        private boolean compressionEnabled;
         private TimeValue connectTimeout;
         private TimeValue handshakeTimeout;
 
@@ -135,10 +138,11 @@ public final class ConnectionProfile {
         /** copy constructor, using another profile as a base */
         public Builder(ConnectionProfile source) {
             handles.addAll(source.getHandles());
-            offset = source.getNumConnections();
+            numConnections = source.getNumConnections();
             handles.forEach(th -> addedTypes.addAll(th.types));
             connectTimeout = source.getConnectTimeout();
             handshakeTimeout = source.getHandshakeTimeout();
+            compressionEnabled = source.getCompressionEnabled();
         }
         /**
          * Sets a connect timeout for this connection profile
@@ -161,6 +165,13 @@ public final class ConnectionProfile {
         }
 
         /**
+         * Sets compression enabled for this connection profile
+         */
+        public void setCompressionEnabled(boolean compressionEnabled) {
+            this.compressionEnabled = compressionEnabled;
+        }
+
+        /**
          * Adds a number of connections for one or more types. Each type can only be added once.
          * @param numConnections the number of connections to use in the pool for the given connection types
          * @param types a set of types that should share the given number of connections
@@ -175,8 +186,8 @@ public final class ConnectionProfile {
                 }
             }
             addedTypes.addAll(Arrays.asList(types));
-            handles.add(new ConnectionTypeHandle(offset, numConnections, EnumSet.copyOf(Arrays.asList(types))));
-            offset += numConnections;
+            handles.add(new ConnectionTypeHandle(this.numConnections, numConnections, EnumSet.copyOf(Arrays.asList(types))));
+            this.numConnections += numConnections;
         }
 
         /**
@@ -189,7 +200,7 @@ public final class ConnectionProfile {
             if (types.isEmpty() == false) {
                 throw new IllegalStateException("not all types are added for this connection profile - missing types: " + types);
             }
-            return new ConnectionProfile(Collections.unmodifiableList(handles), offset, connectTimeout, handshakeTimeout);
+            return new ConnectionProfile(Collections.unmodifiableList(handles), numConnections, connectTimeout, handshakeTimeout, compressionEnabled);
         }
 
     }
@@ -206,6 +217,11 @@ public final class ConnectionProfile {
      */
     public TimeValue getHandshakeTimeout() {
         return handshakeTimeout;
+    }
+
+    // TODO: Add doc
+    public boolean getCompressionEnabled() {
+        return compressionEnabled;
     }
 
     /**

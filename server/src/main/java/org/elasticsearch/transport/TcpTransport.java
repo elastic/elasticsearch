@@ -995,7 +995,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         if (compress) {
             options = TransportResponseOptions.builder(options).withCompress(true).build();
         }
-        status = TransportStatus.setResponse(status); // TODO share some code with sendRequest
+        status = TransportStatus.setResponse(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, options.compress());
         boolean addedReleaseListener = false;
@@ -1405,7 +1405,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     getInFlightRequestBreaker().addWithoutBreaking(messageLengthBytes);
                 }
                 transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features, profileName,
-                    messageLengthBytes);
+                    messageLengthBytes, TransportStatus.isCompress(status));
                 final TransportRequest request = reg.newRequest(stream);
                 request.remoteAddress(new TransportAddress(remoteAddress));
                 // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
@@ -1415,8 +1415,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         } catch (Exception e) {
             // the circuit breaker tripped
             if (transportChannel == null) {
-                transportChannel =
-                        new TcpTransportChannel(this, channel, transportName, action, requestId, version, features, profileName, 0);
+                transportChannel = new TcpTransportChannel(this, channel, transportName, action, requestId, version, features,
+                    profileName, 0, TransportStatus.isCompress(status));
             }
             try {
                 transportChannel.sendResponse(e);

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.expression.predicate;
+package org.elasticsearch.xpack.sql.expression.predicate.nulls;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,7 +15,7 @@ public class IsNotNullProcessor implements Processor {
     
     static final IsNotNullProcessor INSTANCE = new IsNotNullProcessor();
 
-    public static final String NAME = "inn";
+    public static final String NAME = "ninn";
 
     private IsNotNullProcessor() {}
 

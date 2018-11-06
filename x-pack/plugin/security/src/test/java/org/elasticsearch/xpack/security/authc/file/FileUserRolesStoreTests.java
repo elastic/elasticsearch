@@ -78,7 +78,8 @@ public class FileUserRolesStoreTests extends ESTestCase {
                 .put("files.users_roles", file.toAbsolutePath())
                 .build();
 
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("file", "file-test"), fileSettings, settings, env,
+                new ThreadContext(Settings.EMPTY));
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         FileUserRolesStore store = new FileUserRolesStore(config, watcherService);
         assertThat(store.entriesCount(), is(0));
@@ -93,7 +94,8 @@ public class FileUserRolesStoreTests extends ESTestCase {
                 .put("files.users_roles", tmp.toAbsolutePath())
                 .build();
 
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("file", "file-test"), fileSettings, settings, env,
+                new ThreadContext(Settings.EMPTY));
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -131,7 +133,8 @@ public class FileUserRolesStoreTests extends ESTestCase {
                 .put("files.users_roles", tmp.toAbsolutePath())
                 .build();
 
-        RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("file", "file-test"), fileSettings, settings, env,
+                new ThreadContext(Settings.EMPTY));
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
         final CountDownLatch latch = new CountDownLatch(1);
 
@@ -224,7 +227,8 @@ public class FileUserRolesStoreTests extends ESTestCase {
                     .build();
 
             Environment env = TestEnvironment.newEnvironment(settings);
-            RealmConfig config = new RealmConfig("file-test", fileSettings, settings, env, new ThreadContext(Settings.EMPTY));
+            RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("file", "file-test"), fileSettings, settings, env,
+                    new ThreadContext(Settings.EMPTY));
             ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
             FileUserRolesStore store = new FileUserRolesStore(config, watcherService);
             assertThat(store.roles("user"), equalTo(Strings.EMPTY_ARRAY));

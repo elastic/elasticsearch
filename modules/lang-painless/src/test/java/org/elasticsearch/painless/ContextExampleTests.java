@@ -19,6 +19,9 @@
 
 package org.elasticsearch.painless;
 
+import java.util.Map;
+import java.util.HashMap;
+
 /**
  * These tests run the Painless scripts used in the context docs against
  * slightly modified data designed around unit tests rather than a fully-
@@ -308,4 +311,43 @@ public class ContextExampleTests extends ScriptTestCase {
     curl -XPOST localhost:9200/seats/seat/_bulk?pipeline=seats -H "Content-Type: application/x-ndjson" --data-binary "@/home/jdconrad/test/seats.json"
 
     */
+
+
+    // Use script query request to filter documents
+    /*
+    GET localhost:9200/evening/_search
+    {
+        "query": {
+            "bool" : {
+                "filter" : {
+                    "script" : {
+                        "script" : {
+                            "source" : "doc['sold'].value == false && doc['cost'].value < params.cost",
+                            "params" : {
+                                "cost" : 18
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    */
+
+
+    public void testScriptFieldsScript() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("sold", false);
+        source.put("cost", 15);
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("_source", source);
+        params.put("cost", 18);
+
+        boolean result = (boolean) exec(
+            " params['_source']['sold'] == false && params['_source']['cost'] < params.cost;",
+            params, true);
+        assertTrue(result);
+    }
+
 }

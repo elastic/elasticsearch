@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.CoalesceProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNullProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
@@ -44,7 +44,8 @@ import java.util.Map;
 @SuppressWarnings("unused")
 public final class InternalSqlScriptUtils {
 
-    private InternalSqlScriptUtils() {}
+    private InternalSqlScriptUtils() {
+    }
 
     //
     // Utilities
@@ -60,7 +61,7 @@ public final class InternalSqlScriptUtils {
         }
         return null;
     }
-    
+
     public static boolean nullSafeFilter(Boolean filter) {
         return filter == null ? false : filter.booleanValue();
     }
@@ -71,6 +72,17 @@ public final class InternalSqlScriptUtils {
 
     public static String nullSafeSortString(Object sort) {
         return sort == null ? StringUtils.EMPTY : sort.toString();
+    }
+
+    public static Number nanSafeFilter(Number aggResult) {
+        if (aggResult == null) {
+            return null;
+        }
+        if ((aggResult instanceof Double && ((Double) aggResult).isNaN()) ||
+            (aggResult instanceof Float && ((Float) aggResult).isNaN())) {
+            return null;
+        }
+        return aggResult;
     }
 
 
@@ -92,7 +104,7 @@ public final class InternalSqlScriptUtils {
     public static Boolean lt(Object left, Object right) {
         return BinaryComparisonOperation.LT.apply(left, right);
     }
-    
+
     public static Boolean lte(Object left, Object right) {
         return BinaryComparisonOperation.LTE.apply(left, right);
     }
@@ -108,7 +120,7 @@ public final class InternalSqlScriptUtils {
     public static Boolean and(Boolean left, Boolean right) {
         return BinaryLogicOperation.AND.apply(left, right);
     }
-    
+
     public static Boolean or(Boolean left, Boolean right) {
         return BinaryLogicOperation.OR.apply(left, right);
     }
@@ -279,21 +291,21 @@ public final class InternalSqlScriptUtils {
         }
         return DateTimeFunction.dateTimeChrono(asDateTime(dateTime), tzId, chronoName);
     }
-    
+
     public static String dayName(Object dateTime, String tzId) {
         if (dateTime == null || tzId == null) {
             return null;
         }
         return NameExtractor.DAY_NAME.extract(asDateTime(dateTime), tzId);
     }
-    
+
     public static String monthName(Object dateTime, String tzId) {
         if (dateTime == null || tzId == null) {
             return null;
         }
         return NameExtractor.MONTH_NAME.extract(asDateTime(dateTime), tzId);
     }
-    
+
     public static Integer quarter(Object dateTime, String tzId) {
         if (dateTime == null || tzId == null) {
             return null;
@@ -307,14 +319,14 @@ public final class InternalSqlScriptUtils {
         }
         throw new SqlIllegalArgumentException("Invalid date encountered [{}]", dateTime);
     }
-    
+
     //
     // String functions
     //
     public static Integer ascii(String s) {
         return (Integer) StringOperation.ASCII.apply(s);
     }
-    
+
     public static Integer bitLength(String s) {
         return (Integer) StringOperation.BIT_LENGTH.apply(s);
     }
@@ -326,7 +338,7 @@ public final class InternalSqlScriptUtils {
     public static Integer charLength(String s) {
         return (Integer) StringOperation.CHAR_LENGTH.apply(s);
     }
-    
+
     public static String concat(String s1, String s2) {
         return (String) ConcatFunctionProcessor.process(s1, s2);
     }
@@ -350,7 +362,7 @@ public final class InternalSqlScriptUtils {
     public static Integer locate(String s1, String s2) {
         return locate(s1, s2, null);
     }
-    
+
     public static Integer locate(String s1, String s2, Number pos) {
         return LocateFunctionProcessor.doProcess(s1, s2, pos);
     }
@@ -358,7 +370,7 @@ public final class InternalSqlScriptUtils {
     public static String ltrim(String s) {
         return (String) StringOperation.LTRIM.apply(s);
     }
-    
+
     public static Integer octetLength(String s) {
         return (Integer) StringOperation.OCTET_LENGTH.apply(s);
     }
@@ -366,15 +378,15 @@ public final class InternalSqlScriptUtils {
     public static Integer position(String s1, String s2) {
         return (Integer) BinaryStringStringOperation.POSITION.apply(s1, s2);
     }
-    
+
     public static String repeat(String s, Number count) {
         return BinaryStringNumericOperation.REPEAT.apply(s, count);
     }
-    
+
     public static String replace(String s1, String s2, String s3) {
         return (String) ReplaceFunctionProcessor.doProcess(s1, s2, s3);
     }
-    
+
     public static String right(String s, Number count) {
         return BinaryStringNumericOperation.RIGHT.apply(s, count);
     }

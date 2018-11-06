@@ -467,6 +467,19 @@ SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING NOT COUNT(*
 selectLangGroupByLangHavingDifferent
 SELECT languages, COUNT(*) c FROM test_emp GROUP BY languages HAVING COUNT(*) <> 1 ORDER BY languages DESC;
 
+aggWithHavingAndComparisonOnNaN1
+SELECT max(languages) AS maxl, gender FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020, 10021) GROUP BY gender HAVING maxl <= 2;
+aggWithHavingAndComparisonOnNaN2
+SELECT max(languages) AS maxl, gender FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020, 10021) GROUP BY gender HAVING maxl < 2;
+aggWithHavingAndIsNull
+SELECT max(languages) AS maxl, gender FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020, 10021) GROUP BY gender HAVING maxl IS NULL;
+aggWithHavingAndIsNullAndNegation
+SELECT max(languages) AS maxl, gender FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020, 10021) GROUP BY gender HAVING NOT (maxl IS NULL);
+aggWithHavingAndIsNotNull
+SELECT max(languages) AS maxl, gender FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020, 10021) GROUP BY gender HAVING maxl IS NOT NULL;
+aggWithHavingAndIsNotNullAndNegation
+SELECT max(languages) AS maxl, gender FROM "test_emp" WHERE emp_no IN(10018, 10019, 10020, 10021) GROUP BY gender HAVING NOT (maxl IS NOT NULL);
+
 
 // filter with IN
 aggMultiWithHavingUsingInAndNullHandling

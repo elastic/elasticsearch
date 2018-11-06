@@ -58,7 +58,7 @@ public interface ScriptWeaver {
     }
 
     default ScriptTemplate scriptWithAggregate(AggregateFunctionAttribute aggregate) {
-        return new ScriptTemplate(processScript("{}"),
+        return new ScriptTemplate(processScript(Scripts.SQL_SCRIPTS + ".nanSafeFilter({})"),
                 paramsBuilder().agg(aggregate).build(),
                 dataType());
     }

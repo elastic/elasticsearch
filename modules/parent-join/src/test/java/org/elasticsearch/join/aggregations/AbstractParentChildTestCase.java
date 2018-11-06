@@ -35,7 +35,7 @@ import org.junit.Before;
 /**
  * Small base test-class which combines stuff used for Children and Parent aggregation tests
  */
-public abstract class AbstractParentChildIT  extends ParentChildTestCase {
+public abstract class AbstractParentChildTestCase extends ParentChildTestCase {
     protected final Map<String, Control> categoryToControl = new HashMap<>();
     protected final Map<String, ParentControl> articleToControl = new HashMap<>();
 

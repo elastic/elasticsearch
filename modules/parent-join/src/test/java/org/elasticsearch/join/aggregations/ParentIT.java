@@ -41,7 +41,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ParentIT extends AbstractParentChildIT {
+public class ParentIT extends AbstractParentChildTestCase {
 
     public void testSimpleParentAgg() throws Exception {
         final SearchRequestBuilder searchRequest = client().prepareSearch("test")

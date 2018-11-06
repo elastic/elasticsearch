@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class ChildrenIT extends AbstractParentChildIT {
+public class ChildrenIT extends AbstractParentChildTestCase {
 
     public void testChildrenAggs() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test")

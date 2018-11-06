@@ -62,18 +62,17 @@ public class QueryParserHelperTests extends ESSingleNodeTestCase {
                 "toomanyfields", Settings.builder()
                 .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), maxClauseCountSetting + 100).build(),
                 "_doc", builder);
-        client().prepareIndex("toomanyfields", "_doc", "1").setSource("field171", "foo bar baz").get();
+        client().prepareIndex("toomanyfields", "_doc", "1").setSource("field1", "foo bar baz").get();
 
         QueryShardContext queryShardContext = indexService.newQueryShardContext(randomInt(20), null, () -> {
             throw new UnsupportedOperationException();
         }, null);
 
-        final String expectedWarning = "Field expansion matches too many fields, got: "+ (maxClauseCountSetting +3) +". "
+        final String expectedWarning = "Field expansion matches too many fields, got: "+ (maxClauseCountSetting + 1) +". "
                 + "This will be limited starting with version 7.0 of Elasticsearch. The limit will be detemined by the "
                 + "`indices.query.bool.max_clause_count` setting which is currently set to " + maxClauseCountSetting + ". "
                 + "You should look at lowering the maximum number of fields targeted by a query or increase the above limit "
                 + "while being aware that this can negatively affect your clusters performance.";
-
 
         QueryParserHelper.resolveMappingField(queryShardContext, "*", 1.0f, true, false);
         assertWarnings(expectedWarning);

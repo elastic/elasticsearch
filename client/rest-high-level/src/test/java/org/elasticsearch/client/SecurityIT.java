@@ -19,9 +19,10 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.client.methods.HttpDelete;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.security.AuthenticateResponse;
+import org.elasticsearch.client.security.DeleteUserRequest;
+import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
 import org.elasticsearch.client.security.RefreshPolicy;
@@ -64,13 +65,18 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(authenticateResponse.enabled(), is(true));
 
         // delete user
-        final Request deleteUserRequest = new Request(HttpDelete.METHOD_NAME, "/_xpack/security/user/" + putUserRequest.getUsername());
-        highLevelClient().getLowLevelClient().performRequest(deleteUserRequest);
+        final DeleteUserRequest deleteUserRequest = new DeleteUserRequest(putUserRequest.getUsername(), putUserRequest.getRefreshPolicy());
+        final DeleteUserResponse deleteUserResponse = execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
+        assertThat(deleteUserResponse.isFound(), is(true));
 
         // authentication no longer works
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> execute(securityClient::authenticate,
                 securityClient::authenticateAsync, authorizationRequestOptions(basicAuthHeader)));
         assertThat(e.getMessage(), containsString("unable to authenticate user [" + putUserRequest.getUsername() + "]"));
+
+        // delete non-existing user
+        final DeleteUserResponse deleteUserResponse2 = execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
+        assertThat(deleteUserResponse2.isFound(), is(false));
     }
 
     private static PutUserRequest randomPutUserRequest(boolean enabled) {

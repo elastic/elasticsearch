@@ -326,6 +326,7 @@ include::rollup/get_rollup_caps.asciidoc[]
 The Java High Level REST Client supports the following Security APIs:
 
 * <<java-rest-high-security-put-user>>
+* <<{upid}-delete-user>>
 * <<java-rest-high-security-enable-user>>
 * <<java-rest-high-security-disable-user>>
 * <<java-rest-high-security-change-password>>
@@ -340,6 +341,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-invalidate-token>>
 
 include::security/put-user.asciidoc[]
+include::security/delete-user.asciidoc[]
 include::security/enable-user.asciidoc[]
 include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]

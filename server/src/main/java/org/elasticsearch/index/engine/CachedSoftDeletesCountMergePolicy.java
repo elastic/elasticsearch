@@ -36,15 +36,15 @@ import java.util.concurrent.ExecutionException;
 
 /**
  * A {@link FilterMergePolicy} that caches the number of deletes to be merge within a given {@code timeToLiveInMillis} duration so we
- * can reduce the load upon refresh. Although this cache may delay reclaiming segments, it should not be an issue because if a segment
- * is selected to merge, a {@link MergePolicy} will use {@link org.apache.lucene.index.MergePolicy.OneMerge#wrapForMerge(CodecReader)}
- * to calculate the exact documents to be merged. Moreover, all cached values will be invalidated if a force-merge is triggered.
+ * can reduce the load of each refresh. Although returning a cached (maybe outdated) delete count to merge can delay reclaiming merges,
+ * it should not be an issue because if a segment is selected, a {@link MergePolicy} will re-calculate the exact documents to be merged.
+ * Moreover, all cached values will be invalidated if a force-merge is triggered so a force-merge is performed without any delay.
  */
-final class CachedDeleteCountMergePolicy extends FilterMergePolicy {
+final class CachedSoftDeletesCountMergePolicy extends FilterMergePolicy {
     private final Cache<SegmentCommitInfo, Integer> cacheOfNumDeletesToMerge;
     private final Cache<SegmentCommitInfo, Long> cacheOfSegmentSizes;
 
-    CachedDeleteCountMergePolicy(MergePolicy in, TimeValue timeToLive) {
+    CachedSoftDeletesCountMergePolicy(MergePolicy in, TimeValue timeToLive) {
         super(in);
         this.cacheOfNumDeletesToMerge = CacheBuilder.<SegmentCommitInfo, Integer>builder()
             .setExpireAfterWrite(timeToLive).setMaximumWeight(5000)

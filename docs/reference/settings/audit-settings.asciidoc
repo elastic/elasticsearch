@@ -88,7 +88,7 @@ The default value is `true`.
 ==== Audit Logfile Event Ignore Policies
 
 These settings affect the {stack-ov}/audit-log-output.html#audit-log-ignore-policy[ignore policies] that enable fine grained control over which audit events
-are eventually printed to the log file. See {xpack-ref}/audit-log-output.html#audit-log-ignore-policy[Logfile Audit Events Ignore Policies]
+are printed to the log file. 
 for the gory details.
 
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.users`::

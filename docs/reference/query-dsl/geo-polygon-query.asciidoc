@@ -49,7 +49,7 @@ or longitude, or `STRICT` (default is `STRICT`).
 [float]
 ===== Lat Long as Array
 
-Format in `[lon, lat]`
+Format as `[lon, lat]`
 
 Note: the order of lon/lat here must
 conform with http://geojson.org/[GeoJSON].

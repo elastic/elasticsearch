@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
@@ -181,15 +180,7 @@ public class ElectionSchedulerFactory extends AbstractComponent {
             };
 
             logger.debug("scheduling {}", runnable);
-            try {
-                threadPool.schedule(TimeValue.timeValueMillis(delayMillis), Names.GENERIC, runnable);
-            } catch (EsRejectedExecutionException e) {
-                if (e.isExecutorShutdown()) {
-                    logger.debug("couldn't schedule next election, executor is shutting down", e);
-                } else {
-                    throw e;
-                }
-            }
+            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), Names.GENERIC, runnable);
         }
 
         @Override

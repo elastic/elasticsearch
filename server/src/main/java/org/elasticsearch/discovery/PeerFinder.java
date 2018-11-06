@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -249,41 +248,33 @@ public abstract class PeerFinder extends AbstractComponent {
             }
         });
 
-        try {
-            transportService.getThreadPool().schedule(findPeersInterval, Names.GENERIC, new AbstractRunnable() {
-                @Override
-                public boolean isForceExecution() {
-                    return true;
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assert false : e;
-                    logger.debug("unexpected exception in wakeup", e);
-                }
-
-                @Override
-                protected void doRun() {
-                    synchronized (mutex) {
-                        if (handleWakeUp() == false) {
-                            return;
-                        }
-                    }
-                    onFoundPeersUpdated();
-                }
-
-                @Override
-                public String toString() {
-                    return "PeerFinder handling wakeup";
-                }
-            });
-        } catch (EsRejectedExecutionException e) {
-            if (e.isExecutorShutdown()) {
-                logger.debug("couldn't schedule new execution of peer finder, executor is shutting down", e);
-            } else {
-                throw e;
+        transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.GENERIC, new AbstractRunnable() {
+            @Override
+            public boolean isForceExecution() {
+                return true;
             }
-        }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : e;
+                logger.debug("unexpected exception in wakeup", e);
+            }
+
+            @Override
+            protected void doRun() {
+                synchronized (mutex) {
+                    if (handleWakeUp() == false) {
+                        return;
+                    }
+                }
+                onFoundPeersUpdated();
+            }
+
+            @Override
+            public String toString() {
+                return "PeerFinder handling wakeup";
+            }
+        });
 
         return peersRemoved;
     }

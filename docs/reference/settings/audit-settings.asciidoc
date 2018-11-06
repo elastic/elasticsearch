@@ -93,7 +93,7 @@ All of the settings with the same policy name combine to form a single policy. I
 
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.users`::
 A list of user names or wildcards. The specified policy will
-not print audit events for users matching any of the specifed names or wildcards.
+not print audit events for users matching these values.
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.realms`::
  
 The value is a list of names or wildcards, and specifies that the policy will

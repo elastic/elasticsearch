@@ -207,6 +207,16 @@ public class MetaStateServiceTests extends ESTestCase {
         loadedMetaData = metaStateService.getMetaData(); //this must load new metadata, because manifest file is gone
         assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, metaData_v2));
         assertThat(loadedMetaData.index("index"), equalTo(index_v2));
+
+        //Restore manifest file
+        metaStateService.keepGlobalState();
+        metaStateService.keepIndex(index_v2.getIndex());
+        metaStateService.writeManifest("test");
+
+        //Latest metadata should be read
+        loadedMetaData = maybeNew(metaStateService).getMetaData();
+        assertTrue(MetaData.isGlobalStateEquals(loadedMetaData, metaData_v2));
+        assertThat(loadedMetaData.index("index"), equalTo(index_v2));
     }
 
 }

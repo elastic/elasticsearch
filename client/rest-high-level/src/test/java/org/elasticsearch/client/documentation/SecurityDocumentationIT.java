@@ -187,7 +187,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     private void addUser(RestHighLevelClient client, String userName, String password) throws IOException {
-        PutUserRequest request = new PutUserRequest(userName, password.toCharArray(), Collections.singletonList("superuser"), null, null, true, null, RefreshPolicy.IMMEDIATE);
+        PutUserRequest request = new PutUserRequest(userName, password.toCharArray(),
+            Collections.singletonList("superuser"), null, null, true, null, RefreshPolicy.IMMEDIATE);
         PutUserResponse response = client.security().putUser(request, RequestOptions.DEFAULT);
         assertTrue(response.isCreated());
     }

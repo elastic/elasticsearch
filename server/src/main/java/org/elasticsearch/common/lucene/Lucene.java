@@ -220,7 +220,7 @@ public class Lucene {
                 throw new IllegalStateException("no commit found in the directory");
             }
         }
-        final CommitPoint cp = new CommitPoint(si, directory);
+        final IndexCommit cp = getIndexCommit(si, directory);
         try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
                 .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setIndexCommit(cp)
@@ -232,6 +232,9 @@ public class Lucene {
         return si;
     }
 
+    /**
+     * Returns an index commit for the given {@link SegmentInfos} in the given directory.
+     */
     public static IndexCommit getIndexCommit(SegmentInfos si, Directory directory) throws IOException {
         return new CommitPoint(si, directory);
     }

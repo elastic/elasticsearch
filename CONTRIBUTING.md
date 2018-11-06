@@ -196,6 +196,12 @@ the settings window and/or restart IntelliJ to see your changes take effect.
 
 ### Creating A Distribution
 
+Run all build commands from within the root directory:
+
+```sh
+cd elasticsearch/
+```
+
 To build a tar distribution, run this command:
 
 ```sh
@@ -209,8 +215,13 @@ To create all build artifacts (e.g., plugins and Javadocs) as well as
 distributions in all formats, run this command:
 
 ```sh
-cd elasticsearch/
 ./gradlew assemble
+```
+
+You can also build the artifacts and distributions in parallel:
+
+```sh
+./gradlew assemble --parallel
 ```
 
 The package distributions (Debian and RPM) can be found under:

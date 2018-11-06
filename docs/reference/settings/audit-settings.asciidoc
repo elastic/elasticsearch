@@ -97,7 +97,7 @@ not print audit events for users matching these values.
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.realms`::
  
 A list of authentication realm names or wildcards. The specified policy will
-not print audit events for users whose authentication realm matches any of the
+not print audit events for users in these realms.
 specified names or wildcards.
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.roles`::
 The value is a list of names or wildcards, and specifies that the policy will

@@ -162,14 +162,12 @@ public final class QueryParserHelper {
 
     private static void checkForTooManyFields(Map<String, Float> fields, QueryShardContext context) {
         Integer limit = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
-        System.out.println(limit);
         if (fields.size() > limit) {
             DEPRECATION_LOGGER.deprecatedAndMaybeLog("field_expansion_limit",
-                    "Field expansion matches too many fields, got: {}. This will be limited starting with version 7.0 of Elasticsearch. "
-                            + "The limit will be detemined by the `indices.query.bool.max_clause_count` setting which is currently set to {}. "
-                            + "You should look at lowering the maximum number of fields targeted by a query or increase the above limit "
-                            + "while being aware that this can negatively affect your clusters performance.",
-                            fields.size(), limit);
+                    "Field expansion matches too many fields, got: {}. This will be limited starting with version 7.0 of Elasticsearch. " +
+                    "The limit will be detemined by the `indices.query.bool.max_clause_count` setting which is currently set to {}. " +
+                    "You should look at lowering the maximum number of fields targeted by a query or increase the above limit " +
+                    "while being aware that this can negatively affect your clusters performance.", fields.size(), limit);
         }
     }
 }

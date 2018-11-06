@@ -16,38 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.reindex;
+package org.elasticsearch.client.tasks;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class ReindexSubmissionResponse extends ActionResponse implements ToXContentObject {
+public class TaskSubmissionResponse extends ActionResponse {
     private static final ParseField TASK = new ParseField("task");
-    public static final ConstructingObjectParser<ReindexSubmissionResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "reindex_submission_response",
-        true, a -> new ReindexSubmissionResponse((TaskId) a[0]));
+    public static final ConstructingObjectParser<TaskSubmissionResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "task_submission_response",
+        true, a -> new TaskSubmissionResponse((TaskId) a[0]));
 
     static {
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), TaskId.parser(), TASK, ObjectParser.ValueType.STRING);
     }
 
-    public static ReindexSubmissionResponse fromXContent(XContentParser parser) throws IOException {
+    public static TaskSubmissionResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     private final TaskId task;
 
-    ReindexSubmissionResponse(@Nullable TaskId task) {
+    TaskSubmissionResponse(TaskId task) {
         this.task = task;
     }
 
@@ -73,17 +70,8 @@ public class ReindexSubmissionResponse extends ActionResponse implements ToXCont
         if (other == null || getClass() != other.getClass()) {
             return false;
         }
-        ReindexSubmissionResponse that = (ReindexSubmissionResponse) other;
+        TaskSubmissionResponse that = (TaskSubmissionResponse) other;
         return Objects.equals(task, that.task);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (task != null) {
-            builder.field(TASK.getPreferredName(), task.toString());
-        }
-        builder.endObject();
-        return builder;
-    }
 }

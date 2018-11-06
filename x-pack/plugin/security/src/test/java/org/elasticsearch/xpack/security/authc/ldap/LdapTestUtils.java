@@ -36,18 +36,18 @@ public class LdapTestUtils {
         if (useGlobalSSL) {
             builder.put("xpack.ssl.truststore.path", truststore);
             // fake realm to load config with certificate verification mode
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
+            builder.put("xpack.security.authc.realms.ldap.bar.ssl.truststore.path", truststore);
+            builder.put("xpack.security.authc.realms.ldap.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
             secureSettings.setString("xpack.ssl.truststore.secure_password", "changeit");
-            secureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
+            secureSettings.setString("xpack.security.authc.realms.ldap.bar.ssl.truststore.secure_password", "changeit");
         } else {
             // fake realms so ssl will get loaded
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
-            secureSettings.setString("xpack.security.authc.realms.foo.ssl.truststore.secure_password", "changeit");
-            secureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
+            builder.put("xpack.security.authc.realms.ldap.foo.ssl.truststore.path", truststore);
+            builder.put("xpack.security.authc.realms.ldap.foo.ssl.verification_mode", VerificationMode.FULL);
+            builder.put("xpack.security.authc.realms.ldap.bar.ssl.truststore.path", truststore);
+            builder.put("xpack.security.authc.realms.ldap.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
+            secureSettings.setString("xpack.security.authc.realms.ldap.foo.ssl.truststore.secure_password", "changeit");
+            secureSettings.setString("xpack.security.authc.realms.ldap.bar.ssl.truststore.secure_password", "changeit");
         }
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -64,7 +64,7 @@ public class LdapTestUtils {
         if (useGlobalSSL) {
             sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
         } else {
-            sslConfiguration = sslService.getSSLConfiguration("xpack.security.authc.realms.foo.ssl");
+            sslConfiguration = sslService.getSSLConfiguration("xpack.security.authc.realms.ldap.foo.ssl");
         }
         return LdapUtils.privilegedConnect(() -> new LDAPConnection(sslService.sslSocketFactory(sslConfiguration), options,
             ldapurl.getHost(), ldapurl.getPort(), bindDN, bindPassword));

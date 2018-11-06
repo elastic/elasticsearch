@@ -40,13 +40,14 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunctio
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.BinaryNegateable;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.IsNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Grea
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
@@ -128,6 +130,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // folding
                 new ReplaceFoldableAttributes(),
                 new ConstantFolding(),
+                new SimplifyCoalesce(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -689,7 +692,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (TRUE.equals(filter.condition())) {
                     return filter.child();
                 }
-                if (FALSE.equals(filter.condition()) || FoldNull.isNull(filter.condition())) {
+                if (FALSE.equals(filter.condition()) || Expressions.isNull(filter.condition())) {
                     return new LocalRelation(filter.location(), new EmptyExecutable(filter.output()));
                 }
             }
@@ -1124,10 +1127,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             super(TransformDirection.UP);
         }
 
-        private static boolean isNull(Expression ex) {
-            return DataType.NULL == ex.dataType() || (ex.foldable() && ex.fold() == null);
-        }
-
         @Override
         protected Expression rule(Expression e) {
             if (e instanceof IsNotNull) {
@@ -1143,12 +1142,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             if (e instanceof In) {
                 In in = (In) e;
-                if (isNull(in.value())) {
+                if (Expressions.isNull(in.value())) {
                     return Literal.of(in, null);
                 }
             }
 
-            if (e.nullable() && Expressions.anyMatch(e.children(), FoldNull::isNull)) {
+            if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
 
@@ -1170,6 +1169,38 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             return e.foldable() ? Literal.of(e) : e;
+        }
+    }
+    
+    static class SimplifyCoalesce extends OptimizerExpressionRule {
+
+        SimplifyCoalesce() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof Coalesce) {
+                Coalesce c = (Coalesce) e;
+
+                // find the first non-null foldable child (if any) and remove the rest
+                // while at it, exclude any nulls found
+                List<Expression> newChildren = new ArrayList<>();
+
+                for (Expression child : c.children()) {
+                    if (Expressions.isNull(child) == false) {
+                        newChildren.add(child);
+                        if (child.foldable()) {
+                            break;
+                        }
+                    }
+                }
+
+                if (newChildren.size() < c.children().size()) {
+                    return new Coalesce(c.location(), newChildren);
+                }
+            }
+            return e;
         }
     }
 
@@ -1322,7 +1353,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             // false for equality
-            if (bc instanceof GreaterThan || bc instanceof LessThan) {
+            if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
                 if (!l.nullable() && !r.nullable() && l.semanticEquals(r)) {
                     return FALSE;
                 }

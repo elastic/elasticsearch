@@ -205,7 +205,7 @@ cd elasticsearch/
 To build a tar distribution, run this command:
 
 ```sh
-./gradlew -p distribution/archives/tar assemble
+./gradlew -p distribution/archives/tar assemble --parallel
 ```
 
 You will find the distribution under:
@@ -213,12 +213,6 @@ You will find the distribution under:
 
 To create all build artifacts (e.g., plugins and Javadocs) as well as
 distributions in all formats, run this command:
-
-```sh
-./gradlew assemble
-```
-
-You can also build the artifacts and distributions in parallel:
 
 ```sh
 ./gradlew assemble --parallel

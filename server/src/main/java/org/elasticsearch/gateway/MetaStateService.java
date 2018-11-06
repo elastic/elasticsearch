@@ -97,7 +97,9 @@ public class MetaStateService extends AbstractComponent {
      * Returns set of indices, which metadata is stored on this node.
      */
     Set<Index> getPreviouslyWrittenIndices() {
-        return currentManifest == null ? Collections.emptySet() : Collections.unmodifiableSet(currentManifest.getIndexGenerations().keySet());
+        return currentManifest == null ?
+                Collections.emptySet() :
+                Collections.unmodifiableSet(currentManifest.getIndexGenerations().keySet());
     }
 
     /**

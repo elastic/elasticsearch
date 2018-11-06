@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.cluster.bootstrap;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -30,15 +29,17 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 public class TransportGetDiscoveredNodesAction extends TransportAction<GetDiscoveredNodesRequest, GetDiscoveredNodesResponse> {
@@ -70,11 +71,11 @@ public class TransportGetDiscoveredNodesAction extends TransportAction<GetDiscov
         if (localNode.isMasterNode() == false) {
             throw new ElasticsearchException("this node is not master-eligible");
         }
-
-        final AtomicBoolean responseSent = new AtomicBoolean();
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final long timeoutMillis = request.getTimeout().millis();
-        assert timeoutMillis >= 0 : timeoutMillis;
+        final ListenableFuture<GetDiscoveredNodesResponse> listenableFuture = new ListenableFuture<>();
+        final ThreadPool threadPool = transportService.getThreadPool();
+        listenableFuture.addListener(listener,
+            threadPool.generic(),
+            threadPool.getThreadContext());
 
         final Consumer<Iterable<DiscoveryNode>> respondIfRequestSatisfied = new Consumer<Iterable<DiscoveryNode>>() {
             @Override
@@ -82,9 +83,9 @@ public class TransportGetDiscoveredNodesAction extends TransportAction<GetDiscov
                 final Set<DiscoveryNode> nodesSet = new LinkedHashSet<>();
                 nodesSet.add(localNode);
                 nodes.forEach(nodesSet::add);
-                if (nodesSet.size() >= request.getMinimumNodeCount() && responseSent.compareAndSet(false, true)) {
-                    listener.onResponse(new GetDiscoveredNodesResponse(nodesSet));
-                    countDownLatch.countDown();
+                logger.trace("discovered {}", nodesSet);
+                if (nodesSet.size() >= request.getMinimumNodeCount()) {
+                    listenableFuture.onResponse(new GetDiscoveredNodesResponse(nodesSet));
                 }
             }
 
@@ -94,22 +95,35 @@ public class TransportGetDiscoveredNodesAction extends TransportAction<GetDiscov
             }
         };
 
-        try (Releasable ignored = coordinator.withDiscoveryListener(respondIfRequestSatisfied)) {
-            respondIfRequestSatisfied.accept(coordinator.getFoundPeers());
-            if (timeoutMillis > 0 && countDownLatch.await(timeoutMillis, TimeUnit.MILLISECONDS)) {
-                assert responseSent.get();
-                return;
-            }
-        } catch (InterruptedException e) {
-            logger.debug(new ParameterizedMessage("interrupted while waiting for {}", request), e);
-            if (responseSent.compareAndSet(false, true)) {
-                listener.onFailure(e);
-            }
-            return;
-        }
+        final Releasable releasable = coordinator.withDiscoveryListener(respondIfRequestSatisfied);
+        listenableFuture.addListener(finallyListener(releasable::close), threadPool.generic(), threadPool.getThreadContext());
 
-        if (responseSent.compareAndSet(false, true)) {
-            listener.onFailure(new ElasticsearchTimeoutException("timed out while waiting for {}", request));
-        }
+        threadPool.schedule(request.getTimeout(), Names.GENERIC, new Runnable() {
+            @Override
+            public void run() {
+                listenableFuture.onFailure(new ElasticsearchTimeoutException("timed out while waiting for " + request));
+            }
+
+            @Override
+            public String toString() {
+                return "timeout handler for " + request;
+            }
+        });
+
+        respondIfRequestSatisfied.accept(coordinator.getFoundPeers());
+    }
+
+    private <T> ActionListener<T> finallyListener(Runnable runnable) {
+        return new ActionListener<T>() {
+            @Override
+            public void onResponse(T t) {
+                runnable.run();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                runnable.run();
+            }
+        };
     }
 }

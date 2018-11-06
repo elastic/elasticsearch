@@ -52,7 +52,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.HandshakeResponse;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -141,7 +142,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         threadPool.shutdown();
     }
 
-    public void testFailsImmediatelyWithNoTimeout() {
+    public void testFailsImmediatelyWithNoTimeout() throws InterruptedException {
         final DiscoveryNode localNode
             = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
 
@@ -165,7 +166,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         final TransportGetDiscoveredNodesAction transportGetDiscoveredNodesAction
             = new TransportGetDiscoveredNodesAction(Settings.EMPTY, mock(ActionFilters.class), transportService, coordinator);
 
-        final AtomicBoolean responseReceived = new AtomicBoolean();
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
         getDiscoveredNodesRequest.setMinimumNodeCount(2);
         getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
@@ -178,17 +179,17 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    assertThat(e.getMessage(), startsWith("timed out while waiting for "));
-                    responseReceived.set(true);
+                    assertThat(e.getMessage(), startsWith("timed out while waiting for GetDiscoveredNodesRequest{"));
+                    countDownLatch.countDown();
                 }
             });
-        assertTrue(responseReceived.get());
 
+        assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         threadPool.shutdown();
     }
 
     @TestLogging("org.elasticsearch.cluster.coordination:TRACE")
-    public void testGetsDiscoveredNodes() {
+    public void testGetsDiscoveredNodes() throws InterruptedException {
         final DiscoveryNode localNode
             = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
         final DiscoveryNode otherNode
@@ -223,8 +224,6 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         final TransportGetDiscoveredNodesAction transportGetDiscoveredNodesAction
             = new TransportGetDiscoveredNodesAction(Settings.EMPTY, mock(ActionFilters.class), transportService, coordinator);
 
-        final AtomicBoolean responseReceived = new AtomicBoolean();
-
         threadPool.generic().execute(() ->
             transportService.sendRequest(localNode, REQUEST_PEERS_ACTION_NAME, new PeersRequest(otherNode, emptyList()),
                 new TransportResponseHandler<PeersResponse>() {
@@ -247,40 +246,45 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
                     }
                 }));
 
-        final GetDiscoveredNodesRequest getDiscoveredNodesRequestWithTimeout = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequestWithTimeout.setMinimumNodeCount(2);
-        transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequestWithTimeout,
-            new ActionListener<GetDiscoveredNodesResponse>() {
-                @Override
-                public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
-                    assertThat(getDiscoveredNodesResponse.getNodes(), containsInAnyOrder(localNode, otherNode));
-                    responseReceived.set(true);
-                }
+        {
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequestWithTimeout = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequestWithTimeout.setMinimumNodeCount(2);
+            transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequestWithTimeout,
+                new ActionListener<GetDiscoveredNodesResponse>() {
+                    @Override
+                    public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
+                        assertThat(getDiscoveredNodesResponse.getNodes(), containsInAnyOrder(localNode, otherNode));
+                        countDownLatch.countDown();
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError("should not be called");
-                }
-            });
-        assertTrue(responseReceived.get());
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError("should not be called");
+                    }
+                });
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        }
 
-        responseReceived.set(false);
-        final GetDiscoveredNodesRequest getDiscoveredNodesRequestWithoutTimeout = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequestWithoutTimeout.setMinimumNodeCount(2);
-        transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequestWithoutTimeout,
-            new ActionListener<GetDiscoveredNodesResponse>() {
-                @Override
-                public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
-                    assertThat(getDiscoveredNodesResponse.getNodes(), containsInAnyOrder(localNode, otherNode));
-                    responseReceived.set(true);
-                }
+        {
+            final CountDownLatch countDownLatch = new CountDownLatch(1);
+            final GetDiscoveredNodesRequest getDiscoveredNodesRequestWithoutTimeout = new GetDiscoveredNodesRequest();
+            getDiscoveredNodesRequestWithoutTimeout.setMinimumNodeCount(2);
+            transportGetDiscoveredNodesAction.doExecute(mock(Task.class), getDiscoveredNodesRequestWithoutTimeout,
+                new ActionListener<GetDiscoveredNodesResponse>() {
+                    @Override
+                    public void onResponse(GetDiscoveredNodesResponse getDiscoveredNodesResponse) {
+                        assertThat(getDiscoveredNodesResponse.getNodes(), containsInAnyOrder(localNode, otherNode));
+                        countDownLatch.countDown();
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError("should not be called");
-                }
-            });
-        assertTrue(responseReceived.get());
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError("should not be called");
+                    }
+                });
+            assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+        }
 
         threadPool.shutdown();
     }

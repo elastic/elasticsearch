@@ -28,7 +28,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  * Please note, any requests that use a ackTimeout should set timeout as they
  * represent the same backing field on the server.
  */
-public class TimedRequest implements Validatable {
+public abstract class TimedRequest implements Validatable {
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
     public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
@@ -38,7 +38,6 @@ public class TimedRequest implements Validatable {
 
     public void setTimeout(TimeValue timeout) {
         this.timeout = timeout;
-
     }
 
     public void setMasterTimeout(TimeValue masterTimeout) {

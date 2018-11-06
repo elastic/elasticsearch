@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.core.StringStartsWith.startsWith;
+import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
 
@@ -197,7 +197,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(condition.foldable());
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Line 1:52: Comparisons against variables are not (currently) supported; " +
-                "offender [keyword] in [keyword IN(foo, bar, keyword)]", ex.getMessage());
+                "offender [keyword] in [keyword IN (foo, bar, keyword)]", ex.getMessage());
     }
 
     public void testTranslateInExpression_WhereClause_Painless() {
@@ -213,7 +213,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(" +
                 "InternalSqlScriptUtils.power(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1), params.v2))",
             sc.script().toString());
-        assertEquals("[{v=int}, {v=2}, {v=[10.0, 20.0]}]", sc.script().params().toString());
+        assertEquals("[{v=int}, {v=2}, {v=[10.0, null, 20.0]}]", sc.script().params().toString());
     }
 
     public void testTranslateInExpression_HavingClause_Painless() {
@@ -259,6 +259,6 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
-        assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, 20, 30]}]"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, null, 20, 30]}]"));
     }
 }

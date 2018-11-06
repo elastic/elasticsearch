@@ -43,17 +43,13 @@ import java.util.stream.Collectors;
  * Global metadata generation could be obtained by calling {@link #getGlobalStateGeneration()}.
  * Index metadata generation could be obtained by calling {@link #getIndices()}.
  */
-public class MetaState implements ToXContentFragment {
+public class Manifest implements ToXContentFragment {
     private final long globalStateGeneration;
     private final Map<Index, Long> indices;
 
-    public MetaState(long globalStateGeneration, Map<Index, Long> indices) {
+    public Manifest(long globalStateGeneration, Map<Index, Long> indices) {
         this.globalStateGeneration = globalStateGeneration;
         this.indices = indices;
-    }
-
-    public static MetaState empty() {
-        return new MetaState(-1, Collections.emptyMap());
     }
 
     /**
@@ -74,9 +70,9 @@ public class MetaState implements ToXContentFragment {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        MetaState metaState = (MetaState) o;
-        return globalStateGeneration == metaState.globalStateGeneration &&
-                Objects.equals(indices, metaState.indices);
+        Manifest manifest = (Manifest) o;
+        return globalStateGeneration == manifest.globalStateGeneration &&
+                Objects.equals(indices, manifest.indices);
     }
 
     @Override
@@ -114,17 +110,17 @@ public class MetaState implements ToXContentFragment {
         return listOfIndices.stream().collect(Collectors.toMap(IndexEntry::getIndex, IndexEntry::getGeneration));
     }
 
-    private static final ConstructingObjectParser<MetaState, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<Manifest, Void> PARSER = new ConstructingObjectParser<>(
             "state",
             generationAndListOfIndexEntries ->
-                    new MetaState(generation(generationAndListOfIndexEntries), indicies(generationAndListOfIndexEntries)));
+                    new Manifest(generation(generationAndListOfIndexEntries), indicies(generationAndListOfIndexEntries)));
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_PARSE_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), IndexEntry.INDEX_ENTRY_PARSER, INDICES_PARSE_FIELD);
     }
 
-    public static MetaState fromXContent(XContentParser parser) throws IOException {
+    public static Manifest fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -168,19 +164,19 @@ public class MetaState implements ToXContentFragment {
         }
     }
 
-    private static final String META_STATE_FILE_PREFIX = "meta-";
-    private static final ToXContent.Params METASTATE_FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("binary", "true"));
+    private static final String MANIFEST_FILE_PREFIX = "manifest-";
+    private static final ToXContent.Params MANIFEST_FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("binary", "true"));
 
-    public static final MetaDataStateFormat<MetaState> FORMAT = new MetaDataStateFormat<MetaState>(META_STATE_FILE_PREFIX) {
+    public static final MetaDataStateFormat<Manifest> FORMAT = new MetaDataStateFormat<Manifest>(MANIFEST_FILE_PREFIX) {
 
         @Override
-        public void toXContent(XContentBuilder builder, MetaState state) throws IOException {
-            state.toXContent(builder, METASTATE_FORMAT_PARAMS);
+        public void toXContent(XContentBuilder builder, Manifest state) throws IOException {
+            state.toXContent(builder, MANIFEST_FORMAT_PARAMS);
         }
 
         @Override
-        public MetaState fromXContent(XContentParser parser) throws IOException {
-            return MetaState.fromXContent(parser);
+        public Manifest fromXContent(XContentParser parser) throws IOException {
+            return Manifest.fromXContent(parser);
         }
     };
 }

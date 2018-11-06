@@ -21,8 +21,8 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaState;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -39,22 +39,22 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Handles writing and loading {@link MetaData}, {@link IndexMetaData} and {@link MetaState}.<br>
+ * Handles writing and loading {@link MetaData}, {@link IndexMetaData} and {@link Manifest}.<br>
  * The instance of this class loads manifest file and corresponding metadata into memory on node startup.<br>
  * It's possible to change metadata stored on disk by calling {@link #writeIndex(String, IndexMetaData)} and
  * {@link #writeGlobalState(String, MetaData)} methods. If index metadata or global metadata has not been changed
  * use {@link #keepIndex(Index)} and {@link #keepGlobalState()} methods. Once all necessary changes are done
- * use {@link #writeMetaState(String)} to make these changes visible, thanks to manifest file.<br>
- * When {@link #writeMetaState(String)} finishes successfully, this class updates internally held metaData correspondingly.
+ * use {@link #writeManifest(String)} to make these changes visible, thanks to manifest file.<br>
+ * When {@link #writeManifest(String)} finishes successfully, this class updates internally held metaData correspondingly.
  * Use {@link #getMetaData()} to get it.<br>
  * A note on exceptions. Write methods of this class throw {@link WriteStateException}. You can expect {@link WriteStateException#isDirty()}
  * to return <code>false</code> for {@link #writeGlobalState(String, MetaData)} and {@link #writeIndex(String, IndexMetaData)}.
- * {@link #writeMetaState(String)}, on the other hand, may throw dirty exceptions.
+ * {@link #writeManifest(String)}, on the other hand, may throw dirty exceptions.
  * If one of the write methods throw an exception, internal structures of this class are reset to previously steady state.<br>
  * A note on thread-safety. This class assumes single metadata mutator. However, it's safe to call {@link #getMetaData()} from any
  * thread, any time.<br>
  * A note on backward compatibility. This implementation is backward compatible with "manifest-less" implementation. If there is
- * no manifest file, metadata is loaded from latest state files. However, the first call to {@link #writeMetaState(String)} will
+ * no manifest file, metadata is loaded from latest state files. However, the first call to {@link #writeManifest(String)} will
  * create manifest file. One can check if the instance of this class is started in BWC mode by calling {@link #isBwcMode()}.
  */
 public class MetaStateService extends AbstractComponent {
@@ -62,7 +62,7 @@ public class MetaStateService extends AbstractComponent {
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry namedXContentRegistry;
 
-    private MetaState currentMetaState;
+    private Manifest currentManifest;
     private Long globalGeneration;
     private Map<Index, Long> newIndices;
     private List<Runnable> cleanupActions;
@@ -97,7 +97,7 @@ public class MetaStateService extends AbstractComponent {
      * Returns set of indices, which metadata is stored on this node.
      */
     Set<Index> getPreviouslyWrittenIndices() {
-        return currentMetaState == null ? Collections.emptySet() : Collections.unmodifiableSet(currentMetaState.getIndices().keySet());
+        return currentManifest == null ? Collections.emptySet() : Collections.unmodifiableSet(currentManifest.getIndices().keySet());
     }
 
     /**
@@ -106,7 +106,7 @@ public class MetaStateService extends AbstractComponent {
     void keepIndex(Index index) {
         IndexMetaData metaData = currentMetaData.index(index);
         assert metaData != null;
-        Long generation = currentMetaState.getIndices().get(index);
+        Long generation = currentManifest.getIndices().get(index);
         assert generation != null;
         logger.trace("[{}] keep index", index);
         newIndices.put(index, generation);
@@ -160,24 +160,24 @@ public class MetaStateService extends AbstractComponent {
 
     public void keepGlobalState() {
         assert currentMetaData != null;
-        globalGeneration = currentMetaState.getGlobalStateGeneration();
+        globalGeneration = currentManifest.getGlobalStateGeneration();
         copyGlobalMetaDataToBuilder(currentMetaData);
     }
 
-    public void writeMetaState(String reason) throws WriteStateException {
+    public void writeManifest(String reason) throws WriteStateException {
         assert globalGeneration != null;
-        MetaState metaState = new MetaState(globalGeneration, newIndices);
-        logger.trace("[_meta] writing state, reason [{}], globalGen [{}]", reason, globalGeneration);
+        Manifest manifest = new Manifest(globalGeneration, newIndices);
+        logger.trace("[_manifest] writing state, reason [{}]", reason);
         try {
-            long generation = MetaState.FORMAT.write(metaState, false, nodeEnv.nodeDataPaths());
-            logger.trace("[_meta] state written (generation: {})", generation);
-            cleanupActions.add(() -> MetaState.FORMAT.cleanupOldFiles(generation, nodeEnv.nodeDataPaths()));
+            long generation = Manifest.FORMAT.write(manifest, false, nodeEnv.nodeDataPaths());
+            logger.trace("[_manifest] state written (generation: {})", generation);
+            cleanupActions.add(() -> Manifest.FORMAT.cleanupOldFiles(generation, nodeEnv.nodeDataPaths()));
             cleanupActions.forEach(Runnable::run);
 
             this.currentMetaData = metaDataBuilder.build();
-            this.currentMetaState = metaState;
+            this.currentManifest = manifest;
         } catch (WriteStateException ex) {
-            throw new WriteStateException(ex.isDirty(), "[_meta]: failed to write meta state", ex);
+            throw new WriteStateException(ex.isDirty(), "[_manifest]: failed to write state", ex);
         } finally {
             resetState();
         }
@@ -191,19 +191,19 @@ public class MetaStateService extends AbstractComponent {
     }
 
     private void loadFullState() throws IOException {
-        MetaState metaState = MetaState.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
-        if (metaState == null) {
+        Manifest manifest = Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+        if (manifest == null) {
             loadFullStateBWC();
         } else {
             final MetaData.Builder metaDataBuilder;
             final MetaData globalMetaData = MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry,
-                    metaState.getGlobalStateGeneration(), nodeEnv.nodeDataPaths());
+                    manifest.getGlobalStateGeneration(), nodeEnv.nodeDataPaths());
             if (globalMetaData != null) {
                 metaDataBuilder = MetaData.builder(globalMetaData);
             } else {
-                throw new IOException("failed to find global metadata [generation: " + metaState.getGlobalStateGeneration() + "]");
+                throw new IOException("failed to find global metadata [generation: " + manifest.getGlobalStateGeneration() + "]");
             }
-            for (Map.Entry<Index, Long> entry : metaState.getIndices().entrySet()) {
+            for (Map.Entry<Index, Long> entry : manifest.getIndices().entrySet()) {
                 Index index = entry.getKey();
                 long generation = entry.getValue();
                 final String indexFolderName = index.getUUID();
@@ -216,7 +216,7 @@ public class MetaStateService extends AbstractComponent {
                             generation + "]");
                 }
             }
-            currentMetaState = metaState;
+            currentManifest = manifest;
             currentMetaData = metaDataBuilder.build();
         }
     }
@@ -249,7 +249,7 @@ public class MetaStateService extends AbstractComponent {
                     logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
                 }
             }
-            currentMetaState = new MetaState(globalStateGeneration, indices);
+            currentManifest = new Manifest(globalStateGeneration, indices);
             currentMetaData = metaDataBuilder.build();
             bwcMode = true;
         }

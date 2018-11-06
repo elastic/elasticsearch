@@ -365,7 +365,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                         // so evil
                         metaStateService.keepGlobalState();
                         metaStateService.writeIndex("broken meta", brokenMetaData);
-                        metaStateService.writeMetaState("broken meta");
+                        metaStateService.writeManifest("broken meta");
                     }
                 }
             }

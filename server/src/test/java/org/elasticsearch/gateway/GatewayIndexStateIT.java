@@ -411,7 +411,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                     ).build();
                     metaStateService.keepGlobalState();
                     metaStateService.writeIndex("broken meta", brokenMeta);
-                    metaStateService.writeMetaState("broken");
+                    metaStateService.writeManifest("broken");
                 }
             }
         });
@@ -475,7 +475,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                             .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false)).build();
                     metaStateService.keepGlobalState();
                     metaStateService.writeIndex("broken meta", brokenMeta);
-                    metaStateService.writeMetaState("broken");
+                    metaStateService.writeManifest("broken");
                 }
             }
         });
@@ -520,7 +520,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "broken").build()).build();
                     metaStateService.keepGlobalState();
                     metaStateService.writeGlobalState("broken meta", brokenMeta);
-                    metaStateService.writeMetaState("broken");
+                    metaStateService.writeManifest("broken");
                 }
             }
         });

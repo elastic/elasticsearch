@@ -106,7 +106,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                             }
                         }
                     }
-                    metaStateService.writeMetaState("startup");
+                    metaStateService.writeManifest("startup");
                     logger.debug("took {} ms to upgrade / re-write meta data",
                             TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - startNS)));
                 }
@@ -154,7 +154,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                     action.execute(metaStateService);
                 }
 
-                metaStateService.writeMetaState("changed");
+                metaStateService.writeManifest("changed");
                 previousMetaData = newMetaData;
             } catch (WriteStateException e) {
                 logger.error("Exception occurred", e);

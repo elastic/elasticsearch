@@ -489,7 +489,6 @@ public class Node implements Closeable {
                 threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase(),
                 responseCollectorService);
 
-            final IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService
                 .filterPlugins(PersistentTaskPlugin.class).stream()
                 .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule))

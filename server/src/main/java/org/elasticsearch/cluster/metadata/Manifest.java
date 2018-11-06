@@ -40,30 +40,30 @@ import java.util.stream.Collectors;
  * This class represents the manifest file, which is the entry point for reading meta data from disk.
  * Metadata consists of global metadata and index metadata.
  * When new version of metadata is written it's assigned some generation long value.
- * Global metadata generation could be obtained by calling {@link #getGlobalStateGeneration()}.
- * Index metadata generation could be obtained by calling {@link #getIndices()}.
+ * Global metadata generation could be obtained by calling {@link #getGlobalGeneration()}.
+ * Index metadata generation could be obtained by calling {@link #getIndexGenerations()}.
  */
 public class Manifest implements ToXContentFragment {
-    private final long globalStateGeneration;
-    private final Map<Index, Long> indices;
+    private final long globalGeneration;
+    private final Map<Index, Long> indexGenerations;
 
-    public Manifest(long globalStateGeneration, Map<Index, Long> indices) {
-        this.globalStateGeneration = globalStateGeneration;
-        this.indices = indices;
+    public Manifest(long globalGeneration, Map<Index, Long> indexGenerations) {
+        this.globalGeneration = globalGeneration;
+        this.indexGenerations = indexGenerations;
     }
 
     /**
      * Returns global metadata generation.
      */
-    public long getGlobalStateGeneration() {
-        return globalStateGeneration;
+    public long getGlobalGeneration() {
+        return globalGeneration;
     }
 
     /**
      * Returns map from {@link Index} to index metadata generation.
      */
-    public Map<Index, Long> getIndices() {
-        return indices;
+    public Map<Index, Long> getIndexGenerations() {
+        return indexGenerations;
     }
 
     @Override
@@ -71,13 +71,13 @@ public class Manifest implements ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Manifest manifest = (Manifest) o;
-        return globalStateGeneration == manifest.globalStateGeneration &&
-                Objects.equals(indices, manifest.indices);
+        return globalGeneration == manifest.globalGeneration &&
+                Objects.equals(indexGenerations, manifest.indexGenerations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(globalStateGeneration, indices);
+        return Objects.hash(globalGeneration, indexGenerations);
     }
 
 
@@ -85,18 +85,18 @@ public class Manifest implements ToXContentFragment {
      * Code below this comment is for XContent manipulation
      */
 
-    private static final ParseField INDICES_PARSE_FIELD = new ParseField("indices");
+    private static final ParseField INDEX_GENERATIONS_PARSE_FIELD = new ParseField("indices");
     private static final ParseField GENERATION_PARSE_FIELD = new ParseField("generation");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(GENERATION_PARSE_FIELD.getPreferredName(), globalStateGeneration);
-        builder.array(INDICES_PARSE_FIELD.getPreferredName(), indexEntryList().toArray());
+        builder.field(GENERATION_PARSE_FIELD.getPreferredName(), globalGeneration);
+        builder.array(INDEX_GENERATIONS_PARSE_FIELD.getPreferredName(), indexEntryList().toArray());
         return builder;
     }
 
     private List<IndexEntry> indexEntryList() {
-        return indices.entrySet().stream().
+        return indexGenerations.entrySet().stream().
                 map(entry -> new IndexEntry(entry.getKey(), entry.getValue())).
                 collect(Collectors.toList());
     }
@@ -117,7 +117,7 @@ public class Manifest implements ToXContentFragment {
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_PARSE_FIELD);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), IndexEntry.INDEX_ENTRY_PARSER, INDICES_PARSE_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), IndexEntry.INDEX_ENTRY_PARSER, INDEX_GENERATIONS_PARSE_FIELD);
     }
 
     public static Manifest fromXContent(XContentParser parser) throws IOException {

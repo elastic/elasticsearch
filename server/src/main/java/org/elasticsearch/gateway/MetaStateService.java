@@ -97,7 +97,7 @@ public class MetaStateService extends AbstractComponent {
      * Returns set of indices, which metadata is stored on this node.
      */
     Set<Index> getPreviouslyWrittenIndices() {
-        return currentManifest == null ? Collections.emptySet() : Collections.unmodifiableSet(currentManifest.getIndices().keySet());
+        return currentManifest == null ? Collections.emptySet() : Collections.unmodifiableSet(currentManifest.getIndexGenerations().keySet());
     }
 
     /**
@@ -106,7 +106,7 @@ public class MetaStateService extends AbstractComponent {
     void keepIndex(Index index) {
         IndexMetaData metaData = currentMetaData.index(index);
         assert metaData != null;
-        Long generation = currentManifest.getIndices().get(index);
+        Long generation = currentManifest.getIndexGenerations().get(index);
         assert generation != null;
         logger.trace("[{}] keep index", index);
         newIndices.put(index, generation);
@@ -160,7 +160,7 @@ public class MetaStateService extends AbstractComponent {
 
     public void keepGlobalState() {
         assert currentMetaData != null;
-        globalGeneration = currentManifest.getGlobalStateGeneration();
+        globalGeneration = currentManifest.getGlobalGeneration();
         copyGlobalMetaDataToBuilder(currentMetaData);
     }
 
@@ -197,13 +197,13 @@ public class MetaStateService extends AbstractComponent {
         } else {
             final MetaData.Builder metaDataBuilder;
             final MetaData globalMetaData = MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry,
-                    manifest.getGlobalStateGeneration(), nodeEnv.nodeDataPaths());
+                    manifest.getGlobalGeneration(), nodeEnv.nodeDataPaths());
             if (globalMetaData != null) {
                 metaDataBuilder = MetaData.builder(globalMetaData);
             } else {
-                throw new IOException("failed to find global metadata [generation: " + manifest.getGlobalStateGeneration() + "]");
+                throw new IOException("failed to find global metadata [generation: " + manifest.getGlobalGeneration() + "]");
             }
-            for (Map.Entry<Index, Long> entry : manifest.getIndices().entrySet()) {
+            for (Map.Entry<Index, Long> entry : manifest.getIndexGenerations().entrySet()) {
                 Index index = entry.getKey();
                 long generation = entry.getValue();
                 final String indexFolderName = index.getUUID();

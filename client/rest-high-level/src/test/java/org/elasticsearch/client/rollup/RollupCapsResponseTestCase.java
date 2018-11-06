@@ -26,10 +26,13 @@ import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfigTests;
 import org.elasticsearch.client.rollup.job.config.TermsGroupConfig;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -42,10 +45,29 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-abstract class RollupCapsResponseTestCase<T extends ToXContent> extends AbstractXContentTestCase<T> {
+abstract class RollupCapsResponseTestCase<T> extends ESTestCase {
 
     protected Map<String, RollableIndexCaps> indices;
+
+    protected abstract T createTestInstance();
+
+    protected abstract void toXContent(T response, XContentBuilder builder) throws IOException;
+
+    protected abstract T fromXContent(XContentParser parser) throws IOException;
+
+    public void testFromXContent() throws IOException {
+        xContentTester(
+            this::createParser,
+            this::createTestInstance,
+            this::toXContent,
+            this::fromXContent)
+            .supportsUnknownFields(false)
+            .randomFieldsExcludeFilter(field ->
+                field.endsWith("job_id"))
+            .test();
+    }
 
     @Before
     private void setupIndices() throws IOException {

@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.client.rollup;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class GetRollupCapsResponseTests extends RollupCapsResponseTestCase<GetRollupCapsResponse> {
 
@@ -30,12 +32,16 @@ public class GetRollupCapsResponseTests extends RollupCapsResponseTestCase<GetRo
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected void toXContent(GetRollupCapsResponse response, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        for (Map.Entry<String, RollableIndexCaps> entry : response.getJobs().entrySet()) {
+            entry.getValue().toXContent(builder, null);
+        }
+        builder.endObject();
     }
 
     @Override
-    protected GetRollupCapsResponse doParseInstance(final XContentParser parser) throws IOException {
+    protected GetRollupCapsResponse fromXContent(XContentParser parser) throws IOException {
         return GetRollupCapsResponse.fromXContent(parser);
     }
 }

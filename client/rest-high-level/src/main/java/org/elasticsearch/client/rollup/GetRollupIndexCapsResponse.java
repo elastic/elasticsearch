@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -30,7 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class GetRollupIndexCapsResponse implements ToXContentObject {
+public class GetRollupIndexCapsResponse {
 
     private final Map<String, RollableIndexCaps> jobs;
 
@@ -40,16 +36,6 @@ public class GetRollupIndexCapsResponse implements ToXContentObject {
 
     public Map<String, RollableIndexCaps> getJobs() {
         return jobs;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        for (Map.Entry<String, RollableIndexCaps> entry : jobs.entrySet()) {
-            entry.getValue().toXContent(builder, params);
-        }
-        builder.endObject();
-        return builder;
     }
 
     public static GetRollupIndexCapsResponse fromXContent(final XContentParser parser) throws IOException {
@@ -83,10 +69,5 @@ public class GetRollupIndexCapsResponse implements ToXContentObject {
         }
         GetRollupIndexCapsResponse other = (GetRollupIndexCapsResponse) obj;
         return Objects.equals(jobs, other.jobs);
-    }
-
-    @Override
-    public final String toString() {
-        return Strings.toString(this);
     }
 }

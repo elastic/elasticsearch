@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -39,6 +38,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPred
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.GreaterThan;
@@ -588,7 +588,7 @@ final class QueryTranslator {
                 Query query = new TermQuery(loc, name, value);
                 if (bc instanceof NotEquals) {
                     query = new NotQuery(loc, query);
-                }
+            }
                 return query;
             }
 

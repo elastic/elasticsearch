@@ -55,7 +55,7 @@ include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
 
-include::ccr/index.asciidoc[]
+include::ilm/index.asciidoc[]
 
 include::sql/index.asciidoc[]
 

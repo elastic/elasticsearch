@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -31,11 +30,10 @@ public class TransportKillProcessAction extends TransportJobTaskAction<KillProce
     private final Auditor auditor;
 
     @Inject
-    public TransportKillProcessAction(Settings settings, TransportService transportService,
-                                      ClusterService clusterService, ActionFilters actionFilters,
+    public TransportKillProcessAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters,
                                       AutodetectProcessManager processManager, Auditor auditor) {
-        super(settings, KillProcessAction.NAME, clusterService, transportService, actionFilters,
-            KillProcessAction.Request::new, KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME, processManager);
+        super(KillProcessAction.NAME, clusterService, transportService, actionFilters, KillProcessAction.Request::new,
+            KillProcessAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME, processManager);
         this.auditor = auditor;
     }
 

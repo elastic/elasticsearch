@@ -45,7 +45,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     private int maxConcurrentSearchRequests = 0;
     private List<SearchTemplateRequest> requests = new ArrayList<>();
 
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
 
     /**
      * Add a search template request to execute. Note, the order is important, the search response will be returned in the

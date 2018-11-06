@@ -83,6 +83,13 @@ public interface CircuitBreaker {
         }
     }
 
+    enum Durability {
+        // The condition that tripped the circuit breaker fixes itself eventually.
+        TRANSIENT,
+        // The condition that tripped the circuit breaker requires manual intervention.
+        PERMANENT
+    }
+
     /**
      * Trip the circuit breaker
      * @param fieldName name of the field responsible for tripping the breaker
@@ -127,4 +134,9 @@ public interface CircuitBreaker {
      * @return the name of the breaker
      */
     String getName();
+
+    /**
+     * @return whether a tripped circuit breaker will reset itself (transient) or requires manual intervention (permanent).
+     */
+    Durability getDurability();
 }

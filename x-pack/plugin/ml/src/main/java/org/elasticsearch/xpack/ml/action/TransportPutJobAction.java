@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -32,11 +31,11 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
     private final AnalysisRegistry analysisRegistry;
 
     @Inject
-    public TransportPutJobAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportPutJobAction(TransportService transportService, ClusterService clusterService,
                                  ThreadPool threadPool, XPackLicenseState licenseState, ActionFilters actionFilters,
                                  IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager,
                                  AnalysisRegistry analysisRegistry) {
-        super(settings, PutJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(PutJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, PutJobAction.Request::new);
         this.licenseState = licenseState;
         this.jobManager = jobManager;

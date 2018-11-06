@@ -260,6 +260,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-get-calendars>>
 * <<{upid}-put-calendar>>
 * <<{upid}-delete-calendar>>
+* <<{upid}-put-filter>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -288,6 +289,7 @@ include::ml/get-categories.asciidoc[]
 include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
+include::ml/put-filter.asciidoc[]
 
 == Migration APIs
 
@@ -335,6 +337,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-get-role-mappings>>
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
+* <<{upid}-invalidate-token>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
@@ -348,6 +351,7 @@ include::security/put-role-mapping.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/delete-role-mapping.asciidoc[]
 include::security/create-token.asciidoc[]
+include::security/invalidate-token.asciidoc[]
 
 == Watcher APIs
 

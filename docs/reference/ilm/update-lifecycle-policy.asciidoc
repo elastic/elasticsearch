@@ -191,13 +191,13 @@ GET my_index/_ilm/explain
       "index": "my_index",
       "managed": true,
       "policy": "my_executing_policy",
-      "lifecycle_date": 1538475653281,
+      "lifecycle_date_millis": 1538475653281,
       "phase": "hot",
-      "phase_time": 1538475653317,
+      "phase_time_millis": 1538475653317,
       "action": "rollover",
-      "action_time": 1538475653317,
+      "action_time_millis": 1538475653317,
       "step": "attempt_rollover",
-      "step_time": 1538475653317,
+      "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "my_executing_policy",
         "modified_date_in_millis": 1538475653317,
@@ -216,10 +216,10 @@ GET my_index/_ilm/explain
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE[s/"lifecycle_date": 1538475653281/"lifecycle_date": $body.indices.my_index.lifecycle_date/]
-// TESTRESPONSE[s/"phase_time": 1538475653317/"phase_time": $body.indices.my_index.phase_time/]
-// TESTRESPONSE[s/"action_time": 1538475653317/"action_time": $body.indices.my_index.action_time/]
-// TESTRESPONSE[s/"step_time": 1538475653317/"step_time": $body.indices.my_index.step_time/]
+// TESTRESPONSE[s/"lifecycle_date_millis": 1538475653281/"lifecycle_date_millis": $body.indices.my_index.lifecycle_date_millis/]
+// TESTRESPONSE[s/"phase_time_millis": 1538475653317/"phase_time_millis": $body.indices.my_index.phase_time_millis/]
+// TESTRESPONSE[s/"action_time_millis": 1538475653317/"action_time_millis": $body.indices.my_index.action_time_millis/]
+// TESTRESPONSE[s/"step_time_millis": 1538475653317/"step_time_millis": $body.indices.my_index.step_time_millis/]
 // TESTRESPONSE[s/"modified_date_in_millis": 1538475653317/"modified_date_in_millis": $body.indices.my_index.phase_execution.modified_date_in_millis/]
 
 Updating `my_executing_policy` to have no rollover action and, instead, go directly into a newly introduced `warm` phase.
@@ -271,13 +271,13 @@ GET my_index/_ilm/explain
       "index": "my_index",
       "managed": true,
       "policy": "my_executing_policy",
-      "lifecycle_date": 1538475653281,
+      "lifecycle_date_millis": 1538475653281,
       "phase": "hot",
-      "phase_time": 1538475653317,
+      "phase_time_millis": 1538475653317,
       "action": "rollover",
-      "action_time": 1538475653317,
+      "action_time_millis": 1538475653317,
       "step": "attempt_rollover",
-      "step_time": 1538475653317,
+      "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "my_executing_policy",
         "modified_date_in_millis": 1538475653317,
@@ -296,10 +296,10 @@ GET my_index/_ilm/explain
 }
 --------------------------------------------------
 // CONSOLE
-// TESTRESPONSE[s/"lifecycle_date": 1538475653281/"lifecycle_date": $body.indices.my_index.lifecycle_date/]
-// TESTRESPONSE[s/"phase_time": 1538475653317/"phase_time": $body.indices.my_index.phase_time/]
-// TESTRESPONSE[s/"action_time": 1538475653317/"action_time": $body.indices.my_index.action_time/]
-// TESTRESPONSE[s/"step_time": 1538475653317/"step_time": $body.indices.my_index.step_time/]
+// TESTRESPONSE[s/"lifecycle_date_millis": 1538475653281/"lifecycle_date_millis": $body.indices.my_index.lifecycle_date_millis/]
+// TESTRESPONSE[s/"phase_time_millis": 1538475653317/"phase_time_millis": $body.indices.my_index.phase_time_millis/]
+// TESTRESPONSE[s/"action_time_millis": 1538475653317/"action_time_millis": $body.indices.my_index.action_time_millis/]
+// TESTRESPONSE[s/"step_time_millis": 1538475653317/"step_time_millis": $body.indices.my_index.step_time_millis/]
 // TESTRESPONSE[s/"modified_date_in_millis": 1538475653317/"modified_date_in_millis": $body.indices.my_index.phase_execution.modified_date_in_millis/]
 
 After indexing one document into `my_index` so that rollover succeeds and moves onto the next phase, we will notice something new. The
@@ -327,13 +327,13 @@ GET my_index/_ilm/explain
       "index": "my_index",
       "managed": true,
       "policy": "my_executing_policy",
-      "lifecycle_date": 1538475653281,
+      "lifecycle_date_millis": 1538475653281,
       "phase": "warm",
-      "phase_time": 1538475653317,
+      "phase_time_millis": 1538475653317,
       "action": "forcemerge",
-      "action_time": 1538475653317,
+      "action_time_millis": 1538475653317,
       "step": "forcemerge",
-      "step_time": 1538475653317,
+      "step_time_millis": 1538475653317,
       "phase_execution": {
         "policy": "my_executing_policy",
         "modified_date_in_millis": 1538475653317,

@@ -72,7 +72,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
 
     @Inject
     public TransportResumeFollowAction(
-            final Settings settings,
             final ThreadPool threadPool,
             final TransportService transportService,
             final ActionFilters actionFilters,
@@ -81,7 +80,7 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             final PersistentTasksService persistentTasksService,
             final IndicesService indicesService,
             final CcrLicenseChecker ccrLicenseChecker) {
-        super(settings, ResumeFollowAction.NAME, transportService, actionFilters, in -> new ResumeFollowAction.Request(in));
+        super(ResumeFollowAction.NAME, transportService, actionFilters, in -> new ResumeFollowAction.Request(in));
         this.client = client;
         this.threadPool = threadPool;
         this.clusterService = clusterService;

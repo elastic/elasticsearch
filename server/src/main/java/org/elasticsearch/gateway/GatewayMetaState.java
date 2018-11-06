@@ -79,6 +79,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
             try {
                 ensureNoPre019State();
                 final MetaData metaData = metaStateService.getMetaData();
+                assert metaStateService.hasNoPendingWrites();
 
                 // We finished global state validation and successfully checked all indices for backward compatibility
                 // and found no non-upgradable indices, which means the upgrade can continue.
@@ -137,6 +138,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         // we don't check if metaData changed, since we might be called several times and we need to check dangling...
         // write the state if this node is a master eligible node or if it is a data node and has shards allocated on it
         if (state.nodes().getLocalNode().isMasterNode() || state.nodes().getLocalNode().isDataNode()) {
+            assert metaStateService.hasNoPendingWrites();
             try {
                 // check if the global state changed?
                 if (previousMetaData == null || !MetaData.isGlobalStateEquals(previousMetaData, newMetaData)) {

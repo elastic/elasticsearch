@@ -254,4 +254,8 @@ public class MetaStateService extends AbstractComponent {
             bwcMode = true;
         }
     }
+
+    public boolean hasNoPendingWrites() {
+        return globalGeneration == null && cleanupActions.isEmpty() && newIndices.isEmpty();
+    }
 }

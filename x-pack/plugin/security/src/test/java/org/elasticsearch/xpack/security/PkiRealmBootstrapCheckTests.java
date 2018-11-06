@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.hamcrest.Matchers;
 
@@ -26,7 +25,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
 
     public void testBootstrapCheckWithPkiRealm() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.authc.realms.test_pki.type", PkiRealmSettings.TYPE)
+                .put("xpack.security.authc.realms.pki.test_pki.order", 0)
                 .put("path.home", createTempDir())
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -88,8 +87,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
 
     public void testBootstrapCheckWithDisabledRealm() throws Exception {
         Settings settings = Settings.builder()
-                .put("xpack.security.authc.realms.test_pki.type", PkiRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.test_pki.enabled", false)
+                .put("xpack.security.authc.realms.pki.test_pki.enabled", false)
                 .put("xpack.ssl.client_authentication", "none")
                 .put("path.home", createTempDir())
                 .build();
@@ -102,7 +100,7 @@ public class PkiRealmBootstrapCheckTests extends ESTestCase {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-            .put("xpack.security.authc.realms.test_pki.type", PkiRealmSettings.TYPE)
+            .put("xpack.security.authc.realms.pki.test_pki.order", 0)
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.client_authentication", expectFail ? "none" : "optional")
             .put("xpack.security.http.ssl.key",

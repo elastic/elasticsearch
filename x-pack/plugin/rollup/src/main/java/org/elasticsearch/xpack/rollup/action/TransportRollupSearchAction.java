@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -85,10 +84,10 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     private static final Logger logger = LogManager.getLogger(RollupSearchAction.class);
 
     @Inject
-    public TransportRollupSearchAction(Settings settings, TransportService transportService,
+    public TransportRollupSearchAction(TransportService transportService,
                                  ActionFilters actionFilters, Client client, NamedWriteableRegistry registry, BigArrays bigArrays,
                                  ScriptService scriptService, ClusterService clusterService) {
-        super(settings, RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
+        super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;

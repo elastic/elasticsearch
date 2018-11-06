@@ -260,6 +260,7 @@ The Java High Level REST Client supports the following Machine Learning APIs:
 * <<{upid}-get-calendars>>
 * <<{upid}-put-calendar>>
 * <<{upid}-delete-calendar>>
+* <<{upid}-put-filter>>
 
 include::ml/put-job.asciidoc[]
 include::ml/get-job.asciidoc[]
@@ -288,6 +289,7 @@ include::ml/get-categories.asciidoc[]
 include::ml/get-calendars.asciidoc[]
 include::ml/put-calendar.asciidoc[]
 include::ml/delete-calendar.asciidoc[]
+include::ml/put-filter.asciidoc[]
 
 == Migration APIs
 
@@ -329,12 +331,14 @@ The Java High Level REST Client supports the following Security APIs:
 * <<java-rest-high-security-change-password>>
 * <<java-rest-high-security-delete-role>>
 * <<{upid}-clear-roles-cache>>
+* <<{upid}-clear-realm-cache>>
 * <<{upid}-authenticate>>
 * <<java-rest-high-security-get-certificates>>
 * <<java-rest-high-security-put-role-mapping>>
 * <<java-rest-high-security-get-role-mappings>>
 * <<java-rest-high-security-delete-role-mapping>>
 * <<java-rest-high-security-create-token>>
+* <<{upid}-invalidate-token>>
 
 include::security/put-user.asciidoc[]
 include::security/enable-user.asciidoc[]
@@ -342,12 +346,14 @@ include::security/disable-user.asciidoc[]
 include::security/change-password.asciidoc[]
 include::security/delete-role.asciidoc[]
 include::security/clear-roles-cache.asciidoc[]
+include::security/clear-realm-cache.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/get-certificates.asciidoc[]
 include::security/put-role-mapping.asciidoc[]
 include::security/get-role-mappings.asciidoc[]
 include::security/delete-role-mapping.asciidoc[]
 include::security/create-token.asciidoc[]
+include::security/invalidate-token.asciidoc[]
 
 == Watcher APIs
 

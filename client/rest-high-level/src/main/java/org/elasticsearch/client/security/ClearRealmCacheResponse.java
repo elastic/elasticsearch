@@ -27,24 +27,25 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * The response object that will be returned when clearing the roles cache
+ * Response for a clear realm cache request. The response includes a header that contains the
+ * number of successful and failed nodes.
  */
-public final class ClearRolesCacheResponse extends SecurityNodesResponse {
+public final class ClearRealmCacheResponse extends SecurityNodesResponse {
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ClearRolesCacheResponse, Void> PARSER =
-        new ConstructingObjectParser<>("clear_roles_cache_response", false,
-            args -> new ClearRolesCacheResponse((List<Node>)args[0], (NodesResponseHeader) args[1], (String) args[2]));
+    public static final ConstructingObjectParser<ClearRealmCacheResponse, Void> PARSER =
+        new ConstructingObjectParser<>("clear_realm_cache_response_parser",
+            args -> new ClearRealmCacheResponse((List<Node>) args[0], (NodesResponseHeader) args[1], (String) args[2]));
 
     static {
         SecurityNodesResponse.declareCommonNodesResponseParsing(PARSER);
     }
 
-    public ClearRolesCacheResponse(List<Node> nodes, NodesResponseHeader header, String clusterName) {
+    public ClearRealmCacheResponse(List<Node> nodes, NodesResponseHeader header, String clusterName) {
         super(nodes, header, clusterName);
     }
 
-    public static ClearRolesCacheResponse fromXContent(XContentParser parser) throws IOException {
+    public static ClearRealmCacheResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 }

@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -43,10 +42,10 @@ public class TransportDeleteIndexTemplateAction
     private final MetaDataIndexTemplateService indexTemplateService;
 
     @Inject
-    public TransportDeleteIndexTemplateAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeleteIndexTemplateAction(TransportService transportService, ClusterService clusterService,
                                               ThreadPool threadPool, MetaDataIndexTemplateService indexTemplateService,
                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver, DeleteIndexTemplateRequest::new);
         this.indexTemplateService = indexTemplateService;
     }

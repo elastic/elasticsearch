@@ -13,26 +13,25 @@ import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.Set;
 
 public final class InternalRealmsSettings {
-    private InternalRealmsSettings() {}
+    private InternalRealmsSettings() {
+    }
 
     /**
      * Provides the {@link Setting setting configuration} for each <em>internal</em> realm type.
      * This excludes the ReservedRealm, as it cannot be configured dynamically.
-     * @return A map from <em>realm-type</em> to a collection of <code>Setting</code> objects.
      */
-    public static Map<String, Set<Setting<?>>> getSettings() {
-        Map<String, Set<Setting<?>>> map = new HashMap<>();
-        map.put(FileRealmSettings.TYPE, FileRealmSettings.getSettings());
-        map.put(NativeRealmSettings.TYPE, NativeRealmSettings.getSettings());
-        map.put(LdapRealmSettings.AD_TYPE, LdapRealmSettings.getSettings(LdapRealmSettings.AD_TYPE));
-        map.put(LdapRealmSettings.LDAP_TYPE, LdapRealmSettings.getSettings(LdapRealmSettings.LDAP_TYPE));
-        map.put(PkiRealmSettings.TYPE, PkiRealmSettings.getSettings());
-        map.put(SamlRealmSettings.TYPE, SamlRealmSettings.getSettings());
-        return Collections.unmodifiableMap(map);
+    public static Set<Setting.AffixSetting<?>> getSettings() {
+        Set<Setting.AffixSetting<?>> set = new HashSet<>();
+        set.addAll(FileRealmSettings.getSettings());
+        set.addAll(NativeRealmSettings.getSettings());
+        set.addAll(LdapRealmSettings.getSettings(LdapRealmSettings.AD_TYPE));
+        set.addAll(LdapRealmSettings.getSettings(LdapRealmSettings.LDAP_TYPE));
+        set.addAll(PkiRealmSettings.getSettings());
+        set.addAll(SamlRealmSettings.getSettings());
+        return Collections.unmodifiableSet(set);
     }
 }

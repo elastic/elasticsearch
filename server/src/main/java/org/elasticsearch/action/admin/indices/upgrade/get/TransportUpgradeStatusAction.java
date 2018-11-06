@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.shard.IndexShard;
@@ -49,10 +48,10 @@ public class TransportUpgradeStatusAction
     private final IndicesService indicesService;
 
     @Inject
-    public TransportUpgradeStatusAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportUpgradeStatusAction(ClusterService clusterService, TransportService transportService,
                                         IndicesService indicesService, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, UpgradeStatusAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        super(UpgradeStatusAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 UpgradeStatusRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }

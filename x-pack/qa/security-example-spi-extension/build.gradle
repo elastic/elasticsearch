@@ -19,14 +19,12 @@ integTestRunner {
 
 integTestCluster {
   dependsOn buildZip
-  setting 'xpack.security.authc.realms.custom.order', '0'
-  setting 'xpack.security.authc.realms.custom.type', 'custom'
-  setting 'xpack.security.authc.realms.custom.filtered_setting', 'should be filtered'
-  setting 'xpack.security.authc.realms.esusers.order', '1'
-  setting 'xpack.security.authc.realms.esusers.type', 'file'
-  setting 'xpack.security.authc.realms.native.type', 'native'
-  setting 'xpack.security.authc.realms.native.order', '2'
+  setting 'xpack.security.authc.realms.custom.custom.order', '0'
+  setting 'xpack.security.authc.realms.custom.custom.filtered_setting', 'should be filtered'
+  setting 'xpack.security.authc.realms.file.esusers.order', '1'
+  setting 'xpack.security.authc.realms.native.native.order', '2'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

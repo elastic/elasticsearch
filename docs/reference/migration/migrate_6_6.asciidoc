@@ -20,8 +20,9 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 Using automatically expanded fields for the "all fields" mode ("default_field": "*")
 for the `query_string`, `multi_match` and `simple_query_string` now raises a warning and
-a deprecation notice to be logged for queries beyond 1024 fields. This limit will be
-enforced with a hard error starting in 7.0.
+a deprecation notice to be logged for queries beyond a certain number of fields. This limit
+will be enforced with a hard error starting in 7.0 and is determined by the
+`indices.query.bool.max_clause_count` setting which defaults to 1024.
 
 [float]
 ==== Deprecate `_source_exclude` and `_source_include` URL Parameters

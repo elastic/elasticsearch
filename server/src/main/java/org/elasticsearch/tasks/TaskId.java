@@ -20,14 +20,11 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -38,16 +35,6 @@ import java.io.IOException;
 public final class TaskId implements Writeable {
 
     public static final TaskId EMPTY_TASK_ID = new TaskId();
-    private static final ParseField TASK = new ParseField("task");
-
-    public static final ConstructingObjectParser<TaskId, Void> PARSER = new ConstructingObjectParser<>(
-        "task_id_within_object_response",
-        true, a -> (TaskId) a[0]);
-
-    static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), TaskId.parser(), TASK, ObjectParser.ValueType.STRING);
-    }
-
 
     private final String nodeId;
     private final long id;
@@ -159,9 +146,5 @@ public final class TaskId implements Writeable {
         int result = nodeId.hashCode();
         result = 31 * result + (int) (id ^ (id >>> 32));
         return result;
-    }
-
-    public static TaskId fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 }

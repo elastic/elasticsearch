@@ -92,7 +92,6 @@ are printed to the log file.
 All of the settings with the same policy name combine to form a single policy. If an event matches all of the conditions specified for a specific policy, it is ignored.
 
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.users`::
-Binds with other settings with the same `<policy_name>` to form a policy.
 The value is a list of names or wildcards, and specifies that the policy will
 not print audit events for users matching any of the specifed names or wildcards.
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.realms`::

@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ClusterState.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -32,9 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class TransportBootstrapClusterAction extends TransportAction<BootstrapClusterRequest, AcknowledgedResponse> {
 
@@ -66,18 +62,22 @@ public class TransportBootstrapClusterAction extends TransportAction<BootstrapCl
             throw new ElasticsearchException("this node is not master-eligible");
         }
 
-        if (coordinator.isInitialConfigurationSet()) {
-            logger.info("initial configuration already set, ignoring bootstrapping request");
-            listener.onResponse(new AcknowledgedResponse(false));
-        } else {
-            final List<DiscoveryNode> selfAndDiscoveredPeers = new ArrayList<>();
-            selfAndDiscoveredPeers.add(localNode);
-            coordinator.getFoundPeers().forEach(selfAndDiscoveredPeers::add);
+        transportService.getThreadPool().generic().execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    listener.onResponse(new AcknowledgedResponse(
+                        coordinator.setInitialConfigurationIfNotAlreadySet(request.getBootstrapConfiguration())));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
 
-            final VotingConfiguration votingConfiguration = request.getBootstrapConfiguration().resolve(selfAndDiscoveredPeers);
-            logger.info("setting initial configuration to {}", votingConfiguration);
-            coordinator.setInitialConfiguration(votingConfiguration);
-            listener.onResponse(new AcknowledgedResponse(true));
-        }
+            @Override
+            public String toString() {
+                return "setting initial configuration with " + request;
+            }
+        });
     }
+
 }

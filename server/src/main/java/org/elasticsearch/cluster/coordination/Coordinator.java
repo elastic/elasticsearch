@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -147,6 +148,24 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.clusterApplier = clusterApplier;
         masterService.setClusterStateSupplier(this::getStateForMasterService);
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
+    }
+
+    public boolean setInitialConfigurationIfNotAlreadySet(BootstrapConfiguration bootstrapConfiguration) {
+        synchronized (mutex) {
+            if (isInitialConfigurationSet()) {
+                logger.info("initial configuration already set, ignoring bootstrapping request");
+                return false;
+            }
+
+            final List<DiscoveryNode> selfAndDiscoveredPeers = new ArrayList<>();
+            selfAndDiscoveredPeers.add(getLocalNode());
+            getFoundPeers().forEach(selfAndDiscoveredPeers::add);
+
+            final VotingConfiguration votingConfiguration = bootstrapConfiguration.resolve(selfAndDiscoveredPeers);
+            logger.info("setting initial configuration to {}", votingConfiguration);
+            setInitialConfiguration(votingConfiguration);
+            return true;
+        }
     }
 
     private Runnable getOnLeaderFailure() {

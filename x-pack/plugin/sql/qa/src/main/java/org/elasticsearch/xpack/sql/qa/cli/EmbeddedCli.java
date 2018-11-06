@@ -154,15 +154,14 @@ public class EmbeddedCli implements Closeable {
             boolean isLogoOrException = false;
             while (!isLogoOrException) {
                 String line = readLine();
-                isLogoOrException = line.contains("SQL");
-                if (isLogoOrException) {
-                    // which one is it? The "SQL" line in the logo or an .SQL*Exception?
-                    if (!line.contains(".SQL")) {
-                        // it's not an exception, so read the version and break out of the loop
-                        readLine();
-                    }
+                if ("SQL".equals(line.trim())) {
+                    // it's almost the bottom of the logo, so read the next line (the version) and break out of the loop
+                    readLine();
+                    isLogoOrException = true;
+                } else if (line.contains("Exception")) {
                     // if it's an exception, just break out of the loop and don't read the next line
                     // as it will swallow the exception and IT tests won't catch it
+                    isLogoOrException = true;
                 }
             }
             

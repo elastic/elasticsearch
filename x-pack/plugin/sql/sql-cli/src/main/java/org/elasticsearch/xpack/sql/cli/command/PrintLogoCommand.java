@@ -44,9 +44,7 @@ public class PrintLogoCommand extends AbstractCliCommand {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
-                    if (line.length() > lineLength) {
-                        lineLength = line.length();
-                    }
+                    lineLength = Math.max(lineLength, line.length());
                     terminal.println(line);
                 }
             }

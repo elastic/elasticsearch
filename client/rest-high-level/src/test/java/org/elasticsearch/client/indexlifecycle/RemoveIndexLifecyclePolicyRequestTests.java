@@ -46,7 +46,7 @@ public class RemoveIndexLifecyclePolicyRequestTests extends ESTestCase {
         if (randomBoolean()) {
             return new RemoveIndexLifecyclePolicyRequest(Arrays.asList(generateRandomStringArray(20, 20, false)),
                     IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         } else {
             return new RemoveIndexLifecyclePolicyRequest(Arrays.asList(generateRandomStringArray(20, 20, false)));
         }
@@ -57,14 +57,14 @@ public class RemoveIndexLifecyclePolicyRequestTests extends ESTestCase {
                 req.indicesOptions().ignoreUnavailable(), req.indicesOptions().allowNoIndices(),
                 req.indicesOptions().expandWildcardsOpen(), req.indicesOptions().expandWildcardsClosed(),
                 req.indicesOptions().allowAliasesToMultipleIndices(), req.indicesOptions().forbidClosedIndices(),
-                req.indicesOptions().ignoreAliases()));
+                req.indicesOptions().ignoreAliases(), req.indicesOptions().ignoreThrottled()));
     }
 
     private RemoveIndexLifecyclePolicyRequest mutateInstance(RemoveIndexLifecyclePolicyRequest req) {
         if (randomBoolean()) {
             return new RemoveIndexLifecyclePolicyRequest(req.indices(),
                     randomValueOtherThan(req.indicesOptions(), () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(),
-                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())));
+                    randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())));
         } else {
             return new RemoveIndexLifecyclePolicyRequest(
                     randomValueOtherThan(req.indices(), () -> Arrays.asList(generateRandomStringArray(20, 20, false))),

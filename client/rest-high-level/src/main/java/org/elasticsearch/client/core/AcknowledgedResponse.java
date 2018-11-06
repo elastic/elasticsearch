@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.rollup;
+package org.elasticsearch.client.core;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;

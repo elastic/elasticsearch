@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.client.rollup.AcknowledgedResponse;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 

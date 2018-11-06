@@ -83,7 +83,6 @@ public final class TasksClient {
     public Optional<GetTaskResponse> get(GetTaskRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseOptionalEntity(request, TasksRequestConverters::getTask, options,
                 GetTaskResponse::fromXContent);        
-        
     }   
     
     /**
@@ -99,7 +98,6 @@ public final class TasksClient {
         restHighLevelClient.performRequestAsyncAndParseOptionalEntity(request, TasksRequestConverters::getTask, options,
                 GetTaskResponse::fromXContent, listener);
     }    
-    
 
     /**
      * Cancel one or more cluster tasks using the Task Management API.

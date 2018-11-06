@@ -31,13 +31,10 @@ public class GetTaskRequest implements Validatable {
     private boolean waitForCompletion = false;
     private TimeValue timeout = null;
 
-
     public GetTaskRequest(String nodeId, long taskId) {
         this.nodeId = nodeId;
         this.taskId = taskId;
     }
-    
-    
 
     public String getNodeId() {
         return nodeId;
@@ -76,7 +73,6 @@ public class GetTaskRequest implements Validatable {
         this.timeout = timeout;
         return this;
     }
-
 
     @Override
     public Optional<ValidationException> validate() {

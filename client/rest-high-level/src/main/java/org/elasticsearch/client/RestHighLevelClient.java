@@ -1418,7 +1418,6 @@ public class RestHighLevelClient implements Closeable {
         }
     }
     
-    
     /**
      * Defines a helper method for requests that can 404 and in which case will return an empty Optional 
      * otherwise tries to parse the response body
@@ -1438,7 +1437,7 @@ public class RestHighLevelClient implements Closeable {
         try {
             response = client.performRequest(req);
         } catch (ResponseException e) {
-            if (404 == e.getResponse().getStatusLine().getStatusCode()) {
+            if (RestStatus.NOT_FOUND.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
                 return Optional.empty();
             }
             throw parseResponseException(e);
@@ -1598,7 +1597,6 @@ public class RestHighLevelClient implements Closeable {
         client.performRequestAsync(req, responseListener);        
     }    
     
-    
     final <Resp> ResponseListener wrapResponseListener404sOptional(CheckedFunction<Response, Resp, IOException> responseConverter,
             ActionListener<Optional<Resp>> actionListener) {
         return new ResponseListener() {
@@ -1617,7 +1615,7 @@ public class RestHighLevelClient implements Closeable {
                 if (exception instanceof ResponseException) {
                     ResponseException responseException = (ResponseException) exception;
                     Response response = responseException.getResponse();
-                    if (404 == response.getStatusLine().getStatusCode()) {
+                    if (RestStatus.NOT_FOUND.getStatus() == response.getStatusLine().getStatusCode()) {
                             actionListener.onResponse(Optional.empty());
                     } else {
                         actionListener.onFailure(parseResponseException(responseException));

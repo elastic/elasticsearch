@@ -99,16 +99,20 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         request.setJsonEntity("{" + "  \"source\": {\n" + "    \"index\": \"source1\"\n" + "  },\n" + "  \"dest\": {\n"
                 + "    \"index\": \"dest\"\n" + "  }" + "}");
         Response response = lowClient.performRequest(request);
-        String responseBody = EntityUtils.toString(response.getEntity());
-        Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, responseBody, false);
+        Map<String, Object> map = entityAsMap(response);
         Object taskId = map.get("task");
         assertNotNull(taskId);
 
         TaskId childTaskId = new TaskId(taskId.toString());
         GetTaskRequest gtr = new GetTaskRequest(childTaskId.getNodeId(), childTaskId.getId());
+        gtr.setWaitForCompletion(randomBoolean());
         Optional<GetTaskResponse> getTaskResponse = execute(gtr, highLevelClient().tasks()::get, highLevelClient().tasks()::getAsync);
         assertTrue(getTaskResponse.isPresent());
-        TaskInfo info = getTaskResponse.get().getTaskInfo();
+        GetTaskResponse taskResponse = getTaskResponse.get();        
+        if (gtr.getWaitForCompletion()) {
+            assertTrue(taskResponse.isCompleted());
+        }
+        TaskInfo info = taskResponse.getTaskInfo();
         assertTrue(info.isCancellable());
         assertEquals("reindex from [source1] to [dest]", info.getDescription());
         assertEquals("indices:data/write/reindex", info.getAction());                

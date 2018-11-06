@@ -29,25 +29,26 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class GetTaskResponse {
     private final boolean completed;
     private final TaskInfo taskInfo;
+    
     public GetTaskResponse(boolean completed, TaskInfo taskInfo) {
         this.completed = completed;
         this.taskInfo = taskInfo;
     }
+    
     public boolean isCompleted() {
         return completed;
     }
+    
     public TaskInfo getTaskInfo() {
         return taskInfo;
     }
-    
-    
+
     private static final ConstructingObjectParser<GetTaskResponse, Void> PARSER = new ConstructingObjectParser<>("get_task",
             true, a -> new GetTaskResponse((boolean) a[0],  (TaskInfo) a[1]));
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("completed"));
         PARSER.declareObject(constructorArg(), (p, c) -> TaskInfo.fromXContent(p), new ParseField("task"));
     }    
-    
 
     public static GetTaskResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);

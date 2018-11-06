@@ -245,7 +245,7 @@ public final class CcrLicenseChecker {
         CheckedConsumer<IndicesStatsResponse, Exception> indicesStatsHandler = indicesStatsResponse -> {
             IndexStats indexStats = indicesStatsResponse.getIndices().get(leaderIndex);
             if (indexStats == null) {
-                onFailure.accept(new IllegalArgumentException("no index shards available, is the leader index red?"));
+                onFailure.accept(new IllegalArgumentException("no index stats available for the leader index"));
                 return;
             }
 

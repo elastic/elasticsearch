@@ -572,7 +572,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             final PutFollowAction.Request followRequest = putFollow("index1", "index2");
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
-            assertThat(e.getMessage(), equalTo("no index shards available, is the leader index red?"));
+            assertThat(e.getMessage(), equalTo("no index stats available for the leader index"));
 
             IndicesExistsResponse existsResponse = followerClient().admin().indices().exists(new IndicesExistsRequest("index2")).actionGet();
             assertThat(existsResponse.isExists(), is(false));

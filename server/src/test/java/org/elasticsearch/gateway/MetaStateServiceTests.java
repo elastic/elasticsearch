@@ -32,13 +32,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MetaStateServiceTests extends ESTestCase {
-    private static Settings indexSettings() {
-        return Settings.builder()
-                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build();
+
+    private static IndexMetaData indexMetaData(String name) {
+        return IndexMetaData.builder(name).settings(
+                Settings.builder()
+                        .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .build()
+        ).build();
     }
 
     public void testWriteLoadGlobal() throws Exception {
@@ -61,7 +64,7 @@ public class MetaStateServiceTests extends ESTestCase {
             MetaData metaData = MetaData.builder()
                     .persistentSettings(Settings.builder().put("test1", "value1").build())
                     .build();
-            IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings()).build();
+            IndexMetaData index = indexMetaData("test1");
             MetaData metaDataWithIndex = MetaData.builder(metaData).put(index, true).build();
 
             metaStateService.writeGlobalState("test_write", metaDataWithIndex);
@@ -82,7 +85,7 @@ public class MetaStateServiceTests extends ESTestCase {
 
             metaStateService.writeGlobalState("test_write", metaData);
 
-            IndexMetaData index = IndexMetaData.builder("index1").settings(indexSettings()).build();
+            IndexMetaData index = indexMetaData("index1");
             metaStateService.writeIndex("test_write_index", index);
 
             metaStateService.writeManifest("test");
@@ -118,14 +121,14 @@ public class MetaStateServiceTests extends ESTestCase {
             MetaData metaData = MetaData.builder()
                     .persistentSettings(Settings.builder().put("test1", "value1").build())
                     .build();
-            IndexMetaData notChangedIndex = IndexMetaData.builder("not_changed_index").settings(indexSettings()).build();
+            IndexMetaData notChangedIndex = indexMetaData("not_changed_index");
             logger.error(notChangedIndex.getIndexUUID());
-            IndexMetaData removedIndex = IndexMetaData.builder("removed_index").settings(indexSettings()).build();
+            IndexMetaData removedIndex = indexMetaData("removed_index");
 
-            IndexMetaData changedIndex_v1 = IndexMetaData.builder("changed_index").settings(indexSettings()).build();
+            IndexMetaData changedIndex_v1 = indexMetaData("changed_index");
             IndexMetaData changedIndex_v2 = IndexMetaData.builder(changedIndex_v1).version(changedIndex_v1.getVersion() + 1).build();
 
-            IndexMetaData newIndex = IndexMetaData.builder("new_index").settings(indexSettings()).build();
+            IndexMetaData newIndex = indexMetaData("new_index");
 
             metaStateService.writeGlobalState("write1", metaData);
             metaStateService.writeIndex("write1", notChangedIndex);
@@ -158,7 +161,7 @@ public class MetaStateServiceTests extends ESTestCase {
                     .persistentSettings(Settings.builder().put("test1", "value2").build())
                     .build();
 
-            IndexMetaData index_v1 = IndexMetaData.builder("index").settings(indexSettings()).build();
+            IndexMetaData index_v1 = indexMetaData("index");
             IndexMetaData index_v2 = IndexMetaData.builder(index_v1).version(index_v1.getVersion() + 1).build();
 
             metaStateService.writeGlobalState("write1", metaData_v1);

@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.NoOpClusterApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -42,6 +41,8 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Random;
@@ -51,7 +52,6 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -60,18 +60,37 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 public class TransportBootstrapClusterActionTests extends ESTestCase {
 
     private final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
+    private DiscoveryNode discoveryNode;
+    private ThreadPool threadPool;
+    private TransportService transportService;
+    private Coordinator coordinator;
 
     private static BootstrapClusterRequest exampleRequest() {
         return new BootstrapClusterRequest(new BootstrapConfiguration(singletonList(new NodeDescription("id", "name"))));
     }
 
-    public void testHandlesNonstandardDiscoveryImplementation() throws InterruptedException {
+    @Before
+    public void setupTest() {
+        discoveryNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         final MockTransport transport = new MockTransport();
-        final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
-        final DiscoveryNode discoveryNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
-        final TransportService transportService = transport.createTransportService(Settings.EMPTY, threadPool,
+        threadPool = new TestThreadPool("test", Settings.EMPTY);
+        transportService = transport.createTransportService(Settings.EMPTY, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> discoveryNode, null, emptySet());
 
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        coordinator = new Coordinator("local", Settings.EMPTY, clusterSettings, transportService,
+            ESAllocationTestCase.createAllocationService(Settings.EMPTY),
+            new MasterService("local", Settings.EMPTY, threadPool),
+            () -> new InMemoryPersistedState(0, ClusterState.builder(new ClusterName("cluster")).build()), r -> emptyList(),
+            new NoOpClusterApplier(), new Random(random().nextLong()));
+    }
+
+    @After
+    public void cleanUp() {
+        threadPool.shutdown();
+    }
+
+    public void testHandlesNonstandardDiscoveryImplementation() throws InterruptedException {
         final Discovery discovery = mock(Discovery.class);
         verifyZeroInteractions(discovery);
 
@@ -94,25 +113,11 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
         });
 
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
-        threadPool.shutdown();
     }
 
     public void testFailsOnNonMasterEligibleNodes() throws InterruptedException {
-        final DiscoveryNode discoveryNode
-            = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-
-        final MockTransport transport = new MockTransport();
-        final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
-        final TransportService transportService = transport.createTransportService(Settings.EMPTY, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> discoveryNode, null, emptySet());
-
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
-        final Coordinator coordinator = new Coordinator("local", Settings.EMPTY, clusterSettings, transportService,
-            ESAllocationTestCase.createAllocationService(Settings.EMPTY),
-            new MasterService("local", Settings.EMPTY, threadPool),
-            () -> new InMemoryPersistedState(0, state), r -> emptyList(),
-            new NoOpClusterApplier(), new Random(random().nextLong()));
+        discoveryNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        // transport service only picks up local node when started, so we can change it here ^
 
         new TransportBootstrapClusterAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
         transportService.start();
@@ -134,26 +139,9 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
         });
 
         assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
-        threadPool.shutdown();
     }
 
     public void testSetsInitialConfiguration() throws InterruptedException {
-        final DiscoveryNode discoveryNode
-            = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(), singleton(Role.MASTER), Version.CURRENT);
-
-        final MockTransport transport = new MockTransport();
-        final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
-        final TransportService transportService = transport.createTransportService(Settings.EMPTY, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> discoveryNode, null, emptySet());
-
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        final ClusterState state = ClusterState.builder(new ClusterName("cluster")).build();
-        final Coordinator coordinator = new Coordinator("local", Settings.EMPTY, clusterSettings, transportService,
-            ESAllocationTestCase.createAllocationService(Settings.EMPTY),
-            new MasterService("local", Settings.EMPTY, threadPool),
-            () -> new InMemoryPersistedState(0, state), r -> emptyList(),
-            new NoOpClusterApplier(), new Random(random().nextLong()));
-
         new TransportBootstrapClusterAction(Settings.EMPTY, EMPTY_FILTERS, transportService, coordinator); // registers action
         transportService.start();
         transportService.acceptIncomingRequests();

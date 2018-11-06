@@ -176,7 +176,7 @@ PUT my_index
 // TEST[continued]
 ////
 
-The <<ilm-explain,Explain API>> is useful to introspect managed indices to see which phase definition they are currently executing.
+The <<ilm-explain-lifecycle,Explain API>> is useful to introspect managed indices to see which phase definition they are currently executing.
 Using this API, we can find out that `my_index` is currently attempting to be rolled over.
 
 [source,js]

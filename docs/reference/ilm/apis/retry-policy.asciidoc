@@ -15,7 +15,7 @@ Retry executing the policy for an index that is in the ERROR step.
 ==== Description
 
 Sets the policy back to the step where the error occurred and executes the step.
-Use the <<ilm-explain, ILM Explain API>> to determine if an index is in the ERROR
+Use the <<ilm-explain-lifecycle, ILM Explain API>> to determine if an index is in the ERROR
 step.
 
 ==== Path Parameters

@@ -54,7 +54,6 @@ public final class TransportPutFollowAction
 
     @Inject
     public TransportPutFollowAction(
-            final Settings settings,
             final ThreadPool threadPool,
             final TransportService transportService,
             final ClusterService clusterService,
@@ -64,7 +63,6 @@ public final class TransportPutFollowAction
             final AllocationService allocationService,
             final CcrLicenseChecker ccrLicenseChecker) {
         super(
-                settings,
                 PutFollowAction.NAME,
                 transportService,
                 clusterService,
@@ -135,6 +133,7 @@ public final class TransportPutFollowAction
         if (leaderIndexMetaData.getSettings().getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false) == false) {
             listener.onFailure(
                 new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled"));
+            return;
         }
 
         ActionListener<Boolean> handler = ActionListener.wrap(

@@ -118,8 +118,8 @@ public class CustomRealmIT extends ESIntegTestCase {
         for(NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);
-            assertNull(settings.get("xpack.security.authc.realms.custom.filtered_setting"));
-            assertEquals(CustomRealm.TYPE, settings.get("xpack.security.authc.realms.custom.type"));
+            assertNull(settings.get("xpack.security.authc.realms.custom.custom.filtered_setting"));
+            assertEquals("0", settings.get("xpack.security.authc.realms.custom.custom.order"));
         }
     }
 }

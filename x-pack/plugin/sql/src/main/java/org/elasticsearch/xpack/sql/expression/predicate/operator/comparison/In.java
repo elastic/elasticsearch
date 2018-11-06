@@ -90,7 +90,7 @@ public class In extends NamedExpression implements ScriptWeaver {
 
     @Override
     public String name() {
-        StringJoiner sj = new StringJoiner(", ", " IN(", ")");
+        StringJoiner sj = new StringJoiner(", ", " IN (", ")");
         list.forEach(e -> sj.add(Expressions.name(e)));
         return Expressions.name(value) + sj.toString();
     }

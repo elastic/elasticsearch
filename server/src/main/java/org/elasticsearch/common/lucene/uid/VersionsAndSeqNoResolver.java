@@ -114,11 +114,13 @@ public final class VersionsAndSeqNoResolver {
         public final int docId;
         public final long seqNo;
         public final LeafReaderContext context;
+        public final boolean isDeleted;
 
-        DocIdAndSeqNo(int docId, long seqNo, LeafReaderContext context) {
+        DocIdAndSeqNo(int docId, long seqNo, LeafReaderContext context, boolean isDeleted) {
             this.docId = docId;
             this.seqNo = seqNo;
             this.context = context;
+            this.isDeleted = isDeleted;
         }
     }
 
@@ -146,31 +148,32 @@ public final class VersionsAndSeqNoResolver {
     }
 
     /**
-     * Load the internal doc ID and sequence number for the uid from the reader. If {@code includeDeletes} is false,
-     * this method considers only live documents; and if {@code includeDeletes} is true, this method also considers
-     * deleted documents whose seq_no at least the parameter {@code minSeqNoForDeletes} besides live documents.
-     * This returns a null if no such document found.
-     *
-     * @param reader             the index reader to look up
-     * @param uid                the uid term to look up
-     * @param minSeqNoForDeletes the minimum seq_no of a deleted document to be considered if includeDeletes is true.
-     * @param includeDeletes     whether or not to consider deleted documents
+     * Loads the internal docId and sequence number of the latest copy for a given uid from the provided reader.
+     * The flag {@link DocIdAndSeqNo#isDeleted} indicates whether the returned document is soft(deleted) or live.
+     * This returns {@code null} if no such document matching the given term uid.
      */
-    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term uid,
-                                                  long minSeqNoForDeletes, boolean includeDeletes) throws IOException {
-        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, uid.field());
-        List<LeafReaderContext> leaves = reader.leaves();
+    public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term term) throws IOException {
+        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
+        final List<LeafReaderContext> leaves = reader.leaves();
+        DocIdAndSeqNo latest = null;
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
-            PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
-            DocIdAndSeqNo result = lookup.lookupSeqNo(uid.bytes(), leaf, minSeqNoForDeletes, includeDeletes);
-            if (result != null) {
-                return result;
+            final PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            final DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes(), leaf);
+            if (result == null) {
+                continue;
+            }
+            if (latest == null || latest.seqNo < result.seqNo) {
+                latest = result;
+            }
+            if (latest.isDeleted == false) {
+                // The live document must be always the last copy, thus we can early terminate here.
+                break;
             }
         }
-        return null;
+        return latest;
     }
 
     /**

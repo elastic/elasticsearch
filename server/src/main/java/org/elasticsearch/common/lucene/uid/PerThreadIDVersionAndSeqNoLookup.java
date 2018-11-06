@@ -137,35 +137,33 @@ final class PerThreadIDVersionAndSeqNoLookup {
     }
 
     /** Return null if id is not found. */
-    DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context, long minSeqNoForDeletes, boolean includeDeletes) throws IOException {
+    DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
         // termsEnum can possibly be null here if this leaf contains only no-ops.
         if (termsEnum != null && termsEnum.seekExact(id)) {
             docsEnum = termsEnum.postings(docsEnum, 0);
             final Bits liveDocs = context.reader().getLiveDocs();
-            // there may be more than one matching docID, in the case of nested docs, so we want the last one( this isn't strictly
-            // required as we are no longer use primary_term as a tier breaker).
             DocIdAndSeqNo result = null;
             int docID = docsEnum.nextDoc();
             if (docID != DocIdSetIterator.NO_MORE_DOCS) {
                 final NumericDocValues seqNoDV = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
                 for (; docID != DocIdSetIterator.NO_MORE_DOCS; docID = docsEnum.nextDoc()) {
-                    if (liveDocs == null || liveDocs.get(docID)) {
-                        final long seqNo;
-                        if (seqNoDV != null && seqNoDV.advanceExact(docID)) {
-                            seqNo = seqNoDV.longValue();
-                        } else {
-                            seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-                        }
-                        result = new DocIdAndSeqNo(docID, seqNo, context);
-                    } else if (includeDeletes) {
-                        if (seqNoDV == null || seqNoDV.advanceExact(docID) == false) {
-                            throw new IllegalStateException("SeqNo docValues does not exist [" + id + "]");
-                        }
-                        if (seqNoDV.longValue() >= minSeqNoForDeletes) {
-                            result = new DocIdAndSeqNo(docID, seqNoDV.longValue(), context);
-                        }
+                    final long seqNo;
+                    if (seqNoDV != null && seqNoDV.advanceExact(docID)) {
+                        seqNo = seqNoDV.longValue();
+                    } else {
+                        seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+                    }
+                    final boolean isDeleted = (liveDocs != null && liveDocs.get(docID) == false);
+                    if (result == null || result.seqNo < seqNo) {
+                        assert result == null || result.isDeleted : "the live doc doesn't have the highest seq_no; "
+                            + result.seqNo + " <  " + seqNo + " id=" + id;
+                        result = new DocIdAndSeqNo(docID, seqNo, context, isDeleted);
+                    } else if (result.seqNo == seqNo && (result.isDeleted || isDeleted == false)) {
+                        // the extra guard "result.isDeleted || isDeleted == false" is to make sure that we pick a live doc instead of
+                        // a deleted doc in case the same index operation was indexed twice - one as live and another as soft-deleted.
+                        result = new DocIdAndSeqNo(docID, seqNo, context, isDeleted);
                     }
                 }
             }

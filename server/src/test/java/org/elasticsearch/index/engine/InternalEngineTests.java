@@ -3686,21 +3686,26 @@ public class InternalEngineTests extends EngineTestCase {
         int numOps = between(10, 100);
         long seqNo = 0;
         List<Engine.Operation> operations = new ArrayList<>(numOps);
+        Map<String, Long> history = new HashMap<>();
         Set<String> liveIds = new HashSet<>();
-        Map<String, List<Long>> history = new HashMap<>();
         for (int i = 0; i < numOps; i++) {
-            final ParsedDocument doc = EngineTestCase.createParsedDoc(Integer.toString(between(1, 100)), null);
-            if (randomBoolean()) {
-                operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
-                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), -1, true));
-                liveIds.add(doc.id());
-            } else {
-                operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
-                    i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis()));
-                liveIds.remove(doc.id());
+            String id = Integer.toString(between(1, 50));
+            boolean isIndexing = randomBoolean();
+            int copies = frequently() ? 1 : between(2, 4);
+            for (int c = 0; c < copies; c++) {
+                final ParsedDocument doc = EngineTestCase.createParsedDoc(id, null);
+                if (isIndexing) {
+                    operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
+                        i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), -1, true));
+                    history.put(id, seqNo);
+                    liveIds.add(id);
+                } else {
+                    operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
+                        i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis()));
+                    history.put(id, seqNo);
+                    liveIds.remove(id);
+                }
             }
-            history.putIfAbsent(doc.id(), new ArrayList<>());
-            history.get(doc.id()).add(seqNo);
             seqNo++;
             if (rarely()) {
                 seqNo++;
@@ -3731,34 +3736,15 @@ public class InternalEngineTests extends EngineTestCase {
             }
             engine.refresh("test");
             try (Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                String msg = "history=" + history + " liveIds=" + liveIds;
                 for (String id : history.keySet()) {
-                    List<Long> seqNos = history.get(id);
-                    if (liveIds.contains(id)) {
-                        DocIdAndSeqNo liveDoc = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(
-                            searcher.reader(), newUid(id), randomNonNegativeLong(), false);
-                        assertThat(msg + " id=" + id, liveDoc.seqNo, equalTo(seqNos.get(seqNos.size() - 1)));
-                    } else {
-                        assertThat(msg + " id=" + id,
-                            VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), newUid(id), randomNonNegativeLong(), false),
-                            nullValue());
-                    }
-                    long minSeqNoForDeletes = randomLongBetween(0, 100);
-                    Set<Long> matchingSeqNos = seqNos.stream().filter(s -> s >= minSeqNoForDeletes).collect(Collectors.toSet());
-                    if (liveIds.contains(id)) {
-                        matchingSeqNos.add(seqNos.get(seqNos.size() - 1));
-                    }
-                    if (matchingSeqNos.isEmpty()) {
-                        assertThat(msg + " min_seq_no_for_deletes=" + minSeqNoForDeletes + " id = " + id,
-                            VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), newUid(id), minSeqNoForDeletes, true),
-                            nullValue());
-                    } else {
-                        assertThat(msg + " min_seq_no_for_deletes=" + minSeqNoForDeletes + " id = " + id,
-                            VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), newUid(id), minSeqNoForDeletes, true).seqNo,
-                            isIn(matchingSeqNos));
-                    }
+                    String msg = "history=" + history + " liveIds=" + liveIds + " id=" + id;
+                    DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), newUid(id));
+                    assertThat(msg, docIdAndSeqNo.seqNo, equalTo(history.get(id)));
+                    assertThat(msg, docIdAndSeqNo.isDeleted, equalTo(liveIds.contains(id) == false));
                 }
+                assertThat(VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), newUid("not-" + between(1, 10))), nullValue());
             }
+            assertThat(getDocIds(engine, true).stream().map(d -> d.getId()).collect(Collectors.toSet()), equalTo(liveIds));
         }
     }
 
@@ -4134,7 +4120,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Searcher searcher = engine.acquireSearcher("get")) {
             final long primaryTerm;
             final long seqNo;
-            DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), get.uid(), -2, false);
+            DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), get.uid());
             if (docIdAndSeqNo == null) {
                 primaryTerm = 0;
                 seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;

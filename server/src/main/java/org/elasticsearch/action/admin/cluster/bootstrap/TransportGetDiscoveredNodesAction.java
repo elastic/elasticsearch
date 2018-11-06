@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -40,8 +39,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -90,7 +87,7 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
                 nodesSet.add(localNode);
                 nodes.forEach(nodesSet::add);
                 logger.trace("discovered {}", nodesSet);
-                if (nodesSet.size() >= request.getMinimumNodeCount() && listenerNotified.compareAndSet(false, true)) {
+                if (nodesSet.size() >= request.getWaitForNodes() && listenerNotified.compareAndSet(false, true)) {
                     listenableFuture.onResponse(new GetDiscoveredNodesResponse(nodesSet));
                 }
             }

@@ -47,7 +47,6 @@ import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration;
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesAction;
 import org.elasticsearch.action.admin.cluster.bootstrap.GetDiscoveredNodesRequest;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -333,7 +332,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                             if (bootstrapClusterRequest == null) {
                                 try {
                                     final GetDiscoveredNodesRequest discoveredNodesRequest = new GetDiscoveredNodesRequest();
-                                    discoveredNodesRequest.setMinimumNodeCount(minimumConfigurationSize);
+                                    discoveredNodesRequest.setWaitForNodes(minimumConfigurationSize);
                                     if (minimumConfigurationSize > 1 && randomBoolean()) {
                                         discoveredNodesRequest.setTimeout(TimeValue.timeValueSeconds(5));
                                     }

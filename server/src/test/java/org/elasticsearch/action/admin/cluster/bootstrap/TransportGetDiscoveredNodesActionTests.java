@@ -167,7 +167,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         coordinator.startInitialJoin();
 
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setMinimumNodeCount(2);
+        getDiscoveredNodesRequest.setWaitForNodes(2);
         getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
 
         final CountDownLatch countDownLatch = new CountDownLatch(1);
@@ -219,7 +219,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         {
             final CountDownLatch countDownLatch = new CountDownLatch(1);
             final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-            getDiscoveredNodesRequest.setMinimumNodeCount(2);
+            getDiscoveredNodesRequest.setWaitForNodes(2);
             transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
                 @Override
                 public void handleResponse(GetDiscoveredNodesResponse response) {
@@ -239,7 +239,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
         {
             final CountDownLatch countDownLatch = new CountDownLatch(1);
             final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-            getDiscoveredNodesRequest.setMinimumNodeCount(2);
+            getDiscoveredNodesRequest.setWaitForNodes(2);
             getDiscoveredNodesRequest.setTimeout(TimeValue.ZERO);
             transportService.sendRequest(localNode, GetDiscoveredNodesAction.NAME, getDiscoveredNodesRequest, new ResponseHandler() {
                 @Override

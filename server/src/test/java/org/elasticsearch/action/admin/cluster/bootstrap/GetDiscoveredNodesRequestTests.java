@@ -30,18 +30,16 @@ import static org.hamcrest.core.Is.is;
 
 public class GetDiscoveredNodesRequestTests extends ESTestCase {
 
-    public void testMinimumNodeCountValidation() {
+    public void testWaitForNodesValidation() {
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        assertThat("default value is 1", getDiscoveredNodesRequest.getMinimumNodeCount(), is(1));
-        assertNull("default is valid", getDiscoveredNodesRequest.validate());
+        assertThat("default value is 1", getDiscoveredNodesRequest.getWaitForNodes(), is(1));
 
         final int newWaitForNodes = randomIntBetween(1, 10);
-        getDiscoveredNodesRequest.setMinimumNodeCount(newWaitForNodes);
-        assertThat("value updated", getDiscoveredNodesRequest.getMinimumNodeCount(), is(newWaitForNodes));
-        assertNull("updated request is still valid", getDiscoveredNodesRequest.validate());
+        getDiscoveredNodesRequest.setWaitForNodes(newWaitForNodes);
+        assertThat("value updated", getDiscoveredNodesRequest.getWaitForNodes(), is(newWaitForNodes));
 
         final IllegalArgumentException exception
-            = expectThrows(IllegalArgumentException.class, () -> getDiscoveredNodesRequest.setMinimumNodeCount(randomIntBetween(-10, 0)));
+            = expectThrows(IllegalArgumentException.class, () -> getDiscoveredNodesRequest.setWaitForNodes(randomIntBetween(-10, 0)));
         assertThat(exception.getMessage(), startsWith("always finds at least one node, waiting for "));
         assertThat(exception.getMessage(), endsWith(" is not allowed"));
     }
@@ -49,7 +47,6 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
     public void testTimeoutValidation() {
         final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
         assertThat("default value is 30s", getDiscoveredNodesRequest.getTimeout(), is(TimeValue.timeValueSeconds(30)));
-        assertNull(getDiscoveredNodesRequest.validate());
 
         final TimeValue newTimeout = TimeValue.parseTimeValue(randomTimeValue(), "timeout");
         getDiscoveredNodesRequest.setTimeout(newTimeout);
@@ -61,18 +58,11 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
         assertThat(exception.getMessage(), endsWith(" is not allowed"));
     }
 
-    public void testTimeoutAcceptedIfNodesToAwait() {
-        final GetDiscoveredNodesRequest getDiscoveredNodesRequest = new GetDiscoveredNodesRequest();
-        getDiscoveredNodesRequest.setMinimumNodeCount(randomIntBetween(2, 10));
-        getDiscoveredNodesRequest.setTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "timeout"));
-        assertNull(getDiscoveredNodesRequest.validate());
-    }
-
     public void testSerialization() throws IOException {
         final GetDiscoveredNodesRequest originalRequest = new GetDiscoveredNodesRequest();
 
         if (randomBoolean()) {
-            originalRequest.setMinimumNodeCount(randomIntBetween(1, 10));
+            originalRequest.setWaitForNodes(randomIntBetween(1, 10));
         }
 
         if (randomBoolean()) {
@@ -81,7 +71,7 @@ public class GetDiscoveredNodesRequestTests extends ESTestCase {
 
         final GetDiscoveredNodesRequest deserialized = copyWriteable(originalRequest, writableRegistry(), GetDiscoveredNodesRequest::new);
 
-        assertThat(deserialized.getMinimumNodeCount(), equalTo(originalRequest.getMinimumNodeCount()));
+        assertThat(deserialized.getWaitForNodes(), equalTo(originalRequest.getWaitForNodes()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
     }
 }

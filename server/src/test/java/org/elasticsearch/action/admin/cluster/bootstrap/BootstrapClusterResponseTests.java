@@ -24,7 +24,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BootstrapClusterResponseTest extends ESTestCase {
+public class BootstrapClusterResponseTests extends ESTestCase {
     public void testSerialization() throws IOException {
         final BootstrapClusterResponse original = new BootstrapClusterResponse(randomBoolean());
         final BootstrapClusterResponse deserialized = copyWriteable(original, writableRegistry(), BootstrapClusterResponse::new);

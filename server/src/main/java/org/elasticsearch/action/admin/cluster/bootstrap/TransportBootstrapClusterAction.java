@@ -66,8 +66,7 @@ public class TransportBootstrapClusterAction extends TransportAction<BootstrapCl
             @Override
             public void run() {
                 try {
-                    listener.onResponse(new AcknowledgedResponse(
-                        coordinator.setInitialConfigurationIfNotAlreadySet(request.getBootstrapConfiguration())));
+                    listener.onResponse(new AcknowledgedResponse(coordinator.setInitialConfiguration(request.getBootstrapConfiguration())));
                 } catch (Exception e) {
                     listener.onFailure(e);
                 }

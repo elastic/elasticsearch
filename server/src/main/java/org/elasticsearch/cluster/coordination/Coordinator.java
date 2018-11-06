@@ -150,24 +150,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.reconfigurator = new Reconfigurator(settings, clusterSettings);
     }
 
-    public boolean setInitialConfigurationIfNotAlreadySet(BootstrapConfiguration bootstrapConfiguration) {
-        synchronized (mutex) {
-            if (isInitialConfigurationSet()) {
-                logger.info("initial configuration already set, ignoring bootstrapping request");
-                return false;
-            }
-
-            final List<DiscoveryNode> selfAndDiscoveredPeers = new ArrayList<>();
-            selfAndDiscoveredPeers.add(getLocalNode());
-            getFoundPeers().forEach(selfAndDiscoveredPeers::add);
-
-            final VotingConfiguration votingConfiguration = bootstrapConfiguration.resolve(selfAndDiscoveredPeers);
-            logger.info("setting initial configuration to {}", votingConfiguration);
-            setInitialConfiguration(votingConfiguration);
-            return true;
-        }
-    }
-
     private Runnable getOnLeaderFailure() {
         return new Runnable() {
             @Override
@@ -591,13 +573,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return getStateForMasterService().getLastAcceptedConfiguration().isEmpty() == false;
     }
 
-    public void setInitialConfiguration(final VotingConfiguration votingConfiguration) {
+    public boolean setInitialConfiguration(final BootstrapConfiguration bootstrapConfiguration) {
+        final List<DiscoveryNode> selfAndDiscoveredPeers = new ArrayList<>();
+        selfAndDiscoveredPeers.add(getLocalNode());
+        getFoundPeers().forEach(selfAndDiscoveredPeers::add);
+        final VotingConfiguration votingConfiguration = bootstrapConfiguration.resolve(selfAndDiscoveredPeers);
+        return setInitialConfiguration(votingConfiguration);
+    }
+
+    public boolean setInitialConfiguration(final VotingConfiguration votingConfiguration) {
         synchronized (mutex) {
             final ClusterState currentState = getStateForMasterService();
 
             if (isInitialConfigurationSet()) {
-                throw new CoordinationStateRejectedException("Cannot set initial configuration: configuration has already been set");
+                return false;
             }
+
             assert currentState.term() == 0 : currentState;
             assert currentState.version() == 0 : currentState;
 
@@ -626,6 +617,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             coordinationState.get().setInitialState(builder.build());
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
+            return true;
         }
     }
 

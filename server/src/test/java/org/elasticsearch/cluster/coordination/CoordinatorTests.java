@@ -784,10 +784,7 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise();
 
         final Coordinator coordinator = cluster.getAnyNode().coordinator;
-        final CoordinationStateRejectedException exception = expectThrows(CoordinationStateRejectedException.class,
-            () -> coordinator.setInitialConfiguration(coordinator.getLastAcceptedState().getLastCommittedConfiguration()));
-
-        assertThat(exception.getMessage(), is("Cannot set initial configuration: configuration has already been set"));
+        assertFalse(coordinator.setInitialConfiguration(coordinator.getLastAcceptedState().getLastCommittedConfiguration()));
     }
 
     public void testCannotSetInitialConfigurationWithoutQuorum() {
@@ -803,7 +800,7 @@ public class CoordinatorTests extends ESTestCase {
         assertThat(exceptionMessage, containsString(coordinator.getLocalNode().toString()));
 
         // This is VERY BAD: setting a _different_ initial configuration. Yet it works if the first attempt will never be a quorum.
-        coordinator.setInitialConfiguration(new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId())));
+        assertTrue(coordinator.setInitialConfiguration(new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId()))));
         cluster.stabilise();
     }
 

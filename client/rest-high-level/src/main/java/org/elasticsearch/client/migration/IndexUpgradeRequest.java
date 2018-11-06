@@ -18,14 +18,10 @@
  */
 package org.elasticsearch.client.migration;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.client.TimedRequest;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -33,33 +29,20 @@ import java.util.Objects;
  * A request for performing Upgrade on Index
  * Part of Migration API
  */
-public class IndexUpgradeRequest extends MasterNodeReadRequest<IndexUpgradeRequest> implements IndicesRequest {
 
-    private String[] indices ;
+public class IndexUpgradeRequest extends TimedRequest implements IndicesRequest {
+
+    private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
 
     public IndexUpgradeRequest(String index) {
         indices = new String[]{index};
     }
 
-    public IndexUpgradeRequest(StreamInput in) throws IOException {
-        super(in);
-        indices = in.readStringArray();
-        indicesOptions = IndicesOptions.readIndicesOptions(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        indicesOptions.writeIndicesOptions(out);
-    }
-
     @Override
     public String[] indices() {
         return indices;
     }
-
 
     @Override
     public IndicesOptions indicesOptions() {
@@ -71,22 +54,12 @@ public class IndexUpgradeRequest extends MasterNodeReadRequest<IndexUpgradeReque
     }
 
     @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexUpgradeRequest request = (IndexUpgradeRequest) o;
         return Arrays.equals(indices, request.indices) &&
-                Objects.equals(indicesOptions.toString(), request.indicesOptions.toString());
+            Objects.equals(indicesOptions.toString(), request.indicesOptions.toString());
     }
 
     @Override

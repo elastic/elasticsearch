@@ -68,7 +68,6 @@ public final class MigrationClient {
             IndexUpgradeSubmissionResponse::fromXContent, Collections.emptySet());
     }
 
-
     public void upgradeAsync(IndexUpgradeRequest request, RequestOptions options, ActionListener<BulkByScrollResponse> listener)  {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, MigrationRequestConverters::migrate, options,
             BulkByScrollResponse::fromXContent, listener, Collections.emptySet());

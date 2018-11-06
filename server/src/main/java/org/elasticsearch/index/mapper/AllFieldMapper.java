@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
@@ -27,7 +28,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
@@ -48,7 +48,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 public class AllFieldMapper extends MetadataFieldMapper {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(AllFieldMapper.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(AllFieldMapper.class));
 
     public static final String NAME = "_all";
 

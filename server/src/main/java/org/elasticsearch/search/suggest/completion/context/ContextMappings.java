@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.search.suggest.document.ContextQuery;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
@@ -26,7 +27,6 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
@@ -56,7 +56,7 @@ import static org.elasticsearch.search.suggest.completion.context.ContextMapping
 public class ContextMappings implements ToXContent, Iterable<ContextMapping> {
 
     private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(Loggers.getLogger(ContextMappings.class));
+        new DeprecationLogger(LogManager.getLogger(ContextMappings.class));
 
     private final List<ContextMapping> contextMappings;
     private final Map<String, ContextMapping> contextNameMap;

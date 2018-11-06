@@ -20,11 +20,11 @@
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -44,7 +44,7 @@ import java.util.Objects;
 
 public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder<ScriptedMetricAggregationBuilder> {
     public static final String NAME = "scripted_metric";
-    private static final Logger logger = Loggers.getLogger(ScriptedMetricAggregationBuilder.class);
+    private static final Logger logger = LogManager.getLogger(ScriptedMetricAggregationBuilder.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     private static final ParseField INIT_SCRIPT_FIELD = new ParseField("init_script");

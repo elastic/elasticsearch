@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.settings.Settings;
@@ -57,7 +57,7 @@ public class AutoDateHistogramAggregationBuilder
     public static final String NAME = "auto_date_histogram";
 
     private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(Loggers.getLogger(AutoDateHistogramAggregationBuilder.class));
+        = new DeprecationLogger(LogManager.getLogger(AutoDateHistogramAggregationBuilder.class));
 
     public static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
 

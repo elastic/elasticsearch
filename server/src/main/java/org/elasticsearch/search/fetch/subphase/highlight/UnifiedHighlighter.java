@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
@@ -33,7 +34,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class UnifiedHighlighter implements Highlighter {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(UnifiedHighlighter.class));
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(UnifiedHighlighter.class));
 
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {

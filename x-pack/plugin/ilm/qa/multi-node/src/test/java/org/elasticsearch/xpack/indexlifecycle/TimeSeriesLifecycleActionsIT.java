@@ -407,6 +407,10 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         policy = randomAlphaOfLengthBetween(0,10) + "," + randomAlphaOfLengthBetween(0,10);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
         assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
+        
+        policy = randomAlphaOfLengthBetween(0,10) + "%20" + randomAlphaOfLengthBetween(0,10);
+        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));
+        assertThat(ex.getCause().getMessage(), containsString("invalid policy name"));
 
         policy = "_" + randomAlphaOfLengthBetween(1, 20);
         ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy("delete", new DeleteAction()));

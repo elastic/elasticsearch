@@ -320,6 +320,8 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     public void testValidatePolicyName() {
         expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) +
             "," + randomAlphaOfLengthBetween(0,10)));
+        expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0,10) +
+            " " + randomAlphaOfLengthBetween(0,10)));
         expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName("_" + randomAlphaOfLengthBetween(1, 20)));
         expectThrows(IllegalArgumentException.class, () -> LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(256, 1000)));
 

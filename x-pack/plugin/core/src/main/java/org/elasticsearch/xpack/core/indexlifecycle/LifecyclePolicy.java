@@ -254,6 +254,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         if (policy.contains(",")) {
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain ','");
         }
+        if (policy.contains(" ")) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain spaces");
+        }
         if (policy.charAt(0) == '_') {
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not start with '_', '-', or '+'");
         }

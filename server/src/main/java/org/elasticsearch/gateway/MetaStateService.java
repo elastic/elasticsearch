@@ -122,7 +122,7 @@ public class MetaStateService extends AbstractComponent {
         final Index index = indexMetaData.getIndex();
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            long generation = IndexMetaData.FORMAT.write(indexMetaData, false, nodeEnv.indexPaths(indexMetaData.getIndex()));
+            long generation = IndexMetaData.FORMAT.write(indexMetaData, nodeEnv.indexPaths(indexMetaData.getIndex()));
             logger.trace("[{}] state written", index);
             newIndices.put(index, generation);
             metaDataBuilder.put(indexMetaData, false);
@@ -148,7 +148,7 @@ public class MetaStateService extends AbstractComponent {
     void writeGlobalState(String reason, MetaData metaData) throws WriteStateException {
         logger.trace("[_global] writing state, reason [{}]", reason);
         try {
-            globalGeneration = MetaData.FORMAT.write(metaData, false, nodeEnv.nodeDataPaths());
+            globalGeneration = MetaData.FORMAT.write(metaData, nodeEnv.nodeDataPaths());
             logger.trace("[_global] state written (generation: {})", globalGeneration);
             cleanupActions.add(() -> MetaData.FORMAT.cleanupOldFiles(globalGeneration, nodeEnv.nodeDataPaths()));
             copyGlobalMetaDataToBuilder(metaData);
@@ -169,7 +169,7 @@ public class MetaStateService extends AbstractComponent {
         Manifest manifest = new Manifest(globalGeneration, newIndices);
         logger.trace("[_manifest] writing state, reason [{}]", reason);
         try {
-            long generation = Manifest.FORMAT.write(manifest, false, nodeEnv.nodeDataPaths());
+            long generation = Manifest.FORMAT.write(manifest, nodeEnv.nodeDataPaths());
             logger.trace("[_manifest] state written (generation: {})", generation);
             cleanupActions.add(() -> Manifest.FORMAT.cleanupOldFiles(generation, nodeEnv.nodeDataPaths()));
             cleanupActions.forEach(Runnable::run);

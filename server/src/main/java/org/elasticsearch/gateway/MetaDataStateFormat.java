@@ -177,24 +177,33 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     /**
+     * Writes the given state to the given directories and performs cleanup.
+     * See also {@link #write(Object, Path...)} and {@link #cleanupOldFiles(long, Path[])}.
+     */
+    public final long writeAndCleanup(final T state, final Path... locations) throws WriteStateException {
+        long currentGeneration = write(state, locations);
+        cleanupOldFiles(currentGeneration,locations);
+        return currentGeneration;
+    }
+
+    /**
      * Writes the given state to the given directories. The state is written to a
      * state directory ({@value #STATE_DIR_NAME}) underneath each of the given file locations and is created if it
      * doesn't exist. The state is serialized to a temporary file in that directory and is then atomically moved to
      * it's target filename of the pattern {@code {prefix}{version}.st}.
      * If this method returns without exception there is a guarantee that state is persisted to the disk and loadLatestState will return
      * it.<br>
-     * If <code>cleanup</code> is false, this method does not perform cleanup of old state files,
-     * because one write could be a part of larger transaction.
-     * If this write succeeds, but some further write fails, you may want to rollback the transaction and keep old file around.
+     * This method does not perform cleanup of old state files, if this write succeeds, but some further write fails, you may want to
+     * rollback the transaction and keep old file around.
      * After transaction is finished use {@link #cleanupOldFiles(long, Path[])} for the clean-up.
+     * If write is not a part of transaction, consider using {@link #writeAndCleanup(Object, Path...)}.
      *
      * @param state     the state object to write
-     * @param cleanup   whether to perform auto cleanup.
      * @param locations the locations where the state should be written to.
      * @throws WriteStateException if some exception during writing state occurs. See also {@link WriteStateException#isDirty()}.
      * @return generation of newly written state.
      */
-    public final long write(final T state, boolean cleanup, final Path... locations) throws WriteStateException {
+    public final long write(final T state, final Path... locations) throws WriteStateException {
         if (locations == null) {
             throw new IllegalArgumentException("Locations must not be null");
         }
@@ -233,10 +242,6 @@ public abstract class MetaDataStateFormat<T> {
                 deleteFileIgnoreExceptions(pathAndDirectory.v1(), pathAndDirectory.v2(), tmpFileName);
                 IOUtils.closeWhileHandlingException(pathAndDirectory.v2());
             }
-        }
-
-        if (cleanup) {
-            cleanupOldFiles(maxStateId, locations);
         }
 
         return maxStateId;

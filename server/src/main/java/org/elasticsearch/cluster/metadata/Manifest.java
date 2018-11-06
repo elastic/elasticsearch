@@ -125,8 +125,8 @@ public class Manifest implements ToXContentFragment {
     }
 
     private static final class IndexEntry implements ToXContentFragment {
-        private static final ParseField INDEX_GENERATION_PARSE_FIELD = new ParseField("generation");
         private static final ParseField INDEX_PARSE_FIELD = new ParseField("index");
+        private static final ParseField INDEX_GENERATION_PARSE_FIELD = new ParseField("generation");
 
         static final ConstructingObjectParser<IndexEntry, Void> INDEX_ENTRY_PARSER = new ConstructingObjectParser<>(
                 "indexEntry",

@@ -16,7 +16,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -28,7 +27,6 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -80,9 +78,8 @@ import org.elasticsearch.xpack.core.security.ScrollHelper;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
-import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.opensaml.xmlsec.signature.P;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
@@ -98,7 +95,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -125,6 +121,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
@@ -479,7 +476,7 @@ public final class TokenService extends AbstractComponent {
      * have been created on versions on or after 6.2; this step involves performing an update to
      * the token document and setting the <code>invalidated</code> field to <code>true</code>
      */
-    public void invalidateAccessToken(String tokenString, ActionListener<Boolean> listener) {
+    public void invalidateAccessToken(String tokenString, ActionListener<TokensInvalidationResult> listener) {
         ensureEnabled();
         if (Strings.isNullOrEmpty(tokenString)) {
             logger.trace("No token-string provided");
@@ -492,7 +489,8 @@ public final class TokenService extends AbstractComponent {
                         listener.onFailure(traceLog("invalidate token", tokenString, malformedTokenException()));
                     } else {
                         final long expirationEpochMilli = getExpirationTime().toEpochMilli();
-                        indexBwcInvalidation(Collections.singleton(userToken), listener, new AtomicInteger(0), expirationEpochMilli);
+                        indexBwcInvalidation(Collections.singleton(userToken.getId()), listener, new AtomicInteger(0),
+                            expirationEpochMilli, null);
                     }
                 }, listener::onFailure));
             } catch (IOException e) {
@@ -507,7 +505,7 @@ public final class TokenService extends AbstractComponent {
      *
      * @see #invalidateAccessToken(String, ActionListener)
      */
-    public void invalidateAccessToken(UserToken userToken, ActionListener<Boolean> listener) {
+    public void invalidateAccessToken(UserToken userToken, ActionListener<TokensInvalidationResult> listener) {
         ensureEnabled();
         if (userToken == null) {
             logger.trace("No access token provided");
@@ -515,11 +513,11 @@ public final class TokenService extends AbstractComponent {
         } else {
             maybeStartTokenRemover();
             final long expirationEpochMilli = getExpirationTime().toEpochMilli();
-            indexBwcInvalidation(Collections.singleton(userToken), listener, new AtomicInteger(0), expirationEpochMilli);
+            indexBwcInvalidation(Collections.singleton(userToken.getId()), listener, new AtomicInteger(0), expirationEpochMilli, null);
         }
     }
 
-    public void invalidateRefreshToken(String refreshToken, ActionListener<Boolean> listener) {
+    public void invalidateRefreshToken(String refreshToken, ActionListener<TokensInvalidationResult> listener) {
         ensureEnabled();
         if (Strings.isNullOrEmpty(refreshToken)) {
             logger.trace("No refresh token provided");
@@ -529,9 +527,7 @@ public final class TokenService extends AbstractComponent {
             findTokenFromRefreshToken(refreshToken,
                     ActionListener.wrap(tuple -> {
                         final String docId = tuple.v1().getHits().getAt(0).getId();
-                        final long docVersion = tuple.v1().getHits().getAt(0).getVersion();
-                        indexInvalidation(Collections.singletonList(docId), Version.CURRENT, listener, tuple.v2(), "refresh_token",
-                            docVersion);
+                        indexInvalidation(Collections.singletonList(docId), listener, tuple.v2(), "refresh_token", null);
                     }, listener::onFailure), new AtomicInteger(0));
         }
     }
@@ -540,96 +536,101 @@ public final class TokenService extends AbstractComponent {
      * Invalidate all access tokens and all refresh tokens of a given {@code realmName} so that they may no longer be used
      *
      * @param realmName the realm of which the tokens should be invalidated
+     * @param username the username for which the tokens should be invalidated
      * @param listener  the listener to notify upon completion
      */
-    public void invalidateActiveTokensForRealm(String realmName, ActionListener<Boolean> listener) {
+    public void invalidateActiveTokensForRealmAndUser(String realmName, String username,
+                                                      ActionListener<TokensInvalidationResult> listener) {
         ensureEnabled();
-        if (Strings.isNullOrEmpty(realmName)) {
-            logger.trace("No realm name provided");
-            listener.onFailure(new IllegalArgumentException("realm name must be provided"));
+        if (Strings.isNullOrEmpty(realmName) && Strings.isNullOrEmpty(username)) {
+            logger.trace("No realm name or username provided");
+            listener.onFailure(new IllegalArgumentException("realm name or username must be provided"));
         } else {
             maybeStartTokenRemover();
             final long expirationEpochMilli = getExpirationTime().toEpochMilli();
-            indexBwcInvalidation(realmName, listener, new AtomicInteger(0), expirationEpochMilli);
-        }
-    }
+            if (Strings.isNullOrEmpty(realmName)) {
+                findActiveTokensForUser(username, ActionListener.wrap(tokens -> {
+                    List<String> accessTokenIds = new ArrayList<>();
+                    tokens.forEach(t -> {
+                        accessTokenIds.add(t.v1().getId());
+                    });
+                    // Invalidate the refresh tokens first
+                    indexInvalidation(accessTokenIds, ActionListener.wrap(result ->
+                            indexBwcInvalidation(accessTokenIds, listener, new AtomicInteger(result.getAttemptCounter()),
+                                expirationEpochMilli, result),
+                        listener::onFailure), new AtomicInteger(0), "refresh_token", null);
 
-    /**
-     * Performs the actual bwc invalidation of all tokens in a realm and then kicks off the new invalidation method
-     *
-     * @param realmName            the name of the realm for which to invalidate all tokens
-     * @param listener             the listener to notify upon completion
-     * @param attemptCount         the number of attempts to invalidate that have already been tried
-     * @param expirationEpochMilli the expiration time as milliseconds since the epoch
-     */
-    private void indexBwcInvalidation(String realmName, ActionListener<Boolean> listener, AtomicInteger attemptCount,
-                                      long expirationEpochMilli) {
-        if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
-            logger.warn("Failed to invalidate tokens for realm [{}] after [{}] attempts", realmName, attemptCount.get());
-            listener.onFailure(invalidGrantException("failed to invalidate tokens for realm"));
-        } else {
-            findActiveTokensForRealm(realmName, ActionListener.wrap(tokens -> {
-                List<UserToken> userTokens = new ArrayList<>();
-                tokens.forEach(t -> (userTokens).add(t.v1()));
-                indexBwcInvalidation(userTokens, listener, attemptCount, expirationEpochMilli);
-            }, listener::onFailure));
+                }, listener::onFailure));
+            } else {
+                Predicate filter = x -> true;
+                if (Strings.isNullOrEmpty(username)) {
+                    filter = isOfUser(username);
+                }
+                findActiveTokensForRealm(realmName, ActionListener.wrap(tokens -> {
+                    List<String> accessTokenIds = tokens.stream().map(t -> t.v1().getId()).collect(Collectors.toList());
+                    // Invalidate the refresh tokens first
+                    indexInvalidation(accessTokenIds, ActionListener.wrap(result ->
+                            indexBwcInvalidation(accessTokenIds, listener, new AtomicInteger(result.getAttemptCounter()),
+                                expirationEpochMilli, result),
+                        listener::onFailure), new AtomicInteger(0), "refresh_token", null);
+                }, listener::onFailure), filter);
+            }
         }
     }
 
     /**
      * Performs the actual bwc invalidation of a token and then kicks off the new invalidation method
      *
-     * @param userTokens           the token to invalidate
+     * @param tokenIds           the token to invalidate
      * @param listener             the listener to notify upon completion
      * @param attemptCount         the number of attempts to invalidate that have already been tried
      * @param expirationEpochMilli the expiration time as milliseconds since the epoch
      */
-    private void indexBwcInvalidation(Collection<UserToken> userTokens, ActionListener<Boolean> listener, AtomicInteger attemptCount,
-                                      long expirationEpochMilli) {
+    private void indexBwcInvalidation(Collection<String> tokenIds, ActionListener<TokensInvalidationResult> listener,
+                                      AtomicInteger attemptCount, long expirationEpochMilli,
+                                      @Nullable TokensInvalidationResult previousResult) {
         if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
-            logger.warn("Failed to invalidate [{}] tokens after [{}] attempts", userTokens.size(), attemptCount.get());
-            listener.onFailure(invalidGrantException("failed to invalidate tokens"));
+            logger.warn("Failed to invalidate [{}] tokens after [{}] attempts", tokenIds.size(),
+                attemptCount.get());
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-            for (UserToken token : userTokens) {
-                final String invalidatedTokenId = getInvalidatedTokenDocumentId(token.getId());
+            for (String tokenId : tokenIds) {
+                final String invalidatedTokenId = getInvalidatedTokenDocumentId(tokenId);
                 IndexRequest indexRequest = client.prepareIndex(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, invalidatedTokenId)
                     .setOpType(OpType.CREATE)
                     .setSource("doc_type", INVALIDATED_TOKEN_DOC_TYPE, "expiration_time", expirationEpochMilli)
-                    .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                     .request();
                 bulkRequestBuilder.add(indexRequest);
             }
+            bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
             final BulkRequest bulkRequest = bulkRequestBuilder.request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest,
                 ActionListener.<BulkResponse>wrap(bulkResponse -> {
                     List<String> retryTokenIds = new ArrayList<>();
                     for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
-                        IndexResponse indexResponse = bulkItemResponse.getResponse();
                         if (bulkItemResponse.isFailed()) {
                             Throwable cause = bulkItemResponse.getFailure().getCause();
-                            traceLog("(bwc) invalidate all tokens", indexResponse.getId(), cause);
-                            // We don't handle VersionConflictEngineException, something else might have invalidated this token
+                            logger.error(cause.getMessage());
+                            traceLog("(bwc) invalidate all tokens", null, cause);
                             if (isShardNotAvailableException(cause)) {
-                                retryTokenIds.add(indexResponse.getId());
-                            } else {
+                                retryTokenIds.add(bulkItemResponse.getFailure().getId());
+                            } else if (cause instanceof VersionConflictEngineException == false) {
+                                // We don't handle VersionConflictEngineException, something else might have invalidated this token
                                 listener.onFailure(bulkItemResponse.getFailure().getCause());
                             }
                         }
                     }
                     if (retryTokenIds.isEmpty() == false) {
                         attemptCount.incrementAndGet();
-                        Collection<UserToken> retryTokens =
-                            userTokens.stream().filter(token -> retryTokenIds.contains(token.getId())).collect(Collectors.toList());
-                        indexBwcInvalidation(retryTokens, listener, attemptCount, expirationEpochMilli);
+                        indexBwcInvalidation(retryTokenIds, listener, attemptCount, expirationEpochMilli, previousResult);
                     }
-                    indexInvalidation(userTokens, listener, attemptCount, "access_token");
+                    indexInvalidation(tokenIds, listener, attemptCount, "access_token", previousResult);
                 }, e -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
                     traceLog("(bwc) invalidate all tokens", null, cause);
                     if (isShardNotAvailableException(e)) {
                         attemptCount.incrementAndGet();
-                        indexBwcInvalidation(userTokens, listener, attemptCount, expirationEpochMilli);
+                        indexBwcInvalidation(tokenIds, listener, attemptCount, expirationEpochMilli, previousResult);
                     } else {
                         listener.onFailure(e);
                     }
@@ -641,65 +642,81 @@ public final class TokenService extends AbstractComponent {
     /**
      * Performs the actual invalidation of a token
      *
-     * @param userTokens      the tokens to invalidate
+     * @param tokenIds        the tokens to invalidate
      * @param listener        the listener to notify upon completion
      * @param attemptCount    the number of attempts to invalidate that have already been tried
      * @param srcPrefix       the prefix to use when constructing the doc to update
      */
-    private void indexInvalidation(Collection<UserToken> userTokens, ActionListener<Boolean> listener,
-                                   AtomicInteger attemptCount, String srcPrefix) {
+    private void indexInvalidation(Collection<String> tokenIds, ActionListener<TokensInvalidationResult> listener,
+                                   AtomicInteger attemptCount, String srcPrefix, @Nullable TokensInvalidationResult previousResult) {
         if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
-            logger.warn("TODO_WHATTOPRINT_HERE????",
-                "TODO_WHATTOPRINT_HERE????", attemptCount.get());
+            logger.warn("Failed to invalidate [{}] tokens after [{}] attempts", tokenIds.size(),
+                attemptCount.get());
             listener.onFailure(invalidGrantException("failed to invalidate tokens"));
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-            for (UserToken token : userTokens) {
-                UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, getTokenDocumentId(token))
+            for (String tokenId : tokenIds) {
+                UpdateRequest request = client.prepareUpdate(SecurityIndexManager.SECURITY_INDEX_NAME, TYPE, getTokenDocumentId(tokenId))
                     .setDoc(srcPrefix, Collections.singletonMap("invalidated", true))
-                    .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                     .setFetchSource(srcPrefix, null)
                     .request();
                 bulkRequestBuilder.add(request);
             }
+            bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
             securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", null, ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequestBuilder.request(),
                     ActionListener.<BulkResponse>wrap(bulkResponse -> {
-                        HashMap<String, String> failedRequestResponses = new HashMap<>();
                         ArrayList<String> retryTokenIds = new ArrayList<>();
+                        ArrayList<String> failedRequestResponses = new ArrayList<>();
                         ArrayList<String> previouslyInvalidated = new ArrayList<>();
                         ArrayList<String> invalidated = new ArrayList<>();
+                        if (null != previousResult) {
+                            failedRequestResponses.addAll(Arrays.asList(previousResult.getErrors()));
+                            previouslyInvalidated.addAll(Arrays.asList(previousResult.getPrevInvalidatedTokens()));
+                            invalidated.addAll(Arrays.asList(previousResult.getInvalidatedTokens()));
+                        }
                         for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
-                            UpdateResponse updateResponse = bulkItemResponse.getResponse();
                             if (bulkItemResponse.isFailed()) {
                                 Throwable cause = bulkItemResponse.getFailure().getCause();
                                 if (cause instanceof DocumentMissingException) {
-                                    failedRequestResponses.put(updateResponse.getGetResult().getId(), cause.getMessage());
+                                    failedRequestResponses.add("Error invalidating " + bulkItemResponse.getFailure().getId() + ": " +
+                                        cause.getMessage());
                                 } else if (isShardNotAvailableException(cause)) {
-                                    retryTokenIds.add(updateResponse.getGetResult().getId());
+                                    retryTokenIds.add(bulkItemResponse.getFailure().getId());
                                 } else if (cause instanceof VersionConflictEngineException) {
-                                    retryTokenIds.add(updateResponse.getGetResult().getId());
+                                    retryTokenIds.add(bulkItemResponse.getFailure().getId());
+                                }
+                            } else {
+                                UpdateResponse updateResponse = bulkItemResponse.getResponse();
+                                if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
+                                    logger.debug("Invalidated [{}] for doc [{}]", srcPrefix, updateResponse.getGetResult().getId());
+                                    invalidated.add(updateResponse.getGetResult().getId());
+                                } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
+                                    previouslyInvalidated.add(updateResponse.getGetResult().getId());
                                 }
                             }
-                            if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
-                                logger.debug("Invalidated [{}] for doc [{}]", srcPrefix, updateResponse.getGetResult().getId());
-                                invalidated.add(updateResponse.getGetResult().getId());
-                            } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
-                                previouslyInvalidated.add(updateResponse.getGetResult().getId());
-                            }
-                            if (retryTokenIds.isEmpty() == false) {
-                                attemptCount.incrementAndGet();
-                                Collection<UserToken> retryTokens =
-                                    userTokens.stream().filter(token -> retryTokenIds.contains(token.getId())).collect(Collectors.toList());
-                                indexInvalidation(retryTokens, listener, attemptCount, srcPrefix);
-                            }
                         }
+                        if (retryTokenIds.isEmpty() == false) {
+                            TokensInvalidationResult incompleteResult =
+                                new TokensInvalidationResult(invalidated.toArray(new String[0]),
+                                    previouslyInvalidated.toArray(new String[0]),
+                                    failedRequestResponses.toArray(new String[0]),
+                                    attemptCount.get());
+                            attemptCount.incrementAndGet();
+                            indexInvalidation(retryTokenIds, listener, attemptCount, srcPrefix, incompleteResult);
+                        }
+                        TokensInvalidationResult result =
+                            new TokensInvalidationResult(invalidated.toArray(new String[0]),
+                                previouslyInvalidated.toArray(new String[0]),
+                                failedRequestResponses.toArray(new String[0]),
+                                attemptCount.get());
+                        listener.onResponse(result);
                     }, e -> {
                         Throwable cause = ExceptionsHelper.unwrapCause(e);
                         traceLog("invalidate tokens", null, cause);
                         if (isShardNotAvailableException(cause)) {
                             attemptCount.incrementAndGet();
-                            indexInvalidation(userTokens, listener, attemptCount, srcPrefix);
+                            indexInvalidation(tokenIds, listener, attemptCount, srcPrefix, previousResult);
                         } else {
                             listener.onFailure(e);
                         }
@@ -901,9 +918,9 @@ public final class TokenService extends AbstractComponent {
      * Find all stored refresh and access tokens that have not been invalidated or expired, and were issued against
      *  the specified realm.
      */
-    public void findActiveTokensForRealm(String realmName, ActionListener<Collection<Tuple<UserToken, String>>> listener) {
+    public void findActiveTokensForRealm(String realmName, ActionListener<Collection<Tuple<UserToken, String>>> listener,
+                                         @Nullable Predicate filter) {
         ensureEnabled();
-
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (Strings.isNullOrEmpty(realmName)) {
             listener.onFailure(new IllegalArgumentException("Realm name is required"));
@@ -932,31 +949,92 @@ public final class TokenService extends AbstractComponent {
                 .setFetchSource(true)
                 .request();
             securityIndex.checkIndexVersionThenExecute(listener::onFailure,
-                () -> ScrollHelper.fetchAllByEntity(client, request, listener, this::parseHit));
+                () -> ScrollHelper.fetchAllByEntity(client, request, listener, (SearchHit hit) -> filterAndParseHit(hit, filter)));
         }
     }
 
-    private Tuple<UserToken, String> parseHit(SearchHit hit) {
+    public void findActiveTokensForUser(String username, ActionListener<Collection<Tuple<UserToken, String>>> listener) {
+        ensureEnabled();
+
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (Strings.isNullOrEmpty(username)) {
+            listener.onFailure(new IllegalArgumentException("username is required"));
+        } else if (frozenSecurityIndex.indexExists() == false) {
+            listener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            final Instant now = clock.instant();
+            final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("doc_type", "token"))
+                .filter(QueryBuilders.boolQuery()
+                    .should(QueryBuilders.boolQuery()
+                        .must(QueryBuilders.termQuery("access_token.invalidated", false))
+                        .must(QueryBuilders.rangeQuery("access_token.user_token.expiration_time").gte(now.toEpochMilli()))
+                    )
+                    .should(QueryBuilders.termQuery("refresh_token.invalidated", false))
+                );
+
+            final SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
+                .setQuery(boolQuery)
+                .setVersion(false)
+                .setSize(1000)
+                .setFetchSource(true)
+                .request();
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure,
+                () -> ScrollHelper.fetchAllByEntity(client, request, listener,
+                    (SearchHit hit) -> filterAndParseHit(hit, isOfUser(username))));
+        }
+    }
+
+    private static Predicate<Map<String, Object>> isOfUser(String username) {
+        return source -> {
+            String auth = (String) source.get("authentication");
+            Integer version = (Integer) source.get("version");
+            Version authVersion = Version.fromId(version);
+            try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(auth))) {
+                in.setVersion(authVersion);
+                Authentication authentication = new Authentication(in);
+                return authentication.getUser().principal().equals(username);
+            } catch (IOException e) {
+                return false;
+            }
+        };
+    }
+
+
+    private Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate filter) {
         final Map<String, Object> source = hit.getSourceAsMap();
         if (source == null) {
             throw new IllegalStateException("token document did not have source but source should have been fetched");
         }
-
         try {
-            return parseTokensFromDocument(source);
+            return parseTokensFromDocument(source, filter);
         } catch (IOException e) {
             throw invalidGrantException("cannot read token from document");
         }
     }
 
     /**
-     * @return A {@link Tuple} of access-token and refresh-token-id
+     *
+     * Parses a token document into a Tuple of a {@link UserToken} and a String representing the corresponding refresh_token
+     *
+     * @param source The token document source as retrieved
+     * @param filter an optional Predicate to test the source of the UserToken against
+     * @return A {@link Tuple} of access-token and refresh-token-id or null if a Predicate is defined and the userToken source doesn't
+     * satisfy it
      */
-    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source) throws IOException {
-        final String refreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
+    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate filter) throws IOException {
 
+        final String refreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
         final Map<String, Object> userTokenSource = (Map<String, Object>)
                 ((Map<String, Object>) source.get("access_token")).get("user_token");
+        if (null != filter) {
+            if (filter.test(userTokenSource) == false) {
+                return null;
+            }
+        }
         final String id = (String) userTokenSource.get("id");
         final Integer version = (Integer) userTokenSource.get("version");
         final String authString = (String) userTokenSource.get("authentication");
@@ -985,7 +1063,11 @@ public final class TokenService extends AbstractComponent {
     }
 
     private static String getTokenDocumentId(String id) {
-        return "token_" + id;
+        if (id.substring(0, "token_".length()).equals("token_")) {
+            return "token_" + id;
+        } else {
+            return id;
+        }
     }
 
     private void ensureEnabled() {

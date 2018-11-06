@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.util.Collection;
-import java.util.Collections;
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -23,35 +23,61 @@ import java.util.Objects;
  */
 public class TokensInvalidationResult {
 
-    private final Collection<String> invalidatedTokens;
-    private final Collection<String> notInvalidatedTokens;
-    private final Collection<Tuple<String, String>> errors;
+    private final String[] invalidatedTokens;
+    private final String[] prevInvalidatedTokens;
+    private final String[] errors;
+    private final int attemptCounter;
 
 
-    public TokensInvalidationResult(Collection<String> invalidatedTokens, Collection<String> notInvalidatedTokens,
-                                    @Nullable Collection<Tuple<String, String>> errors) {
+    public TokensInvalidationResult(String[] invalidatedTokens, String[] notInvalidatedTokens,
+                                    @Nullable String[] errors, int attemptCounter) {
         Objects.requireNonNull(invalidatedTokens, "invalidated_tokens must be provided");
         this.invalidatedTokens = invalidatedTokens;
         Objects.requireNonNull(notInvalidatedTokens, "not_invalidated_must be provided");
-        this.notInvalidatedTokens = notInvalidatedTokens;
+        this.prevInvalidatedTokens = notInvalidatedTokens;
         if (null != errors) {
             this.errors = errors;
         } else {
-            this.errors = Collections.emptyList();
+            this.errors = new String[0];
         }
+        this.attemptCounter = attemptCounter;
     }
 
-
-    public Collection<String> getInvalidatedTokens() {
+    public String[] getInvalidatedTokens() {
         return invalidatedTokens;
     }
 
-    public Collection<String> getNotInvalidatedTokens() {
-        return notInvalidatedTokens;
+    public String[] getPrevInvalidatedTokens() {
+        return prevInvalidatedTokens;
     }
 
-    public Collection<Tuple<String, String>> getErrors() {
+    public String[] getErrors() {
         return errors;
+    }
+
+    public int getAttemptCounter() {
+        return attemptCounter;
+    }
+
+    public static void writeTo(TokensInvalidationResult result, StreamOutput out) throws IOException {
+        out.writeVInt(result.getInvalidatedTokens().length);
+        out.writeStringArray(result.getInvalidatedTokens());
+        out.writeVInt(result.getPrevInvalidatedTokens().length);
+        out.writeStringArray(result.getPrevInvalidatedTokens());
+        out.writeVInt(result.getErrors().length);
+        out.writeStringArray(result.getErrors());
+        out.writeVInt(result.getAttemptCounter());
+    }
+
+    public static TokensInvalidationResult readFrom(StreamInput in) throws IOException {
+        int invalidatedTokensSize = in.readVInt();
+        String[] invalidatedTokens = in.readStringArray();
+        int prevInvalidatedTokensSize = in.readVInt();
+        String[] prevUnvalidatedTokens = in.readStringArray();
+        int errorsSize = in.readVInt();
+        String[] errors = in.readStringArray();
+        int attemptCounter = in.readVInt();
+        return new TokensInvalidationResult(invalidatedTokens, prevUnvalidatedTokens, errors, attemptCounter);
     }
 
 }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.action.token;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 
 import java.io.IOException;
 
@@ -16,30 +17,27 @@ import java.io.IOException;
  */
 public final class InvalidateTokenResponse extends ActionResponse {
 
-    private boolean created;
+    private TokensInvalidationResult result;
 
     public InvalidateTokenResponse() {}
 
-    public InvalidateTokenResponse(boolean created) {
-        this.created = created;
+    public InvalidateTokenResponse(TokensInvalidationResult result) {
+        this.result = result;
     }
 
-    /**
-     * If the token is already invalidated then created will be <code>false</code>
-     */
-    public boolean isCreated() {
-        return created;
+    public TokensInvalidationResult getResult() {
+        return result;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(created);
+        TokensInvalidationResult.writeTo(result, out);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        created = in.readBoolean();
+        result = TokensInvalidationResult.readFrom(in);
     }
 }

@@ -42,4 +42,12 @@ public final class InvalidateTokenRequestBuilder
         request.setRealmName(realmName);
         return this;
     }
+
+    /**
+     * Sets the username for which all tokens should be invalidated
+     */
+    public InvalidateTokenRequestBuilder setUserName(String username) {
+        request.setUserName(username);
+        return this;
+    }
 }

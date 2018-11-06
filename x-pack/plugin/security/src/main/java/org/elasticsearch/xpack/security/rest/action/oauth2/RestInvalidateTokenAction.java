@@ -33,11 +33,14 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
 
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER =
-        new ConstructingObjectParser<>("invalidate_token", a -> new InvalidateTokenRequest((String) a[0], (String) a[1], (String) a[2]));
+        new ConstructingObjectParser<>("invalidate_token", a ->
+            new InvalidateTokenRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3]));
+
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("token"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("refresh_token"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("realm_name"));
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
     }
 
     public RestInvalidateTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
@@ -60,7 +63,10 @@ public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
                         public RestResponse buildResponse(InvalidateTokenResponse invalidateResp,
                                                           XContentBuilder builder) throws Exception {
                             return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                                    .field("created", invalidateResp.isCreated())
+                                .field("invalidated_tokens", invalidateResp.getResult().getInvalidatedTokens().length)
+                                .field("prev_invalidated_tokens", invalidateResp.getResult().getPrevInvalidatedTokens().length)
+                                //TODO Error messages
+                                .field("errors", invalidateResp.getResult().getErrors().length)
                                     .endObject());
                         }
                     });

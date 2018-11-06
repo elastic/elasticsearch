@@ -78,18 +78,18 @@ SELECT CAST(emp_no AS BOOL) AS emp_no_cast FROM "test_emp" ORDER BY emp_no LIMIT
 isNullAndIsNotNull
 SELECT null IS NULL AS col1, null IS NOT NULL AS col2;
 isNullAndIsNotNullAndNegation
-SELECT NOT (null IS NULL) AS col1, NOT (null IS NOT NULL) AS col2;
+SELECT NOT(null IS NULL) AS col1, NOT(null IS NOT NULL) AS col2;
 isNullAndIsNotNullOverComparison
-SELECT (null IN (1, 2)) IS NULL AS col1, (null IN (1, 2)) IS NOT NULL AS col2;
+SELECT (null = 1) IS NULL AS col1, (null = 1) IS NOT NULL AS col2;
 isNullAndIsNotNullOverComparisonWithNegation
-SELECT NOT ((null IN (1, 2)) IS NULL) AS col1, NOT ((null IN (1, 2)) IS NOT NULL) AS col2;
+SELECT NOT((null = 1) IS NULL) AS col1, NOT((null = 1) IS NOT NULL) AS col2;
 
 // with table columns
 isNullAndIsNotNull_onTableColumns
-SELECT languages IS NULL AS col1, languages IS NOT NULL AS col2 FROM "test_emp" WHERE emp_no IN (10018, 10019, 10020, 10021) ORDER BY emp_no;
+SELECT languages IS NULL AS col1, languages IS NOT NULL AS col2 FROM "test_emp" WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
 isNullAndIsNotNullAndNegation_onTableColumns
-SELECT NOT languages IS NULL AS col1, NOT (languages IS NOT NULL) AS col2 FROM test_emp WHERE emp_no IN (10018, 10019, 10020, 10021) ORDER BY emp_no;
+SELECT NOT languages IS NULL AS col1, NOT(languages IS NOT NULL) AS col2 FROM test_emp WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
 isNullAndIsNotNullOverComparison_onTableColumns
-SELECT (languages IN (1, 2)) IS NULL AS col1, (languages IN (1, 2)) IS NOT NULL AS col2 FROM test_emp WHERE emp_no IN (10018, 10019, 10020, 10021) ORDER BY emp_no;
+SELECT (languages = 2) IS NULL AS col1, (languages = 2) IS NOT NULL AS col2 FROM test_emp WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
 isNullAndIsNotNullOverComparisonWithNegation_onTableColumns
-SELECT NOT ((languages IN (1, 2)) IS NULL) AS col1, NOT ((languages IN (1, 2)) IS NOT NULL) AS col2 FROM test_emp WHERE emp_no IN (10018, 10019, 10020, 10021) ORDER BY emp_no;
+SELECT NOT((languages = 2) IS NULL) AS col1, NOT((languages = 2) IS NOT NULL) AS col2 FROM test_emp WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;

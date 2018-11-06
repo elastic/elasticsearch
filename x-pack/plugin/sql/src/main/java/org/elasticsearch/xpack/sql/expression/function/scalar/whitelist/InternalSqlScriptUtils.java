@@ -21,11 +21,10 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.LocateFunct
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.ReplaceFunctionProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.SubstringFunctionProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.IsNullProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.CoalesceProcessor;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.NotProcessor;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNullProcessor;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.UnaryArithmeticProcessor.UnaryArithmeticOperation;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
@@ -119,11 +118,11 @@ public final class InternalSqlScriptUtils {
     }
 
     public static Boolean isNull(Object expression) {
-        return IsNullProcessor.apply(expression);
+        return CheckNullOperation.IS_NULL.apply(expression);
     }
 
     public static Boolean isNotNull(Object expression) {
-        return IsNotNullProcessor.apply(expression);
+        return CheckNullOperation.IS_NOT_NULL.apply(expression);
     }
 
     public static Boolean in(Object value, List<Object> values) {

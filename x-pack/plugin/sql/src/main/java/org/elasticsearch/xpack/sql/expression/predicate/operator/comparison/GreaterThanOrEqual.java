@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.BinaryNegateable;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Negateable;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
-public class GreaterThanOrEqual extends BinaryComparison implements BinaryNegateable {
+public class GreaterThanOrEqual extends BinaryComparison implements Negateable {
 
     public GreaterThanOrEqual(Location location, Expression left, Expression right) {
         super(location, left, right, BinaryComparisonOperation.GTE);

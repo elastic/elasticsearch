@@ -3,19 +3,20 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.expression.predicate;
+package org.elasticsearch.xpack.sql.expression.predicate.nulls;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.function.scalar.Negateable;
 import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
-import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.CheckNullProcessor.CheckNullOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
-public class IsNull extends UnaryScalarFunction implements UnaryScalarFunction.UnaryNegateable {
+public class IsNull extends UnaryScalarFunction implements Negateable {
 
     public IsNull(Location location, Expression field) {
         super(location, field);
@@ -38,7 +39,7 @@ public class IsNull extends UnaryScalarFunction implements UnaryScalarFunction.U
 
     @Override
     protected Processor makeProcessor() {
-        return IsNullProcessor.INSTANCE;
+        return new CheckNullProcessor(CheckNullOperation.IS_NULL);
     }
 
     @Override

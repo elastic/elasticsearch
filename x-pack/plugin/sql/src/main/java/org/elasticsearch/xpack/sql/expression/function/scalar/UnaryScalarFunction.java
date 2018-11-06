@@ -19,10 +19,6 @@ import static java.util.Collections.singletonList;
 
 public abstract class UnaryScalarFunction extends ScalarFunction {
 
-    public interface UnaryNegateable {
-        UnaryScalarFunction negate();
-    }
-
     private final Expression field;
 
     protected UnaryScalarFunction(Location location) {

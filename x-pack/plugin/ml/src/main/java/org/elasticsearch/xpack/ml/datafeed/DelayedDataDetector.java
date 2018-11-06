@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -27,6 +27,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 
 /**
@@ -53,35 +56,31 @@ public class DelayedDataDetector {
         this.client = client;
     }
 
-    public void missingData(long latestFinalizedBucket, ActionListener<List<BucketWithMissingData>> listener) {
+    public List<BucketWithMissingData> missingData(long latestFinalizedBucket) {
         final long end = Intervals.alignToFloor(latestFinalizedBucket, bucketSpan);
         final long start = Intervals.alignToFloor(latestFinalizedBucket - window, bucketSpan);
-        checkBucketEvents(start, end, ActionListener.wrap(
-            finalizedBuckets -> checkTrueData(start, end, ActionListener.wrap(
-                    indexedData -> listener.onResponse(finalizedBuckets.stream()
-                        .filter(bucket -> calculateMissing(indexedData, bucket) > 0)
-                        .map(bucket -> BucketWithMissingData.fromMissingAndBucket(calculateMissing(indexedData, bucket), bucket))
-                        .collect(Collectors.toList())),
-                    listener::onFailure)
-            ),
-            listener::onFailure
-        ));
+        List<Bucket> finalizedBuckets = checkBucketEvents(start, end);
+        Map<Long, Long> indexedData = checkTrueData(start, end);
+        return finalizedBuckets.stream()
+            .filter(bucket -> calculateMissing(indexedData, bucket) > 0)
+            .map(bucket -> BucketWithMissingData.fromMissingAndBucket(calculateMissing(indexedData, bucket), bucket))
+            .collect(Collectors.toList());
     }
 
-    private void checkBucketEvents(long start, long end, ActionListener<List<Bucket>> listener) {
+    private List<Bucket> checkBucketEvents(long start, long end) {
         GetBucketsAction.Request request = new GetBucketsAction.Request(job.getId());
         request.setStart(Long.toString(start));
         request.setEnd(Long.toString(end));
         request.setExcludeInterim(true);
         request.setPageParams(new PageParams(0, (int)((end - start)/bucketSpan)));
 
-        ClientHelper.executeAsyncWithOrigin(client, ClientHelper.ML_ORIGIN, GetBucketsAction.INSTANCE, request, ActionListener.wrap(
-            response -> listener.onResponse(response.getBuckets().results()),
-            listener::onFailure
-        ));
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            GetBucketsAction.Response response = client.execute(GetBucketsAction.INSTANCE, request).actionGet();
+            return response.getBuckets().results();
+        }
     }
 
-    private void checkTrueData(long start, long end, ActionListener<Map<Long, Long>> listener) {
+    private Map<Long, Long> checkTrueData(long start, long end) {
         String timeField = job.getDataDescription().getTimeField();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
             .size(0)
@@ -89,23 +88,19 @@ public class DelayedDataDetector {
             .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedConfig.getQuery(), timeField, start, end));
 
         SearchRequest searchRequest = new SearchRequest(datafeedConfig.getIndices().toArray(new String[0])).source(searchSourceBuilder);
-        ClientHelper.executeAsyncWithOrigin(client, ClientHelper.ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
-            response -> {
-                List<? extends Histogram.Bucket> buckets = ((Histogram)response.getAggregations().get(DATE_BUCKETS)).getBuckets();
-                Map<Long, Long> hashMap = new HashMap<>(buckets.size());
-                for (Histogram.Bucket bucket : buckets) {
-                    long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
-                    if (bucketTime < 0) {
-                        listener.onFailure(
-                            new IllegalStateException("Histogram key [" + bucket.getKey() + "] cannot be converted to a timestamp"));
-                        return;
-                    }
-                    hashMap.put(bucketTime, bucket.getDocCount());
+        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            SearchResponse response = client.execute(SearchAction.INSTANCE, searchRequest).actionGet();
+            List<? extends Histogram.Bucket> buckets = ((Histogram)response.getAggregations().get(DATE_BUCKETS)).getBuckets();
+            Map<Long, Long> hashMap = new HashMap<>(buckets.size());
+            for (Histogram.Bucket bucket : buckets) {
+                long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
+                if (bucketTime < 0) {
+                        throw new IllegalStateException("Histogram key [" + bucket.getKey() + "] cannot be converted to a timestamp");
                 }
-                listener.onResponse(hashMap);
-            },
-            listener::onFailure
-        ));
+                hashMap.put(bucketTime, bucket.getDocCount());
+            }
+            return hashMap;
+        }
     }
 
     private static long toHistogramKeyToEpoch(Object key) {

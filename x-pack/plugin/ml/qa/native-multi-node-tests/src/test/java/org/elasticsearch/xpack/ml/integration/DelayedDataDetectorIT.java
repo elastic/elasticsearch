@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -34,6 +33,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Date;
+import java.util.List;
 
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeed;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeedBuilder;
@@ -60,8 +60,8 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    public void testWithoutMissing() throws Exception {
-        final String jobId = "delayed-data-detection-job-no-missing-test";
+    public void test() throws Exception {
+        final String jobId = "delayed-data-detection-job";
         Job.Builder job = createJob(jobId, TimeValue.timeValueMinutes(5), "count", null);
 
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
@@ -80,44 +80,18 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         DelayedDataDetector delayedDataDetector =
             new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
 
-        delayedDataDetector.missingData(lastBucket.getEpoch()*1000, ActionListener.wrap(
-            response -> assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(0L)),
-            e -> fail()
-        ));
-    }
-
-    public void testWithMissing() throws Exception {
-        final String jobId = "delayed-data-detection-job-missing-test";
-        Job.Builder job = createJob(jobId, TimeValue.timeValueMinutes(5), "count", null);
-
-        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
-        registerJob(job);
-        putJob(job);
-        openJob(job.getId());
-
-        registerDatafeed(datafeedConfig);
-        putDatafeed(datafeedConfig);
-
-        startDatafeed(datafeedConfig.getId(), 0L, now);
-        waitUntilJobIsClosed(jobId);
-
-        // Get the latest finalized bucket
-        Bucket lastBucket = getLatestFinalizedBucket(jobId);
-
-        DelayedDataDetector delayedDataDetector =
-            new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
+        List<BucketWithMissingData> response = delayedDataDetector.missingData(lastBucket.getEpoch()*1000);
+        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(0L));
 
         long missingDocs = randomIntBetween(32, 128);
         writeData(logger, index, missingDocs, now - 43100000, lastBucket.getEpoch()*1000);
 
-        delayedDataDetector.missingData(lastBucket.getEpoch()*1000, ActionListener.wrap(
-            response -> assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(missingDocs)),
-            e -> fail()
-        ));
+        response = delayedDataDetector.missingData(lastBucket.getEpoch()*1000);
+        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(missingDocs));
     }
 
     public void testWithMissingInSpecificBucket() throws Exception {
-        final String jobId = "delayed-data-detection-job-missing-test";
+        final String jobId = "delayed-data-detection-job-missing-test-specific-bucket";
         Job.Builder job = createJob(jobId, TimeValue.timeValueMinutes(5), "count", null);
 
         DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
@@ -139,23 +113,18 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
         long missingDocs = randomIntBetween(1, 10);
         writeData(logger, index, missingDocs, (lastBucket.getEpoch() - lastBucket.getBucketSpan())*1000, lastBucket.getEpoch()*1000);
-
-        delayedDataDetector.missingData(lastBucket.getEpoch()*1000, ActionListener.wrap(
-            response -> {
-                boolean hasBucketWithMissing = false;
-                for (BucketWithMissingData bucketWithMissingData : response) {
-                    if (bucketWithMissingData.getBucket().getEpoch() == lastBucket.getEpoch() - lastBucket.getBucketSpan()) {
-                        assertThat(bucketWithMissingData.getMissingData(), equalTo(missingDocs));
-                        hasBucketWithMissing = true;
-                    }
-                }
-                assertThat(hasBucketWithMissing, equalTo(true));
-            },
-            e -> fail()
-        ));
+        List<BucketWithMissingData> response = delayedDataDetector.missingData(lastBucket.getEpoch()*1000);
+        boolean hasBucketWithMissing = false;
+        for (BucketWithMissingData bucketWithMissingData : response) {
+            if (bucketWithMissingData.getBucket().getEpoch() == lastBucket.getEpoch() - lastBucket.getBucketSpan()) {
+                assertThat(bucketWithMissingData.getMissingData(), equalTo(missingDocs));
+                hasBucketWithMissing = true;
+            }
+        }
+        assertThat(hasBucketWithMissing, equalTo(true));
     }
 
-    public void testWithoutMissingAndAggregationsAndQuery() throws Exception {
+    public void testMissingWithAggregationsAndQuery() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(10);
         final String jobId = "delayed-data-detection-job-aggs-no-missing-test";
         Job.Builder job = createJob(jobId, bucketSpan, "mean", "value", "doc_count");
@@ -169,46 +138,8 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
                     .subAggregation(avgAggregationBuilder)
                     .field("time")
                     .interval(TimeValue.timeValueMinutes(5).millis())));
-        datafeedConfigBuilder.setQuery(new RangeQueryBuilder("value").gt(numDocs/2));
-        datafeedConfigBuilder.setFrequency(TimeValue.timeValueMinutes(5));
-        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-        registerJob(job);
-        putJob(job);
-        openJob(job.getId());
-
-        registerDatafeed(datafeedConfig);
-        putDatafeed(datafeedConfig);
-        startDatafeed(datafeedConfig.getId(), 0L, now);
-        waitUntilJobIsClosed(jobId);
-
-        // Get the latest finalized bucket
-        Bucket lastBucket = getLatestFinalizedBucket(jobId);
-
-        DelayedDataDetector delayedDataDetector =
-            new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
-
-        delayedDataDetector.missingData(lastBucket.getEpoch()*1000, ActionListener.wrap(
-            response -> assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(0L)),
-            e -> fail()
-        ));
-    }
-
-    public void testWithMissingAndAggregationsAndQuery() throws Exception {
-        TimeValue bucketSpan = TimeValue.timeValueMinutes(10);
-        final String jobId = "delayed-data-detection-job-aggs-and-missing-test";
-        Job.Builder job = createJob(jobId, bucketSpan, "mean", "value", "doc_count");
-
-        MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-        AvgAggregationBuilder avgAggregationBuilder = AggregationBuilders.avg("value").field("value");
-        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
-        datafeedConfigBuilder.setAggregations(new AggregatorFactories.Builder().addAggregator(
-            AggregationBuilders.histogram("time")
-                .subAggregation(maxTime)
-                .subAggregation(avgAggregationBuilder)
-                .field("time")
-                .interval(TimeValue.timeValueMinutes(5).millis())));
-        datafeedConfigBuilder.setFrequency(TimeValue.timeValueMinutes(5));
         datafeedConfigBuilder.setQuery(new RangeQueryBuilder("value").gte(numDocs/2));
+        datafeedConfigBuilder.setFrequency(TimeValue.timeValueMinutes(5));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         registerJob(job);
         putJob(job);
@@ -224,14 +155,15 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
         DelayedDataDetector delayedDataDetector =
             new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
+
+        List<BucketWithMissingData> response = delayedDataDetector.missingData(lastBucket.getEpoch()*1000);
+        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(0L));
 
         long missingDocs = numDocs;
         writeData(logger, index, missingDocs, now - 43100000, lastBucket.getEpoch()*1000);
 
-        delayedDataDetector.missingData(lastBucket.getEpoch()*1000, ActionListener.wrap(
-            response -> assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo((missingDocs+1)/2)),
-            e -> fail()
-        ));
+        response = delayedDataDetector.missingData(lastBucket.getEpoch()*1000);
+        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo((missingDocs+1)/2));
     }
 
     private Job.Builder createJob(String id, TimeValue bucketSpan, String function, String field) {

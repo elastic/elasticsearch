@@ -444,7 +444,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         query.from(queryFromValue);
         query.to(queryToValue);
-        query.timeZone(randomFrom(DateTimeZone.getAvailableIDs()));
+        query.timeZone(randomDateTimeZone().getID());
         query.format("yyyy-MM-dd");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);

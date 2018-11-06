@@ -344,12 +344,13 @@ import java.util.Map;
 
 public abstract class AbstractClient extends AbstractComponent implements Client {
 
+    protected final Settings settings;
     private final ThreadPool threadPool;
     private final Admin admin;
     private final ThreadedActionListener.Wrapper threadedWrapper;
 
     public AbstractClient(Settings settings, ThreadPool threadPool) {
-        super(settings);
+        this.settings = settings;
         this.threadPool = threadPool;
         this.admin = new Admin(this);
         this.threadedWrapper = new ThreadedActionListener.Wrapper(logger, settings, threadPool);
@@ -469,6 +470,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     @Override
     public BulkRequestBuilder prepareBulk() {
         return new BulkRequestBuilder(this, BulkAction.INSTANCE);
+    }
+
+    @Override
+    public BulkRequestBuilder prepareBulk(@Nullable String globalIndex, @Nullable String globalType) {
+        return new BulkRequestBuilder(this, BulkAction.INSTANCE, globalIndex, globalType);
     }
 
     @Override

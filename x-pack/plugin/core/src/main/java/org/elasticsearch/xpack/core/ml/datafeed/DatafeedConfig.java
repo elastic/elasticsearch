@@ -422,9 +422,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     public static class Builder {
 
+        public static final int DEFAULT_AGGREGATION_CHUNKING_BUCKETS = 1000;
         private static final TimeValue MIN_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(1);
         private static final TimeValue MAX_DEFAULT_QUERY_DELAY = TimeValue.timeValueMinutes(2);
-        private static final int DEFAULT_AGGREGATION_CHUNKING_BUCKETS = 1000;
 
         private String id;
         private String jobId;

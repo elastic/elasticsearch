@@ -492,7 +492,7 @@ public class Node implements Closeable {
             final IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService
                 .filterPlugins(PersistentTaskPlugin.class).stream()
-                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, indexScopedSettings))
+                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule))
                 .flatMap(List::stream)
                 .collect(toList());
 

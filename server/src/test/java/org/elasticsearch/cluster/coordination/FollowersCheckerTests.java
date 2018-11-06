@@ -370,7 +370,7 @@ public class FollowersCheckerTests extends ESTestCase {
         followersChecker.setCurrentNodes(discoveryNodes);
         nodeFailed.set(false);
         assertThat(followersChecker.getFaultyNodes(), empty());
-        deterministicTaskQueue.runAllTasks();
+        deterministicTaskQueue.runAllTasksInTimeOrder();
         assertTrue(nodeFailed.get());
         assertThat(followersChecker.getFaultyNodes(), contains(otherNode));
     }

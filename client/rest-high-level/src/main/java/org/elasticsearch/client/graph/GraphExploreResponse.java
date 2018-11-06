@@ -47,7 +47,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * 
  * @see GraphExploreRequest
  */
-public class GraphExploreResponse  implements ToXContentObject {
+public class GraphExploreResponse implements ToXContentObject {
 
     private long tookInMillis;
     private boolean timedOut = false;
@@ -94,12 +94,28 @@ public class GraphExploreResponse  implements ToXContentObject {
         return connections.values();
     }
 
+    public Collection<ConnectionId> getConnectionIds() {
+        return connections.keySet();
+    }
+
+    public Connection getConnection(ConnectionId connectionId) {
+        return connections.get(connectionId);
+    }
+
     public Collection<Vertex> getVertices() {
         return vertices.values();
     }
-    
+
+    public Collection<VertexId> getVertexIds() {
+        return vertices.keySet();
+    }
+
     public Vertex getVertex(VertexId id) {
         return vertices.get(id);
+    }
+
+    public boolean isReturnDetailedInfo() {
+        return returnDetailedInfo;
     }
 
     private static final ParseField TOOK = new ParseField("took");
@@ -190,7 +206,7 @@ public class GraphExploreResponse  implements ToXContentObject {
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.fromXContent(p), FAILURES);
     } 
     
-    public static GraphExploreResponse fromXContext(XContentParser parser) throws IOException {
+    public static GraphExploreResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 

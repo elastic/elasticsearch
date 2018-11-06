@@ -152,11 +152,10 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         final CountDownLatch actionStartedLatch;
 
-        CancellableTestNodesAction(Settings settings, String actionName, ThreadPool threadPool,
+        CancellableTestNodesAction(String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, boolean shouldBlock, CountDownLatch
                                        actionStartedLatch) {
-            super(settings, actionName, threadPool, clusterService, transportService, CancellableNodesRequest::new,
-                CancellableNodeRequest::new);
+            super(actionName, threadPool, clusterService, transportService, CancellableNodesRequest::new, CancellableNodeRequest::new);
             this.shouldBlock = shouldBlock;
             this.actionStartedLatch = actionStartedLatch;
         }
@@ -214,7 +213,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         for (int i = 0; i < testNodes.length; i++) {
             boolean shouldBlock = blockOnNodes.contains(testNodes[i]);
             logger.info("The action in the node [{}] should block: [{}]", testNodes[i].getNodeId(), shouldBlock);
-            actions[i] = new CancellableTestNodesAction(CLUSTER_SETTINGS, "internal:testAction", threadPool, testNodes[i]
+            actions[i] = new CancellableTestNodesAction("internal:testAction", threadPool, testNodes[i]
                 .clusterService, testNodes[i].transportService, shouldBlock, actionLatch);
         }
         Task task = actions[0].execute(request, listener);

@@ -537,7 +537,7 @@ public class OperationRoutingTests extends ESTestCase{
         Set<String> selectedNodes = new HashSet<>(numShards);
         TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupportNodeIds");
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        ResponseCollectorService collector = new ResponseCollectorService(Settings.EMPTY, clusterService);
+        ResponseCollectorService collector = new ResponseCollectorService(clusterService);
         Map<String, Long> outstandingRequests = new HashMap<>();
         GroupShardsIterator<ShardIterator> groupIterator = opRouting.searchShards(state,
                 indexNames, null, null, collector, outstandingRequests);

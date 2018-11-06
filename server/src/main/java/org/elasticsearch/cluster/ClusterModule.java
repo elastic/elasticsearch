@@ -108,11 +108,11 @@ public class ClusterModule extends AbstractModule {
     public ClusterModule(Settings settings, ClusterService clusterService, List<ClusterPlugin> clusterPlugins,
                          ClusterInfoService clusterInfoService) {
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
-        this.allocationDeciders = new AllocationDeciders(settings, deciderList);
+        this.allocationDeciders = new AllocationDeciders(deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
-        this.allocationService = new AllocationService(settings, allocationDeciders, shardsAllocator, clusterInfoService);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver();
+        this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService);
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -205,16 +205,16 @@ public class ClusterModule extends AbstractModule {
                                                                          List<ClusterPlugin> clusterPlugins) {
         // collect deciders by class so that we can detect duplicates
         Map<Class, AllocationDecider> deciders = new LinkedHashMap<>();
-        addAllocationDecider(deciders, new MaxRetryAllocationDecider(settings));
-        addAllocationDecider(deciders, new ResizeAllocationDecider(settings));
-        addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider(settings));
-        addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider(settings));
+        addAllocationDecider(deciders, new MaxRetryAllocationDecider());
+        addAllocationDecider(deciders, new ResizeAllocationDecider());
+        addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider());
+        addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider());
         addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ConcurrentRebalanceAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new EnableAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new NodeVersionAllocationDecider(settings));
-        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider(settings));
-        addAllocationDecider(deciders, new RestoreInProgressAllocationDecider(settings));
+        addAllocationDecider(deciders, new NodeVersionAllocationDecider());
+        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
+        addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));

@@ -36,6 +36,7 @@ public final class StatsCollector extends Collector {
 
     public static final Setting<TimeValue> CCR_STATS_TIMEOUT = collectionTimeoutSetting("ccr.stats.timeout");
 
+    private final Settings settings;
     private final ThreadContext threadContext;
     private final CcrClient ccrClient;
 
@@ -48,12 +49,13 @@ public final class StatsCollector extends Collector {
     }
 
     StatsCollector(
-        final Settings settings,
-        final ClusterService clusterService,
-        final XPackLicenseState licenseState,
-        final CcrClient ccrClient,
-        final ThreadContext threadContext) {
-        super(settings, TYPE, clusterService, CCR_STATS_TIMEOUT, licenseState);
+            final Settings settings,
+            final ClusterService clusterService,
+            final XPackLicenseState licenseState,
+            final CcrClient ccrClient,
+            final ThreadContext threadContext) {
+        super(TYPE, clusterService, CCR_STATS_TIMEOUT, licenseState);
+        this.settings = settings;
         this.ccrClient = ccrClient;
         this.threadContext = threadContext;
     }

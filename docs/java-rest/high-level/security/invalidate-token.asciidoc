@@ -1,0 +1,39 @@
+--
+:api: invalidate-token
+:request: InvalidateTokenRequest
+:response: InvalidateTokenResponse
+--
+
+[id="{upid}-{api}"]
+=== Invalidate Token API
+
+[id="{upid}-{api}-request"]
+==== Invalidate Token Request
+The +{request}+ supports invalidating either an _access token_ or a _refresh token_
+
+===== Access Token
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-access-token-request]
+--------------------------------------------------
+
+===== Refresh Token
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[invalidate-refresh-token-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Invalidate Token Response
+
+The returned +{response}+ contains a single property:
+
+`created`:: Whether the invalidation record was newly created (`true`),
+   or if the token had already been invalidated (`false`).
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

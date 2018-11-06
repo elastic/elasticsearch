@@ -259,9 +259,8 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
             return e;
         }
 
-        @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             followerIndex = in.readString();
             maxReadRequestOperationCount = in.readOptionalVInt();
             maxOutstandingReadRequests = in.readOptionalVInt();

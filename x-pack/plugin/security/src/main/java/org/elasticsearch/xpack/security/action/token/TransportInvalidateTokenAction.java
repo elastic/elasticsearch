@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
@@ -27,9 +26,8 @@ public final class TransportInvalidateTokenAction extends HandledTransportAction
     private final TokenService tokenService;
 
     @Inject
-    public TransportInvalidateTokenAction(Settings settings, TransportService transportService,
-                                          ActionFilters actionFilters, TokenService tokenService) {
-        super(settings, InvalidateTokenAction.NAME, transportService, actionFilters, InvalidateTokenRequest::new);
+    public TransportInvalidateTokenAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService) {
+        super(InvalidateTokenAction.NAME, transportService, actionFilters, InvalidateTokenRequest::new);
         this.tokenService = tokenService;
     }
 

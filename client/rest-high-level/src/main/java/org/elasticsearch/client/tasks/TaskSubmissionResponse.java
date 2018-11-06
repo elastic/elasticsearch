@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.client.tasks;
 
 import org.elasticsearch.action.ActionResponse;

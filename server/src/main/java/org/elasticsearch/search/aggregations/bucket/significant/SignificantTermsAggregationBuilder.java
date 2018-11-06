@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -29,7 +31,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
@@ -132,7 +133,11 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         super(in, ValuesSourceType.ANY);
         bucketCountThresholds = new BucketCountThresholds(in);
         executionHint = in.readOptionalString();
-        collectMode = in.readOptionalWriteable(SubAggCollectionMode::readFromStream);
+        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            collectMode = in.readOptionalWriteable(SubAggCollectionMode::readFromStream);
+        } else {
+            collectMode = SubAggCollectionMode.DEPTH_FIRST;
+        }
         filterBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
@@ -158,7 +163,11 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     protected void innerWriteTo(StreamOutput out) throws IOException {
         bucketCountThresholds.writeTo(out);
         out.writeOptionalString(executionHint);
-        out.writeOptionalWriteable(collectMode);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            out.writeOptionalWriteable(collectMode);
+        } else {
+            out.writeOptionalWriteable(SubAggCollectionMode.DEPTH_FIRST);
+        }
         out.writeOptionalNamedWriteable(filterBuilder);
         out.writeOptionalWriteable(includeExclude);
         out.writeNamedWriteable(significanceHeuristic);

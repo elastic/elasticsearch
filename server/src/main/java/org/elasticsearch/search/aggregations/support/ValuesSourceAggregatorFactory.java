@@ -50,6 +50,20 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
         return doCreateInternal(vs, parent, collectsFromSingleBucket, pipelineAggregators, metaData);
     }
 
+    // return the SubAggCollectionMode that this aggregation should use based on the expected size
+    // and the cardinality of the field
+    public static Aggregator.SubAggCollectionMode subAggCollectionMode(int expectedSize, long maxOrd) {
+        if (expectedSize == Integer.MAX_VALUE) {
+            // return all buckets
+            return Aggregator.SubAggCollectionMode.DEPTH_FIRST;
+        }
+        if (maxOrd == -1 || maxOrd > expectedSize) {
+            // use breadth_first if the cardinality is bigger than the expected size or unknown (-1)
+            return Aggregator.SubAggCollectionMode.BREADTH_FIRST;
+        }
+        return Aggregator.SubAggCollectionMode.DEPTH_FIRST;
+    }
+
     protected abstract Aggregator createUnmapped(Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException;
 

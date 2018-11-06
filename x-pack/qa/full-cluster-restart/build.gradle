@@ -142,7 +142,12 @@ subprojects {
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
       if (version.before('6.3.0')) {
-        mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${version}"
+          String depVersion = version;
+          if (project.bwcVersions.unreleased.contains(version)) {
+              depVersion += "-SNAPSHOT"
+          }
+          mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${depVersion}"
+
       }
       bwcVersion = version
       numBwcNodes = 2

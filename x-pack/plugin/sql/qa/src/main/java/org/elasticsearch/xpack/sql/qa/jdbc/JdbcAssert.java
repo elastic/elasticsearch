@@ -114,6 +114,11 @@ public class JdbcAssert {
             if (expectedType == Types.FLOAT && expected instanceof CsvResultSet) {
                 expectedType = Types.REAL;
             }
+            // csv doesn't support NULL type so skip type checking
+            if (actualType == Types.NULL && expected instanceof CsvResultSet) {
+                expectedType = Types.NULL;
+            }
+
             // when lenient is used, an int is equivalent to a short, etc...
             assertEquals("Different column type for column [" + expectedName + "] (" + JDBCType.valueOf(expectedType) + " != "
                     + JDBCType.valueOf(actualType) + ")", expectedType, actualType);

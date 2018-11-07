@@ -199,9 +199,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertNoPendingHandshakes(serviceA.getOriginalTransport());
             assertNoPendingHandshakes(serviceB.getOriginalTransport());
         } finally {
-            IOUtils.close(serviceA, serviceB, () -> {
-                terminate(threadPool);
-            });
+            IOUtils.close(serviceA, serviceB, () -> terminate(threadPool));
         }
     }
 
@@ -2030,9 +2028,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
              TcpTransport.NodeChannels connection = originalTransport.openConnection(
                  new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
                  connectionProfile)) {
-            Version version = originalTransport.executeHandshake(connection.getNode(),
-                connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
-            assertEquals(version, Version.CURRENT);
+            PlainActionFuture<Version> listener = PlainActionFuture.newFuture();
+            originalTransport.executeHandshake(connection.getNode(), connection.channel(TransportRequestOptions.Type.PING),
+                TimeValue.timeValueSeconds(10), listener);
+            assertEquals(listener.actionGet(), Version.CURRENT);
         }
     }
 

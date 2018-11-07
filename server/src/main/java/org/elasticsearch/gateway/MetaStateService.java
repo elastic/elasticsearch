@@ -21,8 +21,8 @@ package org.elasticsearch.gateway;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -39,7 +39,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 /**
- * Handles writing and loading {@link MetaState}, {@link MetaData} and {@link IndexMetaData}
+ * Handles writing and loading {@link Manifest}, {@link MetaData} and {@link IndexMetaData}
  */
 public class MetaStateService extends AbstractComponent implements IndexMetaDataWriter {
     private final NodeEnvironment nodeEnv;
@@ -53,29 +53,29 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
 
     /**
      * Loads the full state, which includes both the global state and all the indices meta data. <br>
-     * When loading, manifest file is consulted (represented by {@link MetaState} class), to load proper generations. <br>
+     * When loading, manifest file is consulted (represented by {@link Manifest} class), to load proper generations. <br>
      * If there is no manifest file on disk, this method fallbacks to BWC mode, where latest generation of global and indices
      * metadata is loaded. Please note that currently there is no way to distinguish between manifest file being removed and manifest
      * file was not yet created. It means that this method always fallbacks to BWC mode, if there is no manifest file.
      *
-     * @return tuple of {@link MetaState} and {@link MetaData} with global metadata and indices metadata. If there is no state on disk,
+     * @return tuple of {@link Manifest} and {@link MetaData} with global metadata and indices metadata. If there is no state on disk,
      * meta state with globalGeneration -1 and empty meta data is returned.
      * @throws IOException if some IOException when loading files occurs or there is no metadata referenced by manifest file.
      */
-    Tuple<MetaState, MetaData> loadFullState() throws IOException {
-        final MetaState metaState = loadMetaState();
-        if (metaState == null) {
+    Tuple<Manifest, MetaData> loadFullState() throws IOException {
+        final Manifest manifest = loadMetaState();
+        if (manifest == null) {
             return loadFullStateBWC();
         }
         final MetaData.Builder metaDataBuilder;
-        final MetaData globalMetaData = MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry, metaState.getGlobalStateGeneration(),
+        final MetaData globalMetaData = MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalStateGeneration(),
                 nodeEnv.nodeDataPaths());
         if (globalMetaData != null) {
             metaDataBuilder = MetaData.builder(globalMetaData);
         } else {
-            throw new IOException("failed to find global metadata [generation: " + metaState.getGlobalStateGeneration() + "]");
+            throw new IOException("failed to find global metadata [generation: " + manifest.getGlobalStateGeneration() + "]");
         }
-        for (Map.Entry<Index, Long> entry : metaState.getIndices().entrySet()) {
+        for (Map.Entry<Index, Long> entry : manifest.getIndices().entrySet()) {
             Index index = entry.getKey();
             long generation = entry.getValue();
             final String indexFolderName = index.getUUID();
@@ -88,13 +88,13 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
                         ", generation: " + generation + "]");
             }
         }
-        return new Tuple<>(metaState, metaDataBuilder.build());
+        return new Tuple<>(manifest, metaDataBuilder.build());
     }
 
     /**
      * Zen 1 BWC version of loading metadata from disk. See also {@link #loadFullState()}
      */
-    private Tuple<MetaState, MetaData> loadFullStateBWC() throws IOException {
+    private Tuple<Manifest, MetaData> loadFullStateBWC() throws IOException {
         Map<Index, Long> indices = new HashMap<>();
         Tuple<MetaData, Long> metaDataAndGeneration =
                 MetaData.FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
@@ -125,8 +125,8 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
                 logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
             }
         }
-        MetaState metaState = new MetaState(globalStateGeneration, indices);
-        return new Tuple<>(metaState, metaDataBuilder.build());
+        Manifest manifest = new Manifest(globalStateGeneration, indices);
+        return new Tuple<>(manifest, metaDataBuilder.build());
     }
 
     /**
@@ -137,8 +137,8 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
         return IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.indexPaths(index));
     }
 
-    private MetaState loadMetaState() throws IOException {
-        return MetaState.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+    private Manifest loadMetaState() throws IOException {
+        return Manifest.FORMAT.loadLatestState(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
     }
 
     /**
@@ -173,14 +173,14 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
     }
 
     /**
-     * Writes manifest file (represented by {@link MetaState}) to disk.
+     * Writes manifest file (represented by {@link Manifest}) to disk.
      *
      * @throws WriteStateException if exception when writing state occurs. See also {@link WriteStateException#isDirty()}
      */
-    public long writeMetaState(String reason, MetaState metaState) throws WriteStateException {
+    public long writeManifest(String reason, Manifest manifest) throws WriteStateException {
         logger.trace("[_meta] writing state, reason [{}]", reason);
         try {
-            long generation = MetaState.FORMAT.write(metaState, nodeEnv.nodeDataPaths());
+            long generation = Manifest.FORMAT.write(manifest, nodeEnv.nodeDataPaths());
             logger.trace("[_meta] state written (generation: {})", generation);
             return generation;
         } catch (WriteStateException ex) {
@@ -251,19 +251,19 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
      * @param currentGeneration current state generation to keep in the directory.
      */
     public void cleanupMetaState(long currentGeneration) {
-        MetaState.FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.nodeDataPaths());
+        Manifest.FORMAT.cleanupOldFiles(currentGeneration, nodeEnv.nodeDataPaths());
     }
 
     /**
      * Writes index metadata and updates manifest file accordingly.
      */
-    public void writeIndexAndUpdateMetaState(String reason, IndexMetaData metaData) throws IOException {
+    public void writeIndexAndUpdateManifest(String reason, IndexMetaData metaData) throws IOException {
         long generation = writeIndex(reason, metaData);
-        MetaState metaState = loadMetaState();
-        Map<Index, Long> indices = new HashMap<>(metaState.getIndices());
+        Manifest manifest = loadMetaState();
+        Map<Index, Long> indices = new HashMap<>(manifest.getIndices());
         indices.put(metaData.getIndex(), generation);
-        metaState = new MetaState(metaState.getGlobalStateGeneration(), indices);
-        long metaStateGeneration = writeMetaState(reason, metaState);
+        manifest = new Manifest(manifest.getGlobalStateGeneration(), indices);
+        long metaStateGeneration = writeManifest(reason, manifest);
         cleanupIndex(metaData.getIndex(), generation);
         cleanupMetaState(metaStateGeneration);
     }
@@ -271,11 +271,11 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
     /**
      * Writes global metadata and updates manifest file accordingly.
      */
-    public void writeGlobalStateAndUpdateMetaState(String reason, MetaData metaData) throws IOException {
+    public void writeGlobalStateAndUpdateManifest(String reason, MetaData metaData) throws IOException {
         long generation = writeGlobalState(reason, metaData);
-        MetaState metaState = loadMetaState();
-        metaState = new MetaState(generation, metaState.getIndices());
-        long metaStateGeneration = writeMetaState(reason, metaState);
+        Manifest manifest = loadMetaState();
+        manifest = new Manifest(generation, manifest.getIndices());
+        long metaStateGeneration = writeManifest(reason, manifest);
         cleanupGlobalState(generation);
         cleanupMetaState(metaStateGeneration);
     }

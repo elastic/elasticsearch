@@ -405,7 +405,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
             ).build();
 
-            metaStateService.writeIndexAndUpdateMetaState("broken metadata", brokenMeta);
+            metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMeta);
         }
         internalCluster().fullRestart();
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
@@ -462,7 +462,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         for (MetaStateService metaStateService : internalCluster().getInstances(MetaStateService.class)) {
             IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
                 .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false)).build();
-            metaStateService.writeIndexAndUpdateMetaState("broken metadata", brokenMeta);
+            metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMeta);
         }
         internalCluster().fullRestart();
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
@@ -500,7 +500,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             MetaData brokenMeta = MetaData.builder(metaData).persistentSettings(Settings.builder()
                 .put(metaData.persistentSettings()).put("this.is.unknown", true)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "broken").build()).build();
-            metaStateService.writeGlobalStateAndUpdateMetaState("broken metadata", brokenMeta);
+            metaStateService.writeGlobalStateAndUpdateManifest("broken metadata", brokenMeta);
         }
         internalCluster().fullRestart();
         ensureYellow("test"); // wait for state recovery

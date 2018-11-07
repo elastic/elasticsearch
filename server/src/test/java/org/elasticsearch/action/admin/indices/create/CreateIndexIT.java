@@ -361,7 +361,7 @@ public class CreateIndexIT extends ESIntegTestCase {
                                     .settings(Settings.builder().put(metaData.getSettings()).put("index.foo", true))
                                     .build();
                     // so evil
-                    metaStateService.writeIndexAndUpdateMetaState("broken metadata", brokenMetaData);
+                    metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMetaData);
                 }
                 return Settings.EMPTY;
             }

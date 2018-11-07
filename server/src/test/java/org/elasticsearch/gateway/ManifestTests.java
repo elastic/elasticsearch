@@ -19,7 +19,7 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.cluster.metadata.MetaState;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,9 +34,9 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MetaStateTests extends ESTestCase {
+public class ManifestTests extends ESTestCase {
 
-    private MetaState copyState(MetaState state, boolean introduceErrors){
+    private Manifest copyState(Manifest state, boolean introduceErrors){
         long generation = state.getGlobalStateGeneration();
         Map<Index, Long> indices = new HashMap<>(state.getIndices());
         if (introduceErrors) {
@@ -46,10 +46,10 @@ public class MetaStateTests extends ESTestCase {
                 indices.remove(randomFrom(indices.keySet()));
             }
         }
-        return new MetaState(generation, indices);
+        return new Manifest(generation, indices);
     }
 
-    private MetaState createRandomState() {
+    private Manifest createRandomState() {
         long generation = randomNonNegativeLong();
         Map<Index, Long> indices = new HashMap<>();
         for (int i=0; i<randomIntBetween(1,5); i++) {
@@ -59,31 +59,31 @@ public class MetaStateTests extends ESTestCase {
             final long indexGeneration =  randomNonNegativeLong();
             indices.put(index, indexGeneration);
         }
-       return new MetaState(generation, indices);
+       return new Manifest(generation, indices);
     }
 
     public void testEquals(){
-        MetaState state = createRandomState();
-        MetaState copy = copyState(state, false);
+        Manifest state = createRandomState();
+        Manifest copy = copyState(state, false);
         assertEquals(state, copy);
     }
 
     public void testNonEquals(){
-        MetaState state = createRandomState();
-        MetaState copy = copyState(state, true);
+        Manifest state = createRandomState();
+        Manifest copy = copyState(state, true);
         assertNotEquals(state, copy);
     }
 
     public void testXContent() throws IOException {
-        MetaState state = createRandomState();
+        Manifest state = createRandomState();
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        MetaState.FORMAT.toXContent(builder, state);
+        Manifest.FORMAT.toXContent(builder, state);
         builder.endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
-            assertThat(MetaState.fromXContent(parser), equalTo(state));
+            assertThat(Manifest.fromXContent(parser), equalTo(state));
         }
     }
 }

@@ -25,9 +25,9 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
-import org.elasticsearch.cluster.metadata.MetaState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -75,7 +75,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     @Nullable
     //there is happens-before order between subsequent applyClusterState calls, hence no volatile modifier
-    private Tuple<MetaState, MetaData> ourState;
+    private Tuple<Manifest, MetaData> ourState;
 
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
                             MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) throws IOException {
@@ -101,14 +101,14 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
             throws IOException {
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
-                final Tuple<MetaState, MetaData> metaStateAndData = metaStateService.loadFullState();
-                final MetaState metaState = metaStateAndData.v1();
+                final Tuple<Manifest, MetaData> metaStateAndData = metaStateService.loadFullState();
+                final Manifest manifest = metaStateAndData.v1();
                 final MetaData metaData = metaStateAndData.v2();
 
                 // We finished global state validation and successfully checked all indices for backward compatibility
                 // and found no non-upgradable indices, which means the upgrade can continue.
                 // Now it's safe to overwrite global and index metadata.
-                long globalStateGeneration = metaState.getGlobalStateGeneration();
+                long globalStateGeneration = manifest.getGlobalStateGeneration();
 
                 if (globalStateGeneration != -1) {
                     List<Runnable> cleanupActions = new ArrayList<>();
@@ -138,7 +138,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                     }
 
                     final long metaStateGeneration =
-                            metaStateService.writeMetaState("startup", new MetaState(globalStateGeneration, indices));
+                            metaStateService.writeManifest("startup", new Manifest(globalStateGeneration, indices));
                     cleanupActions.add(() -> metaStateService.cleanupMetaState(metaStateGeneration));
                     performCleanup(cleanupActions);
                 }
@@ -194,7 +194,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
      * @throws IOException if IOException occurs. It's recommended for the callers of this method to handle {@link WriteStateException},
      *                     which is subclass of {@link IOException} explicitly. See also {@link WriteStateException#isDirty()}.
      */
-    private Tuple<MetaState, MetaData> updateMetaData(ClusterChangedEvent event) throws IOException {
+    private Tuple<Manifest, MetaData> updateMetaData(ClusterChangedEvent event) throws IOException {
         ClusterState newState = event.state();
         ClusterState previousState = event.previousState();
         MetaData newMetaData = newState.metaData();
@@ -202,10 +202,10 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         List<Runnable> cleanupActions = new ArrayList<>();
         long globalStateGeneration = writeGlobalState(newMetaData, cleanupActions);
         Map<Index, Long> newIndices = writeIndicesMetadata(newState, previousState, cleanupActions);
-        MetaState metaState = new MetaState(globalStateGeneration, newIndices);
-        writeMetaState(metaState, cleanupActions);
+        Manifest manifest = new Manifest(globalStateGeneration, newIndices);
+        writeManifest(manifest, cleanupActions);
         performCleanup(cleanupActions);
-        return new Tuple<>(metaState, newMetaData);
+        return new Tuple<>(manifest, newMetaData);
     }
 
     private void performCleanup(List<Runnable> cleanupActions) {
@@ -214,9 +214,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         }
     }
 
-    private void writeMetaState(MetaState metaState, List<Runnable> cleanupActions) throws IOException {
-        if (metaState.equals(ourState.v1()) == false) {
-            long generation = metaStateService.writeMetaState("changed", metaState);
+    private void writeManifest(Manifest manifest, List<Runnable> cleanupActions) throws IOException {
+        if (manifest.equals(ourState.v1()) == false) {
+            long generation = metaStateService.writeManifest("changed", manifest);
             cleanupActions.add(() -> metaStateService.cleanupMetaState(generation));
         }
     }
@@ -224,7 +224,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
     private Map<Index, Long> writeIndicesMetadata(ClusterState newState, ClusterState previousState, List<Runnable> cleanupActions)
             throws IOException {
         MetaData previousMetadata = ourState.v2();
-        MetaState previousMetastate = ourState.v1();
+        Manifest previousMetastate = ourState.v1();
         Map<Index, Long> previouslyWrittenIndices = previousMetastate.getIndices();
         Set<Index> relevantIndices = getRelevantIndices(newState, previousState, previouslyWrittenIndices.keySet());
 

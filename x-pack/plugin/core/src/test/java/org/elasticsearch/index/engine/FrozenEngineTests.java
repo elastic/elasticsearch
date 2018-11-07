@@ -175,7 +175,7 @@ public class FrozenEngineTests extends EngineTestCase {
             if (rarely()) {
                 engine.flush();
             }
-            globalCheckpoint.set(randomLongBetween(globalCheckpoint.get(), engine.getLocalCheckpoint()));
+            globalCheckpoint.set(engine.getLocalCheckpoint());
         }
         engine.syncTranslog();
         return numDocsAdded;

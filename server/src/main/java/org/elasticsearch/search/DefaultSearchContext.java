@@ -154,7 +154,7 @@ final class DefaultSearchContext extends SearchContext {
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     private final QueryShardContext queryShardContext;
-    private FetchPhase fetchPhase;
+    private final FetchPhase fetchPhase;
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, ClusterService clusterService, IndexService indexService,
@@ -186,7 +186,7 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public void doClose() {
-        // clear and scope phase we  have
+        // clear and scope phase we have
         Releasables.close(searcher, engineSearcher);
     }
 

@@ -679,31 +679,32 @@ public class InternalEngine extends Engine {
         VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         assert incrementVersionLookup();
         if (versionValue != null) {
-            if  (op.seqNo() > versionValue.seqNo ||
-                (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term))
+            if (op.seqNo() > versionValue.seqNo) {
                 status = OpVsLuceneDocStatus.OP_NEWER;
-            else {
+            } else if (op.seqNo() == versionValue.seqNo) {
+                assert versionValue.term == op.primaryTerm() : "primary term not matched; id=" + op.id() + " seq_no=" + op.seqNo()
+                    + " op_term=" + op.primaryTerm() + " existing_term=" + versionValue.term;
+                status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
+            } else {
                 status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
             }
         } else {
             // load from index
             assert incrementIndexVersionLookup();
             try (Searcher searcher = acquireSearcher("load_seq_no", SearcherScope.INTERNAL)) {
-                DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), op.uid());
+                final DocIdAndSeqNo docAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), op.uid());
                 if (docAndSeqNo == null) {
                     status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
-                    status = OpVsLuceneDocStatus.OP_NEWER;
+                    if (docAndSeqNo.isLive) {
+                        status = OpVsLuceneDocStatus.OP_NEWER;
+                    } else {
+                        status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
+                    }
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
                     assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
                         "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
-                    // load term to tie break
-                    final long existingTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docAndSeqNo, op.uid().field());
-                    if (op.primaryTerm() > existingTerm) {
-                        status = OpVsLuceneDocStatus.OP_NEWER;
-                    } else {
-                        status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
-                    }
+                    status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 } else {
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 }

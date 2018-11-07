@@ -300,7 +300,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
 
-        internalCluster().fullRestart(new RestartCallback() {
+        internalCluster().fullRestart(new InternalTestCluster.FullRestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 return Settings.builder().put("gateway.recover_after_nodes", 2).build();
@@ -549,7 +549,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         final boolean corrupt = randomBoolean();
 
-        internalCluster().fullRestart(new RestartCallback() {
+        internalCluster().fullRestart(new InternalTestCluster.FullRestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // make sure state is not recovered

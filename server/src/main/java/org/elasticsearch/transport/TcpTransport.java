@@ -164,8 +164,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
 
     // This is the number of bytes necessary to read the message size
-    public static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-    public static final int PING_DATA_SIZE = -1;
+    private static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
+    private static final int PING_DATA_SIZE = -1;
     protected final CounterMetric successfulPings = new CounterMetric();
     protected final CounterMetric failedPings = new CounterMetric();
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
@@ -284,6 +284,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final List<TcpChannel> channels;
         private final DiscoveryNode node;
         private final Version version;
+        private final boolean compress;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
         NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
@@ -297,6 +298,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     typeMapping.put(type, handle);
             }
             version = handshakeVersion;
+            compress = connectionProfile.getCompressionEnabled();
         }
 
         @Override
@@ -577,8 +579,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     // package private for tests
-    public static int resolvePublishPort(ProfileSettings profileSettings, List<InetSocketAddress> boundAddresses,
-                                         InetAddress publishInetAddress) {
+    static int resolvePublishPort(ProfileSettings profileSettings, List<InetSocketAddress> boundAddresses,
+                                  InetAddress publishInetAddress) {
         int publishPort = profileSettings.publishPort;
 
         // if port not explicitly provided, search for port of address in boundAddresses that matches publishInetAddress
@@ -936,9 +938,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final String action,
         TransportResponseOptions options,
         byte status) throws IOException {
-        if (compress) {
+        if (compress && options.compress() ==false) {
             options = TransportResponseOptions.builder(options).withCompress(true).build();
         }
+
         status = TransportStatus.setResponse(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bStream, options.compress());
@@ -1160,7 +1163,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      */
     public static class HttpOnTransportException extends ElasticsearchException {
 
-        public HttpOnTransportException(String msg) {
+        private HttpOnTransportException(String msg) {
             super(msg);
         }
 
@@ -1417,8 +1420,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
-        handshaker.sendHandshake(responseHandlers.newRequestId(), node, channel, timeout, listener);
+    public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile, ActionListener<Version> listener) {
+        handshaker.sendHandshake(responseHandlers.newRequestId(), node, channel, profile.getHandshakeTimeout(), listener);
     }
 
     final int getNumPendingHandshakes() {
@@ -1630,7 +1633,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             if (countDown.countDown()) {
                 final TcpChannel handshakeChannel = channels.get(0);
                 try {
-                    executeHandshake(node, handshakeChannel, connectionProfile.getHandshakeTimeout(), new ActionListener<Version>() {
+                    executeHandshake(node, handshakeChannel, connectionProfile, new ActionListener<Version>() {
                         @Override
                         public void onResponse(Version version) {
                             NodeChannels nodeChannels = new NodeChannels(node, channels, connectionProfile, version);

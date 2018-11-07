@@ -39,42 +39,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class ConnectionProfile {
 
     /**
-     * Builds a connection profile that is dedicated to a single channel type. Use this
-     * when opening single use connections
-     */
-    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType,
-                                                              @Nullable TimeValue connectTimeout,
-                                                              @Nullable TimeValue handshakeTimeout) {
-        Builder builder = new Builder();
-        builder.addConnections(1, channelType);
-        final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);
-        otherTypes.remove(channelType);
-        builder.addConnections(0, otherTypes.stream().toArray(TransportRequestOptions.Type[]::new));
-        if (connectTimeout != null) {
-            builder.setConnectTimeout(connectTimeout);
-        }
-        if (handshakeTimeout != null) {
-            builder.setHandshakeTimeout(handshakeTimeout);
-        }
-        return builder.build();
-    }
-
-    private final List<ConnectionTypeHandle> handles;
-    private final int numConnections;
-    private final TimeValue connectTimeout;
-    private final TimeValue handshakeTimeout;
-    private final Boolean compressionEnabled;
-
-    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
-                              TimeValue handshakeTimeout, Boolean compressionEnabled) {
-        this.handles = handles;
-        this.numConnections = numConnections;
-        this.connectTimeout = connectTimeout;
-        this.handshakeTimeout = handshakeTimeout;
-        this.compressionEnabled = compressionEnabled;
-    }
-
-    /**
      * takes a {@link ConnectionProfile} resolves it to a fully specified (i.e., no nulls) profile
      */
     public static ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile profile, ConnectionProfile fallbackProfile) {
@@ -113,6 +77,7 @@ public final class ConnectionProfile {
         Builder builder = new Builder();
         builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
         builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
+        // TODO: Add test
         builder.setCompressionEnabled(Transport.TRANSPORT_TCP_COMPRESS.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
@@ -122,6 +87,41 @@ public final class ConnectionProfile {
         builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
         builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
         return builder.build();
+    }
+
+    /**
+     * Builds a connection profile that is dedicated to a single channel type. Use this
+     * when opening single use connections
+     */
+    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, @Nullable TimeValue connectTimeout,
+                                                              @Nullable TimeValue handshakeTimeout) {
+        Builder builder = new Builder();
+        builder.addConnections(1, channelType);
+        final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);
+        otherTypes.remove(channelType);
+        builder.addConnections(0, otherTypes.toArray(new TransportRequestOptions.Type[0]));
+        if (connectTimeout != null) {
+            builder.setConnectTimeout(connectTimeout);
+        }
+        if (handshakeTimeout != null) {
+            builder.setHandshakeTimeout(handshakeTimeout);
+        }
+        return builder.build();
+    }
+
+    private final List<ConnectionTypeHandle> handles;
+    private final int numConnections;
+    private final TimeValue connectTimeout;
+    private final TimeValue handshakeTimeout;
+    private final Boolean compressionEnabled;
+
+    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
+                              TimeValue handshakeTimeout, Boolean compressionEnabled) {
+        this.handles = handles;
+        this.numConnections = numConnections;
+        this.connectTimeout = connectTimeout;
+        this.handshakeTimeout = handshakeTimeout;
+        this.compressionEnabled = compressionEnabled;
     }
 
     /**
@@ -223,7 +223,10 @@ public final class ConnectionProfile {
         return handshakeTimeout;
     }
 
-    // TODO: Add doc
+    /**
+     * Returns boolean indicating if compression is enabled or <code>null</code> if no explicit compression
+     * is set on this profile.
+     */
     public Boolean getCompressionEnabled() {
         return compressionEnabled;
     }

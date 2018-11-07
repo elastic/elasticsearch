@@ -77,9 +77,10 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleSecu
             new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
 
             @Override
-            public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
+            public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,
+                                         ActionListener<Version> listener) {
                 if (doHandshake) {
-                    super.executeHandshake(node, channel, timeout, listener);
+                    super.executeHandshake(node, channel, profile, listener);
                 } else {
                     listener.onResponse(version.minimumCompatibilityVersion());
                 }

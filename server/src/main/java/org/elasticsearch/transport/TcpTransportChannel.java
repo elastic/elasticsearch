@@ -63,7 +63,7 @@ public final class TcpTransportChannel implements TransportChannel {
         try {
             TransportResponseOptions options;
             if (compressResponse) {
-                options = TransportResponseOptions.builder().withCompress(compressResponse).build();
+                options = TransportResponseOptions.builder().withCompress(true).build();
             } else {
                 options = TransportResponseOptions.EMPTY;
             }

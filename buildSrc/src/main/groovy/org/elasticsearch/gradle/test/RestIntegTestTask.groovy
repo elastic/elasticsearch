@@ -109,12 +109,17 @@ public class RestIntegTestTask extends DefaultTask {
         }
 
         // copy the rest spec/tests into the test resources
-        Task copyRestSpec = createCopyRestSpecTask(project, includePackaged)
+        Task copyRestSpec = createCopyRestSpecTask(project)
         runner.dependsOn(copyRestSpec)
         
         // this must run after all projects have been configured, so we know any project
         // references can be accessed as a fully configured
         project.gradle.projectsEvaluated {
+            // we need to do this here to give projects a chance to change it
+            if (includePackaged) {
+                copyRestSpec.include 'rest-api-spec/test/**'
+            }
+
             if (enabled == false) {
                 runner.enabled = false
                 clusterInit.enabled = false
@@ -215,7 +220,7 @@ public class RestIntegTestTask extends DefaultTask {
      * @param project The project to add the copy task to
      * @param includePackagedTests true if the packaged tests should be copied, false otherwise
      */
-    static Task createCopyRestSpecTask(Project project, boolean includePackagedTests) {
+    static Task createCopyRestSpecTask(Project project) {
         project.configurations {
             restSpec
         }
@@ -237,9 +242,6 @@ public class RestIntegTestTask extends DefaultTask {
         project.afterEvaluate {
             copyRestSpec.from({ project.zipTree(project.configurations.restSpec.singleFile) }) {
                 include 'rest-api-spec/api/**'
-                if (includePackagedTests) {
-                    include 'rest-api-spec/test/**'
-                }
             }
         }
         if (project.plugins.hasPlugin(IdeaPlugin)) {

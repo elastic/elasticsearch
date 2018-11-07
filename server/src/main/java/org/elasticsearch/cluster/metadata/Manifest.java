@@ -86,11 +86,6 @@ public class Manifest implements ToXContentFragment {
     public static final MetaDataStateFormat<Manifest> FORMAT = new MetaDataStateFormat<Manifest>(MANIFEST_FILE_PREFIX) {
 
         @Override
-        protected boolean autoCleanup() {
-            return false;
-        }
-
-        @Override
         public void toXContent(XContentBuilder builder, Manifest state) throws IOException {
             state.toXContent(builder, MANIFEST_FORMAT_PARAMS);
         }

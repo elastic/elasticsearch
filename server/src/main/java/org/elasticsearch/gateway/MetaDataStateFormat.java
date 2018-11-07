@@ -177,16 +177,27 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     /**
+     * Writes the given state to the given directories and performs cleanup.
+     * See also {@link #write(Object, Path...)} and {@link #cleanupOldFiles(long, Path[])}.
+     */
+    public final long writeAndCleanup(final T state, final Path... locations) throws WriteStateException {
+        long currentGeneration = write(state, locations);
+        cleanupOldFiles(currentGeneration,locations);
+        return currentGeneration;
+    }
+
+
+    /**
      * Writes the given state to the given directories. The state is written to a
      * state directory ({@value #STATE_DIR_NAME}) underneath each of the given file locations and is created if it
      * doesn't exist. The state is serialized to a temporary file in that directory and is then atomically moved to
      * it's target filename of the pattern {@code {prefix}{version}.st}.
      * If this method returns without exception there is a guarantee that state is persisted to the disk and loadLatestState will return
      * it.<br>
-     * If {@link #autoCleanup()} returns false, this method does not perform cleanup of old state files,
-     * because one write could be a part of larger transaction.
+     * This method does not perform cleanup of old state files.
      * If this write succeeds, but some further write fails, you may want to rollback the transaction and keep old file around.
      * After transaction is finished use {@link #cleanupOldFiles(long, Path[])} for the clean-up.
+     * If this write is not a part of bigger transaction, consider using {@link #writeAndCleanup(Object, Path...)} method instead.
      *
      * @param state     the state object to write
      * @param locations the locations where the state should be written to.
@@ -232,10 +243,6 @@ public abstract class MetaDataStateFormat<T> {
                 deleteFileIgnoreExceptions(pathAndDirectory.v1(), pathAndDirectory.v2(), tmpFileName);
                 IOUtils.closeWhileHandlingException(pathAndDirectory.v2());
             }
-        }
-
-        if (autoCleanup()) {
-            cleanupOldFiles(maxStateId, locations);
         }
 
         return maxStateId;
@@ -291,12 +298,6 @@ public abstract class MetaDataStateFormat<T> {
         return new SimpleFSDirectory(dir);
     }
 
-    /**
-     * Whether to perform autoCleanup of old state files after successful {@link #write(Object, Path...)}.
-     */
-    protected boolean autoCleanup() {
-        return true;
-    }
 
     /**
      * Clean ups all state files not matching passed generation.

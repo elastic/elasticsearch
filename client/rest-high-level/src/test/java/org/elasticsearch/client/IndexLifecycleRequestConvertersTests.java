@@ -99,9 +99,9 @@ public class IndexLifecycleRequestConvertersTests extends ESTestCase {
         setRandomMasterTimeout(req::setMasterTimeout, TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT, expectedParams);
 
         Request request = IndexLifecycleRequestConverters.removeIndexLifecyclePolicy(req);
-        assertThat(request.getMethod(), equalTo(HttpDelete.METHOD_NAME));
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
         String idxString = Strings.arrayToCommaDelimitedString(indices);
-        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm"));
+        assertThat(request.getEndpoint(), equalTo("/" + (idxString.isEmpty() ? "" : (idxString + "/")) + "_ilm/remove"));
         assertThat(request.getParameters(), equalTo(expectedParams));
     }
 

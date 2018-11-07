@@ -31,6 +31,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearRealmCacheRequest;
+import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
@@ -397,7 +399,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::authenticate-response
 
             assertThat(user.username(), is("test_user"));
-            assertThat(user.roles(), contains(new String[] {"superuser"}));
+            assertThat(user.roles(), contains(new String[]{"superuser"}));
             assertThat(user.fullName(), nullValue());
             assertThat(user.email(), nullValue());
             assertThat(user.metadata().isEmpty(), is(true));
@@ -422,9 +424,55 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // Replace the empty listener by a blocking listener in test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
+
             // tag::authenticate-execute-async
             client.security().authenticateAsync(RequestOptions.DEFAULT, listener); // <1>
             // end::authenticate-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testClearRealmCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::clear-realm-cache-request
+            ClearRealmCacheRequest request = new ClearRealmCacheRequest(Collections.emptyList(), Collections.emptyList());
+            //end::clear-realm-cache-request
+            //tag::clear-realm-cache-execute
+            ClearRealmCacheResponse response = client.security().clearRealmCache(request, RequestOptions.DEFAULT);
+            //end::clear-realm-cache-execute
+
+            assertNotNull(response);
+            assertThat(response.getNodes(), not(empty()));
+
+            //tag::clear-realm-cache-response
+            List<ClearRealmCacheResponse.Node> nodes = response.getNodes(); // <1>
+            //end::clear-realm-cache-response
+        }
+        {
+            //tag::clear-realm-cache-execute-listener
+            ClearRealmCacheRequest request = new ClearRealmCacheRequest(Collections.emptyList(), Collections.emptyList());
+            ActionListener<ClearRealmCacheResponse> listener = new ActionListener<ClearRealmCacheResponse>() {
+                @Override
+                public void onResponse(ClearRealmCacheResponse clearRealmCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::clear-realm-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-realm-cache-execute-async
+            client.security().clearRealmCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clear-realm-cache-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

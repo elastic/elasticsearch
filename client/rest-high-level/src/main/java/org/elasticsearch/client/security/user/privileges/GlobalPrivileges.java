@@ -47,7 +47,9 @@ public final class GlobalPrivileges implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>("global_application_privileges",
-            true, constructorObjects -> {
+            false, constructorObjects -> {
+                // ignore_unknown_fields is irrelevant here anyway, but I prefer it to false,
+                // because it conveys strictness (woop woop)
                 return new GlobalPrivileges((Collection<GlobalScopedPrivilege>) constructorObjects[0]);
             });
 
@@ -58,7 +60,7 @@ public final class GlobalPrivileges implements ToXContentObject {
     private final Set<? extends GlobalScopedPrivilege> applicationPrivileges;
 
     /**
-     * Constructs global privileges from the set of application privileges.
+     * Constructs global privileges by bundling the set of application privileges.
      * 
      * @param applicationPrivileges
      *            The privileges over applications.

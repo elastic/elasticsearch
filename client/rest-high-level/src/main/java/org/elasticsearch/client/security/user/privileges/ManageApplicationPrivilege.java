@@ -36,9 +36,6 @@ public class ManageApplicationPrivilege extends GlobalScopedPrivilege {
 
     public ManageApplicationPrivilege(Collection<String> applications) {
         super(SCOPE, Collections.singletonMap(APPLICATIONS, new HashSet<String>(Objects.requireNonNull(applications))));
-        if (applications.isEmpty()) {
-            throw new IllegalArgumentException("Applications cannot be empty. Simply don't add this privilege at all.");
-        }
     }
 
     @SuppressWarnings("unchecked")

@@ -41,7 +41,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  * Represents privileges over resources that are scoped under an application.
  * The application, resources and privileges are completely managed by the
  * client and can be "arbitrary" string identifiers. Elasticsearch is not
- * concerned by resources under an application scope.
+ * concerned by any resources under an application scope.
  */
 public final class ApplicationResourcePrivileges implements ToXContentObject {
 
@@ -52,6 +52,9 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ApplicationResourcePrivileges, Void> PARSER = new ConstructingObjectParser<>(
             "application_privileges", false, constructorObjects -> {
+                // Don't ignore unknown fields. It is dangerous if the object we parse is also
+                // part of a request that we build later on, and the fields that we now ignore will
+                // end up being implicitly set to null in that request.
                 int i = 0;
                 final String application = (String) constructorObjects[i++];
                 final Collection<String> privileges = (Collection<String>) constructorObjects[i++];

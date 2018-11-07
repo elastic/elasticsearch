@@ -43,9 +43,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 /**
  * Represents privileges over indices. There is a canonical set of privilege
  * names (eg. {@code IndicesPrivileges#READ_PRIVILEGE_NAME}) but there is
- * flexibility in defining finer grained, more specialized, privileges. This
- * also encapsulates field and document level security privileges. These allow
- * to control what fields or documents are readable or queryable.
+ * flexibility in the definition of finer grained, more specialized, privileges.
+ * This also encapsulates field and document level security privileges. These
+ * allow to control what fields or documents are readable or queryable.
  */
 public final class IndicesPrivileges implements ToXContentObject {
 

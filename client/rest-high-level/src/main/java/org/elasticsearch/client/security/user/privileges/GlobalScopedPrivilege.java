@@ -28,7 +28,8 @@ import java.util.Objects;
 
 /**
  * Represents generic global application privileges that can be scoped for each
- * application. The privilege definition is outside the Elasticsearch control.
+ * application. The privilege definition, as well as the scope identifier, are
+ * outside of the Elasticsearch jurisdiction.
  */
 public class GlobalScopedPrivilege {
 
@@ -36,15 +37,23 @@ public class GlobalScopedPrivilege {
     private final Map<String, Object> privilege;
 
     /**
-     * Constructs privilege over some "scope". The "scope" is usually an application
-     * name but there is no constraint over this identifier.
+     * Constructs privileges under some "scope". The "scope" is commonly an
+     * "application" name but there is really no constraint over this identifier
+     * from Elasticsearch's POV. The privilege definition is also out of
+     * Elasticsearch's control.
      * 
-     * @param scope The scope of the privilege.
-     * @param privilege The privilege definition. This is out of the Elasticsearch control.
+     * @param scope
+     *            The scope of the privilege.
+     * @param privilege
+     *            The privilege definition. This is out of the Elasticsearch's
+     *            control.
      */
     public GlobalScopedPrivilege(String scope, Map<String, Object> privilege) {
         this.scope = Objects.requireNonNull(scope);
         this.privilege = Collections.unmodifiableMap(Objects.requireNonNull(privilege));
+        if (privilege.isEmpty()) {
+            throw new IllegalArgumentException("Privileges cannot be empty. Simply don't add this privilege at all.");
+        }
     }
 
     public String getScope() {
@@ -56,6 +65,9 @@ public class GlobalScopedPrivilege {
     }
 
     public static GlobalScopedPrivilege fromXContent(String scope, XContentParser parser) throws IOException {
+        // parser is still placed on the field name, advance to next token (field value)
+        assert parser.currentToken().equals(XContentParser.Token.FIELD_NAME);
+        parser.nextToken();
         return new GlobalScopedPrivilege(scope, parser.map());
     }
 

@@ -58,7 +58,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
 
     public RemoteConnectionInfo(StreamInput input) throws IOException {
         seedNodes = input.readList(TransportAddress::new);
-        if (input.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (input.getVersion().before(Version.V_7_0_0)) {
             /*
              * Versions before 7.0 sent the HTTP addresses of all nodes in the
              * remote cluster here but it was expensive to fetch and we
@@ -79,7 +79,7 @@ public final class RemoteConnectionInfo implements ToXContentFragment, Writeable
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(seedNodes);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             /*
              * Versions before 7.0 sent the HTTP addresses of all nodes in the
              * remote cluster here but it was expensive to fetch and we

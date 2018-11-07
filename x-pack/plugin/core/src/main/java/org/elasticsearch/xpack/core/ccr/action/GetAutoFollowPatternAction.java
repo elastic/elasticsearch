@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -31,7 +32,12 @@ public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternActio
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -81,21 +87,17 @@ public class GetAutoFollowPatternAction extends Action<GetAutoFollowPatternActio
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Map<String, AutoFollowPattern> autoFollowPatterns;
+        private final Map<String, AutoFollowPattern> autoFollowPatterns;
 
         public Response(Map<String, AutoFollowPattern> autoFollowPatterns) {
             this.autoFollowPatterns = autoFollowPatterns;
-        }
-
-        public Response() {
         }
 
         public Map<String, AutoFollowPattern> getAutoFollowPatterns() {
             return autoFollowPatterns;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public Response(StreamInput in) throws IOException {
             super.readFrom(in);
             autoFollowPatterns = in.readMap(StreamInput::readString, AutoFollowPattern::new);
         }

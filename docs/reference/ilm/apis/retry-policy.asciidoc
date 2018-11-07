@@ -1,0 +1,59 @@
+[role="xpack"]
+[testenv="basic"]
+[[ilm-retry-policy]]
+=== Retry Policy Execution API
+++++
+<titleabbrev>Retry Policy Execution</titleabbrev>
+++++
+
+Retry executing the policy for an index which has errored.
+
+==== Request
+
+`POST <index>/_ilm/retry`
+
+==== Description
+
+This API will re-run a policy is currently in the ERROR step. It will set the
+policy back to the step where the error occurred and attempt to re-execute it.
+Information on whether an index is in the ERROR step can be obtained from the 
+<<ilm-explain, ILM Explain API>>
+
+==== Path Parameters
+
+`index` (required)::
+  (string) Identifier for the indices to retry in comma-separated format.
+
+==== Request Parameters
+
+`timeout`::
+  (time units) Specifies the period of time to wait for the completion of the 
+  retry operation. When this period of time elapses, the API fails and returns
+  an error. The default value is `30s`. For more information about time units, 
+  see <<time-units>>.
+
+`master_timeout`::
+  (time units) Specifies the period of time to wait for the connection with master.
+  When this period of time elapses, the API fails and returns an error.
+  The default value is `30s`. For more information about time units, see <<time-units>>.
+
+
+==== Examples
+
+The following example retries the policy for index `my_index`.
+
+[source,js]
+--------------------------------------------------
+POST my_index/_ilm/retry
+--------------------------------------------------
+// NOTCONSOLE
+
+If the request does not encounter errors, you receive the following result:
+
+[source,js]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+// NOTCONSOLE

@@ -46,7 +46,7 @@
     - match:  { tokens.1.token: bar }
     - match:  { tokens.2.token: resume }
 ---
-"Normalization with a UnicodeSet Filter":
+"Normalization with unicode_set_filter":
     - do:
         indices.create:
             index:  test
@@ -70,31 +70,42 @@
           index:    test
           body:
             char_filter: ["charfilter_icu_normalizer"]
-            tokenizer:  keyword
+            tokenizer:  standard
             text:     charfilter Föo Bâr Ruß
-    - length: { tokens: 1 }
-    - match:  { tokens.0.token: charfilter föo bâr ruß }
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: charfilter }
+    - match:  { tokens.1.token: föo }
+    - match:  { tokens.2.token: bâr }
+    - match:  { tokens.3.token: ruß }
+
     - do:
         indices.analyze:
           index:    test
           body:
-            tokenizer:  keyword
+            tokenizer:  standard
             filter: ["tokenfilter_icu_normalizer"]
             text:     tokenfilter Föo Bâr Ruß
-    - length: { tokens: 1 }
-    - match:  { tokens.0.token: tokenfilter föo Bâr ruß }
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: tokenfilter }
+    - match:  { tokens.1.token: föo }
+    - match:  { tokens.2.token: Bâr }
+    - match:  { tokens.3.token: ruß }
+
     - do:
         indices.analyze:
           index:    test
           body:
-            tokenizer:  keyword
+            tokenizer:  standard
             filter: ["tokenfilter_icu_folding"]
             text:     icufolding Föo Bâr Ruß
-    - length: { tokens: 1 }
-    - match:  { tokens.0.token: icufolding foo bâr russ }
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: icufolding }
+    - match:  { tokens.1.token: foo }
+    - match:  { tokens.2.token: bâr }
+    - match:  { tokens.3.token: russ }
 
 ---
-"Normalization with a CamcelCase UnicodeSet Filter":
+"Normalization with deprecated unicodeSetFilter":
     - skip:
         version: " - 6.99.99"
         reason:  unicodeSetFilter deprecated in 7.0.0, replaced by unicode_set_filter
@@ -121,6 +132,8 @@
                                     type: icu_folding
                                     unicodeSetFilter: "[^â]"
     - do:
+        warnings:
+        - "[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]"
         indices.analyze:
           index:    test
           body:
@@ -132,27 +145,4 @@
     - match:  { tokens.1.token: föo }
     - match:  { tokens.2.token: bâr }
     - match:  { tokens.3.token: ruß }
-    - do:
-        indices.analyze:
-          index:    test
-          body:
-            tokenizer:  standard
-            filter: ["tokenfilter_icu_normalizer"]
-            text:     tokenfilter Föo Bâr Ruß
-    - length: { tokens: 4 }
-    - match:  { tokens.0.token: tokenfilter }
-    - match:  { tokens.1.token: föo }
-    - match:  { tokens.2.token: Bâr }
-    - match:  { tokens.3.token: ruß }
-    - do:
-        indices.analyze:
-          index:    test
-          body:
-            tokenizer:  standard
-            filter: ["tokenfilter_icu_folding"]
-            text:     icufolding Föo Bâr Ruß
-    - length: { tokens: 4 }
-    - match:  { tokens.0.token: icufolding }
-    - match:  { tokens.1.token: foo }
-    - match:  { tokens.2.token: bâr }
-    - match:  { tokens.3.token: russ }
+

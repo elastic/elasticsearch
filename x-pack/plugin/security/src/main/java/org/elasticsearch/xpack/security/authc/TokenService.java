@@ -565,8 +565,8 @@ public final class TokenService {
 
                 }, listener::onFailure));
             } else {
-                Predicate filter = x -> true;
-                if (Strings.isNullOrEmpty(username)) {
+                Predicate filter = null;
+                if (Strings.isNullOrEmpty(username) == false) {
                     filter = isOfUser(username);
                 }
                 findActiveTokensForRealm(realmName, ActionListener.wrap(tokenTuples -> {

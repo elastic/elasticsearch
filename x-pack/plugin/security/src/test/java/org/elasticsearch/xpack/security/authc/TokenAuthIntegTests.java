@@ -191,12 +191,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    public void testInvalidateTokensForUser() {
-        securityClient().prepareCreateToken()
-            .setGrantType("password")
-            .setUsername(SecuritySettingsSource.TEST_USER_NAME)
-            .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
-            .get();
+    public void testInvalidateAllTokensForUser() throws Exception{
         final int numOfRequests = randomIntBetween(5, 10);
         for (int i = 0; i < numOfRequests; i++) {
             securityClient().prepareCreateToken()
@@ -213,7 +208,51 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .prepareInvalidateToken()
             .setUserName(SecuritySettingsSource.TEST_USER_NAME)
             .get();
-        assertThat(invalidateResponse.getResult().getInvalidatedTokens().length, equalTo(2 * (numOfRequests + 1)));
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().length, equalTo(2 * (numOfRequests)));
+        assertThat(invalidateResponse.getResult().getPrevInvalidatedTokens().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().length, equalTo(0));
+    }
+
+    public void testInvalidateAllTokensForRealm() throws Exception{
+        final int numOfRequests = randomIntBetween(5, 10);
+        for (int i = 0; i < numOfRequests; i++) {
+            securityClient().prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+                .get();
+        }
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClientSuperuser = new SecurityClient(client);
+        InvalidateTokenResponse invalidateResponse = securityClientSuperuser
+            .prepareInvalidateToken()
+            .setRealmName("file")
+            .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().length, equalTo(2 * (numOfRequests)));
+        assertThat(invalidateResponse.getResult().getPrevInvalidatedTokens().length, equalTo(0));
+        assertThat(invalidateResponse.getResult().getErrors().length, equalTo(0));
+    }
+
+    public void testInvalidateAllTokensForRealmThatHasNone() {
+        final int numOfRequests = randomIntBetween(2, 4);
+        for (int i = 0; i < numOfRequests; i++) {
+            securityClient().prepareCreateToken()
+                .setGrantType("password")
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()))
+                .get();
+        }
+        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
+                SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
+        SecurityClient securityClientSuperuser = new SecurityClient(client);
+        InvalidateTokenResponse invalidateResponse = securityClientSuperuser
+            .prepareInvalidateToken()
+            .setRealmName("saml")
+            .get();
+        assertThat(invalidateResponse.getResult().getInvalidatedTokens().length, equalTo(0));
         assertThat(invalidateResponse.getResult().getPrevInvalidatedTokens().length, equalTo(0));
         assertThat(invalidateResponse.getResult().getErrors().length, equalTo(0));
     }

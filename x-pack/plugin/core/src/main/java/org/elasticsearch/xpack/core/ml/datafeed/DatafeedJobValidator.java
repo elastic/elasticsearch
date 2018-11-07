@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.Intervals;
 
 public final class DatafeedJobValidator {
 
@@ -30,6 +31,16 @@ public final class DatafeedJobValidator {
             checkSummaryCountFieldNameIsSet(analysisConfig);
             checkValidHistogramInterval(datafeedConfig, analysisConfig);
             checkFrequencyIsMultipleOfHistogramInterval(datafeedConfig);
+        }
+        if (datafeedConfig.getShouldRunDelayedDataCheck()) {
+            if (datafeedConfig.getDelayedDataCheckWindow().compareTo(analysisConfig.getBucketSpan()) < 0) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL));
+            }
+            long bucketSpan = analysisConfig.getBucketSpan().millis();
+            long window = datafeedConfig.getDelayedDataCheckWindow().millis();
+            if (Intervals.alignToFloor(window/bucketSpan, bucketSpan) >= 10000) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_LARGE));
+            }
         }
     }
 

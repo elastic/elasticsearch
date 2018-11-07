@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -41,6 +43,7 @@ class DatafeedJob {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
+    private static final int BUCKETS_BETWEEN_MISSING_DATA_CHECK = 1;
 
     private final Auditor auditor;
     private final String jobId;
@@ -50,15 +53,18 @@ class DatafeedJob {
     private final Client client;
     private final DataExtractorFactory dataExtractorFactory;
     private final Supplier<Long> currentTimeSupplier;
+    private final DelayedDataDetector delayedDataDetector;
 
     private volatile long lookbackStartTimeMs;
+    private volatile long latestFinalBucketEndTimeMs;
+    private volatile long lastBucketDataCheckTimeMs;
     private volatile Long lastEndTimeMs;
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
 
     DatafeedJob(String jobId, DataDescription dataDescription, long frequencyMs, long queryDelayMs,
-                 DataExtractorFactory dataExtractorFactory, Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
-                 long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
+                DataExtractorFactory dataExtractorFactory, Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
+                DelayedDataDetector delayedDataDetector, long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
         this.jobId = jobId;
         this.dataDescription = Objects.requireNonNull(dataDescription);
         this.frequencyMs = frequencyMs;
@@ -67,7 +73,8 @@ class DatafeedJob {
         this.client = client;
         this.auditor = auditor;
         this.currentTimeSupplier = currentTimeSupplier;
-
+        this.delayedDataDetector = delayedDataDetector;
+        this.latestFinalBucketEndTimeMs = latestFinalBucketEndTimeMs;
         long lastEndTime = Math.max(latestFinalBucketEndTimeMs, latestRecordTimeMs);
         if (lastEndTime > 0) {
             lastEndTimeMs = lastEndTime;
@@ -151,7 +158,27 @@ class DatafeedJob {
         request.setCalcInterim(true);
         request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
+        checkForMissingDataIfNecessary();
         return nextRealtimeTimestamp();
+    }
+
+    private void checkForMissingDataIfNecessary() {
+        if (isRunning() && !isIsolated && checkForMissingDataTriggered()) {
+
+            // Keep track of the last bucket time for which we did a missing data check
+            this.lastBucketDataCheckTimeMs = this.latestFinalBucketEndTimeMs;
+            List<DelayedDataDetector.BucketWithMissingData> response = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
+            if (response.isEmpty() == false) {
+                long totalRecordsMissing = response.stream()
+                    .mapToLong(DelayedDataDetector.BucketWithMissingData::getMissingDocumentCount)
+                    .sum();
+                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing));
+            }
+        }
+    }
+
+    private boolean checkForMissingDataTriggered() {
+        return this.latestFinalBucketEndTimeMs > this.lastBucketDataCheckTimeMs * BUCKETS_BETWEEN_MISSING_DATA_CHECK;
     }
 
     /**
@@ -260,7 +287,10 @@ class DatafeedJob {
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is still running.
         if (isRunning() && !isIsolated) {
-            flushJob(flushRequest);
+            Date lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
+            if (lastFinalizedBucketEnd != null) {
+                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.getTime();
+            }
         }
 
         if (recordCount == 0) {

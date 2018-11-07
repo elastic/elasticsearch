@@ -46,8 +46,9 @@ public class DatafeedJobBuilder {
         Consumer<Context> contextHanlder = context -> {
             TimeValue frequency = getFrequencyOrDefault(datafeed, job);
             TimeValue queryDelay = datafeed.getQueryDelay();
+            DelayedDataDetector delayedDataDetector = new DelayedDataDetector(job, datafeed, client);
             DatafeedJob datafeedJob = new DatafeedJob(job.getId(), buildDataDescription(job), frequency.millis(), queryDelay.millis(),
-                    context.dataExtractorFactory, client, auditor, currentTimeSupplier,
+                    context.dataExtractorFactory, client, auditor, currentTimeSupplier, delayedDataDetector,
                     context.latestFinalBucketEndMs, context.latestRecordTimeMs);
             listener.onResponse(datafeedJob);
         };

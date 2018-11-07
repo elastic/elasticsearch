@@ -24,28 +24,11 @@ import static org.mockito.Mockito.mock;
 public class DelayedDataDetectorTests extends ESTestCase {
 
 
-    public void testConstructorWithValueValues() {
-        TimeValue window = TimeValue.timeValueSeconds(10);
+    public void testDetectMissingDataWhenDatafeedSaysNotTo() {
         Job job = createJob(TimeValue.timeValueSeconds(1));
-        DelayedDataDetector delayedDataDetector = new DelayedDataDetector(job, createDatafeed(), window, mock(Client.class));
-        assertNotNull(delayedDataDetector);
+        DelayedDataDetector delayedDataDetector = new DelayedDataDetector(job, createDatafeed(false), mock(Client.class));
+        assertThat(delayedDataDetector.detectMissingData(100000).isEmpty(), equalTo(true));
     }
-
-    public void testConstructorWithInvalidValues() {
-        TimeValue shortWindow = TimeValue.timeValueMillis(500);
-        Job job = createJob(TimeValue.timeValueSeconds(1));
-
-        Exception exception = expectThrows(IllegalArgumentException.class,
-            ()-> new DelayedDataDetector(job, createDatafeed(), shortWindow, mock(Client.class)));
-        assertThat(exception.getMessage(), equalTo("[window] must be greater or equal to the [bucket_span]"));
-
-        TimeValue longWindow = TimeValue.timeValueSeconds(20000);
-
-        exception = expectThrows(IllegalArgumentException.class,
-            ()-> new DelayedDataDetector(job, createDatafeed(), longWindow, mock(Client.class)));
-        assertThat(exception.getMessage(), equalTo("[window] must contain less than 10000 buckets at the current [bucket_span]"));
-    }
-
 
     private Job createJob(TimeValue bucketSpan) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
@@ -64,10 +47,13 @@ public class DelayedDataDetectorTests extends ESTestCase {
         return builder.build(new Date());
     }
 
-    private DatafeedConfig createDatafeed() {
+    private DatafeedConfig createDatafeed(boolean shouldDetectDelayedData) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("id", "jobId");
         builder.setIndices(Collections.singletonList("index1"));
         builder.setTypes(Collections.singletonList("doc"));
+
+        builder.setShouldRunDelayedDataCheck(shouldDetectDelayedData);
+        builder.setDelayedDataCheckWindow(TimeValue.timeValueMinutes(10));
         return builder.build();
     }
 

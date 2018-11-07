@@ -176,6 +176,30 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         assertEquals("Datafeed frequency [1.5m] must be a multiple of the aggregation interval [60000ms]", e.getMessage());
     }
 
+    public void testVerify_BucketIntervalAndDataCheckWindowAreValid() {
+        Job.Builder builder = buildJobBuilder("foo");
+        AnalysisConfig.Builder ac = createAnalysisConfig();
+        ac.setSummaryCountFieldName("some_count");
+        ac.setBucketSpan(TimeValue.timeValueMinutes(5));
+        builder.setAnalysisConfig(ac);
+        Job job = builder.build(new Date());
+        DatafeedConfig.Builder datafeedBuilder = createValidDatafeedConfig();
+        datafeedBuilder.setShouldRunDelayedDataCheck(true);
+
+        datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueMinutes(10));
+        DatafeedJobValidator.validate(datafeedBuilder.build(), job);
+
+        datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueMinutes(1));
+        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job));
+        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL), e.getMessage());
+
+        datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueMinutes(5_000_000));
+        e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job));
+        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_LARGE), e.getMessage());
+    }
+
     private static Job.Builder buildJobBuilder(String id) {
         Job.Builder builder = new Job.Builder(id);
         AnalysisConfig.Builder ac = createAnalysisConfig();

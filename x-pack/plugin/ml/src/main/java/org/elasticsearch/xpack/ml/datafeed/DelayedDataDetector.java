@@ -9,7 +9,6 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.joda.time.DateTime;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,23 +39,14 @@ public class DelayedDataDetector {
 
     private static final String DATE_BUCKETS = "date_buckets";
     private final long bucketSpan;
-    private final long window;
     private final DatafeedConfig datafeedConfig;
     private final Client client;
     private final Job job;
 
-    public DelayedDataDetector(Job job, DatafeedConfig datafeedConfig, TimeValue window, Client client) {
+    public DelayedDataDetector(Job job, DatafeedConfig datafeedConfig, Client client) {
         this.job = job;
         this.bucketSpan = job.getAnalysisConfig().getBucketSpan().millis();
         this.datafeedConfig = datafeedConfig;
-        long windowMillis = window.millis();
-        if (windowMillis < bucketSpan) {
-            throw new IllegalArgumentException("[window] must be greater or equal to the [bucket_span]");
-        }
-        if (Intervals.alignToFloor(windowMillis/bucketSpan, bucketSpan) >= 10000) {
-            throw new IllegalArgumentException("[window] must contain less than 10000 buckets at the current [bucket_span]");
-        }
-        this.window = windowMillis;
         this.client = client;
     }
 
@@ -65,12 +56,19 @@ public class DelayedDataDetector {
      * It is done synchronously, and can block for a considerable amount of time, it should only be executed within the appropriate
      * thread pool.
      *
+     * If {@link DatafeedConfig#getShouldRunDelayedDataCheck()} is {@code false}, then no action is taken and an empty list is returned.
+     *
      * @param latestFinalizedBucketMs The latest finalized bucket timestamp in milliseconds, signifies the end of the time window check
      * @return A List of {@link BucketWithMissingData} objects that contain each bucket with the current number of missing docs
      */
     public List<BucketWithMissingData> detectMissingData(long latestFinalizedBucketMs) {
+        if (datafeedConfig.getShouldRunDelayedDataCheck() == false) {
+            return Collections.emptyList();
+        }
+
         final long end = Intervals.alignToFloor(latestFinalizedBucketMs, bucketSpan);
-        final long start = Intervals.alignToFloor(latestFinalizedBucketMs - window, bucketSpan);
+        final long start = Intervals.alignToFloor(latestFinalizedBucketMs - datafeedConfig.getDelayedDataCheckWindow().millis(),
+            bucketSpan);
         List<Bucket> finalizedBuckets = checkBucketEvents(start, end);
         Map<Long, Long> indexedData = checkCurrentBucketEventCount(start, end);
         return finalizedBuckets.stream()

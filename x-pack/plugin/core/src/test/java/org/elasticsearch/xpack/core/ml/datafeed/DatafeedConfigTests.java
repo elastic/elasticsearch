@@ -109,6 +109,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
+        if (randomBoolean()) {
+            boolean shouldRunDelayedDataCheck = randomBoolean();
+            builder.setShouldRunDelayedDataCheck(shouldRunDelayedDataCheck);
+            if (shouldRunDelayedDataCheck) {
+                builder.setDelayedDataCheckWindow(new TimeValue(randomLongBetween(bucketSpanMillis,bucketSpanMillis*10)));
+            }
+        }
         return builder.build();
     }
 
@@ -488,6 +495,19 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueSeconds(3601)));
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(2)));
         assertEquals(TimeValue.timeValueHours(1), datafeed.defaultFrequency(TimeValue.timeValueHours(12)));
+    }
+
+    public void testInvalidDelayedDataCheckWindow() {
+        DatafeedConfig.Builder builder =  new DatafeedConfig.Builder("foo", "bar");
+        builder.setIndices(Collections.singletonList("index"));
+        builder.setShouldRunDelayedDataCheck(true);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> builder.setDelayedDataCheckWindow(TimeValue.MINUS_ONE));
+        assertThat(e.getMessage(), containsString("cannot be less or equal than 0"));
+
+        e = expectThrows(IllegalArgumentException.class, builder::build);
+        assertThat(e.getMessage(), equalTo("[delayed_data_check_window] must not be null."));
     }
 
     public static String randomValidDatafeedId() {

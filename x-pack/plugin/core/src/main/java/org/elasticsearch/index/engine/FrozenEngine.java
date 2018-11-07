@@ -196,12 +196,15 @@ public final class FrozenEngine extends ReadOnlyEngine {
             // have one open at the time and can inc it's reference.
             DirectoryReader reader = maybeOpenReader ? getOrOpenReader() : getReader();
             if (reader == null) {
-                store.decRef();
-                success = true;
                 // we just hand out a searcher on top of an empty reader that we opened for the ReadOnlyEngine in the #open(IndexCommit)
                 // method. this is the case when we don't have a reader open right now and we get a stats call any other that falls in
                 // the category that doesn't trigger a reopen
-                return super.acquireSearcher(source, scope);
+                try {
+                    return super.acquireSearcher(source, scope);
+                } finally {
+                    success = true;
+                    store.decRef(); // this is the reference we acquired in the beginning of this method
+                }
             } else {
                 try {
                     LazyDirectoryReader lazyDirectoryReader = new LazyDirectoryReader(reader, this);

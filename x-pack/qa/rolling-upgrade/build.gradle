@@ -124,7 +124,11 @@ subprojects {
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
       dependsOn copyTestNodeKeystore
       if (version.before('6.3.0')) {
-        mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${version}"
+          String depVersion = version;
+          if (project.bwcVersions.unreleased.contains(version)) {
+              depVersion += "-SNAPSHOT"
+          }
+          mavenPlugin 'x-pack', "org.elasticsearch.plugin:x-pack:${depVersion}"
       }
       String usersCli = version.before('6.3.0') ? 'bin/x-pack/users' : 'bin/elasticsearch-users'
       setupCommand 'setupTestUser', usersCli, 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
@@ -148,6 +152,16 @@ subprojects {
       setting 'xpack.ssl.keystore.password', 'testnode'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      if (version.onOrAfter('7.0.0')) {
+          setting 'xpack.security.authc.realms.file.file1.order', '0'
+          setting 'xpack.security.authc.realms.native.native1.order', '1'
+      } else {
+          setting 'xpack.security.authc.realms.file1.type', 'file'
+          setting 'xpack.security.authc.realms.file1.order', '0'
+          setting 'xpack.security.authc.realms.native1.type', 'native'
+          setting 'xpack.security.authc.realms.native1.order', '1'
+      }
+
       if (withSystemKey) {
         if (version.onOrAfter('5.1.0') && version.before('6.0.0')) {
           // The setting didn't exist until 5.1.0
@@ -281,7 +295,7 @@ subprojects {
   // basic integ tests includes testing bwc against the most recent version
   task integTest {
     if (project.bwc_tests_enabled) {
-      for (final def version : bwcVersions.snapshotsWireCompatible) {
+      for (final def version : bwcVersions.unreleasedWireCompatible) {
         dependsOn "v${version}#bwcTest"
       }
     }

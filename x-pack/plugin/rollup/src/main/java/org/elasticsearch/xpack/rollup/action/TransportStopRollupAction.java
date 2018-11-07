@@ -15,14 +15,12 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
-import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction.Response;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
@@ -32,13 +30,13 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 public class TransportStopRollupAction extends TransportTasksAction<RollupJobTask, StopRollupJobAction.Request,
-        Response, Response> {
+    StopRollupJobAction.Response, StopRollupJobAction.Response> {
 
     @Inject
-    public TransportStopRollupAction(Settings settings, TransportService transportService,
+    public TransportStopRollupAction(TransportService transportService,
                            ActionFilters actionFilters, ClusterService clusterService) {
-        super(settings, StopRollupJobAction.NAME, clusterService, transportService, actionFilters,
-            StopRollupJobAction.Request::new, Response::new, ThreadPool.Names.SAME);
+        super(StopRollupJobAction.NAME, clusterService, transportService, actionFilters,
+            StopRollupJobAction.Request::new, StopRollupJobAction.Response::new, ThreadPool.Names.SAME);
     }
 
     @Override
@@ -47,12 +45,13 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
     }
 
     @Override
-    protected void doExecute(Task task, StopRollupJobAction.Request request, ActionListener<Response> listener) {
+    protected void doExecute(Task task, StopRollupJobAction.Request request, ActionListener<StopRollupJobAction.Response> listener) {
         super.doExecute(task, request, listener);
     }
 
     @Override
-    protected void taskOperation(StopRollupJobAction.Request request, RollupJobTask jobTask, ActionListener<Response> listener) {
+    protected void taskOperation(StopRollupJobAction.Request request, RollupJobTask jobTask,
+                                 ActionListener<StopRollupJobAction.Response> listener) {
         if (jobTask.getConfig().getId().equals(request.getId())) {
             jobTask.stop(maybeWrapWithBlocking(request, jobTask, listener));
         } else {
@@ -61,9 +60,9 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
         }
     }
 
-    private static ActionListener<Response> maybeWrapWithBlocking(StopRollupJobAction.Request request,
+    private static ActionListener<StopRollupJobAction.Response> maybeWrapWithBlocking(StopRollupJobAction.Request request,
                                                                   RollupJobTask jobTask,
-                                                                  ActionListener<Response> listener) {
+                                                                  ActionListener<StopRollupJobAction.Response> listener) {
         if (request.waitForCompletion()) {
             return ActionListener.wrap(response -> {
                 if (response.isStopped()) {
@@ -115,7 +114,7 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
     }
 
     @Override
-    protected Response newResponse(StopRollupJobAction.Request request, List<Response> tasks,
+    protected StopRollupJobAction.Response newResponse(StopRollupJobAction.Request request, List<StopRollupJobAction.Response> tasks,
                                                        List<TaskOperationFailure> taskOperationFailures,
                                                        List<FailedNodeException> failedNodeExceptions) {
 
@@ -135,13 +134,13 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
 
         assert tasks.size() == 1;
 
-        boolean allStopped = tasks.stream().allMatch(Response::isStopped);
-        return new Response(allStopped);
+        boolean allStopped = tasks.stream().allMatch(StopRollupJobAction.Response::isStopped);
+        return new StopRollupJobAction.Response(allStopped);
     }
 
     @Override
-    protected Response readTaskResponse(StreamInput in) throws IOException {
-        return new Response(in);
+    protected StopRollupJobAction.Response readTaskResponse(StreamInput in) throws IOException {
+        return new StopRollupJobAction.Response(in);
     }
 
 }

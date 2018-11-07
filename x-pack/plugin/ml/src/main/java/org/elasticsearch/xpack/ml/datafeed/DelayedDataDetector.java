@@ -52,16 +52,30 @@ public class DelayedDataDetector {
         if (windowMillis < bucketSpan) {
             throw new IllegalArgumentException("[window] must be greater or equal to the [bucket_span]");
         }
+        if (Intervals.alignToFloor(windowMillis/bucketSpan, bucketSpan) >= 10000) {
+            throw new IllegalArgumentException("[window] must contain less than 10000 buckets at the current [bucket_span]");
+        }
         this.window = windowMillis;
         this.client = client;
     }
 
-    public List<BucketWithMissingData> missingData(long latestFinalizedBucket) {
-        final long end = Intervals.alignToFloor(latestFinalizedBucket, bucketSpan);
-        final long start = Intervals.alignToFloor(latestFinalizedBucket - window, bucketSpan);
+    /**
+     * This method looks at the {@link DatafeedConfig} from {@code latestFinalizedBucket - window} to {@code latestFinalizedBucket}.
+     *
+     * It is done synchronously, and can block for a considerable amount of time, it should only be executed within the appropriate
+     * thread pool.
+     *
+     * @param latestFinalizedBucketMs The latest finalized bucket timestamp in milliseconds, signifies the end of the time window check
+     * @return A List of {@link BucketWithMissingData} objects that contain each bucket with the current number of missing docs
+     */
+    public List<BucketWithMissingData> detectMissingData(long latestFinalizedBucketMs) {
+        final long end = Intervals.alignToFloor(latestFinalizedBucketMs, bucketSpan);
+        final long start = Intervals.alignToFloor(latestFinalizedBucketMs - window, bucketSpan);
         List<Bucket> finalizedBuckets = checkBucketEvents(start, end);
-        Map<Long, Long> indexedData = checkTrueData(start, end);
+        Map<Long, Long> indexedData = checkCurrentBucketEventCount(start, end);
         return finalizedBuckets.stream()
+            // We only care about the situation when data is added to the indices
+            // Older data could have been removed from the indices, and should not be considered "missing data"
             .filter(bucket -> calculateMissing(indexedData, bucket) > 0)
             .map(bucket -> BucketWithMissingData.fromMissingAndBucket(calculateMissing(indexedData, bucket), bucket))
             .collect(Collectors.toList());
@@ -80,7 +94,7 @@ public class DelayedDataDetector {
         }
     }
 
-    private Map<Long, Long> checkTrueData(long start, long end) {
+    private Map<Long, Long> checkCurrentBucketEventCount(long start, long end) {
         String timeField = job.getDataDescription().getTimeField();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
             .size(0)
@@ -95,7 +109,7 @@ public class DelayedDataDetector {
             for (Histogram.Bucket bucket : buckets) {
                 long bucketTime = toHistogramKeyToEpoch(bucket.getKey());
                 if (bucketTime < 0) {
-                        throw new IllegalStateException("Histogram key [" + bucket.getKey() + "] cannot be converted to a timestamp");
+                    throw new IllegalStateException("Histogram key [" + bucket.getKey() + "] cannot be converted to a timestamp");
                 }
                 hashMap.put(bucketTime, bucket.getDocCount());
             }
@@ -121,15 +135,15 @@ public class DelayedDataDetector {
 
     public static class BucketWithMissingData {
 
-        private final long missingData;
+        private final long missingDocumentCount;
         private final Bucket bucket;
 
-        static BucketWithMissingData fromMissingAndBucket(long missingData, Bucket bucket) {
-            return new BucketWithMissingData(missingData, bucket);
+        static BucketWithMissingData fromMissingAndBucket(long missingDocumentCount, Bucket bucket) {
+            return new BucketWithMissingData(missingDocumentCount, bucket);
         }
 
-        private BucketWithMissingData(long missingData, Bucket bucket) {
-           this.missingData = missingData;
+        private BucketWithMissingData(long missingDocumentCount, Bucket bucket) {
+           this.missingDocumentCount = missingDocumentCount;
            this.bucket = bucket;
         }
 
@@ -137,8 +151,8 @@ public class DelayedDataDetector {
             return bucket;
         }
 
-        public long getMissingData() {
-            return missingData;
+        public long getMissingDocumentCount() {
+            return missingDocumentCount;
         }
     }
 }

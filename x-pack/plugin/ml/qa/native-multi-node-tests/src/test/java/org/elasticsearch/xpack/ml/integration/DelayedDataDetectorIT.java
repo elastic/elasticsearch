@@ -60,7 +60,7 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    public void test() throws Exception {
+    public void testMissingDataDetection() throws Exception {
         final String jobId = "delayed-data-detection-job";
         Job.Builder job = createJob(jobId, TimeValue.timeValueMinutes(5), "count", null);
 
@@ -80,17 +80,19 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         DelayedDataDetector delayedDataDetector =
             new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
 
-        List<BucketWithMissingData> response = delayedDataDetector.missingData(lastBucket.getEpoch()*1000);
-        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(0L));
+        List<BucketWithMissingData> response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
+        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo(0L));
 
         long missingDocs = randomIntBetween(32, 128);
+        // Simply adding data within the current delayed data detection, the choice of 43100000 is arbitrary and within the window
+        // for the DelayedDataDetector
         writeData(logger, index, missingDocs, now - 43100000, lastBucket.getEpoch()*1000);
 
-        response = delayedDataDetector.missingData(lastBucket.getEpoch()*1000);
-        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(missingDocs));
+        response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
+        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo(missingDocs));
     }
 
-    public void testWithMissingInSpecificBucket() throws Exception {
+    public void testMissingDataDetectionInSpecificBucket() throws Exception {
         final String jobId = "delayed-data-detection-job-missing-test-specific-bucket";
         Job.Builder job = createJob(jobId, TimeValue.timeValueMinutes(5), "count", null);
 
@@ -112,19 +114,22 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
             new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
 
         long missingDocs = randomIntBetween(1, 10);
+
+        // Write our missing data in the bucket right before the last finalized bucket
         writeData(logger, index, missingDocs, (lastBucket.getEpoch() - lastBucket.getBucketSpan())*1000, lastBucket.getEpoch()*1000);
-        List<BucketWithMissingData> response = delayedDataDetector.missingData(lastBucket.getEpoch()*1000);
+        List<BucketWithMissingData> response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
+
         boolean hasBucketWithMissing = false;
         for (BucketWithMissingData bucketWithMissingData : response) {
             if (bucketWithMissingData.getBucket().getEpoch() == lastBucket.getEpoch() - lastBucket.getBucketSpan()) {
-                assertThat(bucketWithMissingData.getMissingData(), equalTo(missingDocs));
+                assertThat(bucketWithMissingData.getMissingDocumentCount(), equalTo(missingDocs));
                 hasBucketWithMissing = true;
             }
         }
         assertThat(hasBucketWithMissing, equalTo(true));
     }
 
-    public void testMissingWithAggregationsAndQuery() throws Exception {
+    public void testMissingDataDetectionWithAggregationsAndQuery() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(10);
         final String jobId = "delayed-data-detection-job-aggs-no-missing-test";
         Job.Builder job = createJob(jobId, bucketSpan, "mean", "value", "doc_count");
@@ -158,14 +163,16 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         DelayedDataDetector delayedDataDetector =
             new DelayedDataDetector(job.build(new Date()), datafeedConfig, TimeValue.timeValueHours(12), client());
 
-        List<BucketWithMissingData> response = delayedDataDetector.missingData(lastBucket.getEpoch()*1000);
-        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo(0L));
+        List<BucketWithMissingData> response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
+        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo(0L));
 
         long missingDocs = numDocs;
+        // Simply adding data within the current delayed data detection, the choice of 43100000 is arbitrary and within the window
+        // for the DelayedDataDetector
         writeData(logger, index, missingDocs, now - 43100000, lastBucket.getEpoch()*1000);
 
-        response = delayedDataDetector.missingData(lastBucket.getEpoch()*1000);
-        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingData).sum(), equalTo((missingDocs+1)/2));
+        response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
+        assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo((missingDocs+1)/2));
     }
 
     private Job.Builder createJob(String id, TimeValue bucketSpan, String function, String field) {

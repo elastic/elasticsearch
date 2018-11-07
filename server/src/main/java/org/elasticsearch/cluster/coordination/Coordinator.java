@@ -572,6 +572,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return getStateForMasterService().getLastAcceptedConfiguration().isEmpty() == false;
     }
 
+    /**
+     * Sets the initial configuration by resolving the given {@link BootstrapConfiguration} to concrete nodes. This method is safe to call
+     * more than once, as long as each call's bootstrap configuration resolves to the same set of nodes.
+     *
+     * @param bootstrapConfiguration A description of the nodes that should form the initial configuration.
+     * @return whether this call successfully set the initial configuration - if false, the cluster has already been bootstrapped.
+     */
     public boolean setInitialConfiguration(final BootstrapConfiguration bootstrapConfiguration) {
         final List<DiscoveryNode> selfAndDiscoveredPeers = new ArrayList<>();
         selfAndDiscoveredPeers.add(getLocalNode());
@@ -580,6 +587,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         return setInitialConfiguration(votingConfiguration);
     }
 
+    /**
+     * Sets the initial configuration to the given {@link VotingConfiguration}. This method is safe to call
+     * more than once, as long as the argument to each call is the same.
+     *
+     * @param votingConfiguration The nodes that should form the initial configuration.
+     * @return whether this call successfully set the initial configuration - if false, the cluster has already been bootstrapped.
+     */
     public boolean setInitialConfiguration(final VotingConfiguration votingConfiguration) {
         synchronized (mutex) {
             final ClusterState currentState = getStateForMasterService();

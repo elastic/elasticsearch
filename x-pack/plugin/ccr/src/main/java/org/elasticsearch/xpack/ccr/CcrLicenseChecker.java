@@ -244,6 +244,11 @@ public final class CcrLicenseChecker {
         String leaderIndex = leaderIndexMetaData.getIndex().getName();
         CheckedConsumer<IndicesStatsResponse, Exception> indicesStatsHandler = indicesStatsResponse -> {
             IndexStats indexStats = indicesStatsResponse.getIndices().get(leaderIndex);
+            if (indexStats == null) {
+                onFailure.accept(new IllegalArgumentException("no index stats available for the leader index"));
+                return;
+            }
+
             String[] historyUUIDs = new String[leaderIndexMetaData.getNumberOfShards()];
             for (IndexShardStats indexShardStats : indexStats) {
                 for (ShardStats shardStats : indexShardStats) {

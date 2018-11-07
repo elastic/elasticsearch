@@ -365,7 +365,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 }
             }
             return new SimpleTopDocsCollectorContext(reader, query, searchContext.sort(), searchContext.searchAfter(), numDocs,
-                                                     searchContext.trackScores(), searchContext.trackTotalHitsThreshold(), hasFilterCollector) {
+                                            searchContext.trackScores(), searchContext.trackTotalHitsThreshold(), hasFilterCollector) {
                 @Override
                 boolean shouldRescore() {
                     return rescore;

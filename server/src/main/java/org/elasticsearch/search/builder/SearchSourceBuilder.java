@@ -538,11 +538,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Indicates if the total hit count for the query should be tracked.
      */
     public boolean trackTotalHits() {
-        return trackTotalHitsThreshold > 0;
+        return trackTotalHitsThreshold != 0;
     }
 
     public SearchSourceBuilder trackTotalHits(boolean trackTotalHits) {
-        this.trackTotalHitsThreshold = trackTotalHits ? Integer.MAX_VALUE : 0;
+        this.trackTotalHitsThreshold = trackTotalHits ? -1 : 0;
         return this;
     }
 
@@ -1041,8 +1041,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     trackScores = parser.booleanValue();
                 } else if (TRACK_TOTAL_HITS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN ||
-                        (token == XContentParser.Token.VALUE_STRING && Booleans.isBoolean(parser.text()))) {
-                        trackTotalHitsThreshold = parser.booleanValue() ? Integer.MAX_VALUE : 0;
+                            (token == XContentParser.Token.VALUE_STRING && Booleans.isBoolean(parser.text()))) {
+                        trackTotalHitsThreshold = parser.booleanValue() ? -1 : 0;
                     } else {
                         trackTotalHitsThreshold = parser.intValue();
                     }
@@ -1253,7 +1253,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         if (trackTotalHitsThreshold == 0) {
             builder.field(TRACK_TOTAL_HITS_FIELD.getPreferredName(), false);
-        } else if (trackTotalHitsThreshold != Integer.MAX_VALUE) {
+        } else if (trackTotalHitsThreshold > 0) {
             builder.field(TRACK_TOTAL_HITS_FIELD.getPreferredName(), trackTotalHitsThreshold);
         }
 

@@ -22,11 +22,9 @@ package org.elasticsearch.common.lucene.uid;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -114,13 +112,13 @@ public final class VersionsAndSeqNoResolver {
         public final int docId;
         public final long seqNo;
         public final LeafReaderContext context;
-        public final boolean isDeleted;
+        public final boolean isLive;
 
-        DocIdAndSeqNo(int docId, long seqNo, LeafReaderContext context, boolean isDeleted) {
+        DocIdAndSeqNo(int docId, long seqNo, LeafReaderContext context, boolean isLive) {
             this.docId = docId;
             this.seqNo = seqNo;
             this.context = context;
-            this.isDeleted = isDeleted;
+            this.isLive = isLive;
         }
     }
 
@@ -149,7 +147,7 @@ public final class VersionsAndSeqNoResolver {
 
     /**
      * Loads the internal docId and sequence number of the latest copy for a given uid from the provided reader.
-     * The flag {@link DocIdAndSeqNo#isDeleted} indicates whether the returned document is soft(deleted) or live.
+     * The flag {@link DocIdAndSeqNo#isLive} indicates whether the returned document is live or (soft)deleted.
      * This returns {@code null} if no such document matching the given term uid.
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term term) throws IOException {
@@ -168,28 +166,12 @@ public final class VersionsAndSeqNoResolver {
             if (latest == null || latest.seqNo <= result.seqNo) {
                 latest = result;
             }
-            if (latest.isDeleted == false) {
+            if (latest.isLive) {
                 // The live document must always be the latest copy, thus we can early terminate here.
                 break;
             }
         }
         return latest;
-    }
-
-    /**
-     * Load the primaryTerm associated with the given {@link DocIdAndSeqNo}
-     */
-    public static long loadPrimaryTerm(DocIdAndSeqNo docIdAndSeqNo, String uidField) throws IOException {
-        NumericDocValues primaryTerms = docIdAndSeqNo.context.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-        long result;
-        if (primaryTerms != null && primaryTerms.advanceExact(docIdAndSeqNo.docId)) {
-            result = primaryTerms.longValue();
-        } else {
-            result = 0;
-        }
-        assert result > 0 : "should always resolve a primary term for a resolved sequence number. primary_term [" + result + "]"
-            + " docId [" + docIdAndSeqNo.docId + "] seqNo [" + docIdAndSeqNo.seqNo + "]";
-        return result;
     }
 
     /**

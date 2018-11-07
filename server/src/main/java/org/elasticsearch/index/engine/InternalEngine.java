@@ -683,19 +683,14 @@ public class InternalEngine extends Engine {
                 if (docAndSeqNo == null) {
                     status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
                 } else if (op.seqNo() > docAndSeqNo.seqNo) {
-                    if (docAndSeqNo.isDeleted) {
-                        status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
-                    } else {
+                    if (docAndSeqNo.isLive) {
                         status = OpVsLuceneDocStatus.OP_NEWER;
+                    } else {
+                        status = OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
                     }
                 } else if (op.seqNo() == docAndSeqNo.seqNo) {
-                    if (Assertions.ENABLED) {
-                        assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
-                            "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
-                        final long existingTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docAndSeqNo, op.uid().field());
-                        assert existingTerm == op.primaryTerm() : "primary term not matched; id=" + op.id() + " seq_no=" + op.seqNo()
-                            + " op_term=" + op.primaryTerm() + " existing_term=" + existingTerm;
-                    }
+                    assert localCheckpointTracker.contains(op.seqNo()) || softDeleteEnabled == false :
+                        "local checkpoint tracker is not updated seq_no=" + op.seqNo() + " id=" + op.id();
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;
                 } else {
                     status = OpVsLuceneDocStatus.OP_STALE_OR_EQUAL;

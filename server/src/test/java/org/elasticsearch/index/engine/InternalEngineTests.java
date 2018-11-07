@@ -3740,7 +3740,7 @@ public class InternalEngineTests extends EngineTestCase {
                     String msg = "history=" + history + " liveIds=" + liveIds + " id=" + id;
                     DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), newUid(id));
                     assertThat(msg, docIdAndSeqNo.seqNo, equalTo(history.get(id)));
-                    assertThat(msg, docIdAndSeqNo.isDeleted, equalTo(liveIds.contains(id) == false));
+                    assertThat(msg, docIdAndSeqNo.isLive, equalTo(liveIds.contains(id)));
                 }
                 assertThat(VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), newUid("not-" + between(1, 10))), nullValue());
             }
@@ -4126,7 +4126,11 @@ public class InternalEngineTests extends EngineTestCase {
                 seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
             } else {
                 seqNo = docIdAndSeqNo.seqNo;
-                primaryTerm = VersionsAndSeqNoResolver.loadPrimaryTerm(docIdAndSeqNo, get.uid().field());
+                NumericDocValues primaryTerms = docIdAndSeqNo.context.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                if (primaryTerms == null || primaryTerms.advanceExact(docIdAndSeqNo.docId) == false) {
+                    throw new AssertionError("document does not have primary term [" + docIdAndSeqNo.docId + "]");
+                }
+                primaryTerm = primaryTerms.longValue();
             }
             return new Tuple<>(seqNo, primaryTerm);
         } catch (Exception e) {

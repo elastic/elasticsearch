@@ -155,15 +155,15 @@ final class PerThreadIDVersionAndSeqNoLookup {
                     } else {
                         seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
                     }
-                    final boolean isDeleted = (liveDocs != null && liveDocs.get(docID) == false);
-                    if (result == null || result.seqNo < seqNo) {
-                        assert result == null || result.isDeleted : "the live doc doesn't have the highest seq_no; "
-                            + result.seqNo + " <  " + seqNo + " id=" + id;
-                        result = new DocIdAndSeqNo(docID, seqNo, context, isDeleted);
-                    } else if (result.seqNo == seqNo && (result.isDeleted || isDeleted == false)) {
-                        // the extra guard "result.isDeleted || isDeleted == false" is to make sure that we pick a live doc instead of
-                        // a deleted doc in case the same index operation was indexed twice - one as live and another as soft-deleted.
-                        result = new DocIdAndSeqNo(docID, seqNo, context, isDeleted);
+                    if (result == null || result.seqNo <= seqNo) {
+                        final boolean isLive = (liveDocs == null || liveDocs.get(docID));
+                        result = new DocIdAndSeqNo(docID, seqNo, context, isLive);
+                    }
+                    if (result.isLive) {
+                        // The live document must always be the latest copy, thus we can early terminate here.
+                        // If a nested docs is live, we return the first doc which doesn't have term (only the last doc has term).
+                        // This should not be an issue since we no longer use primary term as tier breaker when comparing operations.
+                        break;
                     }
                 }
             }

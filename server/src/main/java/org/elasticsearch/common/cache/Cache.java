@@ -284,7 +284,7 @@ public class Cache<K, V> {
         }
 
         /**
-         * remove an entry from the segment iff the future is done and the value is equal to the
+         * remove an entry from the segment if the future is done and the value is equal to the
          * expected value
          *
          * @param key the key of the entry to remove from the cache

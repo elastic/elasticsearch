@@ -157,7 +157,8 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
             public void handleException(TransportException exp) {
                 final Throwable rootCause = exp.getRootCause();
                 assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-                assertThat(rootCause.getMessage(), equalTo("this node is not master-eligible"));
+                assertThat(rootCause.getMessage(),
+                    equalTo("this node is not master-eligible, but discovered nodes are only exposed by master-eligible nodes"));
                 countDownLatch.countDown();
             }
         });

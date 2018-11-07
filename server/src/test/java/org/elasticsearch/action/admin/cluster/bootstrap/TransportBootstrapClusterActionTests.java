@@ -144,7 +144,8 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
             public void handleException(TransportException exp) {
                 final Throwable rootCause = exp.getRootCause();
                 assertThat(rootCause, instanceOf(IllegalArgumentException.class));
-                assertThat(rootCause.getMessage(), equalTo("this node is not master-eligible"));
+                assertThat(rootCause.getMessage(),
+                    equalTo("this node is not master-eligible, but cluster bootstrapping can only happen on a master-eligible node"));
                 countDownLatch.countDown();
             }
         });

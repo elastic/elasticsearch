@@ -75,7 +75,8 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
         final DiscoveryNode localNode = transportService.getLocalNode();
         assert localNode != null;
         if (localNode.isMasterNode() == false) {
-            throw new IllegalArgumentException("this node is not master-eligible");
+            throw new IllegalArgumentException(
+                "this node is not master-eligible, but discovered nodes are only exposed by master-eligible nodes");
         }
         final ExecutorService directExecutor = EsExecutors.newDirectExecutorService();
         final AtomicBoolean listenerNotified = new AtomicBoolean();

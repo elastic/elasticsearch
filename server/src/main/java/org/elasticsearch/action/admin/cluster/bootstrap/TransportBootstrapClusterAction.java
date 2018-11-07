@@ -61,7 +61,8 @@ public class TransportBootstrapClusterAction extends HandledTransportAction<Boot
         final DiscoveryNode localNode = transportService.getLocalNode();
         assert localNode != null;
         if (localNode.isMasterNode() == false) {
-            throw new IllegalArgumentException("this node is not master-eligible");
+            throw new IllegalArgumentException(
+                "this node is not master-eligible, but cluster bootstrapping can only happen on a master-eligible node");
         }
 
         transportService.getThreadPool().generic().execute(new AbstractRunnable() {

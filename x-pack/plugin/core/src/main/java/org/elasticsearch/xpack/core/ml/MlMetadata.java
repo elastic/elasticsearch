@@ -90,6 +90,11 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         return groupOrJobLookup.expandJobIds(expression);
     }
 
+    // Matches only groups
+    public Set<String> expandGroupIds(String expression) {
+        return groupOrJobLookup.expandGroupIds(expression);
+    }
+
     public boolean isJobDeleting(String jobId) {
         Job job = jobs.get(jobId);
         return job == null || job.isDeleting();

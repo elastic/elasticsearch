@@ -58,6 +58,10 @@ public class GroupOrJobLookup {
         return new GroupOrJobResolver().expand(expression);
     }
 
+    public Set<String> expandGroupIds(String expression) {
+        return new GroupResolver().expand(expression);
+    }
+
     public boolean isGroupOrJob(String id) {
         return groupOrJobLookup.containsKey(id);
     }
@@ -84,6 +88,35 @@ public class GroupOrJobLookup {
         protected List<String> lookup(String key) {
             GroupOrJob groupOrJob = groupOrJobLookup.get(key);
             return groupOrJob == null ? Collections.emptyList() : groupOrJob.jobs().stream().map(Job::getId).collect(Collectors.toList());
+        }
+    }
+
+    private class GroupResolver extends NameResolver {
+
+        private GroupResolver() {
+        }
+
+        @Override
+        protected Set<String> keys() {
+            return nameSet();
+        }
+
+        @Override
+        protected Set<String> nameSet() {
+            return groupOrJobLookup.entrySet().stream()
+                    .filter(entry -> entry.getValue().isGroup())
+                    .map(entry -> entry.getKey())
+                    .collect(Collectors.toSet());
+        }
+
+        @Override
+        protected List<String> lookup(String key) {
+            GroupOrJob groupOrJob = groupOrJobLookup.get(key);
+            if (groupOrJob == null || groupOrJob.isGroup() == false) {
+                return Collections.emptyList();
+            } else {
+                return Collections.singletonList(key);
+            }
         }
     }
 }

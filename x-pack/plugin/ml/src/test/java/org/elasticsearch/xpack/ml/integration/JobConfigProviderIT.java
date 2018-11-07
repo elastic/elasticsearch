@@ -445,16 +445,19 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
-        SortedSet<String> expandedIds = blockingCall(actionListener ->
+        JobConfigProvider.JobIdsAndGroups expandedIds = blockingCall(actionListener ->
                 jobConfigProvider.expandJobsIdsWithoutMissingCheck("dick,john", false, actionListener));
-        assertEquals(new TreeSet<>(Collections.singletonList("dick")), expandedIds);
+        assertEquals(new TreeSet<>(Collections.singletonList("dick")), expandedIds.getJobs());
+        assertThat(expandedIds.getGroups(), empty());
 
         expandedIds = blockingCall(actionListener -> jobConfigProvider.expandJobsIdsWithoutMissingCheck("foo*", true, actionListener));
-        assertThat(expandedIds, empty());
+        assertThat(expandedIds.getJobs(), empty());
+        assertThat(expandedIds.getGroups(), empty());
 
         expandedIds = blockingCall(actionListener ->
                 jobConfigProvider.expandJobsIdsWithoutMissingCheck("harry-group,dave", false, actionListener));
-        assertEquals(new TreeSet<>(Arrays.asList("harry", "harry-jnr")), expandedIds);
+        assertEquals(new TreeSet<>(Arrays.asList("harry", "harry-jnr")), expandedIds.getJobs());
+        assertEquals(new TreeSet<>(Arrays.asList("harry-group")), expandedIds.getGroups());
     }
 
     public void testExpandJobsWithoutMissingCheck() throws Exception {

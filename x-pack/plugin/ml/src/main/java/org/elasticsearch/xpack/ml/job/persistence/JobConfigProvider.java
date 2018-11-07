@@ -571,6 +571,24 @@ public class JobConfigProvider {
 
     }
 
+    public static class JobIdsAndGroups {
+        private SortedSet<String> jobs;
+        private SortedSet<String> groups;
+
+        public JobIdsAndGroups(SortedSet<String> jobs, SortedSet<String> groups) {
+            this.jobs = jobs;
+            this.groups = groups;
+        }
+
+        public SortedSet<String> getJobs() {
+            return jobs;
+        }
+
+        public SortedSet<String> getGroups() {
+            return groups;
+        }
+    }
+
     /**
      * Similar to {@link #expandJobsIds(String, boolean, boolean, ActionListener)} but no error
      * is generated if there are missing Ids. Whatever Ids match will be returned.
@@ -582,7 +600,7 @@ public class JobConfigProvider {
      * @param excludeDeleting If true exclude jobs marked as deleting
      * @param listener The expanded job Ids listener
      */
-    public void expandJobsIdsWithoutMissingCheck(String expression, boolean excludeDeleting, ActionListener<SortedSet<String>> listener) {
+    public void expandJobsIdsWithoutMissingCheck(String expression, boolean excludeDeleting, ActionListener<JobIdsAndGroups> listener) {
 
         SearchRequest searchRequest = makeExpandIdsSearchRequest(expression, excludeDeleting);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -599,8 +617,7 @@ public class JobConfigProvider {
                                 }
                             }
 
-                            groupsIds.addAll(jobIds);
-                            listener.onResponse(jobIds);
+                            listener.onResponse(new JobIdsAndGroups(jobIds, groupsIds));
                         },
                         listener::onFailure)
                 , client::search);
@@ -704,7 +721,6 @@ public class JobConfigProvider {
                 ActionListener.<SearchResponse>wrap(
                         response -> {
                             List<Job.Builder> jobs = new ArrayList<>();
-                            Set<String> jobAndGroupIds = new HashSet<>();
 
                             SearchHit[] hits = response.getHits().getHits();
                             for (SearchHit hit : hits) {
@@ -712,8 +728,6 @@ public class JobConfigProvider {
                                     BytesReference source = hit.getSourceRef();
                                     Job.Builder job = parseJobLenientlyFromSource(source);
                                     jobs.add(job);
-                                    jobAndGroupIds.add(job.getId());
-                                    jobAndGroupIds.addAll(job.getGroups());
                                 } catch (IOException e) {
                                     // TODO A better way to handle this rather than just ignoring the error?
                                     logger.error("Error parsing anomaly detector job configuration [" + hit.getId() + "]", e);

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -16,7 +18,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -63,6 +64,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -83,10 +85,11 @@ import java.util.stream.Collectors;
  * <li>updating</li>
  * </ul>
  */
-public class JobManager extends AbstractComponent {
+public class JobManager {
 
     private static final DeprecationLogger DEPRECATION_LOGGER =
             new DeprecationLogger(Loggers.getLogger(JobManager.class));
+    private static final Logger logger = LogManager.getLogger(JobManager.class);
 
     private final Settings settings;
     private final Environment environment;
@@ -201,6 +204,13 @@ public class JobManager extends AbstractComponent {
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(expression, allowNoJobs);
         requiredMatches.filterMatchedIds(clusterStateJobs.keySet());
 
+        // If expression contains a group Id it has been expanded to its
+        // constituent job Ids but Ids matcher needs to know the group
+        // has been matched
+        Set<String> groupIds = clusterStateJobs.values().stream()
+                .filter(job -> job.getGroups() != null).flatMap(j -> j.getGroups().stream()).collect(Collectors.toSet());
+        requiredMatches.filterMatchedIds(groupIds);
+
         jobConfigProvider.expandJobsWithoutMissingcheck(expression, false, ActionListener.wrap(
                 jobBuilders -> {
                     // Check for duplicate jobs
@@ -212,13 +222,18 @@ public class JobManager extends AbstractComponent {
                         }
                     }
 
+                    Set<String> jobAndGroupIds = new HashSet<>();
+
                     // Merge cluster state and index jobs
                     List<Job> jobs = new ArrayList<>();
                     for (Job.Builder jb : jobBuilders) {
-                        jobs.add(jb.build());
+                        Job job = jb.build();
+                        jobAndGroupIds.add(job.getId());
+                        jobAndGroupIds.addAll(job.getGroups());
+                        jobs.add(job);
                     }
 
-                    requiredMatches.filterMatchedIds(jobs.stream().map(Job::getId).collect(Collectors.toList()));
+                    requiredMatches.filterMatchedIds(jobAndGroupIds);
 
                     if (requiredMatches.hasUnmatchedIds()) {
                         jobsListener.onFailure(ExceptionsHelper.missingJobException(requiredMatches.unmatchedIdsString()));
@@ -253,11 +268,15 @@ public class JobManager extends AbstractComponent {
         Set<String> clusterStateJobIds = MlMetadata.getMlMetadata(clusterService.state()).expandJobIds(expression);
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(expression, allowNoJobs);
         requiredMatches.filterMatchedIds(clusterStateJobIds);
+        // If expression contains a group Id it has been expanded to its
+        // constituent job Ids but Ids matcher needs to know the group
+        // has been matched
+        requiredMatches.filterMatchedIds(MlMetadata.getMlMetadata(clusterService.state()).expandGroupIds(expression));
 
         jobConfigProvider.expandJobsIdsWithoutMissingCheck(expression, false, ActionListener.wrap(
-                jobIds -> {
+                jobIdsAndGroups -> {
                     // Check for duplicate job Ids
-                    jobIds.forEach(id -> {
+                    jobIdsAndGroups.getJobs().forEach(id -> {
                         if (clusterStateJobIds.contains(id)) {
                             jobsListener.onFailure(new IllegalStateException("Job [" + id + "] configuration " +
                                     "exists in both clusterstate and index"));
@@ -265,12 +284,14 @@ public class JobManager extends AbstractComponent {
                         }
                     });
 
-                    requiredMatches.filterMatchedIds(jobIds);
+                    requiredMatches.filterMatchedIds(jobIdsAndGroups.getJobs());
+                    requiredMatches.filterMatchedIds(jobIdsAndGroups.getGroups());
                     if (requiredMatches.hasUnmatchedIds()) {
                         jobsListener.onFailure(ExceptionsHelper.missingJobException(requiredMatches.unmatchedIdsString()));
                     } else {
-                        jobIds.addAll(clusterStateJobIds);
-                        jobsListener.onResponse(new TreeSet<>(jobIds));
+                        SortedSet<String> allJobIds = new TreeSet<>(clusterStateJobIds);
+                        allJobIds.addAll(jobIdsAndGroups.getJobs());
+                        jobsListener.onResponse(allJobIds);
                     }
                 },
                 jobsListener::onFailure

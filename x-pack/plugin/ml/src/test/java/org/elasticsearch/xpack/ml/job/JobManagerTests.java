@@ -259,13 +259,14 @@ public class JobManagerTests extends ESTestCase {
     }
 
     public void testExpandJobs_GivenJobInClusterStateNotIndex() {
-        Job csJobFoo1 = buildJobBuilder("foo-cs-1").build();
-        Job csJobFoo2 = buildJobBuilder("foo-cs-2").build();
+        Job.Builder csJobFoo1 = buildJobBuilder("foo-cs-1");
+        csJobFoo1.setGroups(Collections.singletonList("foo-group"));
+        Job.Builder csJobFoo2 = buildJobBuilder("foo-cs-2");
+        csJobFoo2.setGroups(Collections.singletonList("foo-group"));
 
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        mlMetadata.putJob(csJobFoo1, false);
-        mlMetadata.putJob(csJobFoo2, false);
-
+        mlMetadata.putJob(csJobFoo1.build(), false);
+        mlMetadata.putJob(csJobFoo2.build(), false);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder()
@@ -273,9 +274,7 @@ public class JobManagerTests extends ESTestCase {
                 .build();
         when(clusterService.state()).thenReturn(clusterState);
 
-
         List<BytesReference> docsAsBytes = new ArrayList<>();
-
         MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
         mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
@@ -291,16 +290,28 @@ public class JobManagerTests extends ESTestCase {
         assertThat(jobsHolder.get().results(), hasSize(2));
         List<String> jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
         assertThat(jobIds, contains("foo-cs-1", "foo-cs-2"));
+
+        jobManager.expandJobs("foo-group", true, ActionListener.wrap(
+                jobs -> jobsHolder.set(jobs),
+                e -> fail(e.getMessage())
+        ));
+
+        assertNotNull(jobsHolder.get());
+        assertThat(jobsHolder.get().results(), hasSize(2));
+        jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
+        assertThat(jobIds, contains("foo-cs-1", "foo-cs-2"));
     }
 
     public void testExpandJobIdsFromClusterStateAndIndex_GivenAll() {
-        Job csJobFoo1 = buildJobBuilder("foo-cs-1").build();
-        Job csJobFoo2 = buildJobBuilder("foo-cs-2").build();
+        Job.Builder csJobFoo1 = buildJobBuilder("foo-cs-1");
+        csJobFoo1.setGroups(Collections.singletonList("foo-group"));
+        Job.Builder csJobFoo2 = buildJobBuilder("foo-cs-2");
+        csJobFoo2.setGroups(Collections.singletonList("foo-group"));
         Job csJobBar = buildJobBuilder("bar-cs").build();
 
         MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        mlMetadata.putJob(csJobFoo1, false);
-        mlMetadata.putJob(csJobFoo2, false);
+        mlMetadata.putJob(csJobFoo1.build(), false);
+        mlMetadata.putJob(csJobFoo2.build(), false);
         mlMetadata.putJob(csJobBar, false);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
@@ -313,7 +324,7 @@ public class JobManagerTests extends ESTestCase {
         fieldMap.put(Job.ID.getPreferredName(),
                 new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("index-job")));
         fieldMap.put(Job.GROUPS.getPreferredName(),
-                new DocumentField(Job.ID.getPreferredName(), Collections.emptyList()));
+                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("index-group")));
 
         List<Map<String, DocumentField>> fieldHits = new ArrayList<>();
         fieldHits.add(fieldMap);
@@ -329,8 +340,15 @@ public class JobManagerTests extends ESTestCase {
         ));
 
         assertNotNull(jobIdsHolder.get());
-        assertThat(jobIdsHolder.get(), hasSize(4));
         assertThat(jobIdsHolder.get(), contains("bar-cs", "foo-cs-1", "foo-cs-2", "index-job"));
+
+        jobManager.expandJobIds("index-group", true, ActionListener.wrap(
+                jobs -> jobIdsHolder.set(jobs),
+                e -> fail(e.getMessage())
+        ));
+
+        assertNotNull(jobIdsHolder.get());
+        assertThat(jobIdsHolder.get(), contains("index-job"));
     }
 
     public void testExpandJobIds_GivenJobInClusterStateNotIndex() {

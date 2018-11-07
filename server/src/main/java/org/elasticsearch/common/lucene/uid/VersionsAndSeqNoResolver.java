@@ -163,12 +163,12 @@ public final class VersionsAndSeqNoResolver {
             if (result == null) {
                 continue;
             }
-            if (latest == null || latest.seqNo <= result.seqNo) {
-                latest = result;
-            }
-            if (latest.isLive) {
+            if (result.isLive) {
                 // The live document must always be the latest copy, thus we can early terminate here.
-                break;
+                return result;
+            }
+            if (latest == null || latest.seqNo < result.seqNo) {
+                latest = result;
             }
         }
         return latest;

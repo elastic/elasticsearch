@@ -155,15 +155,15 @@ final class PerThreadIDVersionAndSeqNoLookup {
                     } else {
                         seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
                     }
-                    if (result == null || result.seqNo <= seqNo) {
-                        final boolean isLive = (liveDocs == null || liveDocs.get(docID));
-                        result = new DocIdAndSeqNo(docID, seqNo, context, isLive);
-                    }
-                    if (result.isLive) {
+                    final boolean isLive = (liveDocs == null || liveDocs.get(docID));
+                    if (isLive) {
                         // The live document must always be the latest copy, thus we can early terminate here.
                         // If a nested docs is live, we return the first doc which doesn't have term (only the last doc has term).
                         // This should not be an issue since we no longer use primary term as tier breaker when comparing operations.
-                        break;
+                        return new DocIdAndSeqNo(docID, seqNo, context, isLive);
+                    }
+                    if (result == null || result.seqNo < seqNo) {
+                        result = new DocIdAndSeqNo(docID, seqNo, context, isLive);
                     }
                 }
             }

@@ -10,7 +10,7 @@ Unassigns a policy from a specified index pattern
 
 ==== Request
 
-`DELETE <index>/_ilm`
+`POST <index>/_ilm/remove`
 
 ==== Description
 
@@ -80,7 +80,7 @@ PUT my_index
 
 [source,js]
 --------------------------------------------------
-DELETE my_index/_ilm
+POST my_index/_ilm/remove
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]

@@ -9,7 +9,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -22,7 +21,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
-public final class ResizeRequestInterceptor extends AbstractComponent implements RequestInterceptor<ResizeRequest> {
+public final class ResizeRequestInterceptor implements RequestInterceptor<ResizeRequest> {
 
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;

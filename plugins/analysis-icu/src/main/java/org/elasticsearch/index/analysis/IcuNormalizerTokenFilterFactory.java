@@ -38,8 +38,10 @@ import org.elasticsearch.index.IndexSettings;
  * <p>The {@code unicodeSetFilter} attribute can be used to provide the UniCodeSet for filtering.</p>
  */
 public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
+
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(IcuNormalizerTokenFilterFactory.class));
+
     private final Normalizer2 normalizer;
 
     public IcuNormalizerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {

@@ -87,7 +87,7 @@ public class ShrinkAction implements LifecycleAction {
 
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
         StepKey setSingleNodeKey = new StepKey(phase, NAME, SetSingleNodeAllocateStep.NAME);
-        StepKey allocationRoutedKey = new StepKey(phase, NAME, AllocationRoutedStep.NAME);
+        StepKey allocationRoutedKey = new StepKey(phase, NAME, CheckShrinkReadyStep.NAME);
         StepKey shrinkKey = new StepKey(phase, NAME, ShrinkStep.NAME);
         StepKey enoughShardsKey = new StepKey(phase, NAME, ShrunkShardsAllocatedStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
@@ -96,13 +96,13 @@ public class ShrinkAction implements LifecycleAction {
 
         UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, setSingleNodeKey, client, readOnlySettings);
         SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client);
-        AllocationRoutedStep allocationStep = new AllocationRoutedStep(allocationRoutedKey, shrinkKey, false);
+        CheckShrinkReadyStep checkShrinkReadyStep = new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey);
         ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, SHRUNKEN_INDEX_PREFIX);
         ShrunkShardsAllocatedStep allocated = new ShrunkShardsAllocatedStep(enoughShardsKey, copyMetadataKey, SHRUNKEN_INDEX_PREFIX);
         CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(copyMetadataKey, aliasKey, SHRUNKEN_INDEX_PREFIX);
         ShrinkSetAliasStep aliasSwapAndDelete = new ShrinkSetAliasStep(aliasKey, isShrunkIndexKey, client, SHRUNKEN_INDEX_PREFIX);
         ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, nextStepKey, SHRUNKEN_INDEX_PREFIX);
-        return Arrays.asList(readOnlyStep, setSingleNodeStep, allocationStep, shrink, allocated, copyMetadata,
+        return Arrays.asList(readOnlyStep, setSingleNodeStep, checkShrinkReadyStep, shrink, allocated, copyMetadata,
             aliasSwapAndDelete, waitOnShrinkTakeover);
     }
 
@@ -110,13 +110,13 @@ public class ShrinkAction implements LifecycleAction {
     public List<StepKey> toStepKeys(String phase) {
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
         StepKey setSingleNodeKey = new StepKey(phase, NAME, SetSingleNodeAllocateStep.NAME);
-        StepKey allocationRoutedKey = new StepKey(phase, NAME, AllocationRoutedStep.NAME);
+        StepKey checkShrinkReadyKey = new StepKey(phase, NAME, CheckShrinkReadyStep.NAME);
         StepKey shrinkKey = new StepKey(phase, NAME, ShrinkStep.NAME);
         StepKey enoughShardsKey = new StepKey(phase, NAME, ShrunkShardsAllocatedStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey aliasKey = new StepKey(phase, NAME, ShrinkSetAliasStep.NAME);
         StepKey isShrunkIndexKey = new StepKey(phase, NAME, ShrunkenIndexCheckStep.NAME);
-        return Arrays.asList(readOnlyKey, setSingleNodeKey, allocationRoutedKey, shrinkKey, enoughShardsKey,
+        return Arrays.asList(readOnlyKey, setSingleNodeKey, checkShrinkReadyKey, shrinkKey, enoughShardsKey,
             copyMetadataKey, aliasKey, isShrunkIndexKey);
     }
 

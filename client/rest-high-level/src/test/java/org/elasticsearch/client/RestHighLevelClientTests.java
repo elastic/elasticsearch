@@ -662,7 +662,6 @@ public class RestHighLevelClientTests extends ESTestCase {
         //this list should be empty once the high-level client is feature complete
         String[] notYetSupportedApi = new String[]{
             "cluster.remote_info",
-            "count",
             "create",
             "get_source",
             "indices.delete_alias",

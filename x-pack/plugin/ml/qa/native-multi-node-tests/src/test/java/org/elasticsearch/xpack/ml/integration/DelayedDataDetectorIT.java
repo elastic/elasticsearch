@@ -131,7 +131,9 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         AvgAggregationBuilder avgAggregationBuilder = AggregationBuilders.avg("value").field("value");
-        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
+        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(job.getId() + "-datafeed",
+            job.getId(),
+            Collections.singletonList(index));
         datafeedConfigBuilder.setAggregations(new AggregatorFactories.Builder().addAggregator(
                 AggregationBuilders.histogram("time")
                     .subAggregation(maxTime)

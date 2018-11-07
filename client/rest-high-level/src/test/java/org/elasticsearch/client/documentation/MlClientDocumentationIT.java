@@ -576,6 +576,17 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             datafeedBuilder.setQueryDelay(TimeValue.timeValueMinutes(1)); // <1>
             // end::put-datafeed-config-set-query-delay
 
+            // tag::put-datafeed-config-set-should-run-delayed-data-check
+            datafeedBuilder.setShouldRunDelayedDataCheck(true); // <1>
+            // end::put-datafeed-config-set-should-run-delayed-data-check
+
+            // no need to accidentally trip internal validations due to job bucket size
+            datafeedBuilder.setShouldRunDelayedDataCheck(false);
+
+            // tag::put-datafeed-config-set-delayed-data-check-window
+            datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueMinutes(90)); // <1>
+            // end::put-datafeed-config-set-delayed-data-check-window
+
             List<SearchSourceBuilder.ScriptField> scriptFields = Collections.emptyList();
             // tag::put-datafeed-config-set-script-fields
             datafeedBuilder.setScriptFields(scriptFields); // <1>

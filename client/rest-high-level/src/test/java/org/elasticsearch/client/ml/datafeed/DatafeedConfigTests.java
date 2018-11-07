@@ -103,6 +103,13 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
+        if (randomBoolean()) {
+            boolean shouldRunDelayedDataCheck = randomBoolean();
+            builder.setShouldRunDelayedDataCheck(shouldRunDelayedDataCheck);
+            if (shouldRunDelayedDataCheck) {
+                builder.setDelayedDataCheckWindow(new TimeValue(randomLongBetween(bucketSpanMillis,bucketSpanMillis*10)));
+            }
+        }
         return builder;
     }
 

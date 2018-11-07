@@ -127,14 +127,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             // (For config, headers are explicitly transferred from the auth headers by code in the put/update datafeed actions.)
             parser.declareObject(Builder::setHeaders, (p, c) -> p.mapStrings(), HEADERS);
         }
-        parser.declareStringOrNull((builder, val) -> {
-                if (val == null) {
-                    builder.setDelayedDataCheckWindow(null);
-                } else {
-                    builder.setDelayedDataCheckWindow(TimeValue.parseTimeValue(val, DELAYED_DATA_CHECK_WINDOW.getPreferredName()));
-                }
-            },
-            DELAYED_DATA_CHECK_WINDOW);
+        parser.declareString((builder, val) -> builder.setDelayedDataCheckWindow(
+            TimeValue.parseTimeValue(val, DELAYED_DATA_CHECK_WINDOW.getPreferredName())), DELAYED_DATA_CHECK_WINDOW);
         parser.declareBoolean(Builder::setShouldRunDelayedDataCheck, SHOULD_RUN_DELAYED_DATA_CHECK);
 
         return parser;
@@ -575,17 +569,15 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.scrollSize = scrollSize;
         }
 
-        public Builder setDelayedDataCheckWindow(TimeValue delayedDataCheckWindow) {
+        public void setDelayedDataCheckWindow(TimeValue delayedDataCheckWindow) {
             if (delayedDataCheckWindow != null) {
                 TimeUtils.checkPositive(delayedDataCheckWindow, DELAYED_DATA_CHECK_WINDOW);
             }
             this.delayedDataCheckWindow = delayedDataCheckWindow;
-            return this;
         }
 
-        public Builder setShouldRunDelayedDataCheck(boolean shouldRunDelayedDataCheck) {
+        public void setShouldRunDelayedDataCheck(boolean shouldRunDelayedDataCheck) {
             this.shouldRunDelayedDataCheck = shouldRunDelayedDataCheck;
-            return this;
         }
 
         public void setChunkingConfig(ChunkingConfig chunkingConfig) {

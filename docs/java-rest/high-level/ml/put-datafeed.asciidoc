@@ -65,6 +65,21 @@ include-tagged::{doc-tests-file}[{api}-config-set-query-delay]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-should-run-delayed-data-check]
+--------------------------------------------------
+<1> Should we look for data that is ingested too late when running the datafeed
+in real time.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config-set-delayed-data-check-window]
+--------------------------------------------------
+<1> How far in the past from the latest finalized bucket to check for delayed data being indexed.
+The window must be larger than the Job's bucket size, but smaller than 10000x the bucket
+size.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-config-set-script-fields]
 --------------------------------------------------
 <1> Allows the use of script fields.

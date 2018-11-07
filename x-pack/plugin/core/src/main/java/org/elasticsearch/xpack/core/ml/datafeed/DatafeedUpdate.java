@@ -69,13 +69,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         }, DatafeedConfig.SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, DatafeedConfig.SCROLL_SIZE);
         PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.STRICT_PARSER, DatafeedConfig.CHUNKING_CONFIG);
-        PARSER.declareStringOrNull((builder, val) -> {
-                if (val == null) {
-                    builder.setDelayedDataCheckWindow(null);
-                } else {
-                    builder.setDelayedDataCheckWindow(TimeValue.parseTimeValue(val, DatafeedConfig.DELAYED_DATA_CHECK_WINDOW.getPreferredName()));
-                }
-            },
+        PARSER.declareString((builder, val) -> builder.setDelayedDataCheckWindow(
+            TimeValue.parseTimeValue(val, DatafeedConfig.DELAYED_DATA_CHECK_WINDOW.getPreferredName())),
             DatafeedConfig.DELAYED_DATA_CHECK_WINDOW);
         PARSER.declareBoolean(Builder::setShouldRunDelayedDataCheck, DatafeedConfig.SHOULD_RUN_DELAYED_DATA_CHECK);
     }
@@ -335,7 +330,6 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             builder.setShouldRunDelayedDataCheck(shouldRunDelayedDataCheck);
         }
 
-
         if (headers.isEmpty() == false) {
             // Adjust the request, adding security headers from the current thread context
             Map<String, String> securityHeaders = headers.entrySet().stream()
@@ -439,6 +433,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
             this.scriptFields = config.scriptFields;
             this.scrollSize = config.scrollSize;
             this.chunkingConfig = config.chunkingConfig;
+            this.delayedDataCheckWindow = config.delayedDataCheckWindow;
+            this.shouldRunDelayedDataCheck = config.shouldRunDelayedDataCheck;
         }
 
         public void setId(String datafeedId) {

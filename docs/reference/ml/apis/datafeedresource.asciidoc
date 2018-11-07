@@ -64,6 +64,17 @@ A {dfeed} resource has the following properties:
   example: `[]`. This property is provided for backwards compatibility with
   releases earlier than 6.0.0. For more information, see <<removal-of-types>>.  
 
+`delayed_data_check_window`::
+  (time units) The time window to query that ends at the latest finalized bucket
+  when determining if any data was indexed too late for the {dfeed} to see it. For
+  example, supply `3h` to check for latent data in the {dfeed} `indices` over the
+  last `3h` since the latest finalized bucket. Only valid in real-time analysis
+  and when `should_run_delayed_data_check` is `true`.
+
+`should_run_delayed_data_check`::
+  (boolean) When running a real-time {dfeed}, should the `indices` be checked
+  for latent data. `delayed_data_check_window` must be set when this is `true`
+
 [[ml-datafeed-chunking-config]]
 ==== Chunking Configuration Objects
 

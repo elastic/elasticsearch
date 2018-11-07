@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -72,7 +73,13 @@ import static org.mockito.Mockito.when;
 
 public class TransportOpenJobActionTests extends ESTestCase {
 
-    private MlMemoryTracker memoryTracker = mock(MlMemoryTracker.class);
+    private MlMemoryTracker memoryTracker;
+
+    @Before
+    public void setup() {
+        memoryTracker = mock(MlMemoryTracker.class);
+        when(memoryTracker.isRecentlyRefreshed()).thenReturn(true);
+    }
 
     public void testValidate_jobMissing() {
         expectThrows(ResourceNotFoundException.class, () -> TransportOpenJobAction.validate("job_id2", null));

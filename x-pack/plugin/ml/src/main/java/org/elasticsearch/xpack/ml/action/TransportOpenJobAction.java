@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.action.RefreshJobMemoryRequirementAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -97,20 +96,23 @@ import static org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProces
 */
 public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAction.Request, AcknowledgedResponse> {
 
+    private static final PersistentTasksCustomMetaData.Assignment AWAITING_LAZY_ASSIGNMENT =
+        new PersistentTasksCustomMetaData.Assignment(null, "persistent task is awaiting node assignment.");
+
     private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
     private final JobConfigProvider jobConfigProvider;
-    private static final PersistentTasksCustomMetaData.Assignment AWAITING_LAZY_ASSIGNMENT =
-        new PersistentTasksCustomMetaData.Assignment(null, "persistent task is awaiting node assignment.");
+    private final MlMemoryTracker memoryTracker;
 
     @Inject
     public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                   XPackLicenseState licenseState, ClusterService clusterService,
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                                  JobResultsProvider jobResultsProvider, JobConfigProvider jobConfigProvider) {
+                                  JobResultsProvider jobResultsProvider, JobConfigProvider jobConfigProvider,
+                                  MlMemoryTracker memoryTracker) {
         super(settings, OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, OpenJobAction.Request::new);
         this.licenseState = licenseState;
@@ -118,6 +120,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         this.client = client;
         this.jobResultsProvider = jobResultsProvider;
         this.jobConfigProvider = jobConfigProvider;
+        this.memoryTracker = memoryTracker;
     }
 
     /**
@@ -157,14 +160,38 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             return new PersistentTasksCustomMetaData.Assignment(null, reason);
         }
 
+        // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
+        // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs
+        boolean allocateByMemory = true;
+
+        if (memoryTracker.isRecentlyRefreshed() == false) {
+
+            boolean scheduledRefresh = memoryTracker.asyncRefresh(ActionListener.wrap(
+                aVoid -> {
+                    // TODO: find a way to get the persistent task framework to do another reassignment check BLOCKER!
+                    // Persistent task allocation reacts to custom metadata changes, so one way would be to retain the
+                    // MlMetadata as a single number that we increment when we want to kick persistent tasks.
+                    // A less sneaky way would be to introduce an internal action specifically for the purpose of
+                    // asking persistent tasks to re-check whether unallocated tasks can be allocated.
+                },
+                e -> logger.error("Failed to refresh job memory requirements", e)
+            ));
+            if (scheduledRefresh) {
+                String reason = "Not opening job [" + jobId + "] because job memory requirements are stale - refresh requested";
+                logger.debug(reason);
+                return new PersistentTasksCustomMetaData.Assignment(null, reason);
+            } else {
+                allocateByMemory = false;
+                logger.warn("Falling back to allocating job [{}] by job counts because a memory requirement refresh could not be scheduled",
+                    jobId);
+            }
+        }
+
         List<String> reasons = new LinkedList<>();
         long maxAvailableCount = Long.MIN_VALUE;
         long maxAvailableMemory = Long.MIN_VALUE;
         DiscoveryNode minLoadedNodeByCount = null;
         DiscoveryNode minLoadedNodeByMemory = null;
-        // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
-        // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs
-        boolean allocateByMemory = true;
         PersistentTasksCustomMetaData persistentTasks = clusterState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
         for (DiscoveryNode node : clusterState.getNodes()) {
             Map<String, String> nodeAttributes = node.getAttributes();
@@ -518,19 +545,17 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             };
 
             // Start job task
-            ActionListener<AcknowledgedResponse> memoryRequirementRefreshListener = ActionListener.wrap(
-                    response -> persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()), MlTasks.JOB_TASK_NAME,
-                        jobParams, waitForJobToStart),
-                    listener::onFailure
+            ActionListener<Long> memoryRequirementRefreshListener = ActionListener.wrap(
+                mem -> persistentTasksService.sendStartRequest(MlTasks.jobTaskId(jobParams.getJobId()), MlTasks.JOB_TASK_NAME, jobParams,
+                    waitForJobToStart),
+                listener::onFailure
             );
 
-            // Tell the job tracker to refresh the job memory requirement if the cluster supports this (TODO: simplify in 7.0)
-            ActionListener<PutJobAction.Response> jobUpdateListener = clusterSupportsMlMemoryTracker ? ActionListener.wrap(
-                response -> executeAsyncWithOrigin(client, ML_ORIGIN, RefreshJobMemoryRequirementAction.INSTANCE,
-                    new RefreshJobMemoryRequirementAction.Request(jobParams.getJobId()), memoryRequirementRefreshListener),
+            // Tell the job tracker to refresh the memory requirement for this job and all other jobs that have persistent tasks
+            ActionListener<PutJobAction.Response> jobUpdateListener = ActionListener.wrap(
+                response -> memoryTracker.refreshJobMemoryAndAllOthers(jobParams.getJobId(), memoryRequirementRefreshListener),
                 listener::onFailure
-            ) : ActionListener.wrap(response -> memoryRequirementRefreshListener.onResponse(new AcknowledgedResponse(true)),
-                listener::onFailure);
+            );
 
             // Update established model memory for pre-6.1 jobs that haven't had it set (TODO: remove in 7.0)
             // and increase the model memory limit for 6.1 - 6.3 jobs

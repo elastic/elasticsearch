@@ -95,7 +95,6 @@ import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.action.RefreshJobMemoryRequirementAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
@@ -150,7 +149,6 @@ import org.elasticsearch.xpack.ml.action.TransportPutCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportPutDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportPutFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportPutJobAction;
-import org.elasticsearch.xpack.ml.action.TransportRefreshJobMemoryRequirementAction;
 import org.elasticsearch.xpack.ml.action.TransportRevertModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
 import org.elasticsearch.xpack.ml.action.TransportStopDatafeedAction;
@@ -303,7 +301,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                         MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
                         MAX_LAZY_ML_NODES,
                         MAX_MACHINE_MEMORY_PERCENT,
-                        MlMemoryTracker.ML_MEMORY_UPDATE_FREQUENCY,
                         AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
                         AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING,
                         AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
@@ -552,7 +549,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 new ActionHandler<>(UpdateFilterAction.INSTANCE, TransportUpdateFilterAction.class),
                 new ActionHandler<>(DeleteFilterAction.INSTANCE, TransportDeleteFilterAction.class),
                 new ActionHandler<>(KillProcessAction.INSTANCE, TransportKillProcessAction.class),
-                new ActionHandler<>(RefreshJobMemoryRequirementAction.INSTANCE, TransportRefreshJobMemoryRequirementAction.class),
                 new ActionHandler<>(GetBucketsAction.INSTANCE, TransportGetBucketsAction.class),
                 new ActionHandler<>(GetInfluencersAction.INSTANCE, TransportGetInfluencersAction.class),
                 new ActionHandler<>(GetOverallBucketsAction.INSTANCE, TransportGetOverallBucketsAction.class),

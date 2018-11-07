@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -21,12 +20,9 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -52,9 +48,6 @@ public class MlMemoryTrackerTests extends ESTestCase {
     public void setup() {
 
         clusterService = mock(ClusterService.class);
-        ClusterSettings clusterSettings =
-            new ClusterSettings(Settings.EMPTY, Collections.singleton(MlMemoryTracker.ML_MEMORY_UPDATE_FREQUENCY));
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
         when(threadPool.executor(anyString())).thenReturn(executorService);
@@ -81,7 +74,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
         }
         PersistentTasksCustomMetaData persistentTasks = new PersistentTasksCustomMetaData(numMlJobTasks, tasks);
 
-        memoryTracker.refresh(persistentTasks);
+        memoryTracker.refresh(persistentTasks, ActionListener.wrap(aVoid -> {}, ESTestCase::assertNull));
 
         if (isMaster) {
             for (int i = 1; i <= numMlJobTasks; ++i) {
@@ -94,7 +87,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testRefreshOne() throws InterruptedException {
+    public void testRefreshOne() {
 
         boolean isMaster = randomBoolean();
         if (isMaster) {
@@ -121,12 +114,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
         }).when(jobManager).getJob(eq(jobId), any());
 
         AtomicReference<Long> refreshedMemoryRequirement = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        memoryTracker.refreshJobMemory(jobId, mem -> {
-            refreshedMemoryRequirement.set(mem);
-            latch.countDown();
-        });
-        assertTrue(latch.await(1, TimeUnit.SECONDS));
+        memoryTracker.refreshJobMemory(jobId, ActionListener.wrap(refreshedMemoryRequirement::set, ESTestCase::assertNull));
 
         if (isMaster) {
             if (haveEstablishedModelMemory) {

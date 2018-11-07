@@ -10,10 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,9 +23,10 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -41,17 +40,16 @@ import java.util.stream.Collectors;
  */
 public class MlMemoryTracker extends AbstractComponent implements LocalNodeMasterListener {
 
-    public static final Setting<TimeValue> ML_MEMORY_UPDATE_FREQUENCY =
-        Setting.timeSetting("xpack.ml.memory_update_frequency", TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(10),
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    private static final Long RECENT_UPDATE_THRESHOLD_NS = 30_000_000_000L; // 30 seconds
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
     private final ConcurrentHashMap<String, Long> memoryRequirementByJob;
+    private final List<ActionListener<Void>> fullRefreshCompletionListeners;
     private volatile boolean isMaster;
-    private volatile TimeValue updateFrequency;
+    private volatile Long lastUpdateNanotime;
 
     public MlMemoryTracker(Settings settings, ClusterService clusterService, ThreadPool threadPool, JobManager jobManager,
                            JobResultsProvider jobResultsProvider) {
@@ -60,31 +58,22 @@ public class MlMemoryTracker extends AbstractComponent implements LocalNodeMaste
         this.clusterService = clusterService;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
-        this.updateFrequency = ML_MEMORY_UPDATE_FREQUENCY.get(settings);
         memoryRequirementByJob = new ConcurrentHashMap<>();
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(ML_MEMORY_UPDATE_FREQUENCY,
-            this::setUpdateFrequency);
+        fullRefreshCompletionListeners = new ArrayList<>();
         clusterService.addLocalNodeMasterListener(this);
     }
 
     @Override
     public void onMaster() {
         isMaster = true;
-        logger.trace("Elected master - scheduling ML memory update");
-        try {
-            // Submit a job that will start after updateFrequency, and reschedule itself after running
-            threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingMlMemoryUpdate());
-            threadPool.executor(executorName()).execute(
-                () -> refresh(clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE)));
-        } catch (EsRejectedExecutionException e) {
-            logger.debug("Couldn't schedule ML memory update - node might be shutting down", e);
-        }
+        logger.trace("ML memory tracker on master");
     }
 
     @Override
     public void offMaster() {
         isMaster = false;
         memoryRequirementByJob.clear();
+        lastUpdateNanotime = null;
     }
 
     @Override
@@ -92,6 +81,22 @@ public class MlMemoryTracker extends AbstractComponent implements LocalNodeMaste
         return MachineLearning.UTILITY_THREAD_POOL_NAME;
     }
 
+    /**
+     * Is the information in this object sufficiently up to date
+     * for valid allocation decisions to be made using it?
+     */
+    public boolean isRecentlyRefreshed() {
+        Long localLastUpdateNanotime = lastUpdateNanotime;
+        return localLastUpdateNanotime != null && System.nanoTime() - localLastUpdateNanotime < RECENT_UPDATE_THRESHOLD_NS;
+    }
+
+    /**
+     * Get the memory requirement for a job.
+     * This method only works on the master node.
+     * @param jobId The job ID.
+     * @return The memory requirement of the job specified by {@code jobId},
+     *         or <code>null</code> if it cannot be calculated.
+     */
     public Long getJobMemoryRequirement(String jobId) {
         if (isMaster == false) {
             return null;
@@ -115,64 +120,138 @@ public class MlMemoryTracker extends AbstractComponent implements LocalNodeMaste
         memoryRequirementByJob.remove(jobId);
     }
 
-    void setUpdateFrequency(TimeValue updateFrequency) {
-        this.updateFrequency = updateFrequency;
+    /**
+     * Uses a separate thread to refresh the memory requirement for every ML job that has
+     * a corresponding persistent task.  This method only works on the master node.
+     * @param listener Will be called when the async refresh completes or fails.
+     * @return <code>true</code> if the async refresh is scheduled, and <code>false</code>
+     *         if this is not possible for some reason.
+     */
+    public boolean asyncRefresh(ActionListener<Void> listener) {
+
+        if (isMaster) {
+            try {
+                threadPool.executor(executorName()).execute(
+                    () -> refresh(clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE), listener));
+                return true;
+            } catch (EsRejectedExecutionException e) {
+                logger.debug("Couldn't schedule ML memory update - node might be shutting down", e);
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * This refreshes the memory requirement for every ML job that has a corresponding
+     * persistent task and, in addition, one job that doesn't have a persistent task.
+     * This method only works on the master node.
+     * @param jobId The job ID of the job whose memory requirement is to be refreshed
+     *              despite not having a corresponding persistent task.
+     * @param listener Receives the memory requirement of the job specified by {@code jobId},
+     *                 or <code>null</code> if it cannot be calculated.
+     */
+    public void refreshJobMemoryAndAllOthers(String jobId, ActionListener<Long> listener) {
+
+        if (isMaster == false) {
+            listener.onResponse(null);
+            return;
+        }
+
+        PersistentTasksCustomMetaData persistentTasks = clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        refresh(persistentTasks, ActionListener.wrap(aVoid -> refreshJobMemory(jobId, listener), listener::onFailure));
     }
 
     /**
      * This refreshes the memory requirement for every ML job that has a corresponding persistent task.
      */
-    void refresh(PersistentTasksCustomMetaData persistentTasks) {
+    void refresh(PersistentTasksCustomMetaData persistentTasks, ActionListener<Void> onCompletion) {
 
-        // persistentTasks will be null if there's never been a persistent task created in this cluster
-        if (isMaster == false || persistentTasks == null) {
-            return;
+        synchronized (fullRefreshCompletionListeners) {
+            fullRefreshCompletionListeners.add(onCompletion);
+            if (fullRefreshCompletionListeners.size() > 1) {
+                // A refresh is already in progress, so don't do another
+                return;
+            }
         }
 
-        List<PersistentTasksCustomMetaData.PersistentTask<?>> mlJobTasks = persistentTasks.tasks().stream()
-            .filter(task -> MlTasks.JOB_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
-        for (PersistentTasksCustomMetaData.PersistentTask<?> mlJobTask : mlJobTasks) {
-            OpenJobAction.JobParams jobParams = (OpenJobAction.JobParams) mlJobTask.getParams();
-            refreshJobMemory(jobParams.getJobId(), mem -> {});
+        ActionListener<Void> refreshComplete = ActionListener.wrap(aVoid -> {
+            lastUpdateNanotime = System.nanoTime();
+            synchronized (fullRefreshCompletionListeners) {
+                assert fullRefreshCompletionListeners.isEmpty() == false;
+                for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
+                    listener.onResponse(null);
+                }
+                fullRefreshCompletionListeners.clear();
+            }
+        }, onCompletion::onFailure);
+
+        // persistentTasks will be null if there's never been a persistent task created in this cluster
+        if (persistentTasks == null) {
+            refreshComplete.onResponse(null);
+        } else {
+            List<PersistentTasksCustomMetaData.PersistentTask<?>> mlJobTasks = persistentTasks.tasks().stream()
+                .filter(task -> MlTasks.JOB_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
+            iterateMlJobTasks(mlJobTasks.iterator(), refreshComplete);
+        }
+    }
+
+    private void iterateMlJobTasks(Iterator<PersistentTasksCustomMetaData.PersistentTask<?>> iterator,
+                                   ActionListener<Void> refreshComplete) {
+        if (iterator.hasNext()) {
+            OpenJobAction.JobParams jobParams = (OpenJobAction.JobParams) iterator.next().getParams();
+            refreshJobMemory(jobParams.getJobId(),
+                ActionListener.wrap(mem -> iterateMlJobTasks(iterator, refreshComplete), refreshComplete::onFailure));
+        } else {
+            refreshComplete.onResponse(null);
         }
     }
 
     /**
      * Refresh the memory requirement for a single job.
-     * @param jobId The ID of the job to refresh the memory requirement for
-     * @param listener A callback that will receive the memory requirement,
-     *                 or <code>null</code> if it cannot be calculated
+     * This method only works on the master node.
+     * @param jobId    The ID of the job to refresh the memory requirement for.
+     * @param listener Receives the job's memory requirement, or <code>null</code>
+     *                 if it cannot be calculated.
      */
-    public void refreshJobMemory(String jobId, Consumer<Long> listener) {
+    public void refreshJobMemory(String jobId, ActionListener<Long> listener) {
         if (isMaster == false) {
-            listener.accept(null);
+            listener.onResponse(null);
             return;
         }
 
-        jobResultsProvider.getEstablishedMemoryUsage(jobId, null, null, establishedModelMemoryBytes -> {
-            if (establishedModelMemoryBytes <= 0L) {
-                setJobMemoryToLimit(jobId, listener);
-            } else {
-                Long memoryRequirementBytes = establishedModelMemoryBytes + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
-                memoryRequirementByJob.put(jobId, memoryRequirementBytes);
-                listener.accept(memoryRequirementBytes);
-            }
-        }, e -> {
+        try {
+            jobResultsProvider.getEstablishedMemoryUsage(jobId, null, null,
+                establishedModelMemoryBytes -> {
+                    if (establishedModelMemoryBytes <= 0L) {
+                        setJobMemoryToLimit(jobId, listener);
+                    } else {
+                        Long memoryRequirementBytes = establishedModelMemoryBytes + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
+                        memoryRequirementByJob.put(jobId, memoryRequirementBytes);
+                        listener.onResponse(memoryRequirementBytes);
+                    }
+                },
+                e -> {
+                    logger.error("[" + jobId + "] failed to calculate job established model memory requirement", e);
+                    setJobMemoryToLimit(jobId, listener);
+                }
+            );
+        } catch (Exception e) {
             logger.error("[" + jobId + "] failed to calculate job established model memory requirement", e);
             setJobMemoryToLimit(jobId, listener);
-        });
+        }
     }
 
-    private void setJobMemoryToLimit(String jobId, Consumer<Long> listener) {
+    private void setJobMemoryToLimit(String jobId, ActionListener<Long> listener) {
         jobManager.getJob(jobId, ActionListener.wrap(job -> {
             Long memoryLimitMb = job.getAnalysisLimits().getModelMemoryLimit();
             if (memoryLimitMb != null) {
                 Long memoryRequirementBytes = ByteSizeUnit.MB.toBytes(memoryLimitMb) + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
                 memoryRequirementByJob.put(jobId, memoryRequirementBytes);
-                listener.accept(memoryRequirementBytes);
+                listener.onResponse(memoryRequirementBytes);
             } else {
                 memoryRequirementByJob.remove(jobId);
-                listener.accept(null);
+                listener.onResponse(null);
             }
         }, e -> {
             if (e instanceof ResourceNotFoundException) {
@@ -182,38 +261,7 @@ public class MlMemoryTracker extends AbstractComponent implements LocalNodeMaste
                 logger.error("[" + jobId + "] failed to get job during ML memory update", e);
             }
             memoryRequirementByJob.remove(jobId);
-            listener.accept(null);
+            listener.onResponse(null);
         }));
-    }
-
-    /**
-     * Class used to submit {@link #refresh} on the {@link MlMemoryTracker} threadpool, these jobs will
-     * reschedule themselves by placing a new instance of this class onto the scheduled threadpool.
-     */
-    private class SubmitReschedulingMlMemoryUpdate implements Runnable {
-        @Override
-        public void run() {
-            try {
-                threadPool.executor(executorName()).execute(() -> {
-                    try {
-                        refresh(clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
-                    } finally {
-                        // schedule again if still on master
-                        if (isMaster) {
-                            if (logger.isTraceEnabled()) {
-                                logger.trace("Scheduling next run for updating ML memory in: {}", updateFrequency);
-                            }
-                            try {
-                                threadPool.schedule(updateFrequency, executorName(), this);
-                            } catch (EsRejectedExecutionException e) {
-                                logger.debug("Couldn't schedule ML memory update - node might be shutting down", e);
-                            }
-                        }
-                    }
-                });
-            } catch (EsRejectedExecutionException e) {
-                logger.debug("Couldn't execute ML memory update - node might be shutting down", e);
-            }
-        }
     }
 }

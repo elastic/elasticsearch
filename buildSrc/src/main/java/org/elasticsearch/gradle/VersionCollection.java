@@ -100,7 +100,7 @@ public class VersionCollection {
     }
 
     public VersionCollection(List<String> versionLines) {
-        this(versionLines, VersionProperties.getElasticsearch());
+        this(versionLines, Version.fromString(VersionProperties.getElasticsearch()));
     }
 
     protected VersionCollection(List<String> versionLines, Version currentVersionProperty) {
@@ -110,12 +110,10 @@ public class VersionCollection {
             .map(match -> new Version(
                 Integer.parseInt(match.group(1)),
                 Integer.parseInt(match.group(2)),
-                Integer.parseInt(match.group(3)),
-                (match.group(4) == null ? "" : match.group(4)).replace('_', '-'),
-                false
+                Integer.parseInt(match.group(3))
             ))
             .sorted()
-            .filter(version -> version.getSuffix().isEmpty() || version.equals(currentVersionProperty))
+            .distinct()
             .collect(Collectors.groupingBy(Version::getMajor, Collectors.toList()));
 
         if (groupByMajor.isEmpty()) {
@@ -131,22 +129,11 @@ public class VersionCollection {
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
         assertNoOlderThanTwoMajors();
-
-        markUnreleasedAsSnapshot();
-    }
-
-    private void markUnreleasedAsSnapshot() {
-        getUnreleased().forEach(uv ->
-            groupByMajor.get(uv.getMajor()).set(
-                groupByMajor.get(uv.getMajor()).indexOf(uv),
-                new Version(uv.getMajor(), uv.getMinor(), uv.getRevision(),uv.getSuffix(), true)
-            )
-        );
     }
 
     private void assertNoOlderThanTwoMajors() {
         Set<Integer> majors = groupByMajor.keySet();
-        if (majors.size() != 2 && currentVersion.getMinor() != 0 && currentVersion.getMajor() != 0) {
+        if (majors.size() != 2 && currentVersion.getMinor() != 0 && currentVersion.getRevision() != 0) {
             throw new IllegalStateException(
                 "Expected exactly 2 majors in parsed versions but found: " + majors
             );

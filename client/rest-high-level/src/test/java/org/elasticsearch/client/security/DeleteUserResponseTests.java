@@ -24,36 +24,34 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class DeleteUserResponseTests extends ESTestCase {
-
-    public void testBasicParsing() throws IOException {
-        XContentType contentType = randomFrom(XContentType.values());
-        final boolean found = randomBoolean();
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject()
-            .field("found", found).endObject();
-        BytesReference bytes = BytesReference.bytes(builder);
-
-        DeleteUserResponse response = parse(builder.contentType(), bytes);
-        assertEquals(found, response.isFound());
-    }
+public class DeleteUserResponseTests extends AbstractXContentTestCase<DeleteUserResponse> {
 
     public void testParsingWithMissingField() throws IOException {
         XContentType contentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject().endObject();
         BytesReference bytes = BytesReference.bytes(builder);
-
-        expectThrows(IllegalArgumentException.class, () -> parse(builder.contentType(), bytes));
-    }
-
-    private DeleteUserResponse parse(XContentType contentType, BytesReference bytes) throws IOException {
         XContentParser parser = XContentFactory.xContent(contentType)
             .createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
         parser.nextToken();
+        expectThrows(IllegalArgumentException.class, () -> DeleteUserResponse.fromXContent(parser));
+    }
+
+    @Override
+    protected DeleteUserResponse createTestInstance() {
+        return new DeleteUserResponse(randomBoolean());
+    }
+
+    @Override
+    protected DeleteUserResponse doParseInstance(XContentParser parser) throws IOException {
         return DeleteUserResponse.fromXContent(parser);
     }
 
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
 }

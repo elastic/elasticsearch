@@ -21,18 +21,22 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response for a role being deleted from the native realm
  */
-public final class DeleteUserResponse {
+public final class DeleteUserResponse implements ToXContent {
 
     private final boolean found;
+    private static final String PARSE_FIELD = "found";
 
     public DeleteUserResponse(boolean found) {
         this.found = found;
@@ -46,10 +50,37 @@ public final class DeleteUserResponse {
         new ConstructingObjectParser<>("delete_user_response", true, args -> new DeleteUserResponse((boolean) args[0]));
 
     static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("found"));
+        PARSER.declareBoolean(constructorArg(), new ParseField(PARSE_FIELD));
     }
 
     public static DeleteUserResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        {
+            builder.field(PARSE_FIELD, isFound());
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        final DeleteUserResponse that = (DeleteUserResponse) o;
+        return isFound() == that.isFound();
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(found);
     }
 }

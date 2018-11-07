@@ -74,7 +74,7 @@ final class SecurityRequestConverters {
 
     static Request deleteUser(DeleteUserRequest deleteUserRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/security/user")
+            .addPathPartAsIs("_xpack","security", "user")
             .addPathPart(deleteUserRequest.getName())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);

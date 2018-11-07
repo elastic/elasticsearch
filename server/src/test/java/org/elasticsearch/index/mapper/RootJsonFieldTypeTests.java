@@ -45,6 +45,14 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
         return new RootJsonFieldType();
     }
 
+    public void testValueForDisplay() {
+        RootJsonFieldType ft = createDefaultFieldType();
+
+        String fieldValue = "{ \"key\": \"value\" }";
+        BytesRef storedValue = new BytesRef(fieldValue);
+        assertEquals(fieldValue, ft.valueForDisplay(storedValue));
+    }
+
     public void testTermQuery() {
         RootJsonFieldType ft = createDefaultFieldType();
         ft.setName("field");

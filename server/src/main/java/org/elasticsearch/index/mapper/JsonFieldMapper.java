@@ -361,6 +361,15 @@ public final class JsonFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Object valueForDisplay(Object value) {
+            if (value == null) {
+                return null;
+            }
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
+        }
+
+        @Override
         public Query existsQuery(QueryShardContext context) {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
         }

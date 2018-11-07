@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -381,6 +382,28 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertSearchResponse(response);
 
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
+    }
+
+    public void testExistsQuery() throws Exception {
+        // Create a random geometry collection.
+        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
+        logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
+
+        if (randomBoolean()) {
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+                .execute().actionGet();
+        } else {
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
+                .execute().actionGet();
+        }
+
+        XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
+        client().prepareIndex("test", "type", "1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+
+        ExistsQueryBuilder eqb = QueryBuilders.existsQuery("location");
+        SearchResponse result = client().prepareSearch("test").setTypes("type").setQuery(eqb).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
     }
 
     public void testShapeFilterWithDefinedGeoCollection() throws Exception {

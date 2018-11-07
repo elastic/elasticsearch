@@ -656,7 +656,9 @@ public class GeoShapeFieldMapper extends FieldMapper {
     }
 
     private void indexFields(ParseContext context, Field[] fields) {
-        for (Field f : fields) {
+        ArrayList<IndexableField> flist = new ArrayList<>(Arrays.asList(fields));
+        createFieldNamesField(context, flist);
+        for (IndexableField f : flist) {
             context.doc().add(f);
         }
     }

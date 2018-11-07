@@ -106,8 +106,8 @@ public class Manifest implements ToXContentFragment {
      * Code below this comment is for XContent manipulation
      */
 
-    private static final ParseField INDICES_PARSE_FIELD = new ParseField("indices");
     private static final ParseField GENERATION_PARSE_FIELD = new ParseField("generation");
+    private static final ParseField INDICES_PARSE_FIELD = new ParseField("indices");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.ResultCode;
-
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -18,6 +17,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.ActiveDirectorySessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
@@ -314,21 +314,21 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         final boolean ignoreReferralErrors = false;
-        Settings settings = LdapTestCase.buildLdapSettings(
-                new String[]{AD_LDAP_URL},
-                new String[]{userTemplate},
-                groupSearchBase,
-                LdapSearchScope.SUB_TREE,
-                null,
-                ignoreReferralErrors);
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("ad", "ad-as-ldap-test");
+        Settings settings = LdapTestCase.buildLdapSettings(realmId,
+            new String[]{AD_LDAP_URL},
+            new String[]{userTemplate},
+            groupSearchBase,
+            LdapSearchScope.SUB_TREE,
+            null,
+            ignoreReferralErrors);
+        final Settings.Builder builder = Settings.builder().put(settings).put(globalSettings);
         if (useGlobalSSL == false) {
-            settings = Settings.builder()
-                .put(settings)
-                .putList("ssl.certificate_authorities", certificatePaths)
-                .build();
+            builder.putList(RealmSettings.realmSslPrefix(realmId) + "certificate_authorities", certificatePaths);
         }
-        RealmConfig config = new RealmConfig(new RealmConfig.RealmIdentifier("ad", "ad-as-ldap-test"),
-                settings, globalSettings, TestEnvironment.newEnvironment(globalSettings),
+        settings = builder.build();
+        RealmConfig config = new RealmConfig(realmId,
+                settings, TestEnvironment.newEnvironment(globalSettings),
                 new ThreadContext(globalSettings));
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 

@@ -31,6 +31,8 @@ import org.elasticsearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 /**
  * Explain request encapsulating the explain query and document identifier to get an explanation for.
  */
@@ -147,11 +149,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validateNonNullIndex();
-        if (type == null) {
-            validationException = ValidateActions.addValidationError("type is missing", validationException);
+        if (Strings.isEmpty(type)) {
+            validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
-            validationException = ValidateActions.addValidationError("id is missing", validationException);
+        if (Strings.isEmpty(id)) {
+            validationException = addValidationError("id is missing", validationException);
         }
         if (query == null) {
             validationException = ValidateActions.addValidationError("query is missing", validationException);

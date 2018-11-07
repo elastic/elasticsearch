@@ -6,11 +6,13 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.license.LicensingClient;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.xpack.core.action.TransportOpenIndexAndFreezeAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackInfoRequestBuilder;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
@@ -102,5 +104,10 @@ public class XPackClient {
 
     public void info(XPackInfoRequest request, ActionListener<XPackInfoResponse> listener) {
         client.execute(XPackInfoAction.INSTANCE, request, listener);
+    }
+
+    public void openAndFreeze(TransportOpenIndexAndFreezeAction.OpenIndexAndFreezeRequest request, ActionListener<OpenIndexResponse>
+        listener) {
+        client.execute(TransportOpenIndexAndFreezeAction.OpenIndexAndFreezeAction.INSTANCE, request, listener);
     }
 }

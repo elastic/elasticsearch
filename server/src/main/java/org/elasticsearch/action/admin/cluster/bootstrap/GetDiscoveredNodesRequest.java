@@ -104,8 +104,8 @@ public class GetDiscoveredNodesRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(getWaitForNodes());
-        out.writeTimeValue(getTimeout());
+        out.writeInt(waitForNodes);
+        out.writeTimeValue(timeout);
     }
 
     @Override

@@ -76,6 +76,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -3686,8 +3687,6 @@ public class InternalEngineTests extends EngineTestCase {
         int numOps = between(10, 100);
         long seqNo = 0;
         List<Engine.Operation> operations = new ArrayList<>(numOps);
-        Map<String, Long> history = new HashMap<>();
-        Set<String> liveIds = new HashSet<>();
         for (int i = 0; i < numOps; i++) {
             String id = Integer.toString(between(1, 50));
             boolean isIndexing = randomBoolean();
@@ -3697,13 +3696,9 @@ public class InternalEngineTests extends EngineTestCase {
                 if (isIndexing) {
                     operations.add(new Engine.Index(EngineTestCase.newUid(doc), doc, seqNo, primaryTerm.get(),
                         i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), -1, true));
-                    history.put(id, seqNo);
-                    liveIds.add(id);
                 } else {
                     operations.add(new Engine.Delete(doc.type(), doc.id(), EngineTestCase.newUid(doc), seqNo, primaryTerm.get(),
                         i, null, Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis()));
-                    history.put(id, seqNo);
-                    liveIds.remove(id);
                 }
             }
             seqNo++;
@@ -3717,34 +3712,49 @@ public class InternalEngineTests extends EngineTestCase {
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
         final IndexMetaData indexMetaData = IndexMetaData.builder(defaultSettings.getIndexMetaData()).settings(settings).build();
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
+        Map<String, Engine.Operation> latestOps = new HashMap<>(); // id -> latest seq_no
         try (Store store = createStore();
              InternalEngine engine = createEngine(config(indexSettings, store, createTempDir(), newMergePolicy(), null))) {
+            CheckedRunnable<IOException> lookupAndCheck = () -> {
+                try (Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+                    for (String id : latestOps.keySet()) {
+                        String msg = "latestOps=" + latestOps + " op=" + id;
+                        DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), newUid(id));
+                        assertThat(msg, docIdAndSeqNo.seqNo, equalTo(latestOps.get(id).seqNo()));
+                        assertThat(msg, docIdAndSeqNo.isLive, equalTo(latestOps.get(id).operationType() == Engine.Operation.TYPE.INDEX));
+                    }
+                    assertThat(VersionsAndSeqNoResolver.loadDocIdAndVersion(
+                        searcher.reader(), newUid("any-" + between(1, 10))), nullValue());
+                    Map<String, Long> liveOps = latestOps.entrySet().stream()
+                        .filter(e -> e.getValue().operationType() == Engine.Operation.TYPE.INDEX)
+                        .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().seqNo()));
+                    assertThat(getDocIds(engine, true).stream().collect(Collectors.toMap(e -> e.getId(), e -> e.getSeqNo())),
+                        equalTo(liveOps));
+                }
+            };
             for (Engine.Operation op : operations) {
                 if (op instanceof Engine.Index) {
                     engine.index((Engine.Index) op);
+                    if (latestOps.containsKey(op.id()) == false || latestOps.get(op.id()).seqNo() < op.seqNo()) {
+                        latestOps.put(op.id(), op);
+                    }
                 } else if (op instanceof Engine.Delete) {
                     engine.delete((Engine.Delete) op);
-                } else {
-                    engine.noOp((Engine.NoOp) op);
+                    if (latestOps.containsKey(op.id()) == false || latestOps.get(op.id()).seqNo() < op.seqNo()) {
+                        latestOps.put(op.id(), op);
+                    }
                 }
                 if (randomInt(100) < 10) {
                     engine.refresh("test");
+                    lookupAndCheck.run();
                 }
                 if (rarely()) {
                     engine.flush();
+                    lookupAndCheck.run();
                 }
             }
             engine.refresh("test");
-            try (Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
-                for (String id : history.keySet()) {
-                    String msg = "history=" + history + " liveIds=" + liveIds + " id=" + id;
-                    DocIdAndSeqNo docIdAndSeqNo = VersionsAndSeqNoResolver.loadDocIdAndSeqNo(searcher.reader(), newUid(id));
-                    assertThat(msg, docIdAndSeqNo.seqNo, equalTo(history.get(id)));
-                    assertThat(msg, docIdAndSeqNo.isLive, equalTo(liveIds.contains(id)));
-                }
-                assertThat(VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), newUid("not-" + between(1, 10))), nullValue());
-            }
-            assertThat(getDocIds(engine, true).stream().map(d -> d.getId()).collect(Collectors.toSet()), equalTo(liveIds));
+            lookupAndCheck.run();
         }
     }
 

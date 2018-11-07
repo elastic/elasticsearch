@@ -95,21 +95,17 @@ final class SoftDeletesPolicy {
      * Operations whose seq# is least this value should exist in the Lucene index.
      */
     synchronized long getMinRetainedSeqNo() {
+        // If the average document size is not available (i.e, we haven't flushed yet), we should not advance
+        // min_retained_seqno to keep all documents because they are not in the safe commit (it's still empty).
+        final long avgDocSizeInBytes = avgDocSizeInBytesSupplier.getAsLong();
         // Do not advance if the retention lock is held
-        if (retentionLockCount == 0) {
+        if (retentionLockCount == 0 && avgDocSizeInBytes > 0) {
             // This policy retains operations for two purposes: peer-recovery and querying changes history.
             // - Peer-recovery is driven by the local checkpoint of the safe commit. In peer-recovery, the primary transfers a safe commit,
             // then sends ops after the local checkpoint of that commit. This requires keeping all ops after localCheckpointOfSafeCommit;
             // - Changes APIs are driven the combination of the global checkpoint and retention ops. Here we prefer using the global
             // checkpoint instead of max_seqno because only operations up to the global checkpoint are exposed in the the changes APIs.
-            final long retentionOps;
-            if (retentionSizeInBytes > 0) {
-                // Use 1 byte per document if the average doc size is not available yet.
-                final long avgDocSizeInBytes = Math.max(avgDocSizeInBytesSupplier.getAsLong(), 1);
-                retentionOps = retentionSizeInBytes / avgDocSizeInBytes;
-            } else {
-                retentionOps = 0;
-            }
+            final long retentionOps = retentionSizeInBytes / avgDocSizeInBytes;
             final long minSeqNoForQueryingChanges = globalCheckpointSupplier.getAsLong() - retentionOps;
             final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, localCheckpointOfSafeCommit) + 1;
             // This can go backwards as the retentionSize value can be changed in settings.

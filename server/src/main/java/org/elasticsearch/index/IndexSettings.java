@@ -246,11 +246,11 @@ public final class IndexSettings {
     /**
      * Controls how many soft-deleted documents will be kept around before being merged away. Keeping more deleted
      * documents increases the chance of operation-based recoveries and allows querying a longer history of documents.
-     * If soft-deletes is enabled, an engine by default will keep all soft-deleted documents in the most recent 4GB
-     * of Lucene index including live and soft-deleted documents. The extra required space depends on the deletion ratio.
+     * If soft-deletes is enabled, an engine by default will keep all soft-deleted documents in the most recent 1GB
+     * of index per shard including live and soft-deleted documents. The extra space depends on the deletion ratio.
      **/
     public static final Setting<ByteSizeValue> INDEX_SOFT_DELETES_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.soft_deletes.retention.size", new ByteSizeValue(4, ByteSizeUnit.GB),
+        Setting.byteSizeSetting("index.soft_deletes.retention.size", new ByteSizeValue(1, ByteSizeUnit.GB),
             Property.IndexScope, Property.Dynamic);
 
     /**

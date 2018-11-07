@@ -368,7 +368,7 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeByte(unit.getId());
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 out.writeString(timeZone.getId());
             } else {
                 // stay joda compatible
@@ -496,7 +496,7 @@ public abstract class Rounding implements Writeable {
         @Override
         public void innerWriteTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
                 out.writeString(timeZone.getId());
             } else {
                 // stay joda compatible

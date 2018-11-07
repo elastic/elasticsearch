@@ -91,9 +91,10 @@ public final class JsonFieldMapper extends FieldMapper {
 
         static {
             FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setHasDocValues(false);
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
 
@@ -123,6 +124,14 @@ public final class JsonFieldMapper extends FieldMapper {
                     + indexOptionToString(indexOptions));
             }
             return super.indexOptions(indexOptions);
+        }
+
+        @Override
+        public Builder docValues(boolean docValues) {
+            if (docValues) {
+                throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields do not support doc values");
+            }
+            return super.docValues(docValues);
         }
 
         public Builder depthLimit(int depthLimit) {

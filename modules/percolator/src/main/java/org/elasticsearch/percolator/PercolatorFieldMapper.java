@@ -413,8 +413,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new QueryShardContext(queryShardContext) {
 
             @Override
-            public boolean supportsNowInRangeQueries() {
-                return false;
+            public boolean convertNowRangeToMatchAll() {
+                return true;
             }
         });
         Query query = toQuery(queryShardContext, isMapUnmappedFieldAsText(), queryBuilderForProcessing);

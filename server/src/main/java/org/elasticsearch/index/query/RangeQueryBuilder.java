@@ -459,7 +459,10 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        if (queryRewriteContext.supportsNowInRangeQueries() == false) {
+        // Percolator queries get rewritten and pre-processed at index time.
+        // If a range query has a date range using 'now' and 'now' gets resolved at index time then
+        // the pre-processing uses that to pre-process. This can then lead to mismatches at query time.
+        if (queryRewriteContext.convertNowRangeToMatchAll()) {
             if ((from() != null && from().toString().contains("now")) ||
                 (to() != null && to().toString().contains("now"))) {
                 return new MatchAllQueryBuilder();

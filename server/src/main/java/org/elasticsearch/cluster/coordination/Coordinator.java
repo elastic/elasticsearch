@@ -926,6 +926,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     public Iterable<DiscoveryNode> getFoundPeers() {
+        // TODO everyone takes this and adds the local node. Maybe just add the local node here?
         return peerFinder.getFoundPeers();
     }
 

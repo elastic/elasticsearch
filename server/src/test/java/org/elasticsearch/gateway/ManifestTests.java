@@ -37,8 +37,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class ManifestTests extends ESTestCase {
 
     private Manifest copyState(Manifest state, boolean introduceErrors){
-        long generation = state.getGlobalStateGeneration();
-        Map<Index, Long> indices = new HashMap<>(state.getIndices());
+        long generation = state.getGlobalGeneration();
+        Map<Index, Long> indices = new HashMap<>(state.getIndexGenerations());
         if (introduceErrors) {
             if (randomBoolean()){
                 generation = generation + 1;

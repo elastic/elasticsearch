@@ -108,7 +108,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                 // We finished global state validation and successfully checked all indices for backward compatibility
                 // and found no non-upgradable indices, which means the upgrade can continue.
                 // Now it's safe to overwrite global and index metadata.
-                long globalStateGeneration = manifest.getGlobalStateGeneration();
+                long globalStateGeneration = manifest.getGlobalGeneration();
 
                 if (globalStateGeneration != -1) {
                     List<Runnable> cleanupActions = new ArrayList<>();
@@ -225,7 +225,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
             throws IOException {
         MetaData previousMetadata = ourState.v2();
         Manifest previousMetastate = ourState.v1();
-        Map<Index, Long> previouslyWrittenIndices = previousMetastate.getIndices();
+        Map<Index, Long> previouslyWrittenIndices = previousMetastate.getIndexGenerations();
         Set<Index> relevantIndices = getRelevantIndices(newState, previousState, previouslyWrittenIndices.keySet());
 
         Map<Index, Long> newIndices = new HashMap<>();
@@ -242,12 +242,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
     }
 
     private long writeGlobalState(MetaData newMetaData, List<Runnable> cleanupActions) throws IOException {
-        if (ourState.v1().getGlobalStateGeneration() == -1 || MetaData.isGlobalStateEquals(ourState.v2(), newMetaData) == false) {
+        if (ourState.v1().getGlobalGeneration() == -1 || MetaData.isGlobalStateEquals(ourState.v2(), newMetaData) == false) {
             long generation = metaStateService.writeGlobalState("changed", newMetaData);
             cleanupActions.add(() -> metaStateService.cleanupGlobalState(generation));
             return generation;
         }
-        return ourState.v1().getGlobalStateGeneration();
+        return ourState.v1().getGlobalGeneration();
     }
 
     public static Set<Index> getRelevantIndices(ClusterState state, ClusterState previousState, Set<Index> previouslyWrittenIndices) {

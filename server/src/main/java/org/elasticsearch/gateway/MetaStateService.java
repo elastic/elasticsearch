@@ -68,14 +68,14 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
             return loadFullStateBWC();
         }
         final MetaData.Builder metaDataBuilder;
-        final MetaData globalMetaData = MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalStateGeneration(),
+        final MetaData globalMetaData = MetaData.FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(),
                 nodeEnv.nodeDataPaths());
         if (globalMetaData != null) {
             metaDataBuilder = MetaData.builder(globalMetaData);
         } else {
-            throw new IOException("failed to find global metadata [generation: " + manifest.getGlobalStateGeneration() + "]");
+            throw new IOException("failed to find global metadata [generation: " + manifest.getGlobalGeneration() + "]");
         }
-        for (Map.Entry<Index, Long> entry : manifest.getIndices().entrySet()) {
+        for (Map.Entry<Index, Long> entry : manifest.getIndexGenerations().entrySet()) {
             Index index = entry.getKey();
             long generation = entry.getValue();
             final String indexFolderName = index.getUUID();
@@ -260,9 +260,9 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
     public void writeIndexAndUpdateManifest(String reason, IndexMetaData metaData) throws IOException {
         long generation = writeIndex(reason, metaData);
         Manifest manifest = loadMetaState();
-        Map<Index, Long> indices = new HashMap<>(manifest.getIndices());
+        Map<Index, Long> indices = new HashMap<>(manifest.getIndexGenerations());
         indices.put(metaData.getIndex(), generation);
-        manifest = new Manifest(manifest.getGlobalStateGeneration(), indices);
+        manifest = new Manifest(manifest.getGlobalGeneration(), indices);
         long metaStateGeneration = writeManifest(reason, manifest);
         cleanupIndex(metaData.getIndex(), generation);
         cleanupMetaState(metaStateGeneration);
@@ -274,7 +274,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
     public void writeGlobalStateAndUpdateManifest(String reason, MetaData metaData) throws IOException {
         long generation = writeGlobalState(reason, metaData);
         Manifest manifest = loadMetaState();
-        manifest = new Manifest(generation, manifest.getIndices());
+        manifest = new Manifest(generation, manifest.getIndexGenerations());
         long metaStateGeneration = writeManifest(reason, manifest);
         cleanupGlobalState(generation);
         cleanupMetaState(metaStateGeneration);

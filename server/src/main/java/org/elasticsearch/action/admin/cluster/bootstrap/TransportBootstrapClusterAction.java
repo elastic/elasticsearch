@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -63,15 +64,16 @@ public class TransportBootstrapClusterAction extends HandledTransportAction<Boot
             throw new IllegalArgumentException("this node is not master-eligible");
         }
 
-        transportService.getThreadPool().generic().execute(new Runnable() {
+        transportService.getThreadPool().generic().execute(new AbstractRunnable() {
             @Override
-            public void run() {
-                try {
-                    listener.onResponse(new BootstrapClusterResponse(
-                        coordinator.setInitialConfiguration(request.getBootstrapConfiguration()) == false));
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
+            public void doRun() {
+                listener.onResponse(new BootstrapClusterResponse(
+                    coordinator.setInitialConfiguration(request.getBootstrapConfiguration()) == false));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
             }
 
             @Override

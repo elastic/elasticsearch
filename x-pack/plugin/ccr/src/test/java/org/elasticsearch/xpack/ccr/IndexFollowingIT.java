@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -19,6 +22,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -550,6 +554,35 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         e = expectThrows(IllegalArgumentException.class,
             () -> followerClient().execute(PutAutoFollowPatternAction.INSTANCE, putAutoFollowRequest).actionGet());
         assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
+    }
+
+    public void testLeaderIndexRed() throws Exception {
+        try {
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.transientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
+            assertAcked(leaderClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(leaderClient().admin().indices().prepareCreate("index1")
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+                .setSettings(Settings.builder()
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build()));
+
+            final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("no index stats available for the leader index"));
+
+            IndicesExistsResponse existsResponse = followerClient().admin().indices().exists(new IndicesExistsRequest("index2"))
+                .actionGet();
+            assertThat(existsResponse.isExists(), is(false));
+        } finally {
+            // Always unset allocation enable setting to avoid other assertions from failing too when this test fails:
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.transientSettings(Settings.builder().put("cluster.routing.allocation.enable", (String) null));
+            assertAcked(leaderClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        }
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

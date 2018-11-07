@@ -248,6 +248,15 @@ public class Build {
         }
     }
 
+    /**
+     * Get the version as considered at build time
+     *
+     * Offers a way to get the fully qualified version as configured by the build.
+     * This will be the same as {@link Version} for production releases, but may include on of the qualifier ( e.x alpha1 )
+     * or -SNAPSHOT for others.
+     *
+     * @return the fully qualified build
+     */
     public String getQualifiedVersion() {
         return version;
     }
@@ -264,6 +273,11 @@ public class Build {
         return isSnapshot;
     }
 
+    /**
+     * Provides information about the intent of the build
+     *
+     * @return true if the build is intended for production use
+     */
     public boolean isProductionRelease() {
         return version.matches("[0-9]+\\.[0-9]+\\.[0-9]+");
     }

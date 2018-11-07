@@ -292,7 +292,11 @@ public class Node implements Closeable {
                 Constants.JAVA_VERSION,
                 Constants.JVM_VERSION);
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
-            warnIfPreRelease(Build.CURRENT, logger);
+            if (Build.CURRENT.isProductionRelease() == false) {
+                logger.warn(
+                    "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
+                    Build.CURRENT.getQualifiedVersion());
+            }
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
@@ -573,14 +577,6 @@ public class Node implements Closeable {
             if (!success) {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
-        }
-    }
-
-    static void warnIfPreRelease(final Build build,final Logger logger) {
-        if (build.isProductionRelease() == false) {
-            logger.warn(
-                "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                Build.CURRENT.getQualifiedVersion());
         }
     }
 

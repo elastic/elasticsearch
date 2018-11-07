@@ -99,14 +99,15 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
         if (options.has(versionOption)) {
             final String versionOutput = String.format(
-                    Locale.ROOT,
-                    "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
+                Locale.ROOT,
+                "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
                 Build.CURRENT.getQualifiedVersion(),
-                    Build.CURRENT.flavor().displayName(),
-                    Build.CURRENT.type().displayName(),
-                    Build.CURRENT.shortHash(),
-                    Build.CURRENT.date(),
-                    JvmInfo.jvmInfo().version());
+                Build.CURRENT.flavor().displayName(),
+                Build.CURRENT.type().displayName(),
+                Build.CURRENT.shortHash(),
+                Build.CURRENT.date(),
+                JvmInfo.jvmInfo().version()
+            );
             terminal.println(versionOutput);
             return;
         }

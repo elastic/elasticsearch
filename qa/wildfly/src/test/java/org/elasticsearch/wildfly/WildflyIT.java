@@ -60,7 +60,7 @@ public class WildflyIT extends LuceneTestCase {
             final String str = String.format(
                 Locale.ROOT,
                 "%s/employees/1",
-                System.getProperty("tests.jboss.home")
+                System.getProperty("tests.jboss.root")
             );
             logger.info("Connecting to uri: " + str);
             final HttpPut put = new HttpPut(new URI(str));

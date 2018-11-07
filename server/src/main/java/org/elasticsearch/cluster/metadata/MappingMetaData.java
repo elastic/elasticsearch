@@ -178,7 +178,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             out.writeOptionalString("now"); // 5.x default
             out.writeOptionalBoolean(null);
         }
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(false); // hasParentField
         }
     }
@@ -220,7 +220,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             in.readOptionalString(); // defaultTimestamp
             in.readOptionalBoolean(); // ignoreMissing
         }
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readBoolean(); // hasParentField
         }
     }

@@ -24,6 +24,7 @@ which should give you a response something like this:
     "build_hash" : "f27399d",
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,
+    "build_version" : "{qualified_version}",
     "lucene_version" : "{lucene_version}",
     "minimum_wire_compatibility_version" : "1.2.3",
     "minimum_index_compatibility_version" : "1.2.3"

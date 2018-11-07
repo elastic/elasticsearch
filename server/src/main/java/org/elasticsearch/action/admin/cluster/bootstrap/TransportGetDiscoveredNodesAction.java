@@ -102,7 +102,7 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
         };
 
         final Releasable releasable = coordinator.withDiscoveryListener(respondIfRequestSatisfied);
-        listenableFuture.addListener(finallyListener(releasable::close), directExecutor, threadPool.getThreadContext());
+        listenableFuture.addListener(ActionListener.wrap(releasable::close), directExecutor, threadPool.getThreadContext());
         respondIfRequestSatisfied.accept(coordinator.getFoundPeers());
 
         threadPool.schedule(request.getTimeout(), Names.SAME, new Runnable() {
@@ -118,19 +118,5 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
                 return "timeout handler for " + request;
             }
         });
-    }
-
-    private <T> ActionListener<T> finallyListener(Runnable runnable) {
-        return new ActionListener<T>() {
-            @Override
-            public void onResponse(T t) {
-                runnable.run();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                runnable.run();
-            }
-        };
     }
 }

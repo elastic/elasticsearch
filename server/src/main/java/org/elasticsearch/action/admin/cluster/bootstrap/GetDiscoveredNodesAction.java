@@ -19,6 +19,7 @@
 package org.elasticsearch.action.admin.cluster.bootstrap;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 
 public class GetDiscoveredNodesAction extends Action<GetDiscoveredNodesResponse> {
     public static final GetDiscoveredNodesAction INSTANCE = new GetDiscoveredNodesAction();
@@ -31,5 +32,10 @@ public class GetDiscoveredNodesAction extends Action<GetDiscoveredNodesResponse>
     @Override
     public GetDiscoveredNodesResponse newResponse() {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Reader<GetDiscoveredNodesResponse> getResponseReader() {
+        return GetDiscoveredNodesResponse::new;
     }
 }

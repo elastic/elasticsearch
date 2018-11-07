@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import javax.crypto.SecretKeyFactory;
+import java.io.Closeable;
 import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
@@ -174,11 +175,17 @@ public class ApiKeyService {
                     .setFetchSource(true).request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
                     if (response.isExists()) {
-                        validateApiKeyCredentials(response.getSource(), credentials, clock, listener);
+                        try (ApiKeyCredentials ignore = credentials) {
+                            validateApiKeyCredentials(response.getSource(), credentials, clock, listener);
+                        }
                     } else {
+                        credentials.close();
                         listener.onResponse(AuthenticationResult.unsuccessful("unable to authenticate", null));
                     }
-                }, e -> listener.onResponse(AuthenticationResult.unsuccessful("apikey auth encountered a failure", e))), client::get);
+                }, e -> {
+                    credentials.close();
+                    listener.onResponse(AuthenticationResult.unsuccessful("apikey auth encountered a failure", e));
+                }), client::get);
             } else {
                 listener.onResponse(AuthenticationResult.notHandled());
             }
@@ -271,7 +278,7 @@ public class ApiKeyService {
     }
 
     // package private class for testing
-    static final class ApiKeyCredentials {
+    static final class ApiKeyCredentials implements Closeable {
         private final String id;
         private final SecureString key;
 
@@ -286,6 +293,11 @@ public class ApiKeyService {
 
         SecureString getKey() {
             return key;
+        }
+
+        @Override
+        public void close() {
+            key.close();
         }
     }
 }

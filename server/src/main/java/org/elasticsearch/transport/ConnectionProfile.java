@@ -63,10 +63,10 @@ public final class ConnectionProfile {
     private final int numConnections;
     private final TimeValue connectTimeout;
     private final TimeValue handshakeTimeout;
-    private final boolean compressionEnabled;
+    private final Boolean compressionEnabled;
 
     private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
-                              TimeValue handshakeTimeout, boolean compressionEnabled) {
+                              TimeValue handshakeTimeout, Boolean compressionEnabled) {
         this.handles = handles;
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
@@ -81,7 +81,7 @@ public final class ConnectionProfile {
         Objects.requireNonNull(fallbackProfile);
         if (profile == null) {
             return fallbackProfile;
-        } else if (profile.getConnectTimeout() != null && profile.getHandshakeTimeout() != null) {
+        } else if (profile.getConnectTimeout() != null && profile.getHandshakeTimeout() != null && profile.getCompressionEnabled() != null) {
             return profile;
         } else {
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
@@ -90,6 +90,9 @@ public final class ConnectionProfile {
             }
             if (profile.getHandshakeTimeout() == null) {
                 builder.setHandshakeTimeout(fallbackProfile.getHandshakeTimeout());
+            }
+            if (profile.getCompressionEnabled() == null) {
+                builder.setCompressionEnabled(fallbackProfile.getCompressionEnabled());
             }
             return builder.build();
         }
@@ -110,6 +113,7 @@ public final class ConnectionProfile {
         Builder builder = new Builder();
         builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
         builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.setCompressionEnabled(Transport.TRANSPORT_TCP_COMPRESS.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
         // if we are not master eligible we don't need a dedicated channel to publish the state
@@ -127,7 +131,7 @@ public final class ConnectionProfile {
         private final List<ConnectionTypeHandle> handles = new ArrayList<>();
         private final Set<TransportRequestOptions.Type> addedTypes = EnumSet.noneOf(TransportRequestOptions.Type.class);
         private int numConnections = 0;
-        private boolean compressionEnabled;
+        private Boolean compressionEnabled;
         private TimeValue connectTimeout;
         private TimeValue handshakeTimeout;
 
@@ -220,7 +224,7 @@ public final class ConnectionProfile {
     }
 
     // TODO: Add doc
-    public boolean getCompressionEnabled() {
+    public Boolean getCompressionEnabled() {
         return compressionEnabled;
     }
 

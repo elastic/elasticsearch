@@ -29,7 +29,6 @@ import java.util.Objects;
  * A request for performing Upgrade on Index
  * Part of Migration API
  */
-
 public class IndexUpgradeRequest extends TimedRequest implements IndicesRequest {
 
     private String[] indices;

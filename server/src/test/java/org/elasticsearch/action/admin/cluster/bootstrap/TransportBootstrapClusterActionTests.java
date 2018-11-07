@@ -42,7 +42,9 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Random;
@@ -62,7 +64,7 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
 
     private final ActionFilters EMPTY_FILTERS = new ActionFilters(emptySet());
     private DiscoveryNode discoveryNode;
-    private ThreadPool threadPool;
+    private static ThreadPool threadPool;
     private TransportService transportService;
     private Coordinator coordinator;
 
@@ -70,11 +72,20 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
         return new BootstrapClusterRequest(new BootstrapConfiguration(singletonList(new NodeDescription("id", "name"))));
     }
 
+    @BeforeClass
+    public static void createThreadPool() {
+        threadPool = new TestThreadPool("test", Settings.EMPTY);
+    }
+
+    @AfterClass
+    public static void shutdownThreadPool() {
+        threadPool.shutdown();
+    }
+
     @Before
     public void setupTest() {
         discoveryNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         final MockTransport transport = new MockTransport();
-        threadPool = new TestThreadPool("test", Settings.EMPTY);
         transportService = transport.createTransportService(Settings.EMPTY, threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> discoveryNode, null, emptySet());
 
@@ -84,11 +95,6 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
             new MasterService("local", Settings.EMPTY, threadPool),
             () -> new InMemoryPersistedState(0, ClusterState.builder(new ClusterName("cluster")).build()), r -> emptyList(),
             new NoOpClusterApplier(), new Random(random().nextLong()));
-    }
-
-    @After
-    public void cleanUp() {
-        threadPool.shutdown();
     }
 
     public void testHandlesNonstandardDiscoveryImplementation() throws InterruptedException {
@@ -195,8 +201,6 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
 
             assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         }
-
-        threadPool.shutdown();
     }
 
     private abstract class ResponseHandler implements TransportResponseHandler<BootstrapClusterResponse> {

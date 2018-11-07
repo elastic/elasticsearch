@@ -228,6 +228,7 @@ public class RestHighLevelClient implements Closeable {
     private final SecurityClient securityClient = new SecurityClient(this);
     private final IndexLifecycleClient ilmClient = new IndexLifecycleClient(this);
     private final RollupClient rollupClient = new RollupClient(this);
+    private final CcrClient ccrClient = new CcrClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -319,6 +320,20 @@ public class RestHighLevelClient implements Closeable {
      */
     public RollupClient rollup() {
         return rollupClient;
+    }
+
+    /**
+     * Provides methods for accessing the Elastic Licensed CCR APIs that
+     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
+     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-api.html">
+     * CCR APIs on elastic.co</a> for more information.
+     *
+     * @return the client wrapper for making CCR API calls
+     */
+    public final CcrClient ccr() {
+        return ccrClient;
     }
 
     /**

@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.node;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
@@ -39,11 +37,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
@@ -86,30 +79,6 @@ public class NodeTests extends ESTestCase {
             expectThrows(NodeValidationException.class, () -> node.start());
             assertTrue(executed.get());
         }
-    }
-
-    public void testWarnIfPreRelease() {
-        final Logger logger = mock(Logger.class);
-
-        final int id = randomIntBetween(1, 9) * 1000000;
-        final Version releaseVersion = Version.fromId(id + 99);
-        final Version preReleaseVersion = Version.fromId(id + randomIntBetween(0, 98));
-
-        Node.warnIfPreRelease(releaseVersion, false, logger);
-        verifyNoMoreInteractions(logger);
-
-        reset(logger);
-        Node.warnIfPreRelease(releaseVersion, true, logger);
-        verify(logger).warn(
-            "version [{}] is a pre-release version of Elasticsearch and is not suitable for production", releaseVersion + "-SNAPSHOT");
-
-        reset(logger);
-        final boolean isSnapshot = randomBoolean();
-        Node.warnIfPreRelease(preReleaseVersion, isSnapshot, logger);
-        verify(logger).warn(
-            "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-            preReleaseVersion + (isSnapshot ? "-SNAPSHOT" : ""));
-
     }
 
     public void testNodeAttributes() throws IOException {

@@ -154,7 +154,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
     /**
      * Creates a random shape useful for randomized testing, NOTE: exercise caution when using this to build random GeometryCollections
      * as creating a large random number of random shapes can result in massive resource consumption
-     * see: {@link GeoShapeQueryTests#testShapeFilterWithRandomGeoCollection}
+     * see: {@link GeoShapeQueryTests#testQueryRandomGeoCollection()}
      *
      * The following options are included
      * @param nearPoint Create a shape near a provided point

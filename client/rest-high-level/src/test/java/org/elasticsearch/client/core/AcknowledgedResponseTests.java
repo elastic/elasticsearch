@@ -23,7 +23,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class AcknowledgedResponseResponseTests extends AbstractXContentTestCase<AcknowledgedResponse> {
+public class AcknowledgedResponseTests extends AbstractXContentTestCase<AcknowledgedResponse> {
 
     @Override
     protected AcknowledgedResponse createTestInstance() {

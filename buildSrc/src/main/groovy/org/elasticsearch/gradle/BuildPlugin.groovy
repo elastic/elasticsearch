@@ -242,11 +242,12 @@ class BuildPlugin implements Plugin<Project> {
             compilerJavaHome = findJavaHome(compilerJavaProperty)
         }
         if (compilerJavaHome == null) {
-            if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
+            if (System.getProperty("idea.executable") != null || System.getProperty("eclipse.launcher") != null) {
                 // IntelliJ does not set JAVA_HOME, so we use the JDK that Gradle was run with
                 return Jvm.current().javaHome
             } else {
                 throw new GradleException(
+                        " " + System.getProperties().toString() + " " +
                         "JAVA_HOME must be set to build Elasticsearch. " +
                                 "Note that if the variable was just set you might have to run `./gradlew --stop` for " +
                                 "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details."
@@ -696,18 +697,12 @@ class BuildPlugin implements Plugin<Project> {
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
             // fixup the jar manifest
             jarTask.doFirst {
-                final Version versionWithoutSnapshot = new Version(
-                        VersionProperties.elasticsearch.major,
-                        VersionProperties.elasticsearch.minor,
-                        VersionProperties.elasticsearch.revision,
-                        VersionProperties.elasticsearch.suffix,
-                        false)
                 // this doFirst is added before the info plugin, therefore it will run
                 // after the doFirst added by the info plugin, and we can override attributes
                 jarTask.manifest.attributes(
-                        'X-Compile-Elasticsearch-Version': versionWithoutSnapshot,
+                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch.replace("-SNAPSHOT", ""),
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
-                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.elasticsearch.isSnapshot(),
+                        'X-Compile-Elasticsearch-Snapshot': VersionProperties.isElasticsearchSnapshot(),
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': project.compilerJavaVersion)
                 if (jarTask.manifest.attributes.containsKey('Change') == false) {

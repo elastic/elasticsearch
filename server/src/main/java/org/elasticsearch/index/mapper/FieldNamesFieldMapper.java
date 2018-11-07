@@ -103,7 +103,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
+                                                      ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -170,7 +171,8 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (strict) {
                 FieldNamesFieldType other = (FieldNamesFieldType)fieldType;
                 if (isEnabled() != other.isEnabled()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [enabled] across all types.");
+                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [enabled]"
+                        + " across all types.");
                 }
             }
         }

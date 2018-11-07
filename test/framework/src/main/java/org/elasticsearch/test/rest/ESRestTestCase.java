@@ -282,7 +282,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Returns whether to preserve the state of the cluster upon completion of this test. Defaults to false. If true, overrides the value of
      * {@link #preserveIndicesUponCompletion()}, {@link #preserveTemplatesUponCompletion()}, {@link #preserveReposUponCompletion()},
-     * {@link #preserveSnapshotsUponCompletion()}, and {@link #preserveRollupJobsUponCompletion()}.
+     * {@link #preserveSnapshotsUponCompletion()},{@link #preserveRollupJobsUponCompletion()},
+     * and {@link #preserveILMPoliciesUponCompletion()}.
      *
      * @return true if the state of the cluster should be preserved
      */
@@ -347,6 +348,15 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
+    /**
+     * Returns whether to preserve ILM Policies of this test. Defaults to not
+     * preserviing them. Only runs at all if xpack is installed on the cluster
+     * being tested.
+     */
+    protected boolean preserveILMPoliciesUponCompletion() {
+        return false;
+    }
+
     private void wipeCluster() throws Exception {
         if (preserveIndicesUponCompletion() == false) {
             // wipe indices
@@ -403,6 +413,10 @@ public abstract class ESRestTestCase extends ESTestCase {
                 && false == preserveRollupJobsUponCompletion()) {
             wipeRollupJobs();
             waitForPendingRollupTasks();
+        }
+
+        if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
+            deleteAllPolicies();
         }
     }
 
@@ -511,6 +525,26 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private void waitForPendingRollupTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
+    }
+
+    private static void deleteAllPolicies() throws IOException {
+        Map<String, Object> policies;
+
+        try {
+            Response response = adminClient().performRequest(new Request("GET", "/_ilm/policy"));
+            policies = entityAsMap(response);
+        } catch (IOException e) {
+            // If bad request returned, ILM is not enabled.
+            return;
+        }
+
+        if (policies == null || policies.isEmpty()) {
+            return;
+        }
+
+        for (String policyName : policies.keySet()) {
+            adminClient().performRequest(new Request("DELETE", "/_ilm/policy/" + policyName));
+        }
     }
 
     /**
@@ -695,6 +729,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request request = new Request("PUT", "/" + name);
         request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
                 + ", \"mappings\" : {" + mapping + "} }");
+        client().performRequest(request);
+    }
+
+    protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
+        Request request = new Request("PUT", "/" + name);
+        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings)
+            + ", \"mappings\" : {" + mapping + "}"
+            + ", \"aliases\": {" + aliases + "} }");
         client().performRequest(request);
     }
 

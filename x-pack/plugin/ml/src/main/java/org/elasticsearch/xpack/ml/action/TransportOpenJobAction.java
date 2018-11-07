@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -658,7 +658,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
                                               AutodetectProcessManager autodetectProcessManager) {
-            super(settings, MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.autodetectProcessManager = autodetectProcessManager;
             this.fallbackMaxNumberOfOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
@@ -757,7 +757,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
     public static class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
 
-        private static final Logger LOGGER = Loggers.getLogger(JobTask.class);
+        private static final Logger LOGGER = LogManager.getLogger(JobTask.class);
 
         private final String jobId;
         private volatile AutodetectProcessManager autodetectProcessManager;

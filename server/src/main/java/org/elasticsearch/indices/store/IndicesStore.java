@@ -77,6 +77,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             Property.NodeScope);
     public static final String ACTION_SHARD_EXISTS = "internal:index/shard/exists";
     private static final EnumSet<IndexShardState> ACTIVE_STATES = EnumSet.of(IndexShardState.STARTED);
+    private final Settings settings;
     private final IndicesService indicesService;
     private final ClusterService clusterService;
     private final TransportService transportService;
@@ -90,7 +91,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     @Inject
     public IndicesStore(Settings settings, IndicesService indicesService,
                         ClusterService clusterService, TransportService transportService, ThreadPool threadPool) {
-        super(settings);
+        this.settings = settings;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;

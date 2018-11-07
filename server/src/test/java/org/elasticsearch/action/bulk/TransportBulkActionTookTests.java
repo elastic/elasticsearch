@@ -96,7 +96,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
             boundAddress -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
+        IndexNameExpressionResolver resolver = new Resolver();
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
 
         TransportCreateIndexAction createIndexAction = new TransportCreateIndexAction(
@@ -205,8 +205,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
     }
 
     static class Resolver extends IndexNameExpressionResolver {
-        Resolver(Settings settings) {
-            super(settings);
+        Resolver() {
+            super(Settings.EMPTY);
         }
 
         @Override

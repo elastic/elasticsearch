@@ -47,7 +47,7 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
         super(settings, GetDatafeedsAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, GetDatafeedsAction.Request::new);
 
-        datafeedConfigProvider = new DatafeedConfigProvider(client, settings, xContentRegistry);
+        datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
     }
 
     @Override

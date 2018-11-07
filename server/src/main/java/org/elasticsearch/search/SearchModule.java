@@ -183,6 +183,8 @@ import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCou
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.weighted_avg.InternalWeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.weighted_avg.WeightedAvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.mad.InternalMedianAbsoluteDeviation;
+import org.elasticsearch.search.aggregations.metrics.mad.MedianAbsoluteDeviationAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
@@ -360,6 +362,9 @@ public class SearchModule {
                 PercentileRanksAggregationBuilder::parse)
                         .addResultReader(InternalTDigestPercentileRanks.NAME, InternalTDigestPercentileRanks::new)
                         .addResultReader(InternalHDRPercentileRanks.NAME, InternalHDRPercentileRanks::new));
+        registerAggregation(new AggregationSpec(MedianAbsoluteDeviationAggregationBuilder.NAME,
+                MedianAbsoluteDeviationAggregationBuilder::new, MedianAbsoluteDeviationAggregationBuilder::parse)
+                        .addResultReader(InternalMedianAbsoluteDeviation::new));
         registerAggregation(new AggregationSpec(CardinalityAggregationBuilder.NAME, CardinalityAggregationBuilder::new,
                 CardinalityAggregationBuilder::parse).addResultReader(InternalCardinality::new));
         registerAggregation(new AggregationSpec(GlobalAggregationBuilder.NAME, GlobalAggregationBuilder::new,
@@ -702,7 +707,7 @@ public class SearchModule {
         registerFetchSubPhase(new FetchSourceSubPhase());
         registerFetchSubPhase(new VersionFetchSubPhase());
         registerFetchSubPhase(new MatchedQueriesFetchSubPhase());
-        registerFetchSubPhase(new HighlightPhase(settings, highlighters));
+        registerFetchSubPhase(new HighlightPhase(highlighters));
         registerFetchSubPhase(new ParentFieldSubFetchPhase());
 
         FetchPhaseConstructionContext context = new FetchPhaseConstructionContext(highlighters);

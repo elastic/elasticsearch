@@ -50,7 +50,7 @@ public class TransportDeleteDatafeedAction extends TransportMasterNodeAction<Del
         super(settings, DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, DeleteDatafeedAction.Request::new);
         this.client = client;
-        this.datafeedConfigProvider = new DatafeedConfigProvider(client, settings, xContentRegistry);
+        this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.persistentTasksService = persistentTasksService;
         this.clusterService = clusterService;
     }

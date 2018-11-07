@@ -32,7 +32,7 @@ public abstract class AbstractLifecycleComponent extends AbstractComponent imple
     private final List<LifecycleListener> listeners = new CopyOnWriteArrayList<>();
 
     protected AbstractLifecycleComponent(Settings settings) {
-        super(settings);
+        // TODO drop settings from ctor
     }
 
     @Override

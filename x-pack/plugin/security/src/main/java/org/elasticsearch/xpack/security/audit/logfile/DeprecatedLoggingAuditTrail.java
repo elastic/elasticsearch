@@ -81,7 +81,6 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     DeprecatedLoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
-        super(settings);
         this.logger = logger;
         this.events = parse(LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.get(settings), LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = LoggingAuditTrail.INCLUDE_REQUEST_BODY.get(settings);

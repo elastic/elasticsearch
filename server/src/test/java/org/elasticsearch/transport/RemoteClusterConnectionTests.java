@@ -662,7 +662,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         AtomicReference<Exception> failReference = new AtomicReference<>();
                         connection.fetchSearchShards(searchShardsRequest,
                             new LatchedActionListener<>(ActionListener.wrap(reference::set, failReference::set), responseLatch));
-                        assertTrue(responseLatch.await(5, TimeUnit.SECONDS));
+                        assertTrue(responseLatch.await(10, TimeUnit.SECONDS));
                         assertNull(failReference.get());
                         assertNotNull(reference.get());
                         ClusterSearchShardsResponse response = reference.get();
@@ -693,7 +693,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                             new LatchedActionListener<>(ActionListener.wrap((s) -> {
                                 reference.set(s);
                             }, failReference::set), responseLatch));
-                        assertTrue(responseLatch.await(1, TimeUnit.SECONDS));
+                        assertTrue(responseLatch.await(10, TimeUnit.SECONDS));
                         assertNotNull(failReference.get());
                         assertNull(reference.get());
                         assertThat(failReference.get(), instanceOf(TransportException.class));
@@ -706,7 +706,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         AtomicReference<Exception> failReference = new AtomicReference<>();
                         connection.fetchSearchShards(searchShardsRequest,
                             new LatchedActionListener<>(ActionListener.wrap(reference::set, failReference::set), responseLatch));
-                        assertTrue(responseLatch.await(1, TimeUnit.SECONDS));
+                        assertTrue(responseLatch.await(10, TimeUnit.SECONDS));
                         assertNull(failReference.get());
                         assertNotNull(reference.get());
                         ClusterSearchShardsResponse response = reference.get();
@@ -715,7 +715,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
                     //give transport service enough time to realize that the node is down, and to notify the connection listeners
                     //so that RemoteClusterConnection is left with no connected nodes, hence it will retry connecting next
-                    assertTrue(disconnectedLatch.await(1, TimeUnit.SECONDS));
+                    assertTrue(disconnectedLatch.await(10, TimeUnit.SECONDS));
 
                     if (randomBoolean()) {
                         connection.updateSkipUnavailable(false);
@@ -729,7 +729,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         AtomicReference<Exception> failReference = new AtomicReference<>();
                         connection.fetchSearchShards(searchShardsRequest,
                             new LatchedActionListener<>(ActionListener.wrap(reference::set, failReference::set), responseLatch));
-                        assertTrue(responseLatch.await(1, TimeUnit.SECONDS));
+                        assertTrue(responseLatch.await(10, TimeUnit.SECONDS));
                         assertNull(failReference.get());
                         assertNotNull(reference.get());
                         ClusterSearchShardsResponse response = reference.get();

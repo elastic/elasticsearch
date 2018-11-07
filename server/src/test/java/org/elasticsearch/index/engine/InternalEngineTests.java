@@ -5057,15 +5057,15 @@ public class InternalEngineTests extends EngineTestCase {
                  null,
                  new ReferenceManager.RefreshListener() {
                      @Override
-                     public void beforeRefresh() throws IOException {
+                     public void beforeRefresh() {
                          refreshCounter.incrementAndGet();
                      }
 
                      @Override
-                     public void afterRefresh(boolean didRefresh) throws IOException {
+                     public void afterRefresh(boolean didRefresh) {
 
                      }
-                 }, null, () -> SequenceNumbers.NO_OPS_PERFORMED))) {
+                 }, null, () -> SequenceNumbers.NO_OPS_PERFORMED, new NoneCircuitBreakerService()))) {
             for (long seqNo = 0; seqNo <= maxSeqNo; seqNo++) {
                 final ParsedDocument doc = testParsedDocument("id_" + seqNo, null, testDocumentWithTextField("test"),
                     new BytesArray("{}".getBytes(Charset.defaultCharset())), null);

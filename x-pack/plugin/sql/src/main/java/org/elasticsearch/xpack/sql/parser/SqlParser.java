@@ -40,6 +40,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.parser.AbstractBuilder.source;
 
 public class SqlParser {
 
@@ -230,7 +231,8 @@ public class SqlParser {
                 ctx.getClass() != SqlBaseParser.BackQuotedIdentifierContext.class) {
                 int currentDepth = depthCounts.putOrAdd(ctx.getClass().getSimpleName(), (short) 1, (short) 1);
                 if (currentDepth > MAX_RULE_DEPTH) {
-                    throw new ParsingException("expression is too large to parse, (tree's depth exceeds {})", MAX_RULE_DEPTH);
+                    throw new ParsingException(source(ctx), "SQL statement too large; " +
+                        "halt parsing to prevent memory errors (stopped at depth {})", MAX_RULE_DEPTH);
                 }
             }
             super.enterEveryRule(ctx);

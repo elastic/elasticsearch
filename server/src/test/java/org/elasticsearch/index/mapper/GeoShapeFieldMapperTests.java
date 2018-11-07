@@ -238,6 +238,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(strategy.getDistErrPct(), equalTo(0.1));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(4));
+        assertFieldWarnings("tree", "tree_levels", "distance_error_pct");
     }
 
     public void testQuadtreeConfiguration() throws IOException {
@@ -263,6 +264,17 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(6));
         assertThat(strategy.isPointsOnly(), equalTo(true));
+        assertFieldWarnings("tree", "tree_levels", "distance_error_pct", "points_only");
+    }
+
+    private void assertFieldWarnings(String... fieldNames) {
+        String[] warnings = new String[fieldNames.length];
+        String vectorPostfix = " use [vector] indexing strategy instead.";
+        for (int i = 0; i < fieldNames.length; ++i) {
+            warnings[i] = "Field parameter [" + fieldNames[i] + "] "
+                + "is deprecated and will be removed in a future version." + vectorPostfix;
+        }
+        assertWarnings(warnings);
     }
 
     public void testLevelPrecisionConfiguration() throws IOException {
@@ -388,6 +400,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
             assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(70d)+1));
         }
+        assertFieldWarnings("tree", "tree_levels", "precision", "distance_error_pct");
     }
 
     public void testPointsOnlyOption() throws IOException {
@@ -409,6 +422,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.isPointsOnly(), equalTo(true));
+        assertFieldWarnings("tree", "points_only");
     }
 
     public void testLevelDefaults() throws IOException {
@@ -457,6 +471,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             /* 50m is default */
             assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(50d)));
         }
+        assertFieldWarnings("tree", "distance_error_pct");
     }
 
     public void testGeoShapeMapperMerge() throws Exception {
@@ -519,6 +534,8 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(strategy.getDistErrPct(), equalTo(0.001));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(1d)));
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
+
+        assertFieldWarnings("tree", "strategy", "precision", "tree_levels", "distance_error_pct");
     }
 
     public void testEmptyName() throws Exception {
@@ -602,6 +619,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertTrue(serialized, serialized.contains("\"precision\":\"6.0m\""));
             assertTrue(serialized, serialized.contains("\"tree_levels\":5"));
         }
+        assertFieldWarnings("tree", "tree_levels", "precision");
     }
 
     public void testPointsOnlyDefaultsWithTermStrategy() throws IOException {
@@ -628,6 +646,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(strategy.isPointsOnly(), equalTo(true));
         // term strategy changes the default for points_only, check that we handle it correctly
         assertThat(toXContentString(geoShapeFieldMapper, false), not(containsString("points_only")));
+        assertFieldWarnings("tree", "precision", "strategy");
     }
 
 
@@ -648,6 +667,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             () -> parser.parse("type1", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("points_only cannot be set to false for term strategy"));
+        assertFieldWarnings("tree", "precision", "strategy", "points_only");
     }
 
     public String toXContentString(GeoShapeFieldMapper mapper, boolean includeDefaults) throws IOException {

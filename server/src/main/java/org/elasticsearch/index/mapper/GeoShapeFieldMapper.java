@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.Line;
@@ -46,6 +48,7 @@ import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -111,6 +114,9 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<>(false, false);
         public static final Explicit<Boolean> IGNORE_Z_VALUE = new Explicit<>(true, false);
     }
+
+    private static final Logger logger = LogManager.getLogger(GeoShapeFieldMapper.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     public static class Builder extends FieldMapper.Builder<Builder, GeoShapeFieldMapper> {
 
@@ -273,6 +279,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     builder.fieldType().setTreeLevels(Integer.parseInt(fieldNode.toString()));
                     iterator.remove();
                 } else if (Names.TREE_PRESISION.equals(fieldName)) {
+                    checkPrefixTreeSupport(fieldName);
                     builder.fieldType().setPrecisionInMeters(DistanceUnit.parse(fieldNode.toString(),
                         DistanceUnit.DEFAULT, DistanceUnit.DEFAULT));
                     iterator.remove();
@@ -288,6 +295,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     String prefixTree = builder.fieldType().tree();
                     if (strategy == SpatialStrategy.VECTOR && prefixTree.equals("NONE") == false) {
                         throw new ElasticsearchParseException("Strategy [{}] cannot be used with PrefixTree [{}]", strategy, prefixTree);
+                    } else if (strategy != SpatialStrategy.VECTOR) {
+                        checkPrefixTreeSupport(fieldName);
                     }
                     builder.fieldType().setStrategy(strategy);
                     iterator.remove();
@@ -302,6 +311,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                         name + "." + GeoPointFieldMapper.Names.IGNORE_Z_VALUE.getPreferredName()));
                     iterator.remove();
                 } else if (Names.STRATEGY_POINTS_ONLY.equals(fieldName)) {
+                    checkPrefixTreeSupport(fieldName);
                     pointsOnly = XContentMapValues.nodeBooleanValue(fieldNode, name + "." + Names.STRATEGY_POINTS_ONLY);
                     iterator.remove();
                 }
@@ -320,6 +330,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
             if (ShapesAvailability.JTS_AVAILABLE == false || ShapesAvailability.SPATIAL4J_AVAILABLE == false) {
                 throw new ElasticsearchParseException("Field parameter [{}] is not supported for [{}] field type", fieldName, CONTENT_TYPE);
             }
+            DEPRECATION_LOGGER.deprecated("Field parameter [{}] is deprecated and will be removed in a future version. "
+                + "use [" + SpatialStrategy.VECTOR.getStrategyName() + "] indexing strategy instead.", fieldName);
         }
     }
 

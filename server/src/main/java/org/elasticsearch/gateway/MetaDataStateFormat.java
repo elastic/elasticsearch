@@ -216,7 +216,7 @@ public abstract class MetaDataStateFormat<T> {
         try {
             maxStateId = findMaxStateId(prefix, locations) + 1;
         } catch (Exception e) {
-            throw new WriteStateException(false, "exception during looking up max state id", e);
+            throw new WriteStateException(false, "exception during looking up max generation id", e);
         }
         assert maxStateId >= 0 : "maxStateId must be positive but was: [" + maxStateId + "]";
 
@@ -387,7 +387,7 @@ public abstract class MetaDataStateFormat<T> {
         for (Path stateFile : stateFiles) {
             try {
                 T state = read(namedXContentRegistry, stateFile);
-                logger.trace("state id [{}] read from [{}]", generation, stateFile.getFileName());
+                logger.trace("generation id [{}] read from [{}]", generation, stateFile.getFileName());
                 return state;
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + stateFile.toAbsolutePath(), e));
@@ -419,7 +419,7 @@ public abstract class MetaDataStateFormat<T> {
         T state = loadGeneration(logger, namedXContentRegistry, generation, dataLocations);
 
         if (generation > -1 && state == null) {
-            throw new IllegalStateException("unable to find state files with state id " + generation +
+            throw new IllegalStateException("unable to find state files with generation id " + generation +
                     " returned by findMaxStateId function, in data folders [" +
                     Arrays.stream(dataLocations).map(Path::toAbsolutePath).
                             map(Object::toString).collect(Collectors.joining(", ")) +

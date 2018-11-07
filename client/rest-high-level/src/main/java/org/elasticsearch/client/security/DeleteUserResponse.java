@@ -59,12 +59,7 @@ public final class DeleteUserResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.field(PARSE_FIELD, isFound());
-        }
-        builder.endObject();
-        return builder;
+        return builder.field(PARSE_FIELD, isFound());
     }
 
     @Override

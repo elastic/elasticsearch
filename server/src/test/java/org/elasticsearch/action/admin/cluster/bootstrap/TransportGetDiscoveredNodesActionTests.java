@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.cluster.bootstrap;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
@@ -61,6 +62,7 @@ import static org.elasticsearch.discovery.PeerFinder.REQUEST_PEERS_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -125,7 +127,9 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                assertThat(exp.getRootCause().getMessage(), equalTo("discovered nodes are not exposed by this discovery type"));
+                final Throwable rootCause = exp.getRootCause();
+                assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+                assertThat(rootCause.getMessage(), equalTo("discovered nodes are not exposed by discovery type [zen]"));
                 countDownLatch.countDown();
             }
         });
@@ -151,7 +155,9 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                assertThat(exp.getRootCause().getMessage(), equalTo("this node is not master-eligible"));
+                final Throwable rootCause = exp.getRootCause();
+                assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+                assertThat(rootCause.getMessage(), equalTo("this node is not master-eligible"));
                 countDownLatch.countDown();
             }
         });
@@ -179,7 +185,9 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                assertThat(exp.getRootCause().getMessage(), startsWith("timed out while waiting for GetDiscoveredNodesRequest{"));
+                final Throwable rootCause = exp.getRootCause();
+                assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
+                assertThat(rootCause.getMessage(), startsWith("timed out while waiting for GetDiscoveredNodesRequest{"));
                 countDownLatch.countDown();
             }
         });
@@ -229,7 +237,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    throw new AssertionError("should not be called");
+                    throw new AssertionError("should not be called", exp);
                 }
             });
 
@@ -250,7 +258,7 @@ public class TransportGetDiscoveredNodesActionTests extends ESTestCase {
 
                 @Override
                 public void handleException(TransportException exp) {
-                    throw new AssertionError("should not be called");
+                    throw new AssertionError("should not be called", exp);
                 }
             });
 

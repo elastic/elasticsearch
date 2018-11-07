@@ -54,6 +54,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
@@ -107,7 +108,9 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                assertThat(exp.getRootCause().getMessage(), equalTo("cluster bootstrapping is not supported by this discovery type"));
+                final Throwable rootCause = exp.getRootCause();
+                assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+                assertThat(rootCause.getMessage(), equalTo("cluster bootstrapping is not supported by discovery type [zen]"));
                 countDownLatch.countDown();
             }
         });
@@ -133,7 +136,9 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                assertThat(exp.getRootCause().getMessage(), equalTo("this node is not master-eligible"));
+                final Throwable rootCause = exp.getRootCause();
+                assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+                assertThat(rootCause.getMessage(), equalTo("this node is not master-eligible"));
                 countDownLatch.countDown();
             }
         });

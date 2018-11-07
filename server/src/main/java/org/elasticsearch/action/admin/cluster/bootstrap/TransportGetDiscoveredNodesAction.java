@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.cluster.bootstrap;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -41,6 +40,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 
 public class TransportGetDiscoveredNodesAction extends HandledTransportAction<GetDiscoveredNodesRequest, GetDiscoveredNodesResponse> {
 
@@ -65,13 +66,14 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
     @Override
     protected void doExecute(Task task, GetDiscoveredNodesRequest request, ActionListener<GetDiscoveredNodesResponse> listener) {
         if (coordinator == null) { // TODO remove when not nullable
-            throw new IllegalStateException("discovered nodes are not exposed by this discovery type");
+            throw new IllegalArgumentException("discovered nodes are not exposed by discovery type ["
+                + DISCOVERY_TYPE_SETTING.get(settings) + "]");
         }
 
         final DiscoveryNode localNode = transportService.getLocalNode();
         assert localNode != null;
         if (localNode.isMasterNode() == false) {
-            throw new ElasticsearchException("this node is not master-eligible");
+            throw new IllegalArgumentException("this node is not master-eligible");
         }
         final AtomicBoolean listenerNotified = new AtomicBoolean();
         final ListenableFuture<GetDiscoveredNodesResponse> listenableFuture = new ListenableFuture<>();
@@ -100,6 +102,7 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
 
         final Releasable releasable = coordinator.withDiscoveryListener(respondIfRequestSatisfied);
         listenableFuture.addListener(finallyListener(releasable::close), threadPool.generic(), threadPool.getThreadContext());
+        respondIfRequestSatisfied.accept(coordinator.getFoundPeers());
 
         threadPool.schedule(request.getTimeout(), Names.GENERIC, new Runnable() {
             @Override
@@ -114,8 +117,6 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
                 return "timeout handler for " + request;
             }
         });
-
-        respondIfRequestSatisfied.accept(coordinator.getFoundPeers());
     }
 
     private <T> ActionListener<T> finallyListener(Runnable runnable) {

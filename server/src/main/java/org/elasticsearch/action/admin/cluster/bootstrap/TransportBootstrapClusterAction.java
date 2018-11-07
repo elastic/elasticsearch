@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.cluster.bootstrap;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -30,6 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 
 public class TransportBootstrapClusterAction extends HandledTransportAction<BootstrapClusterRequest, BootstrapClusterResponse> {
 
@@ -52,13 +53,14 @@ public class TransportBootstrapClusterAction extends HandledTransportAction<Boot
     @Override
     protected void doExecute(Task task, BootstrapClusterRequest request, ActionListener<BootstrapClusterResponse> listener) {
         if (coordinator == null) { // TODO remove when not nullable
-            throw new IllegalStateException("cluster bootstrapping is not supported by this discovery type");
+            throw new IllegalArgumentException("cluster bootstrapping is not supported by discovery type ["
+                + DISCOVERY_TYPE_SETTING.get(settings) + "]");
         }
 
         final DiscoveryNode localNode = transportService.getLocalNode();
         assert localNode != null;
         if (localNode.isMasterNode() == false) {
-            throw new ElasticsearchException("this node is not master-eligible");
+            throw new IllegalArgumentException("this node is not master-eligible");
         }
 
         transportService.getThreadPool().generic().execute(new Runnable() {

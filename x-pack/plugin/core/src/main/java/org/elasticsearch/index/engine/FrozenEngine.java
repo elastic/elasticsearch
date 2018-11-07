@@ -126,7 +126,6 @@ public final class FrozenEngine extends ReadOnlyEngine {
         }
     }
 
-    @SuppressForbidden(reason = "we manage references explicitly here")
     private synchronized DirectoryReader getOrOpenReader() throws IOException {
         DirectoryReader reader = null;
         boolean success = false;
@@ -153,6 +152,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
         }
     }
 
+    @SuppressForbidden(reason = "we manage references explicitly here")
     private synchronized DirectoryReader getReader() throws IOException {
         DirectoryReader reader = null;
         boolean success = false;

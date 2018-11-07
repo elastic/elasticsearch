@@ -75,7 +75,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     @Nullable
     //there is happens-before order between subsequent applyClusterState calls, hence no volatile modifier
-    private Tuple<Manifest, MetaData> ourState;
+    private Manifest previousManifest;
+    private MetaData previousMetaData;
 
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
                             MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader) throws IOException {
@@ -85,7 +86,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
         ensureNoPre019State();
         ensureAtomicMoveSupported();
-        maybeUpgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
+        upgradeMetaData(metaDataIndexUpgradeService, metaDataUpgrader);
         profileLoadMetaData();
     }
 
@@ -97,7 +98,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         }
     }
 
-    private void maybeUpgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
+    private void upgradeMetaData(MetaDataIndexUpgradeService metaDataIndexUpgradeService, MetaDataUpgrader metaDataUpgrader)
             throws IOException {
         if (DiscoveryNode.isMasterNode(settings) || DiscoveryNode.isDataNode(settings)) {
             try {
@@ -111,9 +112,10 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                 long globalStateGeneration = manifest.getGlobalGeneration();
 
                 if (globalStateGeneration != -1) {
-                    List<Runnable> cleanupActions = new ArrayList<>();
                     // If globalStateGeneration is non-negative, it means we should have some metadata on disk
                     // Always re-write it even if upgrade plugins do not upgrade it, to be sure it's properly persisted on all data path
+
+                    List<Runnable> cleanupActions = new ArrayList<>();
                     final MetaData upgradedMetaData = upgradeMetaData(metaData, metaDataIndexUpgradeService, metaDataUpgrader);
 
                     if (MetaData.isGlobalStateEquals(metaData, upgradedMetaData) == false) {
@@ -168,15 +170,19 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
         if (event.state().blocks().disableStatePersistence()) {
             // reset the current state, we need to start fresh...
-            ourState = null;
+            previousMetaData = null;
+            previousManifest = null;
             return;
         }
 
         try {
-            if (ourState == null) {
-                ourState = metaStateService.loadFullState();
+            // if previousManifest is null we load it from disk
+            // we don't do the same for previous metadata, because our comparison can show that nothing was changed,
+            // but in fact it has changed
+            if (previousManifest == null) {
+                previousManifest = metaStateService.loadFullState().v1();
             }
-            ourState = updateMetaData(event);
+            updateMetaData(event);
         } catch (WriteStateException e) {
             if (e.isDirty()) {
                 logger.error("Fatal exception occurred when storing new meta data. Storage is dirty", e);
@@ -194,7 +200,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
      * @throws IOException if IOException occurs. It's recommended for the callers of this method to handle {@link WriteStateException},
      *                     which is subclass of {@link IOException} explicitly. See also {@link WriteStateException#isDirty()}.
      */
-    private Tuple<Manifest, MetaData> updateMetaData(ClusterChangedEvent event) throws IOException {
+    private void updateMetaData(ClusterChangedEvent event) throws IOException {
         ClusterState newState = event.state();
         ClusterState previousState = event.previousState();
         MetaData newMetaData = newState.metaData();
@@ -205,7 +211,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
         Manifest manifest = new Manifest(globalStateGeneration, newIndices);
         writeManifest(manifest, cleanupActions);
         performCleanup(cleanupActions);
-        return new Tuple<>(manifest, newMetaData);
+
+        previousMetaData = newMetaData;
+        previousManifest = manifest;
     }
 
     private void performCleanup(List<Runnable> cleanupActions) {
@@ -215,7 +223,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
     }
 
     private void writeManifest(Manifest manifest, List<Runnable> cleanupActions) throws IOException {
-        if (manifest.equals(ourState.v1()) == false) {
+        if (manifest.equals(previousManifest) == false) {
             long generation = metaStateService.writeManifest("changed", manifest);
             cleanupActions.add(() -> metaStateService.cleanupMetaState(generation));
         }
@@ -223,14 +231,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
 
     private Map<Index, Long> writeIndicesMetadata(ClusterState newState, ClusterState previousState, List<Runnable> cleanupActions)
             throws IOException {
-        MetaData previousMetadata = ourState.v2();
-        Manifest previousMetastate = ourState.v1();
-        Map<Index, Long> previouslyWrittenIndices = previousMetastate.getIndexGenerations();
+        Map<Index, Long> previouslyWrittenIndices = previousManifest.getIndexGenerations();
         Set<Index> relevantIndices = getRelevantIndices(newState, previousState, previouslyWrittenIndices.keySet());
 
         Map<Index, Long> newIndices = new HashMap<>();
 
-        Iterable<IndexMetaDataAction> actions = resolveIndexMetaDataActions(previouslyWrittenIndices, relevantIndices, previousMetadata,
+        Iterable<IndexMetaDataAction> actions = resolveIndexMetaDataActions(previouslyWrittenIndices, relevantIndices, previousMetaData,
                 newState.metaData());
 
         for (IndexMetaDataAction action : actions) {
@@ -242,12 +248,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
     }
 
     private long writeGlobalState(MetaData newMetaData, List<Runnable> cleanupActions) throws IOException {
-        if (ourState.v1().getGlobalGeneration() == -1 || MetaData.isGlobalStateEquals(ourState.v2(), newMetaData) == false) {
+        if (previousMetaData == null || MetaData.isGlobalStateEquals(previousMetaData, newMetaData) == false) {
             long generation = metaStateService.writeGlobalState("changed", newMetaData);
             cleanupActions.add(() -> metaStateService.cleanupGlobalState(generation));
             return generation;
         }
-        return ourState.v1().getGlobalGeneration();
+        return previousManifest.getGlobalGeneration();
     }
 
     public static Set<Index> getRelevantIndices(ClusterState state, ClusterState previousState, Set<Index> previouslyWrittenIndices) {
@@ -402,17 +408,15 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateA
                                                                         MetaData newMetaData) {
         List<IndexMetaDataAction> actions = new ArrayList<>();
         for (Index index : relevantIndices) {
-            Long generation = previouslyWrittenIndices.get(index);
-            IndexMetaData newIndexMetadata = newMetaData.getIndexSafe(index);
-            if (generation == null) {
-                actions.add(new WriteNewIndexMetaData(newIndexMetadata));
+            IndexMetaData newIndexMetaData = newMetaData.getIndexSafe(index);
+            IndexMetaData previousIndexMetaData = previousMetaData == null ? null : previousMetaData.index(index);
+
+            if (previouslyWrittenIndices.containsKey(index) == false || previousIndexMetaData == null) {
+                actions.add(new WriteNewIndexMetaData(newIndexMetaData));
+            } else if (previousIndexMetaData.getVersion() != newIndexMetaData.getVersion()) {
+                actions.add(new WriteChangedIndexMetaData(previousIndexMetaData, newIndexMetaData));
             } else {
-                IndexMetaData previousIndexMetadata = previousMetaData.index(index);
-                if (previousIndexMetadata.getVersion() != newIndexMetadata.getVersion()) {
-                    actions.add(new WriteChangedIndexMetaData(previousIndexMetadata, newIndexMetadata));
-                } else {
-                    actions.add(new KeepPreviousGeneration(index, generation));
-                }
+                actions.add(new KeepPreviousGeneration(index, previouslyWrittenIndices.get(index)));
             }
         }
         return actions;

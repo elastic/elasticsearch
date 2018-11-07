@@ -96,7 +96,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         this.executionHint = executionHint;
         this.filter = filterBuilder == null
                 ? null
-                : filterBuilder.toFilter(context.getQueryShardContext());
+                : filterBuilder.toQuery(context.getQueryShardContext());
         IndexSearcher searcher = context.searcher();
         this.supersetNumDocs = filter == null
                 // Important - need to use the doc count that includes deleted docs

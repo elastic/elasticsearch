@@ -97,7 +97,6 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
-    private boolean isFilter;
 
     public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
                              BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
@@ -132,7 +131,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
-        this.isFilter = false;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -176,22 +174,6 @@ public class QueryShardContext extends QueryRewriteContext {
     public Map<String, Query> copyNamedQueries() {
         // This might be a good use case for CopyOnWriteHashMap
         return unmodifiableMap(new HashMap<>(namedQueries));
-    }
-
-    /**
-     * Return whether we are currently parsing a filter or a query.
-     */
-    public boolean isFilter() {
-        return isFilter;
-    }
-
-    /**
-     * Public for testing only!
-     *
-     * Sets whether we are currently parsing a filter or a query
-     */
-    public void setIsFilter(boolean isFilter) {
-        this.isFilter = isFilter;
     }
 
     /**
@@ -287,16 +269,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public Version indexVersionCreated() {
         return indexSettings.getIndexVersionCreated();
-    }
-
-    public ParsedQuery toFilter(QueryBuilder queryBuilder) {
-        return toQuery(queryBuilder, q -> {
-            Query filter = q.toFilter(this);
-            if (filter == null) {
-                return null;
-            }
-            return filter;
-        });
     }
 
     public ParsedQuery toQuery(QueryBuilder queryBuilder) {

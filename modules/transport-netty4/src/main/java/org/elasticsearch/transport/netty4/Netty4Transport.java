@@ -38,7 +38,7 @@ import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -101,9 +101,9 @@ public class Netty4Transport extends TcpTransport {
     private volatile Bootstrap clientBootstrap;
     private volatile NioEventLoopGroup eventLoopGroup;
 
-    public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+    public Netty4Transport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                            NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
-        super("netty", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        super("netty", settings, version, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
         Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.workerCount = WORKER_COUNT.get(settings);
 
@@ -221,36 +221,22 @@ public class Netty4Transport extends TcpTransport {
     }
 
     @Override
-    protected NettyTcpChannel initiateChannel(DiscoveryNode node, ActionListener<Void> listener) throws IOException {
+    protected NettyTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         Bootstrap bootstrapWithHandler = clientBootstrap.clone();
         bootstrapWithHandler.handler(getClientChannelInitializer(node));
         bootstrapWithHandler.remoteAddress(address);
-        ChannelFuture channelFuture = bootstrapWithHandler.connect();
+        ChannelFuture connectFuture = bootstrapWithHandler.connect();
 
-        Channel channel = channelFuture.channel();
+        Channel channel = connectFuture.channel();
         if (channel == null) {
-            ExceptionsHelper.maybeDieOnAnotherThread(channelFuture.cause());
-            throw new IOException(channelFuture.cause());
+            ExceptionsHelper.maybeDieOnAnotherThread(connectFuture.cause());
+            throw new IOException(connectFuture.cause());
         }
         addClosedExceptionLogger(channel);
 
-        NettyTcpChannel nettyChannel = new NettyTcpChannel(channel);
+        NettyTcpChannel nettyChannel = new NettyTcpChannel(channel, "default", connectFuture);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
-
-        channelFuture.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(null);
-            } else {
-                Throwable cause = f.cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    listener.onFailure(new Exception(cause));
-                } else {
-                    listener.onFailure((Exception) cause);
-                }
-            }
-        });
 
         return nettyChannel;
     }
@@ -258,7 +244,8 @@ public class Netty4Transport extends TcpTransport {
     @Override
     protected NettyTcpChannel bind(String name, InetSocketAddress address) {
         Channel channel = serverBootstraps.get(name).bind(address).syncUninterruptibly().channel();
-        NettyTcpChannel esChannel = new NettyTcpChannel(channel);
+        // TODO: Switch to same server channels
+        NettyTcpChannel esChannel = new NettyTcpChannel(channel, "server", channel.newSucceededFuture());
         channel.attr(CHANNEL_KEY).set(esChannel);
         return esChannel;
     }
@@ -314,7 +301,8 @@ public class Netty4Transport extends TcpTransport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             addClosedExceptionLogger(ch);
-            NettyTcpChannel nettyTcpChannel = new NettyTcpChannel(ch);
+            NettyTcpChannel nettyTcpChannel = new NettyTcpChannel(ch, name, ch.newSucceededFuture());
+
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             serverAcceptedChannel(nettyTcpChannel);
             ch.pipeline().addLast("logging", new ESLoggingHandler());

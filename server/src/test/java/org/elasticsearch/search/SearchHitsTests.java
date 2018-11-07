@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;

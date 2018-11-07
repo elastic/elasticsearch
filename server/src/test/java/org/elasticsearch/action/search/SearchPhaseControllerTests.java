@@ -45,7 +45,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -60,7 +59,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+
 
 public class SearchPhaseControllerTests extends ESTestCase {
     private SearchPhaseController searchPhaseController;
@@ -155,7 +160,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 reducedQueryPhase,
                 searchPhaseResultAtomicArray.asList(), searchPhaseResultAtomicArray::get);
             if (trackTotalHitsThreshold != -1) {
-                assertThat(mergedResponse.hits.totalHits, both(lessThan(trackTotalHitsThreshold)).and(greaterThanOrEqualTo(0L)));
+                assertThat(mergedResponse.hits.totalHits, both(lessThanOrEqualTo(trackTotalHitsThreshold)).and(greaterThanOrEqualTo(0L)));
             } else {
                 assertThat(mergedResponse.hits.totalHits, greaterThanOrEqualTo(0L));
             }

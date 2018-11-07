@@ -29,6 +29,7 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -163,6 +164,11 @@ public final class JsonFieldMapper extends FieldMapper {
         @Override
         public Builder copyTo(CopyTo copyTo) {
             throw new UnsupportedOperationException("[copy_to] is not supported for [" + CONTENT_TYPE + "] fields.");
+        }
+
+        @Override
+        protected boolean defaultDocValues(Version indexCreated) {
+            return false;
         }
 
         @Override

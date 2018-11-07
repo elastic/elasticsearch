@@ -119,23 +119,9 @@ xpack.monitoring.exporters:
 must provide appropriate credentials when data is shipped to the monitoring cluster:
 
 ... Create a user on the monitoring cluster that has the 
-{stack-ov}/built-in-roles.html#built-in-roles-remote-monitoring-agent[`remote_monitoring_agent` built-in role]. 
-For example, the following request creates a `remote_monitor` user that has the 
-`remote_monitoring_agent` role:
-+
---
-[source, sh]
----------------------------------------------------------------
-POST /_xpack/security/user/remote_monitor
-{
-  "password" : "changeme",
-  "roles" : [ "remote_monitoring_agent"],
-  "full_name" : "Internal Agent For Remote Monitoring"
-}
----------------------------------------------------------------
-// CONSOLE
-// TEST[skip:needs-gold+-license]
---
+{stack-ov}/built-in-roles.html[`remote_monitoring_agent` built-in role]. 
+Alternatively, use the 
+{stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
 
 ... Add the user ID and password settings to the HTTP exporter settings in the 
 `elasticsearch.yml` file on each node. +
@@ -149,8 +135,8 @@ xpack.monitoring.exporters:
   id1:
     type: http
     host: ["http://es-mon-1:9200", "http://es-mon2:9200"] 
-    auth.username: remote_monitor 
-    auth.password: changeme
+    auth.username: remote_monitoring_user 
+    auth.password: YOUR_PASSWORD
 --------------------------------------------------
 --
 
@@ -171,8 +157,8 @@ xpack.monitoring.exporters:
     type: http
     host: ["https://es-mon1:9200", "https://es-mon2:9200"] 
     auth:
-      username: remote_monitor
-      password: changeme
+      username: remote_monitoring_user
+      password: YOUR_PASSWORD
     ssl:
       certificate_authorities: [ "/path/to/ca.crt" ]
 --------------------------------------------------
@@ -189,8 +175,8 @@ xpack.monitoring.exporters:
     type: http
     host: ["https://es-mon1:9200", "https://es-mon2:9200"]
     auth:
-      username: remote_monitor
-      password: changeme
+      username: remote_monitoring_user
+      password: YOUR_PASSWORD
     ssl:
       truststore.path: /path/to/file
       truststore.password: password

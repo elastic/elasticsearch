@@ -44,7 +44,7 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                                             Client client,NamedXContentRegistry xContentRegistry) {
         super(settings, GetDatafeedsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, GetDatafeedsStatsAction.Request::new);
-        this.datafeedConfigReader = new DatafeedConfigReader(client, settings, xContentRegistry);
+        this.datafeedConfigReader = new DatafeedConfigReader(client, xContentRegistry);
     }
 
     @Override

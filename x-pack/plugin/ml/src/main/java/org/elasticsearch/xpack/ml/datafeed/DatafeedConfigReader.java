@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -32,8 +31,8 @@ public class DatafeedConfigReader {
 
     private final DatafeedConfigProvider datafeedConfigProvider;
 
-    public DatafeedConfigReader(Client client, Settings settings, NamedXContentRegistry xContentRegistry) {
-        this.datafeedConfigProvider = new DatafeedConfigProvider(client, settings, xContentRegistry);
+    public DatafeedConfigReader(Client client, NamedXContentRegistry xContentRegistry) {
+        this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
     }
 
     public DatafeedConfigReader(DatafeedConfigProvider datafeedConfigProvider) {

@@ -31,7 +31,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Response to {@link GetDiscoveredNodesRequest}, containing the set of nodes that were discovered.
+ * Response to {@link GetDiscoveredNodesRequest}, containing the set of master-eligible nodes that were discovered.
  */
 public class GetDiscoveredNodesResponse extends ActionResponse {
     private final Set<DiscoveryNode> nodes;

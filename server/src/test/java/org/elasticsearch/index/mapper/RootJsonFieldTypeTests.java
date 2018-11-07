@@ -92,6 +92,11 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
             new BytesRef("lower"),
             new BytesRef("upper"), false, false);
         assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, null));
+
+        expected = new TermRangeQuery("field",
+            new BytesRef("lower"),
+            new BytesRef("upper"), true, true);
+        assertEquals(expected, ft.rangeQuery("lower", "upper", true, true, null));
     }
 
     public void testRegexpQuery() {

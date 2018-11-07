@@ -428,7 +428,11 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                     + "] when using Strategy [" + shapeFieldType.strategy() + "]");
         }
 
-        Object queryShape = queryShapeBuilder.buildLucene();
+        // wrap geoQuery as a ConstantScoreQuery
+        return new ConstantScoreQuery(getVectorQuery(context, queryShapeBuilder.buildLucene()));
+    }
+
+    private Query getVectorQuery(QueryShardContext context, Object queryShape) {
         Query geoQuery;
         if (queryShape instanceof Line[]) {
             geoQuery = LatLonShape.newLineQuery(fieldName(), relation.getLuceneRelation(), (Line[]) queryShape);
@@ -442,6 +446,8 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             Rectangle r = (Rectangle) queryShape;
             geoQuery = LatLonShape.newBoxQuery(fieldName(), relation.getLuceneRelation(),
                 r.minLat, r.maxLat, r.minLon, r.maxLon);
+        } else if (queryShape instanceof Object[]) {
+            geoQuery = getGeometryCollectionQuery(context, (Object[]) queryShape);
         } else {
             // geometry types not yet supported by Lucene's LatLonShape
             GeoShapeType geometryType = null;
@@ -454,8 +460,15 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             }
             throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + geometryType + " queries");
         }
-        // wrap geoQuery as a ConstantScoreQuery
-        return new ConstantScoreQuery(geoQuery);
+        return geoQuery;
+    }
+
+    private Query getGeometryCollectionQuery(QueryShardContext context, Object... shapes) {
+        BooleanQuery.Builder bqb = new BooleanQuery.Builder();
+        for (Object shape : shapes) {
+            bqb.add(getVectorQuery(context, shape), BooleanClause.Occur.SHOULD);
+        }
+        return bqb.build();
     }
 
     /**

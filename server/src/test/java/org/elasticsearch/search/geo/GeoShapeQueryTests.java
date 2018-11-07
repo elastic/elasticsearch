@@ -326,7 +326,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertHitCount(result, 1);
     }
 
-    public void testShapeFilterWithRandomGeoCollection() throws Exception {
+    public void testQueryRandomGeoCollection() throws Exception {
         // Create a random geometry collection.
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
         org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
@@ -356,6 +356,40 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         SearchResponse result = client().prepareSearch("test").setTypes("type").setQuery(geoShapeQueryBuilder).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
+    }
+
+    public void testRandomGeoCollectionQuery() throws Exception {
+        // Create a random geometry collection to index.
+        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
+        org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
+        CoordinatesBuilder cb = new CoordinatesBuilder();
+        for (int i = 0; i < randomPoly.numPoints(); ++i) {
+            cb.coordinate(randomPoly.getPolyLon(i), randomPoly.getPolyLat(i));
+        }
+        gcb.shape(new PolygonBuilder(cb));
+
+        logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
+
+        if (randomBoolean()) {
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
+                .execute().actionGet();
+        } else {
+            client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape,tree=quadtree")
+                .execute().actionGet();
+        }
+
+        XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
+        client().prepareIndex("test", "type", "1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+
+        // Create a random geometry collection to query
+        GeometryCollectionBuilder queryCollection = RandomShapeGenerator.createGeometryCollection(random());
+        queryCollection.shape(new PolygonBuilder(cb));
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("location", queryCollection);
+        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
+        SearchResponse result = client().prepareSearch("test").setTypes("type").setQuery(geoShapeQueryBuilder).get();
+        assertSearchResponse(result);
+        assertTrue(result.getHits().totalHits > 0);
     }
 
     public void testContainsShapeQuery() throws Exception {

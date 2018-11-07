@@ -35,11 +35,12 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.sql.expression.predicate.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.sql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mod;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneSubqueryAliases;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyCoalesce;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -78,6 +80,7 @@ import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
+import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -400,6 +403,40 @@ public class OptimizerTests extends ESTestCase {
         assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), Literal.NULL)));
         // regex
         assertNullLiteral(rule.rule(new RLike(EMPTY, getFieldAttribute(), Literal.NULL)));
+    }
+
+    public void testSimplifyCoalesceNulls() {
+        Expression e = new SimplifyCoalesce().rule(new Coalesce(EMPTY, asList(Literal.NULL, Literal.NULL)));
+        assertEquals(Coalesce.class, e.getClass());
+        assertEquals(0, e.children().size());
+    }
+
+    public void testSimplifyCoalesceRandomNulls() {
+        Expression e = new SimplifyCoalesce().rule(new Coalesce(EMPTY, randomListOfNulls()));
+        assertEquals(Coalesce.class, e.getClass());
+        assertEquals(0, e.children().size());
+    }
+
+    public void testSimplifyCoalesceRandomNullsWithValue() {
+        Expression e = new SimplifyCoalesce().rule(new Coalesce(EMPTY,
+                CollectionUtils.combine(
+                        CollectionUtils.combine(randomListOfNulls(), Literal.TRUE, Literal.FALSE, Literal.TRUE),
+                        randomListOfNulls())));
+        assertEquals(1, e.children().size());
+        assertEquals(Literal.TRUE, e.children().get(0));
+    }
+
+    private List<Expression> randomListOfNulls() {
+        return asList(randomArray(1, 10, i -> new Literal[i], () -> Literal.NULL));
+    }
+
+    public void testSimplifyCoalesceFirstLiteral() {
+        Expression e = new SimplifyCoalesce()
+                .rule(new Coalesce(EMPTY,
+                        Arrays.asList(Literal.NULL, Literal.TRUE, Literal.FALSE, new Abs(EMPTY, getFieldAttribute()))));
+        assertEquals(Coalesce.class, e.getClass());
+        assertEquals(1, e.children().size());
+        assertEquals(Literal.TRUE, e.children().get(0));
     }
 
     //

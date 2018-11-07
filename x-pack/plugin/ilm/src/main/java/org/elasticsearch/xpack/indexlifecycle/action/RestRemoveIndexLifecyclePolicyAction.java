@@ -22,7 +22,7 @@ public class RestRemoveIndexLifecyclePolicyAction extends BaseRestHandler {
 
     public RestRemoveIndexLifecyclePolicyAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, "/{index}/_ilm", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ilm/remove", this);
     }
 
     @Override

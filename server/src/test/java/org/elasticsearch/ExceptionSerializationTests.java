@@ -351,7 +351,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            Version.V_7_0_0_alpha1);
+            Version.V_7_0_0);
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
         assertEquals(0, ex.getBytesWanted());
@@ -361,7 +361,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testTooManyBucketsException() throws IOException {
         MultiBucketConsumerService.TooManyBucketsException ex =
             serialize(new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100),
-                randomFrom(Version.V_7_0_0_alpha1));
+                randomFrom(Version.V_7_0_0));
         assertEquals("Too many buckets", ex.getMessage());
         assertEquals(100, ex.getMaxBuckets());
     }

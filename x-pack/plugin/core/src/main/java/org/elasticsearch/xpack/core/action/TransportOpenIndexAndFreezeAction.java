@@ -54,8 +54,7 @@ public final class TransportOpenIndexAndFreezeAction extends
                                              ThreadPool threadPool, MetaDataIndexStateService indexStateService,
                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                              DestructiveOperations destructiveOperations) {
-        super(settings, OpenIndexAndFreezeAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver,
+        super(OpenIndexAndFreezeAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             OpenIndexAndFreezeRequest::new);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;

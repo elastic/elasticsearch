@@ -8,6 +8,7 @@ package org.elasticsearch.index.engine;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.settings.Settings;
@@ -57,19 +58,20 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         IndexService indexService = indexServices.indexServiceSafe(index);
         IndexShard shard = indexService.getShard(0);
         Engine engine = IndexShardTestCase.getEngine(shard);
-        assertEquals(0, ((FrozenEngine)engine).getOpenedReaders());
+        assertEquals(0, shard.refreshStats().getTotal());
         boolean useDFS = randomBoolean();
-        assertHitCount(client().prepareSearch().setSearchType(useDFS ? SearchType.DFS_QUERY_THEN_FETCH
-            : SearchType.QUERY_THEN_FETCH).get(), 3);
+        assertHitCount(client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
+            .setSearchType(useDFS ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH).get(), 3);
         assertThat(engine, Matchers.instanceOf(FrozenEngine.class));
-        assertEquals(useDFS ? 3 : 2, ((FrozenEngine)engine).getOpenedReaders());
+        assertEquals(useDFS ? 3 : 2, shard.refreshStats().getTotal());
         assertFalse(((FrozenEngine)engine).isReaderOpen());
         assertTrue(indexService.getIndexSettings().isSearchThrottled());
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             assertNotNull(FrozenEngine.unwrapLazyReader(searcher.getDirectoryReader()));
         }
         // now scroll
-        SearchResponse searchResponse = client().prepareSearch().setScroll(TimeValue.timeValueMinutes(1)).setSize(1).get();
+        SearchResponse searchResponse = client().prepareSearch().setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
+            .setScroll(TimeValue.timeValueMinutes(1)).setSize(1).get();
         do {
             assertHitCount(searchResponse, 3);
             assertEquals(1, searchResponse.getHits().getHits().length);
@@ -106,7 +108,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             assertTrue(indexService.getIndexSettings().isSearchThrottled());
             IndexShard shard = indexService.getShard(0);
             Engine engine = IndexShardTestCase.getEngine(shard);
-            assertEquals(0, ((FrozenEngine) engine).getOpenedReaders());
+            assertEquals(0, shard.refreshStats().getTotal());
             client().admin().indices().prepareClose("index").get();
         }
         request.setFreeze(false);

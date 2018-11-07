@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.tasks.Task;
@@ -38,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -75,12 +77,11 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
         if (localNode.isMasterNode() == false) {
             throw new IllegalArgumentException("this node is not master-eligible");
         }
+        final ExecutorService directExecutor = EsExecutors.newDirectExecutorService();
         final AtomicBoolean listenerNotified = new AtomicBoolean();
         final ListenableFuture<GetDiscoveredNodesResponse> listenableFuture = new ListenableFuture<>();
         final ThreadPool threadPool = transportService.getThreadPool();
-        listenableFuture.addListener(listener,
-            threadPool.generic(),
-            threadPool.getThreadContext());
+        listenableFuture.addListener(listener, directExecutor, threadPool.getThreadContext());
 
         final Consumer<Iterable<DiscoveryNode>> respondIfRequestSatisfied = new Consumer<Iterable<DiscoveryNode>>() {
             @Override
@@ -101,10 +102,10 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
         };
 
         final Releasable releasable = coordinator.withDiscoveryListener(respondIfRequestSatisfied);
-        listenableFuture.addListener(finallyListener(releasable::close), threadPool.generic(), threadPool.getThreadContext());
+        listenableFuture.addListener(finallyListener(releasable::close), directExecutor, threadPool.getThreadContext());
         respondIfRequestSatisfied.accept(coordinator.getFoundPeers());
 
-        threadPool.schedule(request.getTimeout(), Names.GENERIC, new Runnable() {
+        threadPool.schedule(request.getTimeout(), Names.SAME, new Runnable() {
             @Override
             public void run() {
                 if (listenerNotified.compareAndSet(false, true)) {

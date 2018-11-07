@@ -34,13 +34,20 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class GlobalPrivileges implements ToXContentObject {
-    
+/**
+ * Represents global privileges. "Global Privilege" is a mantra for granular
+ * privileges over applications. {@code ApplicationResourcePrivileges} model
+ * application privileges over resources. This models user privileges over
+ * applications. Every client is responsible to manage the applications as well
+ * as the privileges for them.
+ */
+public final class GlobalPrivileges implements ToXContentObject {
+
     static final ParseField APPLICATION = new ParseField("application");
-    
+
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>(
-            "global_application_privileges", true, constructorObjects -> {
+    static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>("global_application_privileges",
+            true, constructorObjects -> {
                 return new GlobalPrivileges((Collection<GlobalScopedPrivilege>) constructorObjects[0]);
             });
 
@@ -50,6 +57,12 @@ public class GlobalPrivileges implements ToXContentObject {
 
     private final Set<? extends GlobalScopedPrivilege> applicationPrivileges;
 
+    /**
+     * Constructs global privileges from the set of application privileges.
+     * 
+     * @param applicationPrivileges
+     *            The privileges over applications.
+     */
     public GlobalPrivileges(Collection<? extends GlobalScopedPrivilege> applicationPrivileges) {
         this.applicationPrivileges = applicationPrivileges == null ? Collections.emptySet()
                 : Collections.unmodifiableSet(new HashSet<>(applicationPrivileges));
@@ -58,9 +71,11 @@ public class GlobalPrivileges implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.startObject(APPLICATION.getPreferredName());
         for (final GlobalScopedPrivilege privilege : applicationPrivileges) {
             builder.field(privilege.getScope(), privilege.getRaw());
         }
+        builder.endObject();
         return builder.endObject();
     }
 

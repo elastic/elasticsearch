@@ -40,7 +40,29 @@ import java.util.Set;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Represents privileges over indices. There is a canonical set of privilege
+ * names (eg. {@code IndicesPrivileges#READ_PRIVILEGE_NAME}) but there is
+ * flexibility in defining finer grained, more specialized, privileges. This
+ * also encapsulates field and document level security privileges. These allow
+ * to control what fields or documents are readable or queryable.
+ */
 public final class IndicesPrivileges implements ToXContentObject {
+
+    public static final String NONE_PRIVILEGE_NAME = "none";
+    public static final String ALL_PRIVILEGE_NAME = "all";
+    public static final String READ_PRIVILEGE_NAME = "read";
+    public static final String READ_CROSS_CLUSTER_PRIVILEGE_NAME = "read_cross_cluster";
+    public static final String CREATE_PRIVILEGE_NAME = "create";
+    public static final String INDEX_PRIVILEGE_NAME = "index";
+    public static final String DELETE_PRIVILEGE_NAME = "delete";
+    public static final String WRITE_PRIVILEGE_NAME = "write";
+    public static final String MONITOR_PRIVILEGE_NAME = "monitor";
+    public static final String MANAGE_PRIVILEGE_NAME = "manage";
+    public static final String DELETE_INDEX_PRIVILEGE_NAME = "delete_index";
+    public static final String CREATE_INDEX_PRIVILEGE_NAME = "create_index";
+    public static final String VIEW_INDEX_METADATA_PRIVILEGE_NAME = "view_index_metadata";
+    public static final String MANAGE_FOLLOW_INDEX_PRIVILEGE_NAME = "manage_follow_index";
 
     public static final ParseField NAMES = new ParseField("names");
     public static final ParseField PRIVILEGES = new ParseField("privileges");
@@ -57,8 +79,10 @@ public final class IndicesPrivileges implements ToXContentObject {
                 final Collection<String> privileges = (Collection<String>) constructorObjects[i++];
                 final Tuple<Collection<String>, Collection<String>> fields =
                         (Tuple<Collection<String>, Collection<String>>) constructorObjects[i++];
+                final Collection<String> grantFields = fields != null ? fields.v1() : null;
+                final Collection<String> exceptFields = fields != null ? fields.v2() : null;
                 final String query = (String) constructorObjects[i];
-                return new IndicesPrivileges(indices, privileges, fields.v1(), fields.v2(), query);
+                return new IndicesPrivileges(indices, privileges, grantFields, exceptFields, query);
             });
 
     static {
@@ -90,7 +114,6 @@ public final class IndicesPrivileges implements ToXContentObject {
 
     private IndicesPrivileges(Collection<String> indices, Collection<String> privileges, @Nullable Collection<String> grantedFields,
             @Nullable Collection<String> deniedFields, @Nullable String query) {
-        // we do all null checks inside the constructor
         if (null == indices || indices.isEmpty()) {
             throw new IllegalArgumentException("indices privileges must refer to at least one index name or index name pattern");
         }
@@ -106,30 +129,58 @@ public final class IndicesPrivileges implements ToXContentObject {
         this.query = query;
     }
 
+    /**
+     * The indices names covered by the privileges.
+     */
     public Set<String> getIndices() {
         return this.indices;
     }
 
+    /**
+     * The privileges acting over indices. There is a canonical predefined set of
+     * such privileges, but the {@code String} datatype allows for flexibility in defining
+     * finer grained privileges.
+     */
     public Set<String> getPrivileges() {
         return this.privileges;
     }
 
+    /**
+     * The document fields that can be read or queried. Can be null, in this case
+     * all the document's fields are granted access to. Can also be empty, in which
+     * case no fields are granted access to.
+     */
     public @Nullable Set<String> getGrantedFields() {
         return this.grantedFields;
     }
 
+    /**
+     * The document fields that cannot be accessed or queried. Can be null or empty,
+     * in which case no fields are denied.
+     */
     public @Nullable Set<String> getDeniedFields() {
         return this.deniedFields;
     }
 
+    /**
+     * A query limiting the visible documents in the indices. Can be null, in which
+     * case all documents are visible.
+     */
     public @Nullable String getQuery() {
         return this.query;
     }
 
+    /**
+     * If {@code true} some documents might not be visible. Only the documents
+     * matching {@code query} will be readable.
+     */
     public boolean isUsingDocumentLevelSecurity() {
         return query != null;
     }
 
+    /**
+     * If {@code true} some document fields might not be visible.
+     */
     public boolean isUsingFieldLevelSecurity() {
         return limitsGrantedFields() || hasDeniedFields();
     }

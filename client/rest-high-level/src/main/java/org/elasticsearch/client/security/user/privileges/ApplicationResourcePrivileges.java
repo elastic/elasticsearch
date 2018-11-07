@@ -37,6 +37,12 @@ import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Represents privileges over resources that are scoped under an application.
+ * The application, resources and privileges are completely managed by the
+ * client and can be "arbitrary" string identifiers. Elasticsearch is not
+ * concerned by resources under an application scope.
+ */
 public final class ApplicationResourcePrivileges implements ToXContentObject {
 
     private static final ParseField APPLICATION = new ParseField("application");
@@ -63,6 +69,19 @@ public final class ApplicationResourcePrivileges implements ToXContentObject {
     private final Set<String> privileges;
     private final Set<String> resources;
 
+    /**
+     * Constructs privileges for resources under an application scope.
+     * 
+     * @param application
+     *            The application name. This identifier is completely under the
+     *            clients control.
+     * @param privileges
+     *            The privileges names. Cannot be null or empty. Privilege
+     *            identifiers are completely under the clients control.
+     * @param resources
+     *            The resources names. Cannot be null or empty. Resource identifiers
+     *            are completely under the clients control.
+     */
     public ApplicationResourcePrivileges(String application, Collection<String> privileges, Collection<String> resources) {
         if (Strings.isNullOrEmpty(application)) {
             throw new IllegalArgumentException("application privileges must have an application name");

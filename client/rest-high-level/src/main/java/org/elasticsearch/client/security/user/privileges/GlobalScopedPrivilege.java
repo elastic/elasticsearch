@@ -26,11 +26,22 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Represents generic global application privileges that can be scoped for each
+ * application. The privilege definition is outside the Elasticsearch control.
+ */
 public class GlobalScopedPrivilege {
 
     private final String scope;
     private final Map<String, Object> privilege;
 
+    /**
+     * Constructs privilege over some "scope". The "scope" is usually an application
+     * name but there is no constraint over this identifier.
+     * 
+     * @param scope The scope of the privilege.
+     * @param privilege The privilege definition. This is out of the Elasticsearch control.
+     */
     public GlobalScopedPrivilege(String scope, Map<String, Object> privilege) {
         this.scope = Objects.requireNonNull(scope);
         this.privilege = Collections.unmodifiableMap(Objects.requireNonNull(privilege));

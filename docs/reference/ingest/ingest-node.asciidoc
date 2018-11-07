@@ -828,7 +828,7 @@ include::ingest-node-common-processor.asciidoc[]
 
 [[convert-processor]]
 === Convert Processor
-Converts a source field's value which is not ingested yet to a different type, such as converting a string to an integer.
+Converts a field in the currently ingested document to a different type, such as converting a string to an integer.
 If the field value is an array, all members will be converted.
 
 The supported types include: `integer`, `long`, `float`, `double`, `string`, `boolean`, and `auto`.
@@ -857,9 +857,9 @@ include::ingest-node-common-processor.asciidoc[]
 
 [source,js]
 --------------------------------------------------
-PUT _ingest/pipeline/studentindex
+PUT _ingest/pipeline/my-pipeline-id
 {
-  "description": "for student index converting from string id field to integer one ",
+  "description": "converts the content of the id field to an integer",
   "processors" : [
     {
       "convert" : {

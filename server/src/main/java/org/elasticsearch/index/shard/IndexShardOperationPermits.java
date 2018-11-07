@@ -114,7 +114,7 @@ final class IndexShardOperationPermits implements Closeable {
      * Immediately delays operations and on another thread waits for in-flight operations to finish and then acquires all permits. When all
      * permits are acquired, the provided {@link ActionListener} is called under the guarantee that no new operations are started. Delayed
      * operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in this case the
-     * {@code onFailure} handler will be invoked before running delayed operations.
+     * {@code onFailure} handler will be invoked after delayed operations are released.
      *
      * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed
      * @param timeout    the maximum time to wait for the in-flight operations block
@@ -129,9 +129,9 @@ final class IndexShardOperationPermits implements Closeable {
             @Override
             public void onFailure(final Exception e) {
                 try {
-                    onAcquired.onFailure(e);
+                    releaseDelayedOperationsIfNeeded(); // resume delayed operations as soon as possible
                 } finally {
-                    releaseDelayedOperationsIfNeeded();
+                    onAcquired.onFailure(e);
                 }
             }
 

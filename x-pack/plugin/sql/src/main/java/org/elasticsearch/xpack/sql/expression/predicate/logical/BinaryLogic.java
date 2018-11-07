@@ -35,7 +35,5 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public boolean nullable() {
-        return left().nullable() && right().nullable();
-    }
+    public abstract boolean nullable();
 }

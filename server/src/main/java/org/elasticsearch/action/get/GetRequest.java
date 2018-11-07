@@ -248,7 +248,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString();
         }
         preference = in.readOptionalString();
@@ -267,7 +267,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null);
         }
         out.writeOptionalString(preference);

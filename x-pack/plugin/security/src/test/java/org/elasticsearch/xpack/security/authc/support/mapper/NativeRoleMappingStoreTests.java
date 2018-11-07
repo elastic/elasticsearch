@@ -84,7 +84,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
             }
         };
 
-        final RealmConfig realm = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ldap1"), Settings.EMPTY, Settings.EMPTY,
+        final RealmConfig realm = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", "ldap1"), Settings.EMPTY,
                 mock(Environment.class), new ThreadContext(Settings.EMPTY));
 
         final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
@@ -197,7 +197,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         }).when(client).execute(eq(ClearRealmCacheAction.INSTANCE), any(ClearRealmCacheRequest.class), any(ActionListener.class));
 
         final Environment env = TestEnvironment.newEnvironment(settings);
-        final RealmConfig realmConfig = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", getTestName()), Settings.EMPTY,
+        final RealmConfig realmConfig = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", getTestName()),
                 settings, env, threadContext);
         final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm(realmConfig, threadPool) {
             @Override

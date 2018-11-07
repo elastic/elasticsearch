@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -45,10 +44,9 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     private final NodeClient client;
 
     @Inject
-    public TransportMultiSearchTemplateAction(Settings settings, TransportService transportService,
-                                              ActionFilters actionFilters, ScriptService scriptService,
+    public TransportMultiSearchTemplateAction(TransportService transportService, ActionFilters actionFilters, ScriptService scriptService,
                                               NamedXContentRegistry xContentRegistry, NodeClient client) {
-        super(settings, MultiSearchTemplateAction.NAME, transportService, actionFilters, MultiSearchTemplateRequest::new);
+        super(MultiSearchTemplateAction.NAME, transportService, actionFilters, MultiSearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;

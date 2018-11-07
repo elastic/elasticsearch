@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -19,6 +22,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -57,6 +61,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -210,14 +215,23 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
         };
+        int bulkSize = between(1, 20);
         BulkProcessor bulkProcessor = BulkProcessor.builder(leaderClient(), listener)
-            .setBulkActions(100)
+            .setBulkActions(bulkSize)
             .setConcurrentRequests(4)
             .build();
         AtomicBoolean run = new AtomicBoolean(true);
+        Semaphore availableDocs = new Semaphore(0);
         Thread thread = new Thread(() -> {
             int counter = 0;
             while (run.get()) {
+                try {
+                    if (availableDocs.tryAcquire(10, TimeUnit.MILLISECONDS) == false) {
+                        continue;
+                    }
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
                 final String source = String.format(Locale.ROOT, "{\"f\":%d}", counter++);
                 IndexRequest indexRequest = new IndexRequest("index1", "doc")
                     .source(source, XContentType.JSON)
@@ -228,26 +242,28 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         thread.start();
 
         // Waiting for some document being index before following the index:
-        int maxReadSize = randomIntBetween(128, 2048);
-        long numDocsIndexed = Math.min(3000 * 2, randomLongBetween(maxReadSize, maxReadSize * 10));
+        int maxOpsPerRead = randomIntBetween(10, 100);
+        int numDocsIndexed = Math.min(between(20, 300), between(maxOpsPerRead, maxOpsPerRead * 10));
+        availableDocs.release(numDocsIndexed / 2 + bulkSize);
         atLeastDocsIndexed(leaderClient(), "index1", numDocsIndexed / 3);
 
         PutFollowAction.Request followRequest = putFollow("index1", "index2");
-        followRequest.getFollowRequest().setMaxReadRequestOperationCount(maxReadSize);
-        followRequest.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(2, 10));
-        followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(2, 10));
+        followRequest.getFollowRequest().setMaxReadRequestOperationCount(maxOpsPerRead);
+        followRequest.getFollowRequest().setMaxOutstandingReadRequests(randomIntBetween(1, 10));
+        followRequest.getFollowRequest().setMaxOutstandingWriteRequests(randomIntBetween(1, 10));
         followRequest.getFollowRequest().setMaxWriteBufferCount(randomIntBetween(1024, 10240));
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
-
+        availableDocs.release(numDocsIndexed * 2  + bulkSize);
         atLeastDocsIndexed(leaderClient(), "index1", numDocsIndexed);
         run.set(false);
         thread.join();
         assertThat(bulkProcessor.awaitClose(1L, TimeUnit.MINUTES), is(true));
 
-        assertSameDocCount("index1", "index2");
+        assertIndexFullyReplicatedToFollower("index1", "index2");
+        pauseFollow("index2");
+        leaderClient().admin().indices().prepareRefresh("index1").get();
         assertTotalNumberOfOptimizedIndexing(resolveFollowerIndex("index2"), numberOfShards,
             leaderClient().prepareSearch("index1").get().getHits().totalHits);
-        pauseFollow("index2");
         assertMaxSeqNoOfUpdatesIsTransferred(resolveLeaderIndex("index1"), resolveFollowerIndex("index2"), numberOfShards);
     }
 
@@ -538,6 +554,35 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         e = expectThrows(IllegalArgumentException.class,
             () -> followerClient().execute(PutAutoFollowPatternAction.INSTANCE, putAutoFollowRequest).actionGet());
         assertThat(e.getMessage(), equalTo("unknown cluster alias [another_cluster]"));
+    }
+
+    public void testLeaderIndexRed() throws Exception {
+        try {
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.transientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
+            assertAcked(leaderClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(leaderClient().admin().indices().prepareCreate("index1")
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+                .setSettings(Settings.builder()
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build()));
+
+            final PutFollowAction.Request followRequest = putFollow("index1", "index2");
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
+            assertThat(e.getMessage(), equalTo("no index stats available for the leader index"));
+
+            IndicesExistsResponse existsResponse = followerClient().admin().indices().exists(new IndicesExistsRequest("index2"))
+                .actionGet();
+            assertThat(existsResponse.isExists(), is(false));
+        } finally {
+            // Always unset allocation enable setting to avoid other assertions from failing too when this test fails:
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            updateSettingsRequest.transientSettings(Settings.builder().put("cluster.routing.allocation.enable", (String) null));
+            assertAcked(leaderClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+        }
     }
 
     private CheckedRunnable<Exception> assertTask(final int numberOfPrimaryShards, final Map<ShardId, Long> numDocsPerShard) {

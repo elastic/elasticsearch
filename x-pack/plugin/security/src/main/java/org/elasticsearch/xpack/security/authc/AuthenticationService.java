@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -12,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -49,7 +50,9 @@ import java.util.function.Consumer;
  * This service also supports request level caching of authenticated users (i.e. once a user authenticated
  * successfully, it is set on the request context to avoid subsequent redundant authentication process)
  */
-public class AuthenticationService extends AbstractComponent {
+public class AuthenticationService {
+
+    private static final Logger logger = LogManager.getLogger(AuthenticationService.class);
 
     private final Realms realms;
     private final AuditTrail auditTrail;

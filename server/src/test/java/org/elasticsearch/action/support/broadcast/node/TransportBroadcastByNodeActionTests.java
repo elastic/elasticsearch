@@ -118,10 +118,10 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             extends TransportBroadcastByNodeAction<Request, Response, TransportBroadcastByNodeAction.EmptyResult> {
         private final Map<ShardRouting, Object> shards = new HashMap<>();
 
-        TestTransportBroadcastByNodeAction(Settings settings, TransportService transportService, ActionFilters actionFilters,
+        TestTransportBroadcastByNodeAction(TransportService transportService, ActionFilters actionFilters,
                                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
                                            String executor) {
-            super(settings, "indices:admin/test", TransportBroadcastByNodeActionTests.this.clusterService, transportService,
+            super("indices:admin/test", TransportBroadcastByNodeActionTests.this.clusterService, transportService,
                 actionFilters, indexNameExpressionResolver, request, executor);
         }
 
@@ -199,7 +199,6 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         transportService.acceptIncomingRequests();
         setClusterState(clusterService, TEST_INDEX);
         action = new TestTransportBroadcastByNodeAction(
-                Settings.EMPTY,
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 new MyResolver(),

@@ -32,7 +32,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -63,9 +62,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
 
     @Inject
-    public TransportCancelTasksAction(Settings settings, ClusterService clusterService,
-                                      TransportService transportService, ActionFilters actionFilters) {
-        super(settings, CancelTasksAction.NAME, clusterService, transportService, actionFilters,
+    public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+        super(CancelTasksAction.NAME, clusterService, transportService, actionFilters,
             CancelTasksRequest::new, CancelTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, BanParentTaskRequest::new, ThreadPool.Names.SAME, new
             BanParentRequestHandler());

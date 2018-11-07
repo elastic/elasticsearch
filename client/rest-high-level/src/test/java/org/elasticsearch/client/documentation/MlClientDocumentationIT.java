@@ -74,6 +74,8 @@ import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
+import org.elasticsearch.client.ml.PutFilterRequest;
+import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
@@ -94,6 +96,7 @@ import org.elasticsearch.client.ml.job.config.DetectionRule;
 import org.elasticsearch.client.ml.job.config.Detector;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobUpdate;
+import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.client.ml.job.config.Operator;
 import org.elasticsearch.client.ml.job.config.RuleCondition;
@@ -2006,5 +2009,59 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::delete-calendar-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testCreateFilter() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::put-filter-config
+            MlFilter.Builder filterBuilder = MlFilter.builder("my_safe_domains") // <1>
+                .setDescription("A list of safe domains")   // <2>
+                .setItems("*.google.com", "wikipedia.org"); // <3>
+            // end::put-filter-config
+
+            // tag::put-filter-request
+            PutFilterRequest request = new PutFilterRequest(filterBuilder.build()); // <1>
+            // end::put-filter-request
+
+            // tag::put-filter-execute
+            PutFilterResponse response = client.machineLearning().putFilter(request, RequestOptions.DEFAULT);
+            // end::put-filter-execute
+
+            // tag::put-filter-response
+            MlFilter createdFilter = response.getResponse(); // <1>
+            // end::put-filter-response
+            assertThat(createdFilter.getId(), equalTo("my_safe_domains"));
+        }
+        {
+            MlFilter.Builder filterBuilder = MlFilter.builder("safe_domains_async")
+                .setDescription("A list of safe domains")
+                .setItems("*.google.com", "wikipedia.org");
+
+            PutFilterRequest request = new PutFilterRequest(filterBuilder.build());
+            // tag::put-filter-execute-listener
+            ActionListener<PutFilterResponse> listener = new ActionListener<PutFilterResponse>() {
+                @Override
+                public void onResponse(PutFilterResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-filter-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-filter-execute-async
+            client.machineLearning().putFilterAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-filter-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 }

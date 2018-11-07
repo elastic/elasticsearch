@@ -56,7 +56,7 @@ public class LeafFieldsLookupTests extends ESTestCase {
         when(mapperService.fullName("alias")).thenReturn(fieldType);
 
         FieldInfo mockFieldInfo = new FieldInfo("field", 1, false, false, true,
-            IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, false);
+            IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
 
         LeafReader leafReader = mock(LeafReader.class);
         doAnswer(invocation -> {

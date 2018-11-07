@@ -198,7 +198,7 @@ public class SourceOnlySnapshot {
             List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
             for (FieldInfo fieldInfo : fieldInfos) {
                 fieldInfoCopy.add(new FieldInfo(fieldInfo.name, fieldInfo.number,
-                    false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, fieldInfo.attributes(), 0, 0,
+                    false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, fieldInfo.attributes(), 0, 0, 0,
                     fieldInfo.isSoftDeletesField()));
             }
             FieldInfos newFieldInfos = new FieldInfos(fieldInfoCopy.toArray(new FieldInfo[0]));

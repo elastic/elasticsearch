@@ -24,7 +24,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -97,7 +96,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
     @Inject
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         setWeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setThreshold(THRESHOLD_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
@@ -446,28 +444,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 return MoveDecision.rebalance(canRebalance, AllocationDecision.fromDecisionType(rebalanceDecisionType),
                     assignedNode != null ? assignedNode.routingNode.node() : null, currentNodeWeightRanking, nodeDecisions);
             }
-        }
-
-        public Map<DiscoveryNode, Float> weighShard(ShardRouting shard) {
-            final ModelNode[] modelNodes = sorter.modelNodes;
-            final float[] weights = sorter.weights;
-
-            buildWeightOrderedIndices();
-            Map<DiscoveryNode, Float> nodes = new HashMap<>(modelNodes.length);
-            float currentNodeWeight = 0.0f;
-            for (int i = 0; i < modelNodes.length; i++) {
-                if (modelNodes[i].getNodeId().equals(shard.currentNodeId())) {
-                    // If a node was found with the shard, use that weight instead of 0.0
-                    currentNodeWeight = weights[i];
-                    break;
-                }
-            }
-
-            for (int i = 0; i < modelNodes.length; i++) {
-                final float delta = currentNodeWeight - weights[i];
-                nodes.put(modelNodes[i].getRoutingNode().node(), delta);
-            }
-            return nodes;
         }
 
         /**

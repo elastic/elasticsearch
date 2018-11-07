@@ -22,8 +22,9 @@ package org.elasticsearch.index.termvectors;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -98,7 +99,7 @@ public class TermVectorsService  {
         try (Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), false, request.type(), request.id(), uidTerm)
                 .version(request.version()).versionType(request.versionType()));
                 Engine.Searcher searcher = indexShard.acquireSearcher("term_vector")) {
-            Fields topLevelFields = MultiFields.getFields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
+            Fields topLevelFields = fields(get.searcher() != null ? get.searcher().reader() : searcher.reader());
             DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
@@ -150,6 +151,25 @@ public class TermVectorsService  {
             throw new ElasticsearchException("failed to execute term vector request", ex);
         }
         return termVectorsResponse;
+    }
+
+    public static Fields fields(IndexReader reader) {
+        return new Fields() {
+            @Override
+            public Iterator<String> iterator() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Terms terms(String field) throws IOException {
+                return MultiTerms.getTerms(reader, field);
+            }
+
+            @Override
+            public int size() {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     private static void handleFieldWildcards(IndexShard indexShard, TermVectorsRequest request) {
@@ -270,7 +290,7 @@ public class TermVectorsService  {
             }
         }
         /* and read vectors from it */
-        return MultiFields.getFields(index.createSearcher().getIndexReader());
+        return index.createSearcher().getIndexReader().getTermVectors(0);
     }
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
@@ -360,5 +380,4 @@ public class TermVectorsService  {
             return fields.size();
         }
     }
-
 }

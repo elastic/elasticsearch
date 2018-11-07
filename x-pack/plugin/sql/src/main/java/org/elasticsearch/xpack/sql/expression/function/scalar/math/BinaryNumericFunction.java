@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.sql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.BinaryMathProcessor.BinaryMathOperation;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -19,7 +20,7 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
 
     private final BinaryMathOperation operation;
 
-    protected BinaryNumericFunction(Location location, Expression left, Expression right, BinaryMathOperation operation) {
+    BinaryNumericFunction(Location location, Expression left, Expression right, BinaryMathOperation operation) {
         super(location, left, right);
         this.operation = operation;
     }
@@ -35,18 +36,12 @@ public abstract class BinaryNumericFunction extends BinaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = resolveInputType(left().dataType());
+        TypeResolution resolution = Expressions.typeMustBeNumeric(left(), functionName(), ParamOrdinal.FIRST);
+        if (resolution.unresolved()) {
+            return resolution;
 
-        if (resolution == TypeResolution.TYPE_RESOLVED) {
-            return resolveInputType(right().dataType());
         }
-        return resolution;
-    }
-
-    protected TypeResolution resolveInputType(DataType inputType) {
-        return inputType.isNumeric() ?
-                TypeResolution.TYPE_RESOLVED :
-                new TypeResolution("'%s' requires a numeric type, received %s", scriptMethodName(), inputType.esType);
+        return Expressions.typeMustBeNumeric(right(), functionName(), ParamOrdinal.SECOND);
     }
 
     @Override

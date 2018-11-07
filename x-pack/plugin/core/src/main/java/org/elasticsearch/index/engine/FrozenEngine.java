@@ -174,7 +174,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
     @SuppressForbidden( reason = "we manage references explicitly here")
     public Searcher acquireSearcher(String source, SearcherScope scope) throws EngineException {
         store.incRef();
-        boolean success = false;
+        boolean releaseRefeference = true;
         try  {
             final boolean maybeOpenReader;
             switch (source) {
@@ -199,21 +199,16 @@ public final class FrozenEngine extends ReadOnlyEngine {
                 // we just hand out a searcher on top of an empty reader that we opened for the ReadOnlyEngine in the #open(IndexCommit)
                 // method. this is the case when we don't have a reader open right now and we get a stats call any other that falls in
                 // the category that doesn't trigger a reopen
-                try {
-                    return super.acquireSearcher(source, scope);
-                } finally {
-                    success = true;
-                    store.decRef(); // this is the reference we acquired in the beginning of this method
-                }
+                return super.acquireSearcher(source, scope);
             } else {
                 try {
                     LazyDirectoryReader lazyDirectoryReader = new LazyDirectoryReader(reader, this);
                     Searcher newSearcher = new Searcher(source, new IndexSearcher(lazyDirectoryReader),
                         () -> IOUtils.close(lazyDirectoryReader, store::decRef));
-                    success = true;
+                    releaseRefeference = false;
                     return newSearcher;
                 } finally {
-                    if (success == false) {
+                    if (releaseRefeference) {
                         reader.decRef(); // don't call close here we manage reference ourselves
                     }
                 }
@@ -221,7 +216,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } finally {
-            if (success == false) {
+            if (releaseRefeference) {
                 store.decRef();
             }
         }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
@@ -87,6 +88,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(new BytesRef("value"), fields[0].binaryValue());
         assertFalse(fields[0].fieldType().stored());
         assertTrue(fields[0].fieldType().omitNorms());
+        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
 
         IndexableField[] keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
         assertEquals(1, keyedFields.length);
@@ -95,6 +97,7 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(new BytesRef("key\0value"), keyedFields[0].binaryValue());
         assertFalse(keyedFields[0].fieldType().stored());
         assertTrue(keyedFields[0].fieldType().omitNorms());
+        assertEquals(DocValuesType.NONE, keyedFields[0].fieldType().docValuesType());
 
         IndexableField[] fieldNamesFields = parsedDoc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
         assertEquals(1, fieldNamesFields.length);
@@ -125,6 +128,23 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         ParsedDocument parsedDoc = mapper.parse(SourceToParse.source("test", "type", "1", doc, XContentType.JSON));
         IndexableField[] fields = parsedDoc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
+    }
+
+    public void testEnableDocValues() throws Exception {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("field")
+                        .field("type", "json")
+                        .field("doc_values", true)
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("[json] fields do not support doc values", e.getMessage());
     }
 
     public void testEnableStore() throws Exception {

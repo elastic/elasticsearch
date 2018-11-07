@@ -21,38 +21,47 @@ type.
 |=======================================================================
 |Option |Description| Default
 
-|`tree` |Name of the PrefixTree implementation to be used: `geohash` for
-GeohashPrefixTree and `quadtree` for QuadPrefixTree.
+|`tree |deprecated[6.6, use `vector` strategy] Name of the PrefixTree
+implementation to be used: `geohash` for GeohashPrefixTree and `quadtree`
+for QuadPrefixTree.
 | `geohash`
 
-|`precision` |This parameter may be used instead of `tree_levels` to set
-an appropriate value for the `tree_levels` parameter. The value
-specifies the desired precision and Elasticsearch will calculate the
-best tree_levels value to honor this precision. The value should be a
-number followed by an optional distance unit. Valid distance units
-include: `in`, `inch`, `yd`, `yard`, `mi`, `miles`, `km`, `kilometers`,
-`m`,`meters`, `cm`,`centimeters`, `mm`, `millimeters`.
+|`precision` |deprecated[6.6, use `vector` strategy] This parameter may
+be used instead of `tree_levels` to set an appropriate value for the
+`tree_levels` parameter. The value specifies the desired precision and
+Elasticsearch will calculate the best tree_levels value to honor this
+precision. The value should be a number followed by an optional distance
+unit. Valid distance units include: `in`, `inch`, `yd`, `yard`, `mi`,
+`miles`, `km`, `kilometers`, `m`,`meters`, `cm`,`centimeters`, `mm`,
+`millimeters`.
 | `50m`
 
-|`tree_levels` |Maximum number of layers to be used by the PrefixTree.
-This can be used to control the precision of shape representations and
-therefore how many terms are indexed. Defaults to the default value of
-the chosen PrefixTree implementation. Since this parameter requires a
-certain level of understanding of the underlying implementation, users
-may use the `precision` parameter instead. However, Elasticsearch only
-uses the tree_levels parameter internally and this is what is returned
-via the mapping API even if you use the precision parameter.
+|`tree_levels` |deprecated[6.6, use `vector` strategy] Maximum number
+of layers to be used by the PrefixTree. This can be used to control the
+precision of shape representations andtherefore how many terms are
+indexed. Defaults to the default value of the chosen PrefixTree
+implementation. Since this parameter requires a certain level of
+understanding of the underlying implementation, users may use the
+`precision` parameter instead. However, Elasticsearch only uses the
+tree_levels parameter internally and this is what is returned via the
+mapping API even if you use the precision parameter.
 | various
 
-|`strategy` |The strategy parameter defines the approach for how to
-represent shapes at indexing and search time. It also influences the
-capabilities available so it is recommended to let Elasticsearch set
-this parameter automatically. There are two strategies available:
-`recursive` and `term`. Term strategy supports point types only (the
-`points_only` parameter will be automatically set to true) while
-Recursive strategy supports all shape types. (IMPORTANT: see
-<<prefix-trees, Prefix trees>> for more detailed information)
-| `recursive`
+|`strategy` |deprecated[6.6, use `vector` strategy] The strategy
+parameter defines the approach for how to represent shapes at indexing
+and search time. It also influences the capabilities available so it
+is recommended to let Elasticsearch set this parameter automatically.
+There are three strategies available: `recursive`, `term`, and `vector`.
+Vector strategy is the default. This strategy provides near perfect
+resolution (down to 1e-6 decimal degree precision) by indexing shapes
+as vectory types. It is the preferred method of shape indexing.
+Recursive and Term strategies are deprecated and will be removed in a
+future version. While they are still available, the Term strategy
+supports point types only (the `points_only` parameter will be
+automatically set to true) while Recursive strategy supports all
+shape types. (IMPORTANT: see <<prefix-trees, Prefix trees>> for more
+detailed information about these strategies)
+| `vector`
 
 |`distance_error_pct` |Used as a hint to the PrefixTree about how
 precise it should be. Defaults to 0.025 (2.5%) with 0.5 as the maximum
@@ -77,13 +86,13 @@ sets vertex order for the coordinate list of a geo_shape field but can be
 overridden in each individual GeoJSON or WKT document.
 | `ccw`
 
-|`points_only` |Setting this option to `true` (defaults to `false`) configures
-the `geo_shape` field type for point shapes only (NOTE: Multi-Points are not
-yet supported). This optimizes index and search performance for the `geohash` and
-`quadtree` when it is known that only points will be indexed. At present geo_shape
-queries can not be executed on `geo_point` field types. This option bridges the gap
-by improving point performance on a `geo_shape` field so that `geo_shape` queries are
-optimal on a point only field.
+|`points_only` |deprecated[6.6, use `vector` strategy] Setting this option to
+`true` (defaults to `false`) configures the `geo_shape` field type for point
+shapes only (NOTE: Multi-Points are not yet supported). This optimizes index and
+search performance for the `geohash` and `quadtree` when it is known that only points
+will be indexed. At present geo_shape queries can not be executed on `geo_point`
+field types. This option bridges the gap by improving point performance on a
+`geo_shape` field so that `geo_shape` queries are optimal on a point only field.
 | `false`
 
 |`ignore_malformed` |If true, malformed GeoJSON or WKT shapes are ignored. If
@@ -104,12 +113,15 @@ and reject the whole document.
 [float]
 ==== Prefix trees
 
-To efficiently represent shapes in the index, Shapes are converted into
-a series of hashes representing grid squares (commonly referred to as "rasters")
-using implementations of a PrefixTree. The tree notion comes from the fact that
-the PrefixTree uses multiple grid layers, each with an increasing level of
-precision to represent the Earth. This can be thought of as increasing the level
-of detail of a map or image at higher zoom levels.
+deprecated[6.6, use `vector` strategy] To efficiently represent shapes in
+an inverted index, Shapes are converted into a series of hashes representing
+grid squares (commonly referred to as "rasters") using implementations of a
+PrefixTree. The tree notion comes from the fact that the PrefixTree uses multiple
+grid layers, each with an increasing level of precision to represent the Earth.
+This can be thought of as increasing the level of detail of a map or image at higher
+zoom levels. Since this approach causes precision issues with indexed shape, it has
+been deprecated in favor of a vector approach that indexes the shapes as a triangular
+mesh.
 
 Multiple PrefixTree implementations are provided:
 
@@ -131,9 +143,9 @@ number of levels for the quad trees in Elasticsearch is 29; the default is 21.
 [[spatial-strategy]]
 [float]
 ===== Spatial strategies
-The PrefixTree implementations rely on a SpatialStrategy for decomposing
-the provided Shape(s) into approximated grid squares. Each strategy answers
-the following:
+The indexing implementation selected relies on a SpatialStrategy for choosing
+how to decompose the shapes (either as grid squares or a tessellated triangular
+mesh). Each strategy answers the following:
 
 * What type of Shapes can be indexed?
 * What types of Query Operations and Shapes can be used?
@@ -146,24 +158,48 @@ are provided:
 |=======================================================================
 |Strategy |Supported Shapes |Supported Queries |Multiple Shapes
 
-|`recursive` |<<input-structure, All>> |`INTERSECTS`, `DISJOINT`, `WITHIN`, `CONTAINS` |Yes
-|`term` |<<point, Points>> |`INTERSECTS` |Yes
+|`vector` | <<input-structure, All>> | `INTERSECTS`, `DISJOINT`, `WITHIN` |Yes
+|`recursive` deprecated[6.6, use `vector` strategy] |<<input-structure, All>> |`INTERSECTS`, `DISJOINT`, `WITHIN`, `CONTAINS` |Yes
+|`term` deprecated[6.6, use `vector` strategy] |<<point, Points>> |`INTERSECTS` |Yes
 
 |=======================================================================
 
 [float]
 ===== Accuracy
 
-Geo_shape does not provide 100% accuracy and depending on how it is configured
-it may return some false positives for `INTERSECTS`, `WITHIN` and `CONTAINS`
-queries, and some false negatives for `DISJOINT` queries. To mitigate this, it
-is important to select an appropriate value for the tree_levels parameter and
-to adjust expectations accordingly. For example, a point may be near the border
-of a particular grid cell and may thus not match a query that only matches the
-cell right next to it -- even though the shape is very close to the point.
+`Recursive` and `Term` strategies do not provide 100% accuracy and depending on
+how they are configured it may return some false positives for `INTERSECTS`,
+`WITHIN` and `CONTAINS` queries, and some false negatives for `DISJOINT` queries.
+To mitigate this, it is important to select an appropriate value for the tree_levels
+parameter and to adjust expectations accordingly. For example, a point may be near
+the border of a particular grid cell and may thus not match a query that only matches
+the cell right next to it -- even though the shape is very close to the point.
 
 [float]
 ===== Example
+
+[source,js]
+--------------------------------------------------
+PUT /example
+{
+    "mappings": {
+        "doc": {
+            "properties": {
+                "location": {
+                    "type": "geo_shape",
+                    "tree": "quadtree"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTSETUP
+
+This mapping definition maps the location field to the geo_shape
+type using the default vector implementation. It provides
+approximately 1e-6 decimal degree precision.
 
 [source,js]
 --------------------------------------------------
@@ -183,24 +219,23 @@ PUT /example
 }
 --------------------------------------------------
 // CONSOLE
-// TESTSETUP
 
 This mapping maps the location field to the geo_shape type using the
 quad_tree implementation and a precision of 100m. Elasticsearch translates
 this into a tree_levels setting of 20.
 
 [float]
-===== Performance considerations
+===== Performance considerations with Prefix Trees
 
-Elasticsearch uses the paths in the prefix tree as terms in the index
-and in queries. The higher the level is (and thus the precision), the
-more terms are generated. Of course, calculating the terms, keeping them in
-memory, and storing them on disk all have a price. Especially with higher
-tree levels, indices can become extremely large even with a modest
-amount of data. Additionally, the size of the features also matters.
-Big, complex polygons can take up a lot of space at higher tree levels.
-Which setting is right depends on the use case. Generally one trades off
-accuracy against index size and query performance.
+With prefix trees, Elasticsearch uses the paths in the tree as terms in
+the inverted index and in queries. The higher the level (and thus the
+precision), the more terms are generated. Of course, calculating the
+terms, keeping them in memory, and storing them on disk all have a price.
+Especially with higher tree levels, indices can become extremely large
+even with a modest amount of data. Additionally, the size of the features
+also matters. Big, complex polygons can take up a lot of space at higher
+tree levels. Which setting is right depends on the use case. Generally one
+trades off accuracy against index size and query performance.
 
 The defaults in Elasticsearch for both implementations are a compromise
 between index size and a reasonable level of precision of 50m at the
@@ -598,7 +633,8 @@ POST /example/doc
 ===== Circle
 
 Elasticsearch supports a `circle` type, which consists of a center
-point with a radius:
+point with a radius. Note that circles can only be indexed when using
+the `recursive` Prefix Tree strategy only.
 
 [source,js]
 --------------------------------------------------

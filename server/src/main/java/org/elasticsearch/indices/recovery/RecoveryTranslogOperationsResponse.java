@@ -63,8 +63,10 @@ public class RecoveryTranslogOperationsResponse extends TransportResponse {
     static TransportResponseHandler<RecoveryTranslogOperationsResponse> HANDLER =
             new FutureTransportResponseHandler<RecoveryTranslogOperationsResponse>() {
                 @Override
-                public RecoveryTranslogOperationsResponse newInstance() {
-                    return new RecoveryTranslogOperationsResponse();
+                public RecoveryTranslogOperationsResponse read(StreamInput in) throws IOException {
+                    RecoveryTranslogOperationsResponse response = new RecoveryTranslogOperationsResponse();
+                    response.readFrom(in);
+                    return response;
                 }
             };
 

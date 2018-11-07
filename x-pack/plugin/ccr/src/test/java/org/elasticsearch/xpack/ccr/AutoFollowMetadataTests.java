@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -39,13 +41,17 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
         for (int i = 0; i < numEntries; i++) {
             List<String> leaderPatterns = Arrays.asList(generateRandomStringArray(4, 4, false));
             AutoFollowMetadata.AutoFollowPattern autoFollowPattern = new AutoFollowMetadata.AutoFollowPattern(
+                randomAlphaOfLength(4),
                 leaderPatterns,
                 randomAlphaOfLength(4),
                 randomIntBetween(0, Integer.MAX_VALUE),
+                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
                 randomIntBetween(0, Integer.MAX_VALUE),
-                randomNonNegativeLong(),
+                randomIntBetween(0, Integer.MAX_VALUE),
+                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
+                new ByteSizeValue(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(500),
                 TimeValue.timeValueMillis(500));
             configs.put(Integer.toString(i), autoFollowPattern);

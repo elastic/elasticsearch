@@ -73,10 +73,10 @@ public final class AutoCreateIndex {
         // One volatile read, so that all checks are done against the same instance:
         final AutoCreate autoCreate = this.autoCreate;
         if (autoCreate.autoCreateIndex == false) {
-            throw new IndexNotFoundException("no such index and [" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
+            throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
         }
         if (dynamicMappingDisabled) {
-            throw new IndexNotFoundException("no such index and [" + MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey() + "] is [false]",
+            throw new IndexNotFoundException("[" + MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey() + "] is [false]",
                     index);
         }
         // matches not set, default value of "true"
@@ -90,11 +90,11 @@ public final class AutoCreateIndex {
                 if (include) {
                     return true;
                 }
-                throw new IndexNotFoundException("no such index and [" + AUTO_CREATE_INDEX_SETTING.getKey() + "] contains [-"
+                throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] contains [-"
                         + indexExpression + "] which forbids automatic creation of the index", index);
             }
         }
-        throw new IndexNotFoundException("no such index and [" + AUTO_CREATE_INDEX_SETTING.getKey() + "] ([" + autoCreate
+        throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] ([" + autoCreate
                 + "]) doesn't match", index);
     }
 

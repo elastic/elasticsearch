@@ -101,7 +101,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNotNull(job.getDataDescription());
         assertNull(job.getDescription());
         assertNull(job.getFinishedTime());
-        assertNull(job.getLastDataTime());
         assertNull(job.getModelPlotConfig());
         assertNull(job.getRenormalizationWindowDays());
         assertNull(job.getBackgroundPersistInterval());
@@ -484,12 +483,10 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         builder.setCreateTime(new Date());
         builder.setFinishedTime(new Date());
-        builder.setLastDataTime(new Date());
 
         Set<String> expected = new HashSet<>();
         expected.add(Job.CREATE_TIME.getPreferredName());
         expected.add(Job.FINISHED_TIME.getPreferredName());
-        expected.add(Job.LAST_DATA_TIME.getPreferredName());
         expected.add(Job.MODEL_SNAPSHOT_ID.getPreferredName());
 
         assertEquals(expected, new HashSet<>(builder.invalidCreateTimeSettings()));
@@ -612,9 +609,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         builder.setCreateTime(new Date(randomNonNegativeLong()));
         if (randomBoolean()) {
             builder.setFinishedTime(new Date(randomNonNegativeLong()));
-        }
-        if (randomBoolean()) {
-            builder.setLastDataTime(new Date(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             builder.setEstablishedModelMemory(randomNonNegativeLong());

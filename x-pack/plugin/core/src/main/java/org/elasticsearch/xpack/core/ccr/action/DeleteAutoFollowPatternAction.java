@@ -33,35 +33,34 @@ public class DeleteAutoFollowPatternAction extends Action<AcknowledgedResponse> 
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private String leaderClusterAlias;
+        private final String name;
+
+        public Request(String name) {
+            this.name = name;
+        }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (leaderClusterAlias == null) {
-                validationException = addValidationError("leaderClusterAlias is missing", validationException);
+            if (name == null) {
+                validationException = addValidationError("name is missing", validationException);
             }
             return validationException;
         }
 
-        public String getLeaderClusterAlias() {
-            return leaderClusterAlias;
+        public String getName() {
+            return name;
         }
 
-        public void setLeaderClusterAlias(String leaderClusterAlias) {
-            this.leaderClusterAlias = leaderClusterAlias;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            leaderClusterAlias = in.readString();
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            name = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(leaderClusterAlias);
+            out.writeString(name);
         }
 
         @Override
@@ -69,12 +68,12 @@ public class DeleteAutoFollowPatternAction extends Action<AcknowledgedResponse> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(leaderClusterAlias, request.leaderClusterAlias);
+            return Objects.equals(name, request.name);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(leaderClusterAlias);
+            return Objects.hash(name);
         }
     }
 

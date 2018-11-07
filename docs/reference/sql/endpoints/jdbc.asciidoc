@@ -44,7 +44,7 @@ from `artifacts.elastic.co/maven` by adding it to the repositories list:
 === Setup
 
 The driver main class is `org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver`. 
-Note the driver  implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registerd automatically
+Note the driver  implements the JDBC 4.0 +Service Provider+ mechanism meaning it is registered automatically
 as long as its available in the classpath.
 
 Once registered, the driver understands the following syntax as an URL:

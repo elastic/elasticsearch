@@ -81,7 +81,8 @@ public class Murmur3FieldMapper extends FieldMapper {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext)
+                throws MapperParsingException {
             Builder builder = new Builder(name);
 
             // tweaking these settings is no longer allowed, the entire purpose of murmur3 fields is to store a hash

@@ -486,7 +486,7 @@ If we study the above commands carefully, we can actually see a pattern of how w
 
 [source,js]
 --------------------------------------------------
-<REST Verb> /<Index>/<Type>/<ID>
+<HTTP Verb> /<Index>/<Type>/<ID>
 --------------------------------------------------
 // NOTCONSOLE
 

@@ -90,7 +90,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
             if (id.equals("berlin") || id.equals("amsterdam5")) {
                 assertFalse(hit.getRating().isPresent());
             } else {
-                assertEquals(1, hit.getRating().get().intValue());
+                assertEquals(1, hit.getRating().getAsInt());
             }
         }
         EvalQueryQuality berlinQueryQuality = partialResults.get("berlin_query");
@@ -100,7 +100,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         for (RatedSearchHit hit : hitsAndRatings) {
             String id = hit.getSearchHit().getId();
             if (id.equals("berlin")) {
-                assertEquals(1, hit.getRating().get().intValue());
+                assertEquals(1, hit.getRating().getAsInt());
             } else {
                 assertFalse(hit.getRating().isPresent());
             }
@@ -108,7 +108,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
 
         // now try this when test2 is closed
         client().performRequest(new Request("POST", "index2/_close"));
-        rankEvalRequest.indicesOptions(IndicesOptions.fromParameters(null, "true", null, SearchRequest.DEFAULT_INDICES_OPTIONS));
+        rankEvalRequest.indicesOptions(IndicesOptions.fromParameters(null, "true", null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
     }
 

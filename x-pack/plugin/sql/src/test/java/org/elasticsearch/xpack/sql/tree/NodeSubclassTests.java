@@ -17,12 +17,17 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentile;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipesTests;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.InPipe;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.tree.NodeTests.ChildrenAreAProperty;
 import org.elasticsearch.xpack.sql.tree.NodeTests.Dummy;
@@ -42,6 +47,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -79,6 +85,10 @@ import static org.mockito.Mockito.mock;
  * </ul>
  */
 public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCase {
+
+    private static final List<Class<? extends Node<?>>> CLASSES_WITH_MIN_TWO_CHILDREN = Arrays.asList(
+        In.class, InPipe.class, Percentile.class, Percentiles.class, PercentileRanks.class);
+
     private final Class<T> subclass;
 
     public NodeSubclassTests(Class<T> subclass) {
@@ -343,20 +353,14 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      */
     @SuppressWarnings("unchecked")
     private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
+
         if (argType instanceof ParameterizedType) {
             ParameterizedType pt = (ParameterizedType) argType;
             if (pt.getRawType() == Map.class) {
-                Map<Object, Object> map = new HashMap<>();
-                int size = between(0, 10);
-                while (map.size() < size) {
-                    Object key = makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
-                    Object value = makeArg(toBuildClass, pt.getActualTypeArguments()[1]);
-                    map.put(key, value);
-                }
-                return map;
+                return makeMap(toBuildClass, pt);
             }
             if (pt.getRawType() == List.class) {
-                return makeList(toBuildClass, pt, between(1, 10));
+                return makeList(toBuildClass, pt);
             }
             if (pt.getRawType() == EnumSet.class) {
                 @SuppressWarnings("rawtypes")
@@ -418,7 +422,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             }
         } else if (toBuildClass == ChildrenAreAProperty.class) {
             /*
-             * While any subclass of Dummy will do here we want to prevent
+             * While any subclass of DummyFunction will do here we want to prevent
              * stack overflow so we use the one without children.
              */
             if (argClass == Dummy.class) {
@@ -512,12 +516,37 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
     }
 
+    private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+        return makeList(toBuildClass, listType, randomSizeForCollection(toBuildClass));
+    }
+
     private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         List<Object> list = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
         }
         return list;
+    }
+
+    private static Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
+        Map<Object, Object> map = new HashMap<>();
+        int size = randomSizeForCollection(toBuildClass);
+        while (map.size() < size) {
+            Object key = makeArg(toBuildClass, pt.getActualTypeArguments()[0]);
+            Object value = makeArg(toBuildClass, pt.getActualTypeArguments()[1]);
+            map.put(key, value);
+        }
+        return map;
+    }
+
+    private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
+        int minCollectionLength = 0;
+        int maxCollectionLength = 10;
+
+        if (CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(c -> c == toBuildClass)) {
+            minCollectionLength = 2;
+        }
+        return between(minCollectionLength, maxCollectionLength);
     }
 
     private List<?> makeListOfSameSizeOtherThan(Type listType, List<?> original) throws Exception {
@@ -557,7 +586,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     /**
      * Find all subclasses of a particular class.
      */
-    private static <T> List<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
+    public static <T> List<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
         @SuppressWarnings("unchecked") // The map is built this way
         List<Class<? extends T>> lookup = (List<Class<? extends T>>) subclassCache.get(clazz);
         if (lookup != null) {

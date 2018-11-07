@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -1195,20 +1196,23 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                 STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
         );
-        Query query = new QueryStringQueryBuilder("hello")
-            .toQuery(context);
-        Query expected = new DisjunctionMaxQuery(
-            Arrays.asList(
-                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
-                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
-            ), 0.0f
-        );
-        assertEquals(expected, query);
-        // Reset the default value
-        context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index",
-                context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
-        );
+        try {
+            Query query = new QueryStringQueryBuilder("hello")
+                .toQuery(context);
+            Query expected = new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+                ), 0.0f
+            );
+            assertEquals(expected, query);
+        } finally {
+            // Reset the default value
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index",
+                    context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
+            );
+        }
     }
 
     /**
@@ -1343,6 +1347,44 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), Occur.SHOULD)
             .build();
         assertEquals(expected, query);
+    }
+
+    public void testCrossFields() throws Exception {
+        final QueryShardContext context = createShardContext();
+        context.getIndexSettings().updateIndexMetaData(
+            newIndexMeta("index", context.getIndexSettings().getSettings(),
+                Settings.builder().putList("index.query.default_field",
+                    STRING_FIELD_NAME, STRING_FIELD_NAME_2).build())
+        );
+        try {
+            Term[] blendedTerms = new Term[2];
+            blendedTerms[0] = new Term(STRING_FIELD_NAME, "foo");
+            blendedTerms[1] = new Term(STRING_FIELD_NAME_2, "foo");
+
+            Query query = new QueryStringQueryBuilder("foo")
+                .analyzer("whitespace")
+                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                .toQuery(createShardContext());
+            Query expected = BlendedTermQuery.dismaxBlendedQuery(blendedTerms, 1.0f);
+            assertEquals(expected, query);
+
+            query = new QueryStringQueryBuilder("foo mapped_string:10")
+                .analyzer("whitespace")
+                .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+                .toQuery(createShardContext());
+            expected = new BooleanQuery.Builder()
+                .add(BlendedTermQuery.dismaxBlendedQuery(blendedTerms, 1.0f), Occur.SHOULD)
+                .add(new TermQuery(new Term(STRING_FIELD_NAME, "10")), Occur.SHOULD)
+                .build();
+            assertEquals(expected, query);
+        } finally {
+            // Reset the default value
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index",
+                    context.getIndexSettings().getSettings(),
+                    Settings.builder().putList("index.query.default_field", "*").build())
+            );
+        }
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

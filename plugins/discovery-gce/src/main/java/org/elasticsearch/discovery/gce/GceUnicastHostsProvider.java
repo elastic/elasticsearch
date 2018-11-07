@@ -58,6 +58,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         private static final String TERMINATED = "TERMINATED";
     }
 
+    private final Settings settings;
     private final GceInstancesService gceInstancesService;
     private TransportService transportService;
     private NetworkService networkService;
@@ -73,14 +74,14 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
     public GceUnicastHostsProvider(Settings settings, GceInstancesService gceInstancesService,
             TransportService transportService,
             NetworkService networkService) {
-        super(settings);
+        this.settings = settings;
         this.gceInstancesService = gceInstancesService;
         this.transportService = transportService;
         this.networkService = networkService;
 
         this.refreshInterval = GceInstancesService.REFRESH_SETTING.get(settings);
-        this.project = GceInstancesService.PROJECT_SETTING.get(settings);
-        this.zones = GceInstancesService.ZONE_SETTING.get(settings);
+        this.project = gceInstancesService.projectId();
+        this.zones = gceInstancesService.zones();
 
         this.tags = TAGS_SETTING.get(settings);
         if (logger.isDebugEnabled()) {

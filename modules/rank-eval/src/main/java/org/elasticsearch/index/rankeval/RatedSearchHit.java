@@ -33,7 +33,7 @@ import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * Combines a {@link SearchHit} with a document rating.
@@ -41,16 +41,16 @@ import java.util.Optional;
 public class RatedSearchHit implements Writeable, ToXContentObject {
 
     private final SearchHit searchHit;
-    private final Optional<Integer> rating;
+    private final OptionalInt rating;
 
-    public RatedSearchHit(SearchHit searchHit, Optional<Integer> rating) {
+    public RatedSearchHit(SearchHit searchHit, OptionalInt rating) {
         this.searchHit = searchHit;
         this.rating = rating;
     }
 
     RatedSearchHit(StreamInput in) throws IOException {
         this(SearchHit.readSearchHit(in),
-                in.readBoolean() == true ? Optional.of(in.readVInt()) : Optional.empty());
+                in.readBoolean() == true ? OptionalInt.of(in.readVInt()) : OptionalInt.empty());
     }
 
     @Override
@@ -58,7 +58,7 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
         searchHit.writeTo(out);
         out.writeBoolean(rating.isPresent());
         if (rating.isPresent()) {
-            out.writeVInt(rating.get());
+            out.writeVInt(rating.getAsInt());
         }
     }
 
@@ -66,7 +66,7 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
         return this.searchHit;
     }
 
-    public Optional<Integer> getRating() {
+    public OptionalInt getRating() {
         return this.rating;
     }
 
@@ -75,22 +75,21 @@ public class RatedSearchHit implements Writeable, ToXContentObject {
             throws IOException {
         builder.startObject();
         builder.field("hit", (ToXContent) searchHit);
-        builder.field("rating", rating.orElse(null));
+        builder.field("rating", rating.isPresent() ? rating.getAsInt() : null);
         builder.endObject();
         return builder;
     }
 
     private static final ParseField HIT_FIELD = new ParseField("hit");
     private static final ParseField RATING_FIELD = new ParseField("rating");
-    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RatedSearchHit, Void> PARSER = new ConstructingObjectParser<>("rated_hit", true,
-            a -> new RatedSearchHit((SearchHit) a[0], (Optional<Integer>) a[1]));
+            a -> new RatedSearchHit((SearchHit) a[0], (OptionalInt) a[1]));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> SearchHit.fromXContent(p), HIT_FIELD);
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? Optional.empty() : Optional.of(p.intValue()), RATING_FIELD,
-                ValueType.INT_OR_NULL);
+                (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? OptionalInt.empty() : OptionalInt.of(p.intValue()),
+                RATING_FIELD, ValueType.INT_OR_NULL);
     }
 
     public static RatedSearchHit parse(XContentParser parser) throws IOException {

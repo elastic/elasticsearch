@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -99,14 +99,17 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private final PersistentTasksService persistentTasksService;
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
+    private static final PersistentTasksCustomMetaData.Assignment AWAITING_LAZY_ASSIGNMENT =
+        new PersistentTasksCustomMetaData.Assignment(null, "persistent task is awaiting node assignment.");
+
 
     @Inject
-    public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportOpenJobAction(TransportService transportService, ThreadPool threadPool,
                                   XPackLicenseState licenseState, ClusterService clusterService,
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                   JobResultsProvider jobResultsProvider) {
-        super(settings, OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+        super(OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 OpenJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
@@ -127,8 +130,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
-        if (job.isDeleted()) {
-            throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it has been marked as deleted");
+        if (job.isDeleting()) {
+            throw ExceptionsHelper.conflictStatusException("Cannot open job [" + jobId + "] because it is being deleted");
         }
         if (job.getJobVersion() == null) {
             throw ExceptionsHelper.badRequestException("Cannot open job [" + jobId
@@ -683,24 +686,44 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         private final int fallbackMaxNumberOfOpenJobs;
         private volatile int maxConcurrentJobAllocations;
         private volatile int maxMachineMemoryPercent;
+        private volatile int maxLazyMLNodes;
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
                                               AutodetectProcessManager autodetectProcessManager) {
-            super(settings, OpenJobAction.TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            super(OpenJobAction.TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.autodetectProcessManager = autodetectProcessManager;
             this.fallbackMaxNumberOfOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
             this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
+            this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
             clusterService.getClusterSettings()
                     .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
         }
 
         @Override
         public PersistentTasksCustomMetaData.Assignment getAssignment(OpenJobAction.JobParams params, ClusterState clusterState) {
-            return selectLeastLoadedMlNode(params.getJobId(), clusterState, maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs,
-                    maxMachineMemoryPercent, logger);
+            PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(),
+                clusterState,
+                maxConcurrentJobAllocations,
+                fallbackMaxNumberOfOpenJobs,
+                maxMachineMemoryPercent,
+                logger);
+            if (assignment.getExecutorNode() == null) {
+                int numMlNodes = 0;
+                for(DiscoveryNode node : clusterState.getNodes()) {
+                    if (Boolean.valueOf(node.getAttributes().get(MachineLearning.ML_ENABLED_NODE_ATTR))) {
+                        numMlNodes++;
+                    }
+                }
+
+                if (numMlNodes < maxLazyMLNodes) { // Means we have lazy nodes left to allocate
+                    assignment = AWAITING_LAZY_ASSIGNMENT;
+                }
+            }
+            return assignment;
         }
 
         @Override
@@ -710,9 +733,9 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
             // If we already know that we can't find an ml node because all ml nodes are running at capacity or
             // simply because there are no ml nodes in the cluster then we fail quickly here:
-            PersistentTasksCustomMetaData.Assignment assignment = selectLeastLoadedMlNode(params.getJobId(), clusterState,
-                    maxConcurrentJobAllocations, fallbackMaxNumberOfOpenJobs, maxMachineMemoryPercent, logger);
-            if (assignment.getExecutorNode() == null) {
+
+            PersistentTasksCustomMetaData.Assignment assignment = getAssignment(params, clusterState);
+            if (assignment.getExecutorNode() == null && assignment.equals(AWAITING_LAZY_ASSIGNMENT) == false) {
                 throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
             }
         }
@@ -756,11 +779,17 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     this.maxMachineMemoryPercent, maxMachineMemoryPercent);
             this.maxMachineMemoryPercent = maxMachineMemoryPercent;
         }
+
+        void setMaxLazyMLNodes(int maxLazyMLNodes) {
+            logger.info("Changing [{}] from [{}] to [{}]", MachineLearning.MAX_LAZY_ML_NODES.getKey(),
+                    this.maxLazyMLNodes, maxLazyMLNodes);
+            this.maxLazyMLNodes = maxLazyMLNodes;
+        }
     }
 
     public static class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
 
-        private static final Logger LOGGER = Loggers.getLogger(JobTask.class);
+        private static final Logger LOGGER = LogManager.getLogger(JobTask.class);
 
         private final String jobId;
         private volatile AutodetectProcessManager autodetectProcessManager;
@@ -813,6 +842,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 jobState = jobTaskState == null ? JobState.OPENING : jobTaskState.getState();
 
                 PersistentTasksCustomMetaData.Assignment assignment = persistentTask.getAssignment();
+
+                // This means we are awaiting a new node to be spun up, ok to return back to the user to await node creation
+                if (assignment != null && assignment.equals(AWAITING_LAZY_ASSIGNMENT)) {
+                    return true;
+                }
+
                 // This logic is only appropriate when opening a job, not when reallocating following a failure,
                 // and this is why this class must only be used when opening a job
                 if (assignment != null && assignment.equals(PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT) == false &&

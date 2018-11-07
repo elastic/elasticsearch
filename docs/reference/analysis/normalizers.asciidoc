@@ -1,8 +1,6 @@
 [[analysis-normalizers]]
 == Normalizers
 
-beta[]
-
 Normalizers are similar to analyzers except that they may only emit a single
 token. As a consequence, they do not have a tokenizer and only accept a subset
 of the available char filters and token filters. Only the filters that work on
@@ -48,7 +46,7 @@ PUT index
     }
   },
   "mappings": {
-    "type": {
+    "_doc": {
       "properties": {
         "foo": {
           "type": "keyword",

@@ -1047,7 +1047,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         /**
-         * returns the history uuid the store points at, or null if not existant.
+         * returns the history uuid the store points at, or null if nonexistent.
          */
         public String getHistoryUUID() {
             return commitUserData.get(Engine.HISTORY_UUID_KEY);

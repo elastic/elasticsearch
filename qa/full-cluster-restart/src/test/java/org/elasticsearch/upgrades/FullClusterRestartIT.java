@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -75,7 +76,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     private String index;
 
     @Before
-    public void setIndex() {
+    public void setIndex() throws IOException {
         index = getTestName().toLowerCase(Locale.ROOT);
     }
 
@@ -283,7 +284,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
-            mappingsAndSettings.field("template", index);
+            mappingsAndSettings.field("index_patterns", index);
+            mappingsAndSettings.field("order", "1000");
             {
                 mappingsAndSettings.startObject("settings");
                 mappingsAndSettings.field("number_of_shards", 1);
@@ -361,6 +363,9 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             client().performRequest(updateSettingsRequest);
 
             Request shrinkIndexRequest = new Request("PUT", "/" + index + "/_shrink/" + shrunkenIndex);
+            if (getOldClusterVersion().onOrAfter(Version.V_6_4_0)) {
+                shrinkIndexRequest.addParameter("copy_settings", "true");
+            }
             shrinkIndexRequest.setJsonEntity("{\"settings\": {\"index.number_of_shards\": 1}}");
             client().performRequest(shrinkIndexRequest);
 
@@ -777,33 +782,34 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
             assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
 
-        String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
-        String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
-        if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
-            int numCurrentVersion = 0;
-            int numBwcVersion = 0;
-            Request segmentsRequest = new Request("GET", "/_cat/segments/" + index);
-            segmentsRequest.addParameter("h", "prirep,shard,index,version");
-            segmentsRequest.addParameter("s", "prirep,shard,index");
-            String segmentsResponse = toStr(client().performRequest(segmentsRequest));
-            for (String line : segmentsResponse.split("\n")) {
-                if (false == line.startsWith("p")) {
-                    continue;
+            String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
+            String bwcLuceneVersion = getOldClusterVersion().luceneVersion.toString();
+            if (shouldHaveTranslog && false == currentLuceneVersion.equals(bwcLuceneVersion)) {
+                int numCurrentVersion = 0;
+                int numBwcVersion = 0;
+                Request segmentsRequest = new Request("GET", "/_cat/segments/" + index);
+                segmentsRequest.addParameter("h", "prirep,shard,index,version");
+                segmentsRequest.addParameter("s", "prirep,shard,index");
+                String segmentsResponse = toStr(client().performRequest(segmentsRequest));
+                for (String line : segmentsResponse.split("\n")) {
+                    if (false == line.startsWith("p")) {
+                        continue;
+                    }
+                    Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
+                    assertTrue(line, m.find());
+                    String version = m.group(1);
+                    if (currentLuceneVersion.equals(version)) {
+                        numCurrentVersion++;
+                    } else if (bwcLuceneVersion.equals(version)) {
+                        numBwcVersion++;
+                    } else {
+                        fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
+                    }
                 }
-                Matcher m = Pattern.compile("(\\d+\\.\\d+\\.\\d+)$").matcher(line);
-                assertTrue(line, m.find());
-                String version = m.group(1);
-                if (currentLuceneVersion.equals(version)) {
-                    numCurrentVersion++;
-                } else if (bwcLuceneVersion.equals(version)) {
-                    numBwcVersion++;
-                } else {
-                    fail("expected version to be one of [" + currentLuceneVersion + "," + bwcLuceneVersion + "] but was " + line);
-                }
+                assertNotEquals("expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
+                    0, numCurrentVersion);
+                assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);
             }
-            assertNotEquals("expected at least 1 current segment after translog recovery. segments:\n" + segmentsResponse,
-                0, numCurrentVersion);
-            assertNotEquals("expected at least 1 old segment. segments:\n" + segmentsResponse, 0, numBwcVersion);}
         }
     }
 
@@ -843,7 +849,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
         // Stick a template into the cluster so we can see it after the restore
         XContentBuilder templateBuilder = JsonXContent.contentBuilder().startObject();
-        templateBuilder.field("template", "evil_*"); // Don't confuse other tests by applying the template
+        templateBuilder.field("index_patterns", "evil_*"); // Don't confuse other tests by applying the template
         templateBuilder.startObject("settings"); {
             templateBuilder.field("number_of_shards", 1);
         }
@@ -948,9 +954,23 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", listSnapshotResponse));
 
         // Remove the routing setting and template so we can test restoring them.
-        Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
-        clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
-        client().performRequest(clearRoutingFromSettings);
+        try {
+            Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");
+            clearRoutingFromSettings.setJsonEntity("{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}");
+            client().performRequest(clearRoutingFromSettings);
+        } catch (ResponseException e) {
+            if (e.getResponse().hasWarnings()
+                    && (isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_6_5_0))) {
+                e.getResponse().getWarnings().stream().forEach(warning -> {
+                    assertThat(warning, containsString(
+                            "setting was deprecated in Elasticsearch and will be removed in a future release! "
+                            + "See the breaking changes documentation for the next major version."));
+                    assertThat(warning, startsWith("[search.remote."));
+                });
+            } else {
+                throw e;
+            }
+        }
         client().performRequest(new Request("DELETE", "/_template/test_template"));
 
         // Restore

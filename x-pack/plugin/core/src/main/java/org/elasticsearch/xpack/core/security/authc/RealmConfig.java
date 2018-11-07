@@ -23,12 +23,6 @@ public class RealmConfig {
     private final Settings globalSettings;
     private final ThreadContext threadContext;
 
-    @Deprecated
-    public RealmConfig(RealmIdentifier identifier, Settings settings, Settings globalSettings, Environment env,
-                       ThreadContext threadContext) {
-        this(identifier, globalSettings, env, threadContext);
-    }
-
     public RealmConfig(RealmIdentifier identifier, Settings globalSettings, Environment env,
                        ThreadContext threadContext) {
         this.identifier = identifier;

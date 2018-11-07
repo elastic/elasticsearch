@@ -211,7 +211,7 @@ public class Netty4Transport extends TcpTransport {
         return new ClientChannelInitializer();
     }
 
-    static final AttributeKey<NettyTcpChannel> CHANNEL_KEY = AttributeKey.newInstance("es-channel");
+    static final AttributeKey<Netty4TcpChannel> CHANNEL_KEY = AttributeKey.newInstance("es-channel");
 
     protected final void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
@@ -221,7 +221,7 @@ public class Netty4Transport extends TcpTransport {
     }
 
     @Override
-    protected NettyTcpChannel initiateChannel(DiscoveryNode node) throws IOException {
+    protected Netty4TcpChannel initiateChannel(DiscoveryNode node) throws IOException {
         InetSocketAddress address = node.getAddress().address();
         Bootstrap bootstrapWithHandler = clientBootstrap.clone();
         bootstrapWithHandler.handler(getClientChannelInitializer(node));
@@ -235,17 +235,17 @@ public class Netty4Transport extends TcpTransport {
         }
         addClosedExceptionLogger(channel);
 
-        NettyTcpChannel nettyChannel = new NettyTcpChannel(channel, "default", connectFuture);
+        Netty4TcpChannel nettyChannel = new Netty4TcpChannel(channel, "default", connectFuture);
         channel.attr(CHANNEL_KEY).set(nettyChannel);
 
         return nettyChannel;
     }
 
     @Override
-    protected NettyTcpChannel bind(String name, InetSocketAddress address) {
+    protected Netty4TcpChannel bind(String name, InetSocketAddress address) {
         Channel channel = serverBootstraps.get(name).bind(address).syncUninterruptibly().channel();
         // TODO: Switch to same server channels
-        NettyTcpChannel esChannel = new NettyTcpChannel(channel, "server", channel.newSucceededFuture());
+        Netty4TcpChannel esChannel = new Netty4TcpChannel(channel, "server", channel.newSucceededFuture());
         channel.attr(CHANNEL_KEY).set(esChannel);
         return esChannel;
     }
@@ -301,7 +301,7 @@ public class Netty4Transport extends TcpTransport {
         @Override
         protected void initChannel(Channel ch) throws Exception {
             addClosedExceptionLogger(ch);
-            NettyTcpChannel nettyTcpChannel = new NettyTcpChannel(ch, name, ch.newSucceededFuture());
+            Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, name, ch.newSucceededFuture());
 
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             serverAcceptedChannel(nettyTcpChannel);

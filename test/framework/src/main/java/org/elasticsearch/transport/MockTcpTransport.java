@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.cli.SuppressForbidden;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.concurrent.CompletableContext;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.mocksocket.MockSocket;
@@ -53,7 +53,6 @@ import java.net.SocketException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -228,7 +227,7 @@ public class MockTcpTransport extends TcpTransport {
         socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
     }
 
-    public final class MockChannel implements Closeable, TcpChannel {
+    public final class MockChannel implements Closeable, TcpChannel, TcpServerChannel {
         private final AtomicBoolean isOpen = new AtomicBoolean(true);
         private final InetSocketAddress localAddress;
         private final ServerSocket serverSocket;
@@ -377,6 +376,11 @@ public class MockTcpTransport extends TcpTransport {
         }
 
         @Override
+        public String getProfile() {
+            return profile;
+        }
+
+        @Override
         public void addCloseListener(ActionListener<Void> listener) {
             closeFuture.addListener(ActionListener.toBiConsumer(listener));
         }
@@ -401,6 +405,11 @@ public class MockTcpTransport extends TcpTransport {
         @Override
         public InetSocketAddress getLocalAddress() {
             return localAddress;
+        }
+
+        @Override
+        public InetSocketAddress getRemoteAddress() {
+            return (InetSocketAddress) activeChannel.getRemoteSocketAddress();
         }
 
         @Override

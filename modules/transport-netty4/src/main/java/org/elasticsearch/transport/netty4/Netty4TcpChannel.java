@@ -34,16 +34,15 @@ import org.elasticsearch.transport.TransportException;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.concurrent.CompletableFuture;
 
-public class NettyTcpChannel implements TcpChannel {
+public class Netty4TcpChannel implements TcpChannel {
 
     private final Channel channel;
-    private final CompletableFuture<Void> closeContext = new CompletableFuture<>();
-    private final CompletableContext<Void> connectContext;
     private final String profile;
+    private final CompletableContext<Void> connectContext;
+    private final CompletableContext<Void> closeContext = new CompletableContext<>();
 
-    NettyTcpChannel(Channel channel, String profile, @Nullable ChannelFuture connectFuture) {
+    Netty4TcpChannel(Channel channel, String profile, @Nullable ChannelFuture connectFuture) {
         this.channel = channel;
         this.profile = profile;
         this.connectContext = new CompletableContext<>();
@@ -54,9 +53,9 @@ public class NettyTcpChannel implements TcpChannel {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
                     ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    closeContext.completeExceptionally(cause);
+                    closeContext.completeExceptionally(new Exception(cause));
                 } else {
-                    closeContext.completeExceptionally(cause);
+                    closeContext.completeExceptionally((Exception) cause);
                 }
             }
         });
@@ -82,10 +81,16 @@ public class NettyTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void addCloseListener(ActionListener<Void> listener) {
-        closeContext.whenComplete(ActionListener.toBiConsumer(listener));
+    public String getProfile() {
+        return profile;
     }
 
+    @Override
+    public void addCloseListener(ActionListener<Void> listener) {
+        closeContext.addListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
     public void addConnectListener(ActionListener<Void> listener) {
         connectContext.addListener(ActionListener.toBiConsumer(listener));
     }
@@ -112,6 +117,11 @@ public class NettyTcpChannel implements TcpChannel {
     }
 
     @Override
+    public InetSocketAddress getRemoteAddress() {
+        return (InetSocketAddress) channel.remoteAddress();
+    }
+
+    @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
         ChannelPromise writePromise = channel.newPromise();
         writePromise.addListener(f -> {
@@ -120,8 +130,11 @@ public class NettyTcpChannel implements TcpChannel {
             } else {
                 final Throwable cause = f.cause();
                 ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                assert cause instanceof Exception;
-                listener.onFailure((Exception) cause);
+                if (cause instanceof Error) {
+                    listener.onFailure(new Exception(cause));
+                } else {
+                    listener.onFailure((Exception) cause);
+                }
             }
         });
         channel.writeAndFlush(Netty4Utils.toByteBuf(reference), writePromise);
@@ -137,7 +150,7 @@ public class NettyTcpChannel implements TcpChannel {
 
     @Override
     public String toString() {
-        return "NettyTcpChannel{" +
+        return "Netty4TcpChannel{" +
             "localAddress=" + getLocalAddress() +
             ", remoteAddress=" + channel.remoteAddress() +
             '}';

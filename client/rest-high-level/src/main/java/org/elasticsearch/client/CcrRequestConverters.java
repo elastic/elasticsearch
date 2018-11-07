@@ -27,7 +27,7 @@ final class CcrRequestConverters {
     static Request pauseFollow(PauseFollowRequest pauseFollowRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPart(pauseFollowRequest.getFollowerIndex())
-            .addPathPartAsIs("_ccr/pause_follow")
+            .addPathPartAsIs("_ccr", "pause_follow")
             .build();
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }

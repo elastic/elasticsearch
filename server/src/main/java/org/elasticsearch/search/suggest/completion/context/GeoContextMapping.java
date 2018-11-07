@@ -292,7 +292,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         if (fieldName != null) {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
-                if (indexVersionCreated.before(Version.V_7_0_0_alpha1)) {
+                if (indexVersionCreated.before(Version.V_7_0_0)) {
                     deprecationLogger.deprecatedAndMaybeLog("geo_context_mapping",
                         "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
                 } else {
@@ -300,7 +300,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
                         "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
-                if (indexVersionCreated.before(Version.V_7_0_0_alpha1)) {
+                if (indexVersionCreated.before(Version.V_7_0_0)) {
                     deprecationLogger.deprecatedAndMaybeLog("geo_context_mapping",
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
                         fieldName, name, mappedFieldType.typeName());

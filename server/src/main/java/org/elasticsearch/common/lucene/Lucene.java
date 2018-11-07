@@ -283,7 +283,7 @@ public class Lucene {
     private static TotalHits readTotalHits(StreamInput in) throws IOException {
         long totalHits = in.readVLong();
         TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
             totalHitsRelation = in.readEnum(TotalHits.Relation.class);
         }
         return new TotalHits(totalHits, totalHitsRelation);
@@ -402,7 +402,7 @@ public class Lucene {
 
     private static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
         out.writeVLong(totalHits.value);
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
             out.writeEnum(totalHits.relation);
         } else if (totalHits.value > 0 && totalHits.relation != TotalHits.Relation.EQUAL_TO) {
             throw new IllegalArgumentException("Cannot serialize approximate total hit counts to nodes that are on a version < 7.0.0");
@@ -608,7 +608,7 @@ public class Lucene {
     }
 
     private static Number readExplanationValue(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
             final int numberType = in.readByte();
             switch (numberType) {
             case 0:
@@ -640,7 +640,7 @@ public class Lucene {
     }
 
     private static void writeExplanationValue(StreamOutput out, Number value) throws IOException {
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_7_0_0)) {
             if (value instanceof Float) {
                 out.writeByte((byte) 0);
                 out.writeFloat(value.floatValue());

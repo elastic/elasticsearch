@@ -1019,7 +1019,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testRemoteConnectionInfoBwComp() throws IOException {
         final Version version = VersionUtils.randomVersionBetween(random(),
-            Version.V_6_1_0, VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1));
+            Version.V_6_1_0, VersionUtils.getPreviousVersion(Version.V_7_0_0));
         RemoteConnectionInfo expected = new RemoteConnectionInfo("test_cluster",
             Collections.singletonList(new TransportAddress(TransportAddress.META_ADDRESS, 1)),
             4, 4, new TimeValue(30, TimeUnit.MINUTES), false);

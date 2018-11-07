@@ -7,12 +7,10 @@ package org.elasticsearch.xpack.core.security;
 
 import org.apache.lucene.util.SPIClassIterator;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
@@ -41,16 +39,6 @@ public interface SecurityExtension {
     default Map<String, Realm.Factory> getRealms(ResourceWatcherService resourceWatcherService) {
         return Collections.emptyMap();
     }
-
-    /**
-     * Returns the set of {@link Setting settings} that may be configured for the each type of realm.
-     *
-     * Each <em>setting key</em> must be unqualified and is in the same format as will be provided via {@link RealmConfig#settings()}.
-     * If a given realm-type is not present in the returned map, then it will be treated as if it supported <em>all</em> possible settings.
-     *
-     * The life-cycle of an extension dictates that this method will be called before {@link #getRealms(ResourceWatcherService)}
-     */
-    default Map<String, Set<Setting<?>>> getRealmSettings() { return Collections.emptyMap(); }
 
     /**
      * Returns a handler for authentication failures, or null to use the default handler.

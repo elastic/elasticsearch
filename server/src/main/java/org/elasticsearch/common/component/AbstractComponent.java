@@ -19,20 +19,18 @@
 
 package org.elasticsearch.common.component;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
 
+/**
+ * @deprecated declare your own logger
+ */
+@Deprecated
 public abstract class AbstractComponent {
 
     protected final Logger logger;
-    protected final DeprecationLogger deprecationLogger;
-    protected final Settings settings;
 
-    public AbstractComponent(Settings settings) {
+    public AbstractComponent() {
         this.logger = LogManager.getLogger(getClass());
-        this.deprecationLogger = new DeprecationLogger(logger);
-        this.settings = settings;
     }
 }

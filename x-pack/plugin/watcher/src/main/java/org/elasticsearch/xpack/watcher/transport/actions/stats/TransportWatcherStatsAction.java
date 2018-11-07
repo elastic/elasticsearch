@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetaData;
@@ -36,10 +35,10 @@ public class TransportWatcherStatsAction extends TransportNodesAction<WatcherSta
     private final WatcherLifeCycleService lifeCycleService;
 
     @Inject
-    public TransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportWatcherStatsAction(TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters, WatcherLifeCycleService lifeCycleService,
                                        ExecutionService executionService, TriggerService triggerService) {
-        super(settings, WatcherStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(WatcherStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
             WatcherStatsRequest::new, WatcherStatsRequest.Node::new, ThreadPool.Names.MANAGEMENT, WatcherStatsResponse.Node.class);
         this.lifeCycleService = lifeCycleService;
         this.executionService = executionService;

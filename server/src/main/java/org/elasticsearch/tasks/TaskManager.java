@@ -79,7 +79,6 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
     private final ByteSizeValue maxHeaderSize;
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        super(settings);
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);

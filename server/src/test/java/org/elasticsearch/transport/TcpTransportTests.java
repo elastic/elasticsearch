@@ -188,7 +188,7 @@ public class TcpTransportTests extends ESTestCase {
         AtomicReference<BytesReference> messageCaptor = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport(
-                "test", Settings.builder().put("transport.tcp.compress", compressed).build(), threadPool,
+                "test", Settings.builder().put("transport.tcp.compress", compressed).build(), Version.CURRENT, threadPool,
                 new BigArrays(new PageCacheRecycler(Settings.EMPTY), null), null, null, null) {
 
                 @Override
@@ -197,7 +197,7 @@ public class TcpTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected FakeChannel initiateChannel(DiscoveryNode node, ActionListener<Void> connectListener) throws IOException {
+                protected FakeChannel initiateChannel(DiscoveryNode node) throws IOException {
                     return new FakeChannel(messageCaptor);
                 }
 
@@ -269,6 +269,10 @@ public class TcpTransportTests extends ESTestCase {
 
         @Override
         public void addCloseListener(ActionListener<Void> listener) {
+        }
+
+        @Override
+        public void addConnectListener(ActionListener<Void> listener) {
         }
 
         @Override

@@ -35,6 +35,7 @@ import org.elasticsearch.common.time.JavaDateMathParser;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 
@@ -147,6 +148,7 @@ public class IndexNameExpressionResolver {
         if (indexExpressions == null || indexExpressions.length == 0) {
             indexExpressions = new String[]{MetaData.ALL};
         }
+        Set<String> originalIndexExpression = Sets.newHashSet(indexExpressions);
         MetaData metaData = context.getState().metaData();
         IndicesOptions options = context.getOptions();
         final boolean failClosed = options.forbidClosedIndices() && options.ignoreUnavailable() == false;
@@ -196,7 +198,9 @@ public class IndexNameExpressionResolver {
                         " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple" +
                         " indices without one being designated as a write index");
                 }
-                concreteIndices.add(writeIndex.getIndex());
+                if (addIndex(writeIndex, context, originalIndexExpression)) {
+                    concreteIndices.add(writeIndex.getIndex());
+                }
             } else {
                 if (aliasOrIndex.getIndices().size() > 1 && !options.allowAliasesToMultipleIndices()) {
                     String[] indexNames = new String[aliasOrIndex.getIndices().size()];
@@ -213,12 +217,14 @@ public class IndexNameExpressionResolver {
                         if (failClosed) {
                             throw new IndexClosedException(index.getIndex());
                         } else {
-                            if (options.forbidClosedIndices() == false) {
+                            if (options.forbidClosedIndices() == false && addIndex(index, context, originalIndexExpression)) {
                                 concreteIndices.add(index.getIndex());
                             }
                         }
                     } else if (index.getState() == IndexMetaData.State.OPEN) {
-                        concreteIndices.add(index.getIndex());
+                        if (addIndex(index, context, originalIndexExpression)) {
+                            concreteIndices.add(index.getIndex());
+                        }
                     } else {
                         throw new IllegalStateException("index state [" + index.getState() + "] not supported");
                     }
@@ -232,6 +238,15 @@ public class IndexNameExpressionResolver {
             throw infe;
         }
         return concreteIndices.toArray(new Index[concreteIndices.size()]);
+    }
+
+    private static boolean addIndex(IndexMetaData metaData, Context context, Set<String> originalIndices) {
+        if (context.options.ignoreThrottled()) {
+            if (originalIndices.contains(metaData.getIndex().getName()) == false) {
+                return IndexSettings.INDEX_SEARCH_THROTTLED.get(metaData.getSettings()) == false;
+            }
+        }
+        return true;
     }
 
     private static IllegalArgumentException aliasesNotSupportedException(String expression) {

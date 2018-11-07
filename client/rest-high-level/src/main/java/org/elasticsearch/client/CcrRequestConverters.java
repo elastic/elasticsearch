@@ -16,24 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+package org.elasticsearch.client;
 
-import java.io.IOException;
+import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.client.ccr.PauseFollowRequest;
 
-public class PutRollupJobResponse extends AcknowledgedResponse {
+final class CcrRequestConverters {
 
-    public PutRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+    static Request pauseFollow(PauseFollowRequest pauseFollowRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPart(pauseFollowRequest.getFollowerIndex())
+            .addPathPartAsIs("_ccr", "pause_follow")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
-    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("delete_rollup_job_response", PutRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
-
-    public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
 }

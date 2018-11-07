@@ -18,7 +18,7 @@
              "policy": {
                "phases": {
                  "warm": {
-                   "minimum_age": "1000d",
+                   "min_age": "1000d",
                    "actions": {
                      "forcemerge": {
                        "max_num_segments": 10000
@@ -32,7 +32,7 @@
   - do:
       ilm.get_lifecycle:
         policy: "my_lifecycle"
-  - match: { my_lifecycle.policy.phases.warm.minimum_age: "1000d" }
+  - match: { my_lifecycle.policy.phases.warm.min_age: "1000d" }
 
   - do:
       indices.create:

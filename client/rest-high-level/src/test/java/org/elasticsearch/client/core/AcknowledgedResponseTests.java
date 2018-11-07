@@ -16,24 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.rollup;
+package org.elasticsearch.client.core;
 
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class PutRollupJobResponse extends AcknowledgedResponse {
+public class AcknowledgedResponseTests extends AbstractXContentTestCase<AcknowledgedResponse> {
 
-    public PutRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+    @Override
+    protected AcknowledgedResponse createTestInstance() {
+        return new AcknowledgedResponse(randomBoolean());
     }
 
-    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("delete_rollup_job_response", PutRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
-
-    public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    @Override
+    protected AcknowledgedResponse doParseInstance(XContentParser parser) throws IOException {
+        return AcknowledgedResponse.fromXContent(parser);
     }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return false;
+    }
+
 }

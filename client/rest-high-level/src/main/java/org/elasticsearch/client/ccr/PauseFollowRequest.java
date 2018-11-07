@@ -16,24 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+package org.elasticsearch.client.ccr;
 
-import java.io.IOException;
+import org.elasticsearch.client.Validatable;
 
-public class PutRollupJobResponse extends AcknowledgedResponse {
+import java.util.Objects;
 
-    public PutRollupJobResponse(boolean acknowledged) {
-        super(acknowledged);
+public final class PauseFollowRequest implements Validatable {
+
+    private final String followerIndex;
+
+    public PauseFollowRequest(String followerIndex) {
+        this.followerIndex = Objects.requireNonNull(followerIndex);
     }
 
-    private static final ConstructingObjectParser<PutRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("delete_rollup_job_response", PutRollupJobResponse::new, AcknowledgedResponse.PARSE_FIELD_NAME);
-
-    public static PutRollupJobResponse fromXContent(final XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public String getFollowerIndex() {
+        return followerIndex;
     }
 }

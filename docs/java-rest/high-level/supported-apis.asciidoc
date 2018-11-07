@@ -397,3 +397,14 @@ don't leak into the rest of the documentation.
 :doc-tests-file!:
 :upid!:
 --
+
+== CCR APIs
+
+:upid: {mainid}-ccr
+:doc-tests-file: {doc-tests}/CCRDocumentationIT.java
+
+The Java High Level REST Client supports the following CCR APIs:
+
+* <<{upid}-ccr-pause-follow>>
+
+include::ccr/pause_follow.asciidoc[]

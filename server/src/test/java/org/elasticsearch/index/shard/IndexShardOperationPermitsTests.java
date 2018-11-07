@@ -717,7 +717,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
             @Override
             public void onFailure(final Exception e) {
-                throw new RuntimeException(e);
+                throw new AssertionError(e);
             }
         };
     }

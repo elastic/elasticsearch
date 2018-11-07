@@ -569,13 +569,18 @@ public final class TokenService {
                 if (Strings.isNullOrEmpty(username)) {
                     filter = isOfUser(username);
                 }
-                findActiveTokensForRealm(realmName, ActionListener.wrap(tokens -> {
-                    List<String> accessTokenIds = tokens.stream().map(t -> t.v1().getId()).collect(Collectors.toList());
-                    // Invalidate the refresh tokens first
-                    indexInvalidation(accessTokenIds, ActionListener.wrap(result ->
-                            indexBwcInvalidation(accessTokenIds, listener, new AtomicInteger(result.getAttemptCounter()),
-                                expirationEpochMilli, result),
-                        listener::onFailure), new AtomicInteger(0), "refresh_token", null);
+                findActiveTokensForRealm(realmName, ActionListener.wrap(tokenTuples -> {
+                    if (tokenTuples.isEmpty()) {
+                        logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
+                        listener.onResponse(TokensInvalidationResult.emptyResult());
+                    }else {
+                        List<String> accessTokenIds = tokenTuples.stream().map(t -> t.v1().getId()).collect(Collectors.toList());
+                        // Invalidate the refresh tokens first
+                        indexInvalidation(accessTokenIds, ActionListener.wrap(result ->
+                                indexBwcInvalidation(accessTokenIds, listener, new AtomicInteger(result.getAttemptCounter()),
+                                    expirationEpochMilli, result),
+                            listener::onFailure), new AtomicInteger(0), "refresh_token", null);
+                    }
                 }, listener::onFailure), filter);
             }
         }
@@ -592,9 +597,14 @@ public final class TokenService {
     private void indexBwcInvalidation(Collection<String> tokenIds, ActionListener<TokensInvalidationResult> listener,
                                       AtomicInteger attemptCount, long expirationEpochMilli,
                                       @Nullable TokensInvalidationResult previousResult) {
-        if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
+
+        if (tokenIds.isEmpty()) {
+            logger.warn("No tokens provided for invalidation");
+            listener.onFailure(invalidGrantException("No tokens provided for invalidation"));
+        } else if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
             logger.warn("Failed to invalidate [{}] tokens after [{}] attempts", tokenIds.size(),
                 attemptCount.get());
+            listener.onFailure(invalidGrantException("failed to invalidate tokens"));
         } else {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String tokenId : tokenIds) {
@@ -652,7 +662,10 @@ public final class TokenService {
      */
     private void indexInvalidation(Collection<String> tokenIds, ActionListener<TokensInvalidationResult> listener,
                                    AtomicInteger attemptCount, String srcPrefix, @Nullable TokensInvalidationResult previousResult) {
-        if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
+        if (tokenIds.isEmpty()) {
+            logger.warn("No tokens provided for invalidation");
+            listener.onFailure(invalidGrantException("No tokens provided for invalidation"));
+        } else if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
             logger.warn("Failed to invalidate [{}] tokens after [{}] attempts", tokenIds.size(),
                 attemptCount.get());
             listener.onFailure(invalidGrantException("failed to invalidate tokens"));

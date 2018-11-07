@@ -43,6 +43,10 @@ public class TokensInvalidationResult {
         this.attemptCounter = attemptCounter;
     }
 
+    public static TokensInvalidationResult emptyResult(){
+        return new TokensInvalidationResult(new String[0], new String[0], new String[0], 0);
+    }
+
     public String[] getInvalidatedTokens() {
         return invalidatedTokens;
     }

@@ -81,7 +81,7 @@ public class MainResponseTests extends AbstractStreamableXContentTestCase<MainRe
                     + "\"build_hash\":\"" + current.shortHash() + "\","
                     + "\"build_date\":\"" + current.date() + "\","
                     + "\"build_snapshot\":" + current.isSnapshot() + ","
-                    + "\"build_version\":\"" + current.getQualifiedVersion() + "\","
+                    + "\"qualified\":\"" + current.getQualifiedVersion() + "\","
                     + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\","
                     + "\"minimum_wire_compatibility_version\":\"" + version.minimumCompatibilityVersion().toString() + "\","
                     + "\"minimum_index_compatibility_version\":\"" + version.minimumIndexCompatibilityVersion().toString() + "\"},"

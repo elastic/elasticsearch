@@ -610,7 +610,10 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         assertThat(hasFollowIndexBeenClosedChecker.getAsBoolean(), is(false));
     }
 
-    public void testUpdateWhiteListedLeaderIndexSettings() throws Exception {
+    public void testLeaderIndexSettingNotPercolatedToFollower() throws Exception {
+        // Sets an index setting on leader index that is excluded from being replicated to the follower index and
+        // expects that this setting is not replicated to the follower index, but does expect that the settings version
+        // is incremented.
         final String leaderIndexSettings = getIndexSettings(1, 0,
             singletonMap(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), "true"));
         assertAcked(leaderClient().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));

@@ -77,7 +77,6 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("edgengram", MovedToAnalysisCommon.class)
         .put("keyword", MovedToAnalysisCommon.class)
         .put("letter", MovedToAnalysisCommon.class)
-        .put("lowercase", MovedToAnalysisCommon.class)
         .put("ngram", MovedToAnalysisCommon.class)
         .put("pathhierarchy", MovedToAnalysisCommon.class)
         .put("pattern", MovedToAnalysisCommon.class)

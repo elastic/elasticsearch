@@ -150,7 +150,7 @@ public class RandomSearchRequestGenerator {
             if (randomBoolean()) {
                 builder.trackTotalHits(randomBoolean());
             } else {
-                builder.trackTotalHitsThreshold(randomIntBetween(0, Integer.MAX_VALUE));
+                builder.trackTotalHitsThreshold(randomIntBetween(-1, Integer.MAX_VALUE));
             }
         }
 

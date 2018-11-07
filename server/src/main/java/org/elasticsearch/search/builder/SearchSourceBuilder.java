@@ -152,7 +152,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private boolean trackScores = false;
 
-    private int trackTotalHitsThreshold = SearchContext.DEFAULT_TRACK_TOTAL_HITS;
+    private int trackTotalHitsThreshold = SearchContext.DEFAULT_TRACK_TOTAL_HITS_THRESHOLD;
 
     private SearchAfterBuilder searchAfterBuilder;
 
@@ -252,7 +252,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             trackTotalHitsThreshold = in.readVInt();
         } else {
-            trackTotalHitsThreshold = in.readBoolean() ? Integer.MAX_VALUE : -1;
+            trackTotalHitsThreshold = in.readBoolean() ? -1 : 0;
         }
     }
 
@@ -315,7 +315,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
             out.writeVInt(trackTotalHitsThreshold);
         } else {
-            out.writeBoolean(trackTotalHitsThreshold == Integer.MAX_VALUE);
+            out.writeBoolean(trackTotalHitsThreshold != 0);
         }
     }
 
@@ -538,7 +538,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Indicates if the total hit count for the query should be tracked.
      */
     public boolean trackTotalHits() {
-        return trackTotalHitsThreshold == Integer.MAX_VALUE;
+        return trackTotalHitsThreshold > 0;
     }
 
     public SearchSourceBuilder trackTotalHits(boolean trackTotalHits) {
@@ -547,7 +547,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
-     * Indicates the number of hits to count accurately.
+     * Indicates the number of hits to count accurately for the query.
+     * A value of -1 will make the hit count accurate but will also likely make query processing slower.
      */
     public int trackTotalHitsThreshold() {
         return trackTotalHitsThreshold;

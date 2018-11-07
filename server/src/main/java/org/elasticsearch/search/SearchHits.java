@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,15 +37,10 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public final class SearchHits implements Streamable, ToXContentFragment, Iterable<SearchHit> {
-    public static SearchHits empty() {
-        return empty(SearchContext.DEFAULT_TRACK_TOTAL_HITS);
-    }
 
-    public static SearchHits empty(int trackTotalHits) {
-        final TotalHits trackedHits = trackTotalHits > 0 && trackTotalHits < Integer.MAX_VALUE ?
-            new TotalHits(0, TotalHits.Relation.EQUAL_TO) : null;
+    public static SearchHits empty() {
         // We shouldn't use static final instance, since that could directly be returned by native transport clients
-        return new SearchHits(EMPTY, 0, 0, trackedHits);
+        return new SearchHits(EMPTY, 0, 0);
     }
 
     public static final SearchHit[] EMPTY = new SearchHit[0];
@@ -56,21 +49,14 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
 
     public long totalHits;
 
-    private TotalHitsWrapper trackedHits;
-
     private float maxScore;
 
     SearchHits() {
+
     }
 
     public SearchHits(SearchHit[] hits, long totalHits, float maxScore) {
-        this(hits, totalHits, maxScore, null);
-    }
-
-    public SearchHits(SearchHit[] hits, long totalHits, float maxScore, TotalHits trackedTotalHits) {
-        assert trackedTotalHits == null || totalHits == -1;
         this.hits = hits;
-        this.trackedHits = trackedTotalHits == null ? null : new TotalHitsWrapper(trackedTotalHits.value, trackedTotalHits.relation);
         this.totalHits = totalHits;
         this.maxScore = maxScore;
     }
@@ -80,13 +66,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
      */
     public long getTotalHits() {
         return totalHits;
-    }
-
-    /**
-     * The total number of hits that matches the search request.
-     */
-    public TotalHits getTrackedHits() {
-        return trackedHits == null ? null : trackedHits.totalHits;
     }
 
 
@@ -119,7 +98,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
     public static final class Fields {
         public static final String HITS = "hits";
         public static final String TOTAL = "total";
-        public static final String TRACKED_TOTAL = "tracked_total";
         public static final String MAX_SCORE = "max_score";
     }
 
@@ -127,11 +105,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.HITS);
         builder.field(Fields.TOTAL, totalHits);
-        if (trackedHits != null) {
-            builder.startObject(Fields.TRACKED_TOTAL);
-            trackedHits.toXContent(builder, params);
-            builder.endObject();
-        }
         if (Float.isNaN(maxScore)) {
             builder.nullField(Fields.MAX_SCORE);
         } else {
@@ -157,7 +130,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
         List<SearchHit> hits = new ArrayList<>();
         long totalHits = 0;
         float maxScore = 0f;
-        TotalHitsWrapper trackedTotalHits = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -180,15 +152,12 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (Fields.TRACKED_TOTAL.equals(currentFieldName)) {
-                    trackedTotalHits = TotalHitsWrapper.fromXContent(parser);
-                } else {
-                    parser.skipChildren();
-                }
+                parser.skipChildren();
             }
         }
-        return new SearchHits(hits.toArray(new SearchHit[hits.size()]), totalHits, maxScore,
-            trackedTotalHits == null ? null : trackedTotalHits.totalHits);
+        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[hits.size()]), totalHits,
+                maxScore);
+        return searchHits;
     }
 
 
@@ -200,7 +169,12 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        final boolean hasTotalHits = in.readBoolean();
+        final boolean hasTotalHits;
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            hasTotalHits = in.readBoolean();
+        } else {
+            hasTotalHits = true;
+        }
         if (hasTotalHits) {
             totalHits = in.readVLong();
         } else {
@@ -215,11 +189,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
             for (int i = 0; i < hits.length; i++) {
                 hits[i] = SearchHit.readSearchHit(in);
             }
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            trackedHits = in.readOptionalWriteable(TotalHitsWrapper::new);
-        } else {
-            trackedHits = null;
         }
     }
 
@@ -237,9 +206,6 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
                 hit.writeTo(out);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
-            out.writeOptionalWriteable(trackedHits);
-        }
     }
 
     @Override
@@ -250,12 +216,11 @@ public final class SearchHits implements Streamable, ToXContentFragment, Iterabl
         SearchHits other = (SearchHits) obj;
         return Objects.equals(totalHits, other.totalHits)
                 && Objects.equals(maxScore, other.maxScore)
-                && Objects.equals(trackedHits, other.trackedHits)
                 && Arrays.equals(hits, other.hits);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalHits, maxScore, Arrays.hashCode(hits), trackedHits);
+        return Objects.hash(totalHits, maxScore, Arrays.hashCode(hits));
     }
 }

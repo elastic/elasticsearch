@@ -83,7 +83,7 @@ public class TestSearchContext extends SearchContext {
     SearchTask task;
     SortAndFormats sort;
     boolean trackScores = false;
-    int trackTotalHits = Integer.MAX_VALUE;
+    int trackTotalHitsThreshold = SearchContext.DEFAULT_TRACK_TOTAL_HITS_THRESHOLD;
 
     ContextIndexSearcher searcher;
     int size;
@@ -364,14 +364,14 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext trackTotalHits(int trackTotalHits) {
-        this.trackTotalHits = trackTotalHits;
+    public SearchContext trackTotalHitsThreshold(int trackTotalHitsThreshold) {
+        this.trackTotalHitsThreshold = trackTotalHitsThreshold;
         return this;
     }
 
     @Override
-    public int trackTotalHits() {
-        return trackTotalHits;
+    public int trackTotalHitsThreshold() {
+        return trackTotalHitsThreshold;
     }
 
     @Override

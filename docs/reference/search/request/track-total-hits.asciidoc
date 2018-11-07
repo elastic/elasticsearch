@@ -1,8 +1,10 @@
 [[search-request-track-total-hits]]
 === Track total hits
 
-The `track_total_hits` parameter allows you to configure the number of hits to
-count accurately.
+The total hit count can't be computed accurately without visiting all matches,
+which is costly for queries that match lots of documents
+The `track_total_hits` parameter allows you to control how the number of hits
+should be tracked.
 When set to `true` the search response will contain the total number of hits
 that match the query:
 
@@ -36,9 +38,9 @@ GET /_search
 
 <1> The total number of hits that match the query.
 
-If you don't need to track the total number of hits you can set this option
-to `false`. In such case the total number of hits is unknown and the search
-can efficiently skip non-competitive hits if the query is sorted by relevancy:
+If you don't need to track the total number of hits you can improve query times
+by setting this option to `false`. In such case the search can efficiently skip
+non-competitive hits because it doesn't need to count all matches:
 
 [source,js]
 --------------------------------------------------
@@ -72,15 +74,19 @@ GET /_search
 
 <1> The total number of hits is unknown.
 
-The total hit count can't be computed accurately without visiting all matches,
-which is costly for queries that match lots of documents. Given that it is
-often enough to have a lower bounds of the number of hits, such as
+Given that it is often enough to have a lower bound of the number of hits, such as
 "there are more than 1000 hits", it is also possible to set `track_total_hits`
-as an integer that represents the number of hits to count accurately. When this
-option is set as a number the search response will contain a new section called
-`tracked_total` that contains the number of tracked hits (`tracked_total.value`)
-and a relation (`tracked_total.relation`) that indicates if the `value` is
- accurate (`eq`) or a lower bound of the total hit count (`gte`):
+as an integer that represents the number of hits to count accurately.
+The search can efficiently skip non-competitive document as soon as  collecting at least
+$`track_total_hits` documents. This is a good trade off to speed up searches
+if you don't need the accurate number of hits after a certain threshold.
+
+NOTE: When `track_total_hits` is an integer the total hit count in the response
+cannot be greater than this number. It is accurate if it is less than the
+`track_total_hits` number and a lower bound if it is equal.
+
+For instance the following query will track the total hit count that match
+the query up to 100 documents:
 
 [source,js]
 --------------------------------------------------
@@ -96,18 +102,15 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-\... returns:
+The `hits.total` in the response is accurate if it is less than the
+`track_total_hits` number (`100`):
 
 [source,js]
 --------------------------------------------------
 {
   "_shards": ...
    "hits" : {
-      "total" : -1,         <1>
-      "tracked_total": {    <2>
-        "value": 100,
-        "relation": "gte"
-      },
+      "total" : 42,         <1>
       "max_score" : 0.42,
       "hits" : []
   }
@@ -115,13 +118,25 @@ GET /_search
 --------------------------------------------------
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
 // TESTRESPONSE[s/"max_score": 0\.42/"max_score": $body.hits.max_score/]
-// TESTRESPONSE[s/"value": 100/"value": $body.hits.tracked_total.value/]
-// TESTRESPONSE[s/"relation": "gte"/"relation": "$body.hits.tracked_total.relation"/]
+// TESTRESPONSE[s/"total": 100/"value": $body.hits.total/]
 
-<1> The total number of hits is unknown.
-<2> There are at least (`gte`) 100 documents that match the query.
+<1> There are exactly 42 documents that match the query.
 
-Search can also skip non-competitive hits if the query is sorted by
-relevancy but the optimization kicks in only after collecting at least
-$`track_total_hits` documents. This is a good trade off to speed up searches
-if you don't need the accurate number of hits after a certain threshold.
+\... and a lower bound otherwise:
+
+[source,js]
+--------------------------------------------------
+{
+  "_shards": ...
+   "hits" : {
+      "total" : 100,         <1>
+      "max_score" : 0.42,
+      "hits" : []
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"max_score": 0\.42/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"total": 100/"value": $body.hits.total/]
+
+<1> There are at least 100 documents that match the query.

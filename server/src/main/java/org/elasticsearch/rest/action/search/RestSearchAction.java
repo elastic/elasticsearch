@@ -231,8 +231,7 @@ public class RestSearchAction extends BaseRestHandler {
             if (Booleans.isBoolean(request.param("track_total_hits"))) {
                 searchSourceBuilder.trackTotalHits(request.paramAsBoolean("track_total_hits", true));
             } else {
-                searchSourceBuilder.trackTotalHitsThreshold(request.paramAsInt("track_total_hits",
-                    SearchContext.DEFAULT_TRACK_TOTAL_HITS));
+                searchSourceBuilder.trackTotalHitsThreshold(request.paramAsInt("track_total_hits", -1));
             }
         }
 

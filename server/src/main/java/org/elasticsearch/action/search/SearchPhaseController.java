@@ -311,7 +311,7 @@ public final class SearchPhaseController {
     public InternalSearchResponse merge(boolean ignoreFrom, ReducedQueryPhase reducedQueryPhase,
                                         Collection<? extends SearchPhaseResult> fetchResults, IntFunction<SearchPhaseResult> resultsLookup) {
         if (reducedQueryPhase.isEmptyResult) {
-            return InternalSearchResponse.empty(reducedQueryPhase.trackTotalHitsThreshold);
+            return InternalSearchResponse.empty();
         }
         ScoreDoc[] sortedDocs = reducedQueryPhase.scoreDocs;
         SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResults, resultsLookup);
@@ -401,8 +401,8 @@ public final class SearchPhaseController {
                 hits.add(searchHit);
             }
         }
-        return new SearchHits(hits.toArray(new SearchHit[hits.size()]), reducedQueryPhase.totalHits, reducedQueryPhase.maxScore,
-            reducedQueryPhase.trackedHits);
+        return new SearchHits(hits.toArray(new SearchHit[hits.size()]), reducedQueryPhase.totalHits,
+            reducedQueryPhase.maxScore);
     }
 
     /**
@@ -410,15 +410,15 @@ public final class SearchPhaseController {
      * @param queryResults a list of non-null query shard results
      */
     public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest) {
-        return reducedQueryPhase(queryResults, isScrollRequest, SearchContext.DEFAULT_TRACK_TOTAL_HITS);
+        return reducedQueryPhase(queryResults, isScrollRequest, -1);
     }
 
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
      */
-    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest, int trackTotalHits) {
-        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHits), 0, isScrollRequest);
+    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest, int trackTotalHitsThreshold) {
+        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHitsThreshold), 0, isScrollRequest);
     }
 
 
@@ -541,8 +541,6 @@ public final class SearchPhaseController {
         final int trackTotalHitsThreshold;
         // the sum of all hits across all reduces shards
         final long totalHits;
-        // the number of tracked hits across all reduces shards
-        final TotalHits trackedHits;
         // the number of returned hits (doc IDs) across all reduces shards
         final long fetchHits;
         // the max score across all reduces hits or {@link Float#NaN} if no hits returned
@@ -582,18 +580,14 @@ public final class SearchPhaseController {
                 throw new IllegalArgumentException("at least one reduce phase must have been applied but was: " + numReducePhases);
             }
             this.trackTotalHitsThreshold = stats.trackTotalHitsThreshold;
+
             if (stats.trackTotalHitsThreshold == 0) {
                 this.totalHits = -1;
-                this.trackedHits = null;
-            } else if (stats.trackTotalHitsThreshold != Integer.MAX_VALUE) {
-                final long total = Math.min(stats.trackTotalHitsThreshold, stats.totalHits);
-                final TotalHits.Relation relation = total == stats.totalHits ? Relation.EQUAL_TO : Relation.GREATER_THAN_OR_EQUAL_TO;
-                this.trackedHits = stats.trackTotalHitsThreshold > 0 ? new TotalHits(total, relation) : null;
-                this.totalHits = -1;
-            } else {
+            } else if (stats.trackTotalHitsThreshold == -1) {
                 assert stats.totalHitsRelation == Relation.EQUAL_TO;
                 this.totalHits = stats.totalHits;
-                this.trackedHits = null;
+            } else {
+                this.totalHits = Math.min(stats.trackTotalHitsThreshold, stats.totalHits);
             }
             this.fetchHits = stats.fetchHits;
             if (Float.isInfinite(stats.maxScore)) {
@@ -740,7 +734,7 @@ public final class SearchPhaseController {
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
-        final int trackTotalHits = source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS : source.trackTotalHitsThreshold();
+        final int trackTotalHitsThreshold = source == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_THRESHOLD : source.trackTotalHitsThreshold();
 
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
@@ -752,7 +746,7 @@ public final class SearchPhaseController {
         return new InitialSearchPhase.ArraySearchPhaseResults(numShards) {
             @Override
             public ReducedQueryPhase reduce() {
-                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHits);
+                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHitsThreshold);
             }
         };
     }
@@ -765,16 +759,16 @@ public final class SearchPhaseController {
         float maxScore = Float.NEGATIVE_INFINITY;
 
         TopDocsStats() {
-            this(SearchContext.DEFAULT_TRACK_TOTAL_HITS);
+            this(-1);
         }
 
         TopDocsStats(int trackTotalHitsThreshold) {
             this.trackTotalHitsThreshold = trackTotalHitsThreshold;
-            this.totalHits = trackTotalHitsThreshold > 0 ? 0 : -1;
+            this.totalHits = trackTotalHitsThreshold != 0 ? 0 : -1;
         }
 
         void add(TopDocsAndMaxScore topDocs) {
-            if (trackTotalHitsThreshold > 0) {
+            if (trackTotalHitsThreshold != 0) {
                 totalHits += topDocs.topDocs.totalHits.value;
                 if (topDocs.topDocs.totalHits.relation == Relation.GREATER_THAN_OR_EQUAL_TO) {
                     totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;

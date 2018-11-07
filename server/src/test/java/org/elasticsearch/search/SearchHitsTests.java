@@ -47,10 +47,9 @@ public class SearchHitsTests extends ESTestCase {
         for (int i = 0; i < searchHits; i++) {
             hits[i] = SearchHitTests.createTestItem(false); // creating random innerHits could create loops
         }
+        long totalHits = frequently() ? TestUtil.nextLong(random(), 0, Long.MAX_VALUE) : -1;
         float maxScore = frequently() ? randomFloat() : Float.NaN;
-        return randomBoolean() ? new SearchHits(hits, TestUtil.nextLong(random(), 0, Long.MAX_VALUE), maxScore) :
-            new SearchHits(hits, -1, maxScore, new TotalHits(TestUtil.nextLong(random(), 0, Long.MAX_VALUE),
-                randomFrom(random(), TotalHits.Relation.values())));
+        return new SearchHits(hits, totalHits, maxScore);
     }
 
     public void testFromXContent() throws IOException {
@@ -85,7 +84,7 @@ public class SearchHitsTests extends ESTestCase {
         XContentType xcontentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toXContent(searchHits, xcontentType, ToXContent.EMPTY_PARAMS, true);
         Predicate<String> pathsToExclude = path -> (path.isEmpty() || path.endsWith("highlight") || path.endsWith("fields")
-                || path.contains("_source") || path.contains("tracked_total"));
+                || path.contains("_source"));
         BytesReference withRandomFields = insertRandomFields(xcontentType, originalBytes, pathsToExclude, random());
         SearchHits parsed = null;
         try (XContentParser parser = createParser(xcontentType.xContent(), withRandomFields)) {

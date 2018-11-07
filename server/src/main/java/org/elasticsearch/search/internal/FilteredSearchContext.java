@@ -322,13 +322,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext trackTotalHits(int trackTotalHits) {
-        return in.trackTotalHits(trackTotalHits);
+    public SearchContext trackTotalHitsThreshold(int trackTotalHitsThreshold) {
+        return in.trackTotalHitsThreshold(trackTotalHitsThreshold);
     }
 
     @Override
-    public int trackTotalHits() {
-        return in.trackTotalHits();
+    public int trackTotalHitsThreshold() {
+        return in.trackTotalHitsThreshold();
     }
 
     @Override

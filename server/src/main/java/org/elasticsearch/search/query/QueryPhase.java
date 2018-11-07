@@ -158,7 +158,7 @@ public class QueryPhase implements SearchPhase {
                         }
                         // ... and stop collecting after ${size} matches
                         searchContext.terminateAfter(searchContext.size());
-                        searchContext.trackTotalHits(0);
+                        searchContext.trackTotalHitsThreshold(0);
                     } else if (canEarlyTerminate(reader, searchContext.sort())) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
@@ -169,7 +169,7 @@ public class QueryPhase implements SearchPhase {
                                 .build();
                             query = bq;
                         }
-                        searchContext.trackTotalHits(0);
+                        searchContext.trackTotalHitsThreshold(0);
                     }
                 }
             }

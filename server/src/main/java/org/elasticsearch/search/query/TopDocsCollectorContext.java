@@ -98,7 +98,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         private EmptyTopDocsCollectorContext(IndexReader reader, Query query,
                                              int trackTotalHits, boolean hasFilterCollector) throws IOException {
             super(REASON_SEARCH_COUNT, 0);
-            if (trackTotalHits > 0) {
+            if (trackTotalHits != 0) {
                 TotalHitCountCollector hitCountCollector = new TotalHitCountCollector();
                 // implicit total hit counts are valid only when there is no filter collector in the chain
                 int hitCount =  hasFilterCollector ? -1 : shortcutTotalHitCount(reader, query);
@@ -345,7 +345,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
         final int totalNumDocs = Math.max(1, reader.numDocs());
         if (searchContext.size() == 0) {
             // no matter what the value of from is
-            return new EmptyTopDocsCollectorContext(reader, query, searchContext.trackTotalHits(), hasFilterCollector);
+            return new EmptyTopDocsCollectorContext(reader, query, searchContext.trackTotalHitsThreshold(), hasFilterCollector);
         } else if (searchContext.scrollContext() != null) {
             // no matter what the value of from is
             int numDocs = Math.min(searchContext.size(), totalNumDocs);
@@ -365,7 +365,7 @@ abstract class TopDocsCollectorContext extends QueryCollectorContext {
                 }
             }
             return new SimpleTopDocsCollectorContext(reader, query, searchContext.sort(), searchContext.searchAfter(), numDocs,
-                                                     searchContext.trackScores(), searchContext.trackTotalHits(), hasFilterCollector) {
+                                                     searchContext.trackScores(), searchContext.trackTotalHitsThreshold(), hasFilterCollector) {
                 @Override
                 boolean shouldRescore() {
                     return rescore;

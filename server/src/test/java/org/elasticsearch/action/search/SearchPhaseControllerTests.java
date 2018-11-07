@@ -45,6 +45,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -59,10 +60,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.*;
 
 public class SearchPhaseControllerTests extends ESTestCase {
     private SearchPhaseController searchPhaseController;
@@ -148,16 +146,18 @@ public class SearchPhaseControllerTests extends ESTestCase {
         int nShards = randomIntBetween(1, 20);
         int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false);
-        for (int trackTotalHits : new int[] {0, 200, Integer.MAX_VALUE}) {
+        for (long trackTotalHitsThreshold : new int[] {0, 200, -1}) {
             SearchPhaseController.ReducedQueryPhase reducedQueryPhase =
-                searchPhaseController.reducedQueryPhase(queryResults.asList(), false, trackTotalHits);
+                searchPhaseController.reducedQueryPhase(queryResults.asList(), false, (int) trackTotalHitsThreshold);
             AtomicArray<SearchPhaseResult> searchPhaseResultAtomicArray = generateFetchResults(nShards, reducedQueryPhase.scoreDocs,
                 reducedQueryPhase.suggest);
             InternalSearchResponse mergedResponse = searchPhaseController.merge(false,
                 reducedQueryPhase,
                 searchPhaseResultAtomicArray.asList(), searchPhaseResultAtomicArray::get);
-            if (trackTotalHits != Integer.MAX_VALUE) {
-                assertThat(mergedResponse.hits.totalHits, equalTo(-1L));
+            if (trackTotalHitsThreshold != -1) {
+                assertThat(mergedResponse.hits.totalHits, both(lessThan(trackTotalHitsThreshold)).and(greaterThanOrEqualTo(0L)));
+            } else {
+                assertThat(mergedResponse.hits.totalHits, greaterThanOrEqualTo(0L));
             }
             int suggestSize = 0;
             for (Suggest.Suggestion s : reducedQueryPhase.suggest) {

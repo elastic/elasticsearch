@@ -377,7 +377,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Indicates the number of hits to count accurately.
+     * Indicates the number of hits to count accurately. Defaults to {@code -1} which means
+     * unlimited.
      */
     public SearchRequestBuilder setTrackTotalHitsThreshold(int trackTotalHits) {
         sourceBuilder().trackTotalHitsThreshold(trackTotalHits);

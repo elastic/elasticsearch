@@ -11,7 +11,6 @@
         track_total_hits: false
 
   - match: { hits.total: -1 }
-  - is_false: "hits.tracked_total"
 
   - do:
       search:
@@ -19,16 +18,13 @@
         track_total_hits: true
 
   - match: { hits.total: 0 }
-  - is_false: "hits.tracked_total"
 
   - do:
       search:
         index: test_*
         track_total_hits: 10
 
-  - match: { hits.total: -1 }
-  - match: { hits.tracked_total.value: 0 }
-  - match: { hits.tracked_total.relation: "eq" }
+  - match: { hits.total: 0 }
 
   - do:
       index:
@@ -69,22 +65,17 @@
         track_total_hits: false
 
   - match: { hits.total: -1 }
-  - is_false: "hits.tracked_total"
 
   - do:
       search:
         index: test_1
         track_total_hits: 10
 
-  - match: { hits.total: -1 }
-  - match: { hits.tracked_total.value: 4 }
-  - match: { hits.tracked_total.relation: "eq" }
+  - match: { hits.total: 4 }
 
   - do:
       search:
         index: test_1
         track_total_hits: 3
 
-  - match: { hits.total: -1 }
-  - match: { hits.tracked_total.value: 3 }
-  - match: { hits.tracked_total.relation: "gte" }
+  - match: { hits.total: 3 }

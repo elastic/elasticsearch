@@ -217,7 +217,7 @@ class TopHitsAggregator extends MetricsAggregator {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
         return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), new TopDocsAndMaxScore(topDocs, Float.NaN),
-                SearchHits.empty(subSearchContext.trackTotalHits()), pipelineAggregators(), metaData());
+                SearchHits.empty(), pipelineAggregators(), metaData());
     }
 
     @Override

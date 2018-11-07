@@ -121,7 +121,7 @@ public class Manifest implements ToXContentFragment {
         return (Long) generationAndListOfIndexEntries[0];
     }
 
-    private static Map<Index, Long> indicies(Object[] generationAndListOfIndexEntries) {
+    private static Map<Index, Long> indices(Object[] generationAndListOfIndexEntries) {
         List<IndexEntry> listOfIndices = (List<IndexEntry>) generationAndListOfIndexEntries[1];
         return listOfIndices.stream().collect(Collectors.toMap(IndexEntry::getIndex, IndexEntry::getGeneration));
     }
@@ -129,7 +129,7 @@ public class Manifest implements ToXContentFragment {
     private static final ConstructingObjectParser<Manifest, Void> PARSER = new ConstructingObjectParser<>(
             "manifest",
             generationAndListOfIndexEntries ->
-                    new Manifest(generation(generationAndListOfIndexEntries), indicies(generationAndListOfIndexEntries)));
+                    new Manifest(generation(generationAndListOfIndexEntries), indices(generationAndListOfIndexEntries)));
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_PARSE_FIELD);

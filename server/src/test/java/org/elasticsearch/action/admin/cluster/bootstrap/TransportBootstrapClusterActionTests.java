@@ -50,6 +50,7 @@ import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -165,21 +166,29 @@ public class TransportBootstrapClusterActionTests extends ESTestCase {
             = new BootstrapClusterRequest(new BootstrapConfiguration(singletonList(new NodeDescription(discoveryNode))));
 
         {
-            final CountDownLatch countDownLatch = new CountDownLatch(1);
-            transportService.sendRequest(discoveryNode, BootstrapClusterAction.NAME, request, new ResponseHandler() {
-                @Override
-                public void handleResponse(BootstrapClusterResponse response) {
-                    assertFalse(response.getAlreadyBootstrapped());
-                    countDownLatch.countDown();
-                }
+            final int parallelRequests = 10;
+            final CountDownLatch countDownLatch = new CountDownLatch(parallelRequests);
+            final AtomicInteger successes = new AtomicInteger();
 
-                @Override
-                public void handleException(TransportException exp) {
-                    throw new AssertionError("should not be called", exp);
-                }
-            });
+            for (int i = 0; i < parallelRequests; i++) {
+                transportService.sendRequest(discoveryNode, BootstrapClusterAction.NAME, request, new ResponseHandler() {
+                    @Override
+                    public void handleResponse(BootstrapClusterResponse response) {
+                        if (response.getAlreadyBootstrapped() == false) {
+                            successes.incrementAndGet();
+                        }
+                        countDownLatch.countDown();
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        throw new AssertionError("should not be called", exp);
+                    }
+                });
+            }
 
             assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
+            assertThat(successes.get(), equalTo(1));
         }
 
         assertTrue(coordinator.isInitialConfigurationSet());

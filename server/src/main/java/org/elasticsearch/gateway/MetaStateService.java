@@ -92,7 +92,7 @@ public class MetaStateService extends AbstractComponent implements IndexMetaData
     }
 
     /**
-     * Zen 1 BWC version of loading metadata from disk. See also {@link #loadFullState()}
+     * "Manifest-less" BWC version of loading metadata from disk. See also {@link #loadFullState()}
      */
     private Tuple<Manifest, MetaData> loadFullStateBWC() throws IOException {
         Map<Index, Long> indices = new HashMap<>();

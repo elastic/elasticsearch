@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -61,13 +60,15 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             );
         }
         {
-            // test1: create one doc in dest
+            // reindex one document with id 1 from source to destination
             ReindexRequest reindexRequest = new ReindexRequest();
             reindexRequest.setSourceIndices(sourceIndex);
             reindexRequest.setDestIndex(destinationIndex);
             reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1").types("type"));
             reindexRequest.setRefresh(true);
+
             BulkByScrollResponse bulkResponse = execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
+
             assertEquals(1, bulkResponse.getCreated());
             assertEquals(1, bulkResponse.getTotal());
             assertEquals(0, bulkResponse.getDeleted());
@@ -105,7 +106,6 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             );
         }
         {
-            // test1: create one doc in dest
             ReindexRequest reindexRequest = new ReindexRequest();
             reindexRequest.setSourceIndices(sourceIndex);
             reindexRequest.setDestIndex(destinationIndex);
@@ -119,10 +119,10 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    private BooleanSupplier checkCompletionStatus(TaskId taskId) {
+    private BooleanSupplier checkCompletionStatus(String taskId) {
         return () -> {
             try {
-                Response response = client().performRequest(new Request("GET", "/_tasks/" + taskId.toString()));
+                Response response = client().performRequest(new Request("GET", "/_tasks/" + taskId));
                 return (boolean) entityAsMap(response).get("completed");
             } catch (IOException e) {
                 fail(e.getMessage());

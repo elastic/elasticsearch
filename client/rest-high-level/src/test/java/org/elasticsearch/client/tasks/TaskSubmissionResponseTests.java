@@ -20,7 +20,6 @@
 package org.elasticsearch.client.tasks;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,12 +40,12 @@ public class TaskSubmissionResponseTests extends ESTestCase {
 
     private void toXContent(TaskSubmissionResponse response, XContentBuilder xContentBuilder) throws IOException {
         xContentBuilder.startObject();
-        xContentBuilder.field("task", response.getTask().toString());
+        xContentBuilder.field("task", response.getTask());
         xContentBuilder.endObject();
     }
 
     private TaskSubmissionResponse createTestInstance() {
-        TaskId taskId = new TaskId(randomAlphaOfLength(5), randomLong());
+        String taskId = randomAlphaOfLength(5) + ":" + randomLong();
         return new TaskSubmissionResponse(taskId);
     }
 }

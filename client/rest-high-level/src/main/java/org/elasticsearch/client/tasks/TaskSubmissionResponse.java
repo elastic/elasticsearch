@@ -22,30 +22,26 @@ package org.elasticsearch.client.tasks;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class TaskSubmissionResponse extends ActionResponse {
+
     private static final ParseField TASK = new ParseField("task");
+
     public static final ConstructingObjectParser<TaskSubmissionResponse, Void> PARSER = new ConstructingObjectParser<>(
         "task_submission_response",
-        true, a -> new TaskSubmissionResponse((TaskId) a[0]));
+        true, a -> new TaskSubmissionResponse((String) a[0]));
 
     static {
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), TaskId.parser(), TASK, ObjectParser.ValueType.STRING);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TASK);
     }
 
-    public static TaskSubmissionResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
+    private final String task;
 
-    private final TaskId task;
-
-    TaskSubmissionResponse(TaskId task) {
+    TaskSubmissionResponse(String task) {
         this.task = task;
     }
 
@@ -54,7 +50,7 @@ public class TaskSubmissionResponse extends ActionResponse {
      *
      * @return the id of the reindex task.
      */
-    public TaskId getTask() {
+    public String getTask() {
         return task;
     }
 
@@ -73,6 +69,10 @@ public class TaskSubmissionResponse extends ActionResponse {
         }
         TaskSubmissionResponse that = (TaskSubmissionResponse) other;
         return Objects.equals(task, that.task);
+    }
+
+    public static TaskSubmissionResponse fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
 }

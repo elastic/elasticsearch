@@ -57,7 +57,6 @@ public class WatcherStatsResponse {
         return watcherMetaData;
     }
 
-
     /**
      * returns a list of nodes that returned stats
      */

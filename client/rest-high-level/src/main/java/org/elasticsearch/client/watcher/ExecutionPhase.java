@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 package org.elasticsearch.client.watcher;
 
 public enum ExecutionPhase {

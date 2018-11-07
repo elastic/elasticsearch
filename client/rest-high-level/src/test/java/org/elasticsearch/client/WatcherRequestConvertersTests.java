@@ -141,22 +141,10 @@ public class WatcherRequestConvertersTests extends ESTestCase {
     }
 
     public void testWatcherStatsRequest() {
-        WatcherStatsRequest watcherStatsRequest = new WatcherStatsRequest();
-
         boolean includeCurrent = randomBoolean();
         boolean includeQueued = randomBoolean();
 
-        if (includeCurrent) {
-            watcherStatsRequest.includeCurrentWatches(true);
-        } else if (randomBoolean()) {
-            watcherStatsRequest.includeCurrentWatches(false);
-        }
-
-        if (includeQueued) {
-            watcherStatsRequest.includeQueuedWatches(true);
-        } else if (randomBoolean()) {
-            watcherStatsRequest.includeQueuedWatches(false);
-        }
+        WatcherStatsRequest watcherStatsRequest = new WatcherStatsRequest(includeCurrent, includeQueued);
 
         Request request = WatcherRequestConverters.watcherStats(watcherStatsRequest);
         assertThat(request.getEndpoint(), equalTo("/_xpack/watcher/stats"));

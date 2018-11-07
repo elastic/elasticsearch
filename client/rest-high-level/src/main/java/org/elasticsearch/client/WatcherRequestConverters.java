@@ -119,15 +119,11 @@ final class WatcherRequestConverters {
     }
 
     static Request watcherStats(WatcherStatsRequest watcherStatsRequest) {
-        RequestConverters.EndpointBuilder builder =
-        new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack")
-            .addPathPartAsIs("watcher")
-            .addPathPartAsIs("stats");
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_xpack", "watcher", "stats");
         String endpoint = builder.build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params parameters = new RequestConverters.Params(request);
-        StringBuilder  metric = new StringBuilder();
+        StringBuilder metric = new StringBuilder();
         if (watcherStatsRequest.includeCurrentWatches()) {
             metric.append("current_watches");
         }

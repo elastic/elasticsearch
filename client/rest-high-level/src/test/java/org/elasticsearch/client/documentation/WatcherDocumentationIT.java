@@ -416,9 +416,7 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             //tag::watcher-stats-request
-            WatcherStatsRequest request = new WatcherStatsRequest();
-            request.includeCurrentWatches(true);
-            request.includeQueuedWatches(true);
+            WatcherStatsRequest request = new WatcherStatsRequest(true, true);
             //end::watcher-stats-request
 
             //tag::watcher-stats-execute

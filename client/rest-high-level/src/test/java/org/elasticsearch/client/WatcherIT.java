@@ -188,9 +188,7 @@ public class WatcherIT extends ESRestHighLevelClientTestCase {
     public void testWatcherStatsMetrics() throws Exception {
         boolean includeCurrent = randomBoolean();
         boolean includeQueued = randomBoolean();
-        WatcherStatsRequest request = new WatcherStatsRequest();
-        request.includeQueuedWatches(includeQueued);
-        request.includeCurrentWatches(includeCurrent);
+        WatcherStatsRequest request = new WatcherStatsRequest(includeCurrent, includeQueued);
 
         WatcherStatsResponse stats = highLevelClient().watcher().watcherStats(request, RequestOptions.DEFAULT);
         assertThat(stats.getNodes(), not(empty()));

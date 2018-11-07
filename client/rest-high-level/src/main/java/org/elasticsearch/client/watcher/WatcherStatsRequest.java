@@ -26,26 +26,24 @@ import org.elasticsearch.client.Validatable;
  */
 public class WatcherStatsRequest implements Validatable {
 
-    private boolean includeCurrentWatches;
-    private boolean includeQueuedWatches;
+    private final boolean includeCurrentWatches;
+    private final boolean includeQueuedWatches;
 
-    public WatcherStatsRequest() {
+    public WatcherStatsRequest( ) {
+        this(true, true);
+    }
+
+    public WatcherStatsRequest(boolean includeCurrentWatches, boolean includeQueuedWatches) {
+        this.includeCurrentWatches = includeCurrentWatches;
+        this.includeQueuedWatches = includeQueuedWatches;
     }
 
     public boolean includeCurrentWatches() {
         return includeCurrentWatches;
     }
 
-    public void includeCurrentWatches(boolean currentWatches) {
-        this.includeCurrentWatches = currentWatches;
-    }
-
     public boolean includeQueuedWatches() {
         return includeQueuedWatches;
-    }
-
-    public void includeQueuedWatches(boolean includeQueuedWatches) {
-        this.includeQueuedWatches = includeQueuedWatches;
     }
 
     @Override

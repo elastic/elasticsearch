@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -42,10 +41,10 @@ public class TransportDeleteFilterAction extends HandledTransportAction<DeleteFi
     private final JobConfigProvider jobConfigProvider;
 
     @Inject
-    public TransportDeleteFilterAction(Settings settings, TransportService transportService,
+    public TransportDeleteFilterAction(TransportService transportService,
                                        ActionFilters actionFilters, Client client,
                                        JobConfigProvider jobConfigProvider) {
-        super(settings, DeleteFilterAction.NAME, transportService, actionFilters,
+        super(DeleteFilterAction.NAME, transportService, actionFilters,
             (Supplier<DeleteFilterAction.Request>) DeleteFilterAction.Request::new);
         this.client = client;
         this.jobConfigProvider = jobConfigProvider;

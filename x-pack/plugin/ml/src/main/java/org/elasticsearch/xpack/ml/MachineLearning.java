@@ -367,13 +367,13 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         Auditor auditor = new Auditor(client, clusterService.getNodeName());
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
-        JobConfigProvider jobConfigProvider = new JobConfigProvider(client, settings);
-        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, settings, xContentRegistry);
-        UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(settings, client, clusterService, threadPool);
+        JobConfigProvider jobConfigProvider = new JobConfigProvider(client);
+        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(env, settings, jobResultsProvider, clusterService, auditor, threadPool, client, notifier);
 
-        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
-        JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
+        JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
+        JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
 
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
@@ -417,7 +417,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 autodetectProcessManager);
 
         // This object's constructor attaches to the license state, so there's no need to retain another reference to it
-        new InvalidLicenseEnforcer(settings, getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+        new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
 
         // run node startup tasks
         autodetectProcessManager.onNodeStartup();
@@ -429,11 +429,11 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 datafeedConfigProvider,
                 jobManager,
                 autodetectProcessManager,
-                new MlInitializationService(settings, threadPool, clusterService, client),
+                new MlInitializationService(threadPool, clusterService, client),
                 jobDataCountsPersister,
                 datafeedManager,
                 auditor,
-                new MlAssignmentNotifier(settings, auditor, clusterService)
+                new MlAssignmentNotifier(auditor, clusterService)
         );
     }
 
@@ -445,7 +445,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
         return Arrays.asList(
                 new TransportOpenJobAction.OpenJobPersistentTasksExecutor(settings, clusterService, autodetectProcessManager.get()),
-                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(settings, datafeedManager.get())
+                new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedManager.get())
         );
     }
 

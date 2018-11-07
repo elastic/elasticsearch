@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,10 +40,10 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     private final DatafeedConfigProvider datafeedConfigProvider;
 
     @Inject
-    public TransportPreviewDatafeedAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportPreviewDatafeedAction(ThreadPool threadPool, TransportService transportService,
                                           ActionFilters actionFilters, Client client, JobConfigProvider jobConfigProvider,
                                           DatafeedConfigProvider datafeedConfigProvider) {
-        super(settings, PreviewDatafeedAction.NAME, transportService, actionFilters,
+        super(PreviewDatafeedAction.NAME, transportService, actionFilters,
             (Supplier<PreviewDatafeedAction.Request>) PreviewDatafeedAction.Request::new);
         this.threadPool = threadPool;
         this.client = client;

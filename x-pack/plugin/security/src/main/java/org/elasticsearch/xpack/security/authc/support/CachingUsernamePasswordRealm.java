@@ -34,20 +34,20 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     private final boolean authenticationEnabled;
     final Hasher cacheHasher;
 
-    protected CachingUsernamePasswordRealm(String type, RealmConfig config, ThreadPool threadPool) {
-        super(type, config);
-        cacheHasher = Hasher.resolve(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING.get(config.settings()));
+    protected CachingUsernamePasswordRealm(RealmConfig config, ThreadPool threadPool) {
+        super(config);
+        cacheHasher = Hasher.resolve(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING));
         this.threadPool = threadPool;
-        final TimeValue ttl = CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING.get(config.settings());
+        final TimeValue ttl = this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING);
         if (ttl.getNanos() > 0) {
             cache = CacheBuilder.<String, ListenableFuture<UserWithHash>>builder()
-                .setExpireAfterWrite(ttl)
-                .setMaximumWeight(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING.get(config.settings()))
-                .build();
+                    .setExpireAfterWrite(ttl)
+                    .setMaximumWeight(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
+                    .build();
         } else {
             cache = null;
         }
-        this.authenticationEnabled = CachingUsernamePasswordRealmSettings.AUTHC_ENABLED_SETTING.get(config.settings());
+        this.authenticationEnabled = config.getSetting(CachingUsernamePasswordRealmSettings.AUTHC_ENABLED_SETTING);
     }
 
     @Override
@@ -86,7 +86,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
      * This method will respond with {@link AuthenticationResult#notHandled()} if
      * {@link CachingUsernamePasswordRealmSettings#AUTHC_ENABLED_SETTING authentication is not enabled}.
      * @param authToken The authentication token
-     * @param listener to be called at completion
+     * @param listener  to be called at completion
      */
     @Override
     public final void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {

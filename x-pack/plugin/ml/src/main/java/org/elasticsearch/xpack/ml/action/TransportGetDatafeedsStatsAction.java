@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,11 +34,11 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
     private final DatafeedConfigProvider datafeedConfigProvider;
 
     @Inject
-    public TransportGetDatafeedsStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportGetDatafeedsStatsAction(TransportService transportService, ClusterService clusterService,
                                             ThreadPool threadPool, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver,
                                             DatafeedConfigProvider datafeedConfigProvider) {
-        super(settings, GetDatafeedsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(GetDatafeedsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
             GetDatafeedsStatsAction.Request::new, indexNameExpressionResolver);
         this.datafeedConfigProvider = datafeedConfigProvider;
     }

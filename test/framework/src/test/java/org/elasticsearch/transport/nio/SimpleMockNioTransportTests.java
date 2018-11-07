@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -57,25 +58,17 @@ public class SimpleMockNioTransportTests extends AbstractSimpleTransportTestCase
                                                          ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
-        Transport transport = new MockNioTransport(settings, threadPool,
-            networkService, BigArrays.NON_RECYCLING_INSTANCE, new MockPageCacheRecycler(settings), namedWriteableRegistry,
-            new NoneCircuitBreakerService()) {
+        Transport transport = new MockNioTransport(settings, version, threadPool, networkService, BigArrays.NON_RECYCLING_INSTANCE,
+            new MockPageCacheRecycler(settings), namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
-            public Version executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout) throws IOException,
-                InterruptedException {
+            public void executeHandshake(DiscoveryNode node, TcpChannel channel, TimeValue timeout, ActionListener<Version> listener) {
                 if (doHandshake) {
-                    return super.executeHandshake(node, channel, timeout);
+                    super.executeHandshake(node, channel, timeout, listener);
                 } else {
-                    return version.minimumCompatibilityVersion();
+                    listener.onResponse(version.minimumCompatibilityVersion());
                 }
             }
-
-            @Override
-            protected Version getCurrentVersion() {
-                return version;
-            }
-
         };
         MockTransportService mockTransportService =
             MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());

@@ -16,15 +16,14 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -39,15 +38,15 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
     private final JobConfigProvider jobConfigProvider;
 
     @Inject
-    public TransportUpdateDatafeedAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportUpdateDatafeedAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver,
                                          Client client, NamedXContentRegistry xContentRegistry) {
-        super(settings, UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(UpdateDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, UpdateDatafeedAction.Request::new);
 
-        datafeedConfigProvider = new DatafeedConfigProvider(client, settings, xContentRegistry);
-        jobConfigProvider = new JobConfigProvider(client, settings);
+        datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        jobConfigProvider = new JobConfigProvider(client);
     }
 
     @Override

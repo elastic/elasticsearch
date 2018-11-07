@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -275,8 +274,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
     }
 
     private TransportCloseJobAction createAction() {
-        return new TransportCloseJobAction(Settings.EMPTY,
-                mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class),
+        return new TransportCloseJobAction(mock(TransportService.class), mock(ThreadPool.class), mock(ActionFilters.class),
                 clusterService, mock(Client.class), mock(Auditor.class), mock(PersistentTasksService.class),
                 jobConfigProvider, datafeedConfigProvider);
     }

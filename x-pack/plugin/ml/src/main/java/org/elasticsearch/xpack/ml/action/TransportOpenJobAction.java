@@ -104,12 +104,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         new PersistentTasksCustomMetaData.Assignment(null, "persistent task is awaiting node assignment.");
 
     @Inject
-    public TransportOpenJobAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportOpenJobAction(TransportService transportService, ThreadPool threadPool,
                                   XPackLicenseState licenseState, ClusterService clusterService,
                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                   JobResultsProvider jobResultsProvider, JobConfigProvider jobConfigProvider) {
-        super(settings, OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+        super(OpenJobAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 OpenJobAction.Request::new);
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
@@ -643,7 +643,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
 
         public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
                                               AutodetectProcessManager autodetectProcessManager) {
-            super(settings, MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+            super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
             this.autodetectProcessManager = autodetectProcessManager;
             this.fallbackMaxNumberOfOpenJobs = AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.get(settings);
             this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);

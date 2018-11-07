@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -38,8 +37,7 @@ public class AllocationDeciders extends AllocationDecider {
 
     private final Collection<AllocationDecider> allocations;
 
-    public AllocationDeciders(Settings settings, Collection<AllocationDecider> allocations) {
-        super(settings);
+    public AllocationDeciders(Collection<AllocationDecider> allocations) {
         this.allocations = Collections.unmodifiableCollection(allocations);
     }
 

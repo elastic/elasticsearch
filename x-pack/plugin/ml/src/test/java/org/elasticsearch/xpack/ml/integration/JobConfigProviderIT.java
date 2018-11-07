@@ -11,7 +11,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -58,7 +57,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        jobConfigProvider = new JobConfigProvider(client(), Settings.EMPTY);
+        jobConfigProvider = new JobConfigProvider(client());
         waitForMlTemplates();
     }
 

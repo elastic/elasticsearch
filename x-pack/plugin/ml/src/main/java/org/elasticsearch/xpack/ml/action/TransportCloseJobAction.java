@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -60,12 +59,12 @@ public class TransportCloseJobAction extends TransportTasksAction<TransportOpenJ
     private final DatafeedConfigProvider datafeedConfigProvider;
 
     @Inject
-    public TransportCloseJobAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportCloseJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    ClusterService clusterService, Client client, Auditor auditor,
                                    PersistentTasksService persistentTasksService, JobConfigProvider jobConfigProvider,
                                    DatafeedConfigProvider datafeedConfigProvider) {
         // We fork in innerTaskOperation(...), so we can use ThreadPool.Names.SAME here:
-        super(settings, CloseJobAction.NAME, clusterService, transportService, actionFilters,
+        super(CloseJobAction.NAME, clusterService, transportService, actionFilters,
             CloseJobAction.Request::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
         this.client = client;

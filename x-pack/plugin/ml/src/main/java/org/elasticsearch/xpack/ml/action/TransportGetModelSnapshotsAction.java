@@ -9,7 +9,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
@@ -27,10 +26,9 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
     private final JobManager jobManager;
 
     @Inject
-    public TransportGetModelSnapshotsAction(Settings settings, TransportService transportService,
-                                            ActionFilters actionFilters, JobResultsProvider jobResultsProvider, JobManager jobManager) {
-        super(settings, GetModelSnapshotsAction.NAME, transportService, actionFilters,
-            GetModelSnapshotsAction.Request::new);
+    public TransportGetModelSnapshotsAction(TransportService transportService, ActionFilters actionFilters,
+                                            JobResultsProvider jobResultsProvider, JobManager jobManager) {
+        super(GetModelSnapshotsAction.NAME, transportService, actionFilters, GetModelSnapshotsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
     }

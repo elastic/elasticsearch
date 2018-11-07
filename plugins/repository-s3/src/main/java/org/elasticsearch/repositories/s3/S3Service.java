@@ -33,7 +33,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -46,10 +45,6 @@ class S3Service extends AbstractComponent implements Closeable {
 
     private volatile Map<String, AmazonS3Reference> clientsCache = emptyMap();
     private volatile Map<String, S3ClientSettings> clientsSettings = emptyMap();
-
-    S3Service(Settings settings) {
-        super(settings);
-    }
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of

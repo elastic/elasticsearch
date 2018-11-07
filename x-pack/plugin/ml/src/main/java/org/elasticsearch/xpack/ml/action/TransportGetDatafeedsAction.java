@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,15 +37,15 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
     private final DatafeedConfigProvider datafeedConfigProvider;
 
     @Inject
-    public TransportGetDatafeedsAction(Settings settings, TransportService transportService,
+    public TransportGetDatafeedsAction(TransportService transportService,
                                        ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver,
                                        Client client, NamedXContentRegistry xContentRegistry) {
-            super(settings, GetDatafeedsAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            super(GetDatafeedsAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     GetDatafeedsAction.Request::new, indexNameExpressionResolver);
 
-        datafeedConfigProvider = new DatafeedConfigProvider(client, settings, xContentRegistry);
+        datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
     }
 
     @Override

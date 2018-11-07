@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -32,9 +34,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -87,12 +87,12 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * This class implements CRUD operation for the
  * anomaly detector job configuration document
  */
-public class JobConfigProvider extends AbstractComponent {
+public class JobConfigProvider {
 
+    private static final Logger logger = LogManager.getLogger(JobConfigProvider.class);
     private final Client client;
 
-    public JobConfigProvider(Client client, Settings settings) {
-        super(settings);
+    public JobConfigProvider(Client client) {
         this.client = client;
     }
 

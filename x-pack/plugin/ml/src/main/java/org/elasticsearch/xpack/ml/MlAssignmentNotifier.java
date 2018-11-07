@@ -11,7 +11,6 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
@@ -31,8 +30,7 @@ public class MlAssignmentNotifier extends AbstractComponent implements ClusterSt
 
     private final AtomicBoolean enabled = new AtomicBoolean(false);
 
-    MlAssignmentNotifier(Settings settings, Auditor auditor, ClusterService clusterService) {
-        super(settings);
+    MlAssignmentNotifier(Auditor auditor, ClusterService clusterService) {
         this.auditor = auditor;
         this.clusterService = clusterService;
         clusterService.addLocalNodeMasterListener(this);

@@ -52,8 +52,8 @@ public class DatafeedJobBuilder {
     void build(String datafeedId, ActionListener<DatafeedJob> listener) {
 
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings);
-        JobConfigProvider jobConfigProvider = new JobConfigProvider(client, settings);
-        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, settings, xContentRegistry);
+        JobConfigProvider jobConfigProvider = new JobConfigProvider(client);
+        DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
 
         build(datafeedId, jobResultsProvider, jobConfigProvider, datafeedConfigProvider, listener);
     }

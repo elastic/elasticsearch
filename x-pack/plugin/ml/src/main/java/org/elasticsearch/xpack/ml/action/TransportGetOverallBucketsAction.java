@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -63,10 +62,9 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<Get
     private final JobManager jobManager;
 
     @Inject
-    public TransportGetOverallBucketsAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                            ActionFilters actionFilters, ClusterService clusterService,
-                                            JobManager jobManager, Client client) {
-        super(settings, GetOverallBucketsAction.NAME, transportService, actionFilters,
+    public TransportGetOverallBucketsAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
+                                            ClusterService clusterService, JobManager jobManager, Client client) {
+        super(GetOverallBucketsAction.NAME, transportService, actionFilters,
             (Supplier<GetOverallBucketsAction.Request>) GetOverallBucketsAction.Request::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;

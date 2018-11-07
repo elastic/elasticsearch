@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -56,11 +55,11 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     private final JobConfigProvider jobConfigProvider;
 
     @Inject
-    public TransportGetJobsStatsAction(Settings settings, TransportService transportService,
+    public TransportGetJobsStatsAction(TransportService transportService,
                                        ActionFilters actionFilters, ClusterService clusterService,
                                        AutodetectProcessManager processManager, JobResultsProvider jobResultsProvider,
                                        JobConfigProvider jobConfigProvider) {
-        super(settings, GetJobsStatsAction.NAME, clusterService, transportService, actionFilters,
+        super(GetJobsStatsAction.NAME, clusterService, transportService, actionFilters,
             GetJobsStatsAction.Request::new, GetJobsStatsAction.Response::new, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.processManager = processManager;
@@ -121,7 +120,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
                         stats.get().v2(), forecastStats, jobState, node, assignmentExplanation, openTime);
                 listener.onResponse(new QueryPage<>(Collections.singletonList(jobStats), 1, Job.RESULTS_FIELD));
             }, listener::onFailure);
-            
+
         } else {
             listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD));
         }
@@ -167,7 +166,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<TransportO
     void gatherForecastStats(String jobId, Consumer<ForecastStats> handler, Consumer<Exception> errorHandler) {
         jobResultsProvider.getForecastStats(jobId, handler, errorHandler);
     }
-    
+
     void gatherDataCountsAndModelSizeStats(String jobId, BiConsumer<DataCounts, ModelSizeStats> handler,
                                                    Consumer<Exception> errorHandler) {
         jobResultsProvider.dataCounts(jobId, dataCounts -> {

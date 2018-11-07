@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
@@ -51,10 +50,10 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
     private final DatafeedConfigProvider datafeedConfigProvider;
 
     @Inject
-    public TransportStopDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportStopDatafeedAction(TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, ClusterService clusterService,
                                        PersistentTasksService persistentTasksService, DatafeedConfigProvider datafeedConfigProvider) {
-        super(settings, StopDatafeedAction.NAME, clusterService, transportService, actionFilters,
+        super(StopDatafeedAction.NAME, clusterService, transportService, actionFilters,
             StopDatafeedAction.Request::new, StopDatafeedAction.Response::new, MachineLearning.UTILITY_THREAD_POOL_NAME);
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;

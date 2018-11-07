@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.persistence;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -25,9 +27,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -72,10 +72,12 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class DatafeedConfigProvider extends AbstractComponent {
+public class DatafeedConfigProvider {
 
+    private static final Logger logger = LogManager.getLogger(DatafeedConfigProvider.class);
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+
 
     private static final Map<String, String> TO_XCONTENT_PARAMS = new HashMap<>();
     static {
@@ -83,8 +85,8 @@ public class DatafeedConfigProvider extends AbstractComponent {
         TO_XCONTENT_PARAMS.put(ToXContentParams.INCLUDE_TYPE, "true");
     }
 
-    public DatafeedConfigProvider(Client client, Settings settings, NamedXContentRegistry xContentRegistry) {
-        super(settings);
+    public DatafeedConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
+
         this.client = client;
         this.xContentRegistry = xContentRegistry;
     }

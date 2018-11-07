@@ -10,7 +10,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetInfluencersAction;
@@ -27,10 +26,9 @@ public class TransportGetInfluencersAction extends HandledTransportAction<GetInf
     private final JobManager jobManager;
 
     @Inject
-    public TransportGetInfluencersAction(Settings settings, TransportService transportService,
-                                         ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
-                                         Client client, JobManager jobManager) {
-        super(settings, GetInfluencersAction.NAME, transportService, actionFilters,
+    public TransportGetInfluencersAction(TransportService transportService, ActionFilters actionFilters,
+                                         JobResultsProvider jobResultsProvider, Client client, JobManager jobManager) {
+        super(GetInfluencersAction.NAME, transportService, actionFilters,
             (Supplier<GetInfluencersAction.Request>) GetInfluencersAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.client = client;

@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -37,10 +36,10 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     private final JobResultsProvider jobResultsProvider;
 
     @Inject
-    public TransportDeleteCalendarAction(Settings settings, TransportService transportService,
+    public TransportDeleteCalendarAction(TransportService transportService,
                                          ActionFilters actionFilters, Client client, JobManager jobManager,
                                          JobResultsProvider jobResultsProvider) {
-        super(settings, DeleteCalendarAction.NAME, transportService, actionFilters,
+        super(DeleteCalendarAction.NAME, transportService, actionFilters,
             (Supplier<DeleteCalendarAction.Request>) DeleteCalendarAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;

@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,11 +41,11 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
     @Inject
-    public TransportForecastJobAction(Settings settings, TransportService transportService,
+    public TransportForecastJobAction(TransportService transportService,
                                       ClusterService clusterService, ActionFilters actionFilters,
                                       JobResultsProvider jobResultsProvider, AutodetectProcessManager processManager,
                                       JobManager jobManager) {
-        super(settings, ForecastJobAction.NAME, clusterService, transportService, actionFilters,
+        super(ForecastJobAction.NAME, clusterService, transportService, actionFilters,
             ForecastJobAction.Request::new, ForecastJobAction.Response::new,
                 ThreadPool.Names.SAME, processManager);
         this.jobResultsProvider = jobResultsProvider;

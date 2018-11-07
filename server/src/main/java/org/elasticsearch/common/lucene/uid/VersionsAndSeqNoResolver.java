@@ -165,6 +165,8 @@ public final class VersionsAndSeqNoResolver {
             }
             if (result.isLive) {
                 // The live document must always be the latest copy, thus we can early terminate here.
+                assert latest == null || latest.seqNo <= result.seqNo :
+                    "the live doc does not have the highest seq_no; live_seq_no=" + result.seqNo + " < deleted_seq_no=" + latest.seqNo;
                 return result;
             }
             if (latest == null || latest.seqNo < result.seqNo) {

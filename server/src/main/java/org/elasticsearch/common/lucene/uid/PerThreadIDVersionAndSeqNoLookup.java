@@ -160,6 +160,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
                         // The live document must always be the latest copy, thus we can early terminate here.
                         // If a nested docs is live, we return the first doc which doesn't have term (only the last doc has term).
                         // This should not be an issue since we no longer use primary term as tier breaker when comparing operations.
+                        assert result == null || result.seqNo <= seqNo :
+                            "the live doc does not have the highest seq_no; live_seq_no=" + seqNo + " < deleted_seq_no=" + result.seqNo;
                         return new DocIdAndSeqNo(docID, seqNo, context, isLive);
                     }
                     if (result == null || result.seqNo < seqNo) {

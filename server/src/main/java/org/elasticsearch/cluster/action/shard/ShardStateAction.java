@@ -46,7 +46,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.Discovery;
@@ -89,9 +88,8 @@ public class ShardStateAction extends AbstractComponent {
     private final ConcurrentMap<FailedShardEntry, CompositeListener> remoteFailedShardsCache = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public ShardStateAction(ClusterService clusterService, TransportService transportService,
                             AllocationService allocationService, RoutingService routingService, ThreadPool threadPool) {
-        super(settings);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

@@ -350,7 +350,6 @@ public abstract class AbstractClient extends AbstractComponent implements Client
     private final ThreadedActionListener.Wrapper threadedWrapper;
 
     public AbstractClient(Settings settings, ThreadPool threadPool) {
-        super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.admin = new Admin(this);

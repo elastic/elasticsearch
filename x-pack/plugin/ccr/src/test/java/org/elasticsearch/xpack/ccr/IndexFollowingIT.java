@@ -574,7 +574,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                 () -> followerClient().execute(PutFollowAction.INSTANCE, followRequest).actionGet());
             assertThat(e.getMessage(), equalTo("no index stats available for the leader index"));
 
-            IndicesExistsResponse existsResponse = followerClient().admin().indices().exists(new IndicesExistsRequest("index2")).actionGet();
+            IndicesExistsResponse existsResponse = followerClient().admin().indices().exists(new IndicesExistsRequest("index2"))
+                .actionGet();
             assertThat(existsResponse.isExists(), is(false));
         } finally {
             // Always unset allocation enable setting to avoid other assertions from failing too when this test fails:

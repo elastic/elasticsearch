@@ -112,22 +112,15 @@ that is sent by <<es-monitoring-exporters,exporters>>.
 .. If Elastic {security-features} are enabled, you must also provide a user ID 
 and password so that {metricbeat} can collect metrics successfully. 
 
-... Create or identify a user that you want to use to collect the metrics. 
-+
---
-TIP: There is a `remote_monitoring_user` built-in user that grants the privileges 
-necessary for {metricbeat} to monitor {stack} products. See 
-{stack-ov}/built-in-users.html[Built-in users].
-
-Alternatively, you can choose a different user and give them the 
-`remote_monitoring_collector` {stack-ov}/built-in-roles.html[built-in role]. 
---
+... Create a user that has the 
+{stack-ov}/built-in-roles.html[`remote_monitoring_collector` built-in role]. 
+Alternatively, use the {stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
 
 ... Add the `username` and `password` settings to the {es} module configuration 
 file.
 +
 --
-For example, add the following settings in the `modules.d/kibana.yml` file:
+For example, add the following settings in the `modules.d/elasticsearch.yml` file:
 
 [source,yaml]
 ----------------------------------
@@ -166,20 +159,14 @@ For more information about these configuration options, see
 {metricbeat-ref}/elasticsearch-output.html[Configure the {es} output].
 --
 
-.. If Elastic {security-features} are enabled on the monitoring cluster, you 
+.. If {es} {security-features} are enabled on the monitoring cluster, you 
 must provide a valid user ID and password so that {metricbeat} can send metrics 
 successfully. 
 
-... Create or identify a user that you want to use to send the metrics. 
-+
---
-TIP: There is a `remote_monitoring_user` built-in user that grants the privileges 
-necessary for {metricbeat} to monitor {stack} products. See 
-{stack-ov}/built-in-users.html[Built-in users].
-
-Alternatively, you can choose a different user and give them the 
-`remote_monitoring_agent` {stack-ov}/built-in-roles.html[built-in role]. 
---
+... Create a user that has the 
+{stack-ov}/built-in-roles.html[`remote_monitoring_agent` built-in role]. 
+Alternatively, use the 
+{stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
 
 ... Add the `username` and `password` settings to the {es} output information in 
 the {metricbeat} configuration file (`metricbeat.yml`):

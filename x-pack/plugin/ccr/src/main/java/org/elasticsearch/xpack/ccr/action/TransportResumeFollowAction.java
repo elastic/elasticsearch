@@ -8,11 +8,14 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,7 +36,6 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -50,7 +52,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class TransportResumeFollowAction extends HandledTransportAction<ResumeFollowAction.Request, AcknowledgedResponse> {
+public class TransportResumeFollowAction extends TransportMasterNodeAction<ResumeFollowAction.Request, AcknowledgedResponse> {
 
     static final ByteSizeValue DEFAULT_MAX_READ_REQUEST_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB);
     static final ByteSizeValue DEFAULT_MAX_WRITE_REQUEST_SIZE = new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES);
@@ -65,7 +67,6 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
 
     private final Client client;
     private final ThreadPool threadPool;
-    private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
     private final IndicesService indicesService;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -77,28 +78,43 @@ public class TransportResumeFollowAction extends HandledTransportAction<ResumeFo
             final ActionFilters actionFilters,
             final Client client,
             final ClusterService clusterService,
+            final IndexNameExpressionResolver indexNameExpressionResolver,
             final PersistentTasksService persistentTasksService,
             final IndicesService indicesService,
             final CcrLicenseChecker ccrLicenseChecker) {
-        super(ResumeFollowAction.NAME, transportService, actionFilters, in -> new ResumeFollowAction.Request(in));
+        super(ResumeFollowAction.NAME, true, transportService, clusterService, threadPool, actionFilters,
+            ResumeFollowAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.threadPool = threadPool;
-        this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
         this.indicesService = indicesService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
     }
 
     @Override
-    protected void doExecute(final Task task,
-                             final ResumeFollowAction.Request request,
-                             final ActionListener<AcknowledgedResponse> listener) {
+    protected String executor() {
+        return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(ResumeFollowAction.Request request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @Override
+    protected void masterOperation(final ResumeFollowAction.Request request,
+                                   ClusterState state,
+                                   final ActionListener<AcknowledgedResponse> listener) throws Exception {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
 
-        final ClusterState state = clusterService.state();
         final IndexMetaData followerIndexMetadata = state.getMetaData().index(request.getFollowerIndex());
         if (followerIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(request.getFollowerIndex()));

@@ -171,7 +171,7 @@ public class FetchPhase implements SearchPhase {
                 }
             }
 
-            context.fetchResult().hits(new SearchHits(hits, -1, context.queryResult().getMaxScore()));
+            context.fetchResult().hits(new SearchHits(hits, context.queryResult().getTotalHits().value, context.queryResult().getMaxScore()));
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         }

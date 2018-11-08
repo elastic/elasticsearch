@@ -76,7 +76,7 @@ for (Version version : bwcVersions.wireCompatible) {
     configure(extensions.findByName("${baseName}#${name}")) {
       dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
       clusterName = 'rolling-upgrade'
-      unicastTransportUri = { seedNode, node, ant -> unicastSeed() }
+      manualSeedUris = { unicastSeed() }
       /* Override the data directory so the new node always gets the node we
       * just stopped's data directory. */
       dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }
@@ -89,7 +89,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
   configureUpgradeCluster("oneThirdUpgradedTestCluster", oldClusterTestRunner, 0,
     // Use all running nodes as seed nodes so there is no race between pinging and the tests
-    { oldClusterTest.nodes.get(1).transportUri() + ',' + oldClusterTest.nodes.get(2).transportUri() })
+    { [oldClusterTest.nodes.get(1).transportUri(), oldClusterTest.nodes.get(2).transportUri()] })
 
   Task oneThirdUpgradedTestRunner = tasks.getByName("${baseName}#oneThirdUpgradedTestRunner")
   oneThirdUpgradedTestRunner.configure {
@@ -102,7 +102,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
   configureUpgradeCluster("twoThirdsUpgradedTestCluster", oneThirdUpgradedTestRunner, 1,
     // Use all running nodes as seed nodes so there is no race between pinging and the tests
-    { oldClusterTest.nodes.get(2).transportUri() + ',' + oneThirdUpgradedTest.nodes.get(0).transportUri() })
+    { [oldClusterTest.nodes.get(2).transportUri(), oneThirdUpgradedTest.nodes.get(0).transportUri()] })
 
   Task twoThirdsUpgradedTestRunner = tasks.getByName("${baseName}#twoThirdsUpgradedTestRunner")
   twoThirdsUpgradedTestRunner.configure {
@@ -115,7 +115,7 @@ for (Version version : bwcVersions.wireCompatible) {
 
   configureUpgradeCluster("upgradedClusterTestCluster", twoThirdsUpgradedTestRunner, 2,
     // Use all running nodes as seed nodes so there is no race between pinging and the tests
-    { oneThirdUpgradedTest.nodes.get(0).transportUri() + ',' + twoThirdsUpgradedTest.nodes.get(0).transportUri() })
+    { [oneThirdUpgradedTest.nodes.get(0).transportUri(), twoThirdsUpgradedTest.nodes.get(0).transportUri()] })
 
   Task upgradedClusterTestRunner = tasks.getByName("${baseName}#upgradedClusterTestRunner")
   upgradedClusterTestRunner.configure {

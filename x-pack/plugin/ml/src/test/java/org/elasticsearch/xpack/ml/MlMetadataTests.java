@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -68,6 +69,11 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             } else {
                 builder.putJob(job, false);
             }
+        }
+        if (randomBoolean()) {
+            // Round-tripping to JSON loses time precision beyond milliseconds,
+            // so restrict the instant to a whole number of milliseconds
+            builder.setLastMemoryRefreshTime(Instant.ofEpochMilli(System.currentTimeMillis()));
         }
         return builder.build();
     }
@@ -438,8 +444,9 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         for (Map.Entry<String, DatafeedConfig> entry : datafeeds.entrySet()) {
             metadataBuilder.putDatafeed(entry.getValue(), Collections.emptyMap());
         }
+        metadataBuilder.setLastMemoryRefreshTime(instance.getLastMemoryRefreshTime());
 
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
         case 0:
             metadataBuilder.putJob(JobTests.createRandomizedJob(), true);
             break;
@@ -458,6 +465,13 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).build();
             metadataBuilder.putJob(randomJob, false);
             metadataBuilder.putDatafeed(datafeedConfig, Collections.emptyMap());
+            break;
+        case 2:
+            if (instance.getLastMemoryRefreshTime() == null) {
+                metadataBuilder.setLastMemoryRefreshTime(Instant.now());
+            } else {
+                metadataBuilder.setLastMemoryRefreshTime(null);
+            }
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

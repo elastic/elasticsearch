@@ -167,12 +167,12 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
         if (memoryTracker.isRecentlyRefreshed() == false) {
 
             boolean scheduledRefresh = memoryTracker.asyncRefresh(ActionListener.wrap(
-                aVoid -> {
-                    // TODO: find a way to get the persistent task framework to do another reassignment check BLOCKER!
-                    // Persistent task allocation reacts to custom metadata changes, so one way would be to retain the
-                    // MlMetadata as a single number that we increment when we want to kick persistent tasks.
-                    // A less sneaky way would be to introduce an internal action specifically for the purpose of
-                    // asking persistent tasks to re-check whether unallocated tasks can be allocated.
+                acknowledged -> {
+                    if (acknowledged) {
+                        logger.trace("Job memory requirement refresh request completed successfully");
+                    } else {
+                        logger.warn("Job memory requirement refresh request completed but did not set time in cluster state");
+                    }
                 },
                 e -> logger.error("Failed to refresh job memory requirements", e)
             ));

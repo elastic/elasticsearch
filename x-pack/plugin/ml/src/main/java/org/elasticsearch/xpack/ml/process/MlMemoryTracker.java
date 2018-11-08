@@ -9,9 +9,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.cluster.ack.AckedRequest;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -23,6 +29,8 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -32,15 +40,27 @@ import java.util.stream.Collectors;
 /**
  * This class keeps track of the memory requirement of ML jobs.
  * It only functions on the master node - for this reason it should only be used by master node actions.
- * The memory requirement for open ML jobs is updated at the following times:
- * 1. When a master node is elected the memory requirement for all non-closed ML jobs is updated
- * 2. The memory requirement for all non-closed ML jobs is updated periodically thereafter - every 30 seconds by default
- * 3. When a job is opened the memory requirement for that single job is updated
- * As a result of this every open job should have a value for its memory requirement that is no more than 30 seconds out-of-date.
+ * The memory requirement for ML jobs can be updated in 3 ways:
+ * 1. For all open ML jobs (via {@link #asyncRefresh})
+ * 2. For all open ML jobs, plus one named ML job that is not open (via {@link #refreshJobMemoryAndAllOthers})
+ * 3. For one named ML job (via {@link #refreshJobMemory})
+ * In all cases a listener informs the caller when the requested updates are complete.
  */
 public class MlMemoryTracker implements LocalNodeMasterListener {
 
-    private static final Long RECENT_UPDATE_THRESHOLD_NS = 30_000_000_000L; // 30 seconds
+    private static final AckedRequest ACKED_REQUEST = new AckedRequest() {
+        @Override
+        public TimeValue ackTimeout() {
+            return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
+        }
+
+        @Override
+        public TimeValue masterNodeTimeout() {
+            return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
+        }
+    };
+
+    private static final Duration RECENT_UPDATE_THRESHOLD = Duration.ofMinutes(1);
 
     private final Logger logger = LogManager.getLogger(MlMemoryTracker.class);
     private final ConcurrentHashMap<String, Long> memoryRequirementByJob = new ConcurrentHashMap<>();
@@ -51,7 +71,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
     private volatile boolean isMaster;
-    private volatile Long lastUpdateNanotime;
+    private volatile Instant lastUpdateTime;
 
     public MlMemoryTracker(ClusterService clusterService, ThreadPool threadPool, JobManager jobManager,
                            JobResultsProvider jobResultsProvider) {
@@ -72,7 +92,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     public void offMaster() {
         isMaster = false;
         memoryRequirementByJob.clear();
-        lastUpdateNanotime = null;
+        lastUpdateTime = null;
     }
 
     @Override
@@ -85,8 +105,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * for valid allocation decisions to be made using it?
      */
     public boolean isRecentlyRefreshed() {
-        Long localLastUpdateNanotime = lastUpdateNanotime;
-        return localLastUpdateNanotime != null && System.nanoTime() - localLastUpdateNanotime < RECENT_UPDATE_THRESHOLD_NS;
+        Instant localLastUpdateTime = lastUpdateTime;
+        return localLastUpdateTime != null && localLastUpdateTime.plus(RECENT_UPDATE_THRESHOLD).isAfter(Instant.now());
     }
 
     /**
@@ -122,16 +142,24 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     /**
      * Uses a separate thread to refresh the memory requirement for every ML job that has
      * a corresponding persistent task.  This method only works on the master node.
-     * @param listener Will be called when the async refresh completes or fails.
+     * @param listener Will be called when the async refresh completes or fails.  The
+     *                 boolean value indicates whether the cluster state was updated
+     *                 with the refresh completion time.  (If it was then this will in
+     *                 cause the persistent tasks framework to check if any persistent
+     *                 tasks are awaiting allocation.)
      * @return <code>true</code> if the async refresh is scheduled, and <code>false</code>
      *         if this is not possible for some reason.
      */
-    public boolean asyncRefresh(ActionListener<Void> listener) {
+    public boolean asyncRefresh(ActionListener<Boolean> listener) {
 
         if (isMaster) {
             try {
+                ActionListener<Void> mlMetaUpdateListener = ActionListener.wrap(
+                    aVoid -> recordUpdateTimeInClusterState(listener),
+                    listener::onFailure
+                );
                 threadPool.executor(executorName()).execute(
-                    () -> refresh(clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE), listener));
+                    () -> refresh(clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE), mlMetaUpdateListener));
                 return true;
             } catch (EsRejectedExecutionException e) {
                 logger.debug("Couldn't schedule ML memory update - node might be shutting down", e);
@@ -175,7 +203,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         }
 
         ActionListener<Void> refreshComplete = ActionListener.wrap(aVoid -> {
-            lastUpdateNanotime = System.nanoTime();
+            lastUpdateTime = Instant.now();
             synchronized (fullRefreshCompletionListeners) {
                 assert fullRefreshCompletionListeners.isEmpty() == false;
                 for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
@@ -193,6 +221,33 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 .filter(task -> MlTasks.JOB_TASK_NAME.equals(task.getTaskName())).collect(Collectors.toList());
             iterateMlJobTasks(mlJobTasks.iterator(), refreshComplete);
         }
+    }
+
+    void recordUpdateTimeInClusterState(ActionListener<Boolean> listener) {
+
+        clusterService.submitStateUpdateTask("ml-memory-last-update-time",
+            new AckedClusterStateUpdateTask<Boolean>(ACKED_REQUEST, listener) {
+                @Override
+                protected Boolean newResponse(boolean acknowledged) {
+                    return acknowledged;
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(currentState);
+                    MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
+                    MlMetadata newMlMetadata = builder.build();
+                    builder.setLastMemoryRefreshTime(lastUpdateTime);
+                    if (newMlMetadata.equals(currentMlMetadata)) {
+                        // Return same reference if nothing has changed
+                        return currentState;
+                    } else {
+                        ClusterState.Builder newState = ClusterState.builder(currentState);
+                        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(MlMetadata.TYPE, newMlMetadata).build());
+                        return newState.build();
+                    }
+                }
+            });
     }
 
     private void iterateMlJobTasks(Iterator<PersistentTasksCustomMetaData.PersistentTask<?>> iterator,

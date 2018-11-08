@@ -23,6 +23,7 @@ import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
@@ -33,7 +34,13 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
      */
     @Before
     public void waitForTemplates() throws Exception {
-        XPackRestTestHelper.waitForMlTemplates(client());
+        List<String> templatesToWaitFor;
+        if (System.getProperty("tests.rest.suite").equals("old_cluster")) {
+            templatesToWaitFor = XPackRestTestHelper.ML_PRE_V660_TEMPLATES;
+        } else {
+            templatesToWaitFor = XPackRestTestHelper.ML_POST_V660_TEMPLATES;
+        }
+        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 
     @AfterClass

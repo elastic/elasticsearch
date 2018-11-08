@@ -19,7 +19,9 @@
 
 package org.elasticsearch.search.geo;
 
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.geo.Polygon;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -31,6 +33,8 @@ import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
+import org.elasticsearch.common.geo.builders.MultiPointBuilder;
+import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +53,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Rectangle;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Locale;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -359,8 +364,23 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     }
 
     public void testRandomGeoCollectionQuery() throws Exception {
+        boolean usePrefixTrees = randomBoolean();
         // Create a random geometry collection to index.
-        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
+        GeometryCollectionBuilder gcb;
+        if (usePrefixTrees) {
+            gcb = RandomShapeGenerator.createGeometryCollection(random());
+        } else {
+            // vector strategy does not yet support point or multipoint queries
+            gcb = new GeometryCollectionBuilder();
+            int numShapes = RandomNumbers.randomIntBetween(random(), 1, 4);
+            for (int i = 0; i < numShapes; ++i) {
+                ShapeBuilder shape;
+                do {
+                    shape = RandomShapeGenerator.createShape(random());
+                } while (shape instanceof MultiPointBuilder || shape instanceof PointBuilder);
+                gcb.shape(shape);
+            }
+        }
         org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
         CoordinatesBuilder cb = new CoordinatesBuilder();
         for (int i = 0; i < randomPoly.numPoints(); ++i) {
@@ -370,7 +390,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
 
         logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
-        if (randomBoolean()) {
+        if (usePrefixTrees == false) {
             client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape")
                 .execute().actionGet();
         } else {

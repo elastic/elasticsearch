@@ -446,24 +446,19 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             Rectangle r = (Rectangle) queryShape;
             geoQuery = LatLonShape.newBoxQuery(fieldName(), relation.getLuceneRelation(),
                 r.minLat, r.maxLat, r.minLon, r.maxLon);
+        } else if (queryShape instanceof double[][]) {
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.MULTIPOINT + " queries");
+        } else if (queryShape instanceof double[] || queryShape instanceof GeoPoint) {
+            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + GeoShapeType.POINT + " queries");
         } else if (queryShape instanceof Object[]) {
-            geoQuery = getGeometryCollectionQuery(context, (Object[]) queryShape);
+            geoQuery = createGeometryCollectionQuery(context, (Object[]) queryShape);
         } else {
-            // geometry types not yet supported by Lucene's LatLonShape
-            GeoShapeType geometryType = null;
-            if (queryShape instanceof double[][]) {
-                geometryType = GeoShapeType.MULTIPOINT;
-            } else if (queryShape instanceof double[] || queryShape instanceof GeoPoint) {
-                geometryType = GeoShapeType.POINT;
-            } else if (queryShape instanceof Object[]) {
-                geometryType = GeoShapeType.GEOMETRYCOLLECTION;
-            }
-            throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + geometryType + " queries");
+            throw new QueryShardException(context, "Field [" + fieldName + "] found and unknown shape");
         }
         return geoQuery;
     }
 
-    private Query getGeometryCollectionQuery(QueryShardContext context, Object... shapes) {
+    private Query createGeometryCollectionQuery(QueryShardContext context, Object... shapes) {
         BooleanQuery.Builder bqb = new BooleanQuery.Builder();
         for (Object shape : shapes) {
             bqb.add(getVectorQuery(context, shape), BooleanClause.Occur.SHOULD);

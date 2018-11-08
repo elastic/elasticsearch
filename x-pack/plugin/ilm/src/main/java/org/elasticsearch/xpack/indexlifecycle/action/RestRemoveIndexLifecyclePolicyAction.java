@@ -20,7 +20,7 @@ import java.io.IOException;
 public class RestRemoveIndexLifecyclePolicyAction extends BaseRestHandler {
 
     public RestRemoveIndexLifecyclePolicyAction(RestController controller) {
-        controller.registerHandler(RestRequest.Method.DELETE, "/{index}/_ilm", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_ilm/remove", this);
     }
 
     @Override

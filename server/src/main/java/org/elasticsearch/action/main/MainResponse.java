@@ -61,6 +61,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         return version;
     }
 
+
     public ClusterName getClusterName() {
         return clusterName;
     }
@@ -81,7 +82,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
         Build.writeBuild(build, out);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(true);
         }
     }
@@ -94,7 +95,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
         build = Build.readBuild(in);
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readBoolean();
         }
     }
@@ -112,6 +113,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
             .field("build_hash", build.shortHash())
             .field("build_date", build.date())
             .field("build_snapshot", build.isSnapshot())
+            .field("build_version", build.getQualifiedVersion())
             .field("lucene_version", version.luceneVersion.toString())
             .field("minimum_wire_compatibility_version", version.minimumCompatibilityVersion().toString())
             .field("minimum_index_compatibility_version", version.minimumIndexCompatibilityVersion().toString())
@@ -138,7 +140,9 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
                             buildType == null ? Build.Type.UNKNOWN : Build.Type.fromDisplayName(buildType),
                             (String) value.get("build_hash"),
                             (String) value.get("build_date"),
-                            (boolean) value.get("build_snapshot"));
+                            (boolean) value.get("build_snapshot"),
+                            (String) value.get("build_version")
+                    );
             response.version = Version.fromString((String) value.get("number"));
         }, (parser, context) -> parser.map(), new ParseField("version"));
     }

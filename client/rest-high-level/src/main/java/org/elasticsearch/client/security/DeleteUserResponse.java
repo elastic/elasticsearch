@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Response for a role being deleted from the native realm
+ * Response for a user being deleted from the native realm
  */
 public final class DeleteUserResponse extends AcknowledgedResponse {
 

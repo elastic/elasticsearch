@@ -24,7 +24,7 @@ import org.elasticsearch.client.Validatable;
 import java.util.Objects;
 
 /**
- * A request delete a role from the security index
+ * A request to delete a user from the native realm.
  */
 public final class DeleteUserRequest implements Validatable {
 

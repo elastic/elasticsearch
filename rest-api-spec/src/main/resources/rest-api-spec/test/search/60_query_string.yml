@@ -73,15 +73,13 @@
         index:  test
         body:
           mappings:
-            _doc:
-              properties:
-                headers:
-                  type: json
+            properties:
+              headers:
+                type: json
 
   - do:
       index:
         index:  test
-        type:   _doc
         id:     1
         body:
           headers:
@@ -92,7 +90,6 @@
   - do:
       index:
         index:  test
-        type:   _doc
         id:     2
         body:
           headers:
@@ -108,7 +105,7 @@
             query_string:
               query: "headers:text\\/plain"
 
-  - match: { hits.total: 1 }
+  - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "2" }
 
@@ -120,6 +117,6 @@
             query_string:
               query: "application\\/javascript AND headers.origin:elastic.co"
 
-  - match: { hits.total: 1 }
+  - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "1" }

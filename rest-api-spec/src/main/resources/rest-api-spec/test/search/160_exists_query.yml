@@ -1346,15 +1346,13 @@ setup:
         index:  json_test
         body:
           mappings:
-            _doc:
-              dynamic: false
-              properties:
-                json:
-                  type: json
+            dynamic: false
+            properties:
+              json:
+                type: json
   - do:
       index:
         index:  json_test
-        type:   _doc
         id:     1
         body:
           json:
@@ -1369,7 +1367,7 @@ setup:
             exists:
               field: json
 
-  - match: { hits.total: 1 }
+  - match: { hits.total.value: 1 }
 
   - do:
       search:
@@ -1379,7 +1377,7 @@ setup:
             exists:
               field: json.key
 
-  - match: { hits.total: 1 }
+  - match: { hits.total.value: 1 }
 
   - do:
       search:
@@ -1389,4 +1387,4 @@ setup:
             exists:
               field: json.nonexistent_key
 
-  - match: { hits.total: 0 }
+  - match: { hits.total.value: 0 }

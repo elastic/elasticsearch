@@ -113,13 +113,14 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
     protected static final String GEO_POINT_ALIAS_FIELD_NAME = "mapped_geo_point_alias";
     protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
+    protected static final String JSON_FIELD_NAME = "mapped_json";
     protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME,
         INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME,
         DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME,
-        GEO_SHAPE_FIELD_NAME};
+        GEO_SHAPE_FIELD_NAME, JSON_FIELD_NAME};
     protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME,
         INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME,
-        DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME,  GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME};
+        DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME,  GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME, JSON_FIELD_NAME};
 
     private static final Map<String, String> ALIAS_TO_CONCRETE_FIELD_NAME = new HashMap<>();
     static {
@@ -396,7 +397,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     OBJECT_FIELD_NAME, "type=object",
                     GEO_POINT_FIELD_NAME, "type=geo_point",
                     GEO_POINT_ALIAS_FIELD_NAME, "type=alias,path=" + GEO_POINT_FIELD_NAME,
-                    GEO_SHAPE_FIELD_NAME, "type=geo_shape"
+                    GEO_SHAPE_FIELD_NAME, "type=geo_shape",
+                    JSON_FIELD_NAME, "type=json"
                 ))), MapperService.MergeReason.MAPPING_UPDATE);
                 // also add mappings for two inner field in the object field
                 mapperService.merge("_doc", new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","

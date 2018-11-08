@@ -214,6 +214,8 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private void normalDeleteJob(ParentTaskAssigningClient parentTaskClient, DeleteJobAction.Request request,
                                  ActionListener<AcknowledgedResponse> listener) {
         String jobId = request.getJobId();
+
+        // We clean up the memory tracker on delete rather than close as close is not a master node action
         memoryTracker.removeJob(jobId);
 
         // Step 4. When the job has been removed from the cluster state, return a response

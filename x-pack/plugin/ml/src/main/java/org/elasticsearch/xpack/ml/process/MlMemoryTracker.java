@@ -135,6 +135,11 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         return null;
     }
 
+    /**
+     * Remove any memory requirement that is stored for the specified job.
+     * It doesn't matter if this method is called for a job that doesn't have
+     * a stored memory requirement.
+     */
     public void removeJob(String jobId) {
         memoryRequirementByJob.remove(jobId);
     }
@@ -191,6 +196,9 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
     /**
      * This refreshes the memory requirement for every ML job that has a corresponding persistent task.
+     * It does NOT remove entries for jobs that no longer have a persistent task, because that would
+     * lead to a race where a job was opened part way through the refresh.  (Instead, entries are removed
+     * when jobs are deleted.)
      */
     void refresh(PersistentTasksCustomMetaData persistentTasks, ActionListener<Void> onCompletion) {
 

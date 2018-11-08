@@ -17,8 +17,10 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
-import org.joda.time.DateTime;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -66,7 +68,9 @@ public class TimeBasedExtractedFieldsTests extends ESTestCase {
 
     public void testTimeFieldValue() {
         long millis = randomLong();
-        SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", new DateTime(millis)).build();
+        ZonedDateTime zonedDateTime = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault());
+
+        SearchHit hit = new SearchHitBuilder(randomInt()).addField("time", zonedDateTime).build();
         TimeBasedExtractedFields extractedFields = new TimeBasedExtractedFields(timeField, Collections.singletonList(timeField));
         assertThat(extractedFields.timeFieldValue(hit), equalTo(millis));
     }

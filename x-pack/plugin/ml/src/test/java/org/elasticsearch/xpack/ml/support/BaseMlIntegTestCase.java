@@ -98,6 +98,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+
         return settings.build();
     }
 

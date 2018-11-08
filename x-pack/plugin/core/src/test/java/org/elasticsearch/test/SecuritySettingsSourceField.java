@@ -8,8 +8,8 @@ package org.elasticsearch.test;
 import org.elasticsearch.common.settings.SecureString;
 
 public final class SecuritySettingsSourceField {
-    public static final SecureString TEST_PASSWORD_SECURE_STRING = new SecureString("x-pack-test-password".toCharArray());
-    public static final String TEST_PASSWORD = "x-pack-test-password";
+    public static final SecureString TEST_PASSWORD_SECURE_STRING = new SecureString("elastic-password".toCharArray());
+    public static final String TEST_PASSWORD = "elastic-password";
 
     private SecuritySettingsSourceField() {}
 }

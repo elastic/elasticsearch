@@ -265,6 +265,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         assertTrue(expected.simplePattern.matcher(text).find());
     }
 
+    //TODO that does not need to be updated
     private void validateJodaTimestampFormats(List<String> jodaTimestampFormats, String text, long expectedEpochMs) {
 
         // All the test times are for Tue May 15 2018 16:14:56 UTC, which is 17:14:56 in London.

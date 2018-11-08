@@ -179,7 +179,7 @@ class AggregationToJsonProcessor {
      * Histograms have either a Double or Long.
      */
     private long toHistogramKeyToEpoch(Object key) {
-        if (key instanceof DateTime) {
+        if (key instanceof DateTime) {//TODO what do we use as key in aggregations
             return ((DateTime)key).getMillis();
         } else if (key instanceof Double) {
             return ((Double)key).longValue();

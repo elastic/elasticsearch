@@ -112,6 +112,7 @@ public abstract class ExtractedField {
             }
             if (value[0] instanceof String) { // doc_value field with the epoch_millis format
                 value[0] = Long.parseLong((String) value[0]);
+                //TODO confirm if can remove the script time field
             } else if (value[0] instanceof BaseDateTime) { // script field
                 value[0] = ((BaseDateTime) value[0]).getMillis();
             } else if (value[0] instanceof Long == false) { // pre-6.0 field

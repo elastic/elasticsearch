@@ -140,7 +140,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(DatafeedState.STARTED, statsResponse.getResponse().results().get(0).getDatafeedState());
         });
     }
-
+//
     public void testJobAutoClose() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         internalCluster().startNode(Settings.builder().put(MachineLearning.ML_ENABLED.getKey(), false));
@@ -151,17 +151,17 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
                 .get();
 
         IndexRequest indexRequest = new IndexRequest("data", "type");
-        indexRequest.source("time", 1407081600L);
+        indexRequest.source("time", "2015-01-01");
         client().index(indexRequest).get();
         indexRequest = new IndexRequest("data", "type");
-        indexRequest.source("time", 1407082600L);
+        indexRequest.source("time", "2015-01-01");
         client().index(indexRequest).get();
         indexRequest = new IndexRequest("data", "type");
         indexRequest.source("time", 1407083600L);
         client().index(indexRequest).get();
         refresh();
 
-        Job.Builder job = createScheduledJob("job_id");
+        Job.Builder job = createScheduledJob("job_idxxx");
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 

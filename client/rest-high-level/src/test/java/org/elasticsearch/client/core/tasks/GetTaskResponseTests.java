@@ -36,7 +36,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
-public class GetTaskResponseTest extends ESTestCase {
+public class GetTaskResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         xContentTester(

@@ -21,16 +21,23 @@ GET twitter/_search
     },
     "sort": [
         {"date": "asc"},
-        {"_id": "desc"}
+        {"tie_breaker_id", "asc"}      <1>
     ]
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
 
-NOTE: A field with one unique value per document should be used as the tiebreaker of the sort specification.
-Otherwise the sort order for documents that have the same sort values would be undefined. The recommended way is to use
-the field `_id` which is certain to contain one unique value for each document.
+<1> A copy of the `_id` field with `doc_values` enabled
+
+[IMPORTANT]
+A field with one unique value per document should be used as the tiebreaker
+of the sort specification. Otherwise the sort order for documents that have
+the same sort values would be undefined and could lead to missing or duplicate
+results. It is not recommended to use the <<mapping-id-field,`_id` field>>
+field for this purpose because it requires to load a lot of data in memory.
+Instead it is advised to duplicate the content of the _id field in another
+field that has doc_values enabled.
 
 The result from the above request includes an array of `sort values` for each document.
 These `sort values` can be used in conjunction with the `search_after` parameter to start returning results "after" any
@@ -50,7 +57,7 @@ GET twitter/_search
     "search_after": [1463538857, "654323"],
     "sort": [
         {"date": "asc"},
-        {"_id": "desc"}
+        {"tie_breaker_id": "asc"}
     ]
 }
 --------------------------------------------------

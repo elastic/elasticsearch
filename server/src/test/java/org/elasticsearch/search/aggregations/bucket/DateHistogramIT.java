@@ -1342,6 +1342,31 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     /**
+     * https://github.com/elastic/elasticsearch/issues/31760 shows an edge case where an unmapped "date" field in two indices
+     * that are queried simultaneously can lead to the "format" parameter in the aggregation not being preserved correctly.
+     *
+     * The error happens when the bucket from the "unmapped" index is received first in the reduce phase, however the case can
+     * be recreated when aggregating about a single index with an unmapped date field and also getting "empty" buckets.
+     */
+    public void testFormatIndexUnmapped() throws InterruptedException, ExecutionException {
+        String indexDateUnmapped = "test31760";
+        indexRandom(true, client().prepareIndex(indexDateUnmapped, "_doc").setSource("foo", "bar"));
+        ensureSearchable(indexDateUnmapped);
+
+        SearchResponse response = client().prepareSearch(indexDateUnmapped)
+                .addAggregation(
+                        dateHistogram("histo").field("dateField").dateHistogramInterval(DateHistogramInterval.MONTH).format("YYYY-MM")
+                                .minDocCount(0).extendedBounds(new ExtendedBounds("2018-01", "2018-01")))
+                .execute().actionGet();
+        assertSearchResponse(response);
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(1));
+        assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("2018-01"));
+        assertThat(histo.getBuckets().get(0).getDocCount(), equalTo(0L));
+        internalCluster().wipeIndices(indexDateUnmapped);
+    }
+
+    /**
      * https://github.com/elastic/elasticsearch/issues/31392 demonstrates an edge case where a date field mapping with
      * "format" = "epoch_millis" can lead for the date histogram aggregation to throw an error if a non-UTC time zone
      * with daylight savings time is used. This test was added to check this is working now

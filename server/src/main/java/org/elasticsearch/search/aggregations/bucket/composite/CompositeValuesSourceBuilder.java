@@ -330,12 +330,6 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         ValuesSourceConfig<?> config = ValuesSourceConfig.resolve(context.getQueryShardContext(),
             valueType, field, script, missing, null, format);
 
-        if (config.unmapped() && field != null && missing == null && missingBucket == false) {
-            // this source cannot produce any values so we refuse to build
-            // since composite buckets are not created on null values by default.
-            throw new QueryShardException(context.getQueryShardContext(),
-                "failed to find field [" + field + "] and [missing_bucket] is not set");
-        }
         if (missingBucket && missing != null) {
             throw new QueryShardException(context.getQueryShardContext(),
                 "cannot use [missing] option in conjunction with [missing_bucket]");

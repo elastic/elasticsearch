@@ -33,6 +33,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -2035,9 +2036,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
              TcpTransport.NodeChannels connection = originalTransport.openConnection(
                  new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
                  connectionProfile)) {
-            Version version = originalTransport.executeHandshake(connection.getNode(),
-                connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
-            assertEquals(version, Version.CURRENT);
+            PlainActionFuture<Version> listener = PlainActionFuture.newFuture();
+            originalTransport.executeHandshake(connection.getNode(), connection.channel(TransportRequestOptions.Type.PING),
+                TimeValue.timeValueSeconds(10), listener);
+            assertEquals(listener.actionGet(), Version.CURRENT);
         }
     }
 
@@ -2703,7 +2705,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     private void closeConnectionChannel(Transport.Connection connection) {
         StubbableTransport.WrappedConnection wrappedConnection = (StubbableTransport.WrappedConnection) connection;
         TcpTransport.NodeChannels channels = (TcpTransport.NodeChannels) wrappedConnection.getConnection();
-        TcpChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
+        CloseableChannel.closeChannels(channels.getChannels().subList(0, randomIntBetween(1, channels.getChannels().size())), true);
     }
 
     @SuppressForbidden(reason = "need local ephemeral port")

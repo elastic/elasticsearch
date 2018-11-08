@@ -81,7 +81,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isOneOf;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35295")
 public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @Before
@@ -411,62 +410,6 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::x-pack-rollup-get-rollup-caps-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
-    }
-
-    @After
-    public void wipeRollup() throws Exception {
-        // TODO move this to ESRestTestCase
-        deleteRollupJobs();
-        waitForPendingRollupTasks();
-    }
-
-    private void deleteRollupJobs() throws Exception {
-        Response response = adminClient().performRequest(new Request("GET", "/_xpack/rollup/job/_all"));
-        Map<String, Object> jobs = entityAsMap(response);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> jobConfigs =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobs);
-
-        if (jobConfigs == null) {
-            return;
-        }
-
-        for (Map<String, Object> jobConfig : jobConfigs) {
-            @SuppressWarnings("unchecked")
-            String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
-            Request request = new Request("DELETE", "/_xpack/rollup/job/" + jobId);
-            request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
-            adminClient().performRequest(request);
-        }
-    }
-
-    private void waitForPendingRollupTasks() throws Exception {
-        assertBusy(() -> {
-            try {
-                Request request = new Request("GET", "/_cat/tasks");
-                request.addParameter("detailed", "true");
-                Response response = adminClient().performRequest(request);
-
-                try (BufferedReader responseReader = new BufferedReader(
-                        new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8))) {
-                    int activeTasks = 0;
-                    String line;
-                    StringBuilder tasksListString = new StringBuilder();
-                    while ((line = responseReader.readLine()) != null) {
-
-                        // We only care about Rollup jobs, otherwise this fails too easily due to unrelated tasks
-                        if (line.startsWith("xpack/rollup/job") == true) {
-                            activeTasks++;
-                            tasksListString.append(line).append('\n');
-                        }
-                    }
-                    assertEquals(activeTasks + " active tasks found:\n" + tasksListString, 0, activeTasks);
-                }
-            } catch (IOException e) {
-                // Throw an assertion error so we retry
-                throw new AssertionError("Error getting active tasks list", e);
-            }
-        });
     }
 
     @SuppressWarnings("unused")

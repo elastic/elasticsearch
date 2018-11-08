@@ -138,10 +138,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         if(upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
             validationException = addValidationError("can't provide version in upsert request", validationException);
         }
-        if (type == null) {
+        if (Strings.isEmpty(type)) {
             validationException = addValidationError("type is missing", validationException);
         }
-        if (id == null) {
+        if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
         }
 
@@ -761,7 +761,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         if (in.readBoolean()) {
@@ -773,7 +773,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc = new IndexRequest();
             doc.readFrom(in);
         }
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             String[] fields = in.readOptionalStringArray();
             if (fields != null) {
                 throw new IllegalArgumentException("[fields] is no longer supported");
@@ -801,7 +801,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
 
@@ -822,7 +822,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             doc.id(id);
             doc.writeTo(out);
         }
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalStringArray(null);
         }
         out.writeOptionalWriteable(fetchSourceContext);

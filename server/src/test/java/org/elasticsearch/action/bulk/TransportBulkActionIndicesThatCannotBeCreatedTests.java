@@ -28,7 +28,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -103,7 +102,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
         ClusterState state = mock(ClusterState.class);
         when(state.getMetaData()).thenReturn(MetaData.EMPTY_META_DATA);
         when(clusterService.state()).thenReturn(state);
-        TransportBulkAction action = new TransportBulkAction(Settings.EMPTY, null, mock(TransportService.class), clusterService,
+        TransportBulkAction action = new TransportBulkAction(null, mock(TransportService.class), clusterService,
                 null, null, null, mock(ActionFilters.class), null, null) {
             @Override
             void executeBulk(Task task, BulkRequest bulkRequest, long startTimeNanos, ActionListener<BulkResponse> listener,

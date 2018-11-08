@@ -154,7 +154,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mapperRegistry = mapperRegistry;
 
         if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings()) &&
-                indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+                indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
         }
 
@@ -411,7 +411,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Map<String, DocumentMapper> results = new LinkedHashMap<>(2);
 
         if (defaultMapper != null) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0_alpha1)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
                 throw new IllegalArgumentException("The [default] mapping cannot be updated on index [" + index().getName() +
                         "]: defaults mappings are not useful anymore now that indices can have at most one type.");
             } else if (reason == MergeReason.MAPPING_UPDATE) { // only log in case of explicit mapping updates

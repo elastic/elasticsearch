@@ -91,7 +91,6 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     private volatile ClusterRebalanceType type;
 
     public ClusterRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         try {
             type = CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.get(settings);
         } catch (IllegalStateException e) {

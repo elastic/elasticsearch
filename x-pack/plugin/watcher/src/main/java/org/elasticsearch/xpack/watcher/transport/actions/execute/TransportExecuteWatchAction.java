@@ -15,7 +15,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -65,11 +64,11 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     private final Client client;
 
     @Inject
-    public TransportExecuteWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportExecuteWatchAction(TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, ExecutionService executionService, Clock clock,
                                        XPackLicenseState licenseState, WatchParser watchParser, Client client,
                                        TriggerService triggerService) {
-        super(settings, ExecuteWatchAction.NAME, transportService, actionFilters, licenseState, ExecuteWatchRequest::new);
+        super(ExecuteWatchAction.NAME, transportService, actionFilters, licenseState, ExecuteWatchRequest::new);
         this.threadPool = threadPool;
         this.executionService = executionService;
         this.clock = clock;

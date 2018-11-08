@@ -51,11 +51,9 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
     private final PluginsService pluginsService;
 
     @Inject
-    public TransportNodesReloadSecureSettingsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      TransportService transportService, ActionFilters actionFilters,
-                                      Environment environment,
-                                      PluginsService pluginService) {
-        super(settings, NodesReloadSecureSettingsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportNodesReloadSecureSettingsAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
+                                                    ActionFilters actionFilters, Environment environment, PluginsService pluginService) {
+        super(NodesReloadSecureSettingsAction.NAME, threadPool, clusterService, transportService, actionFilters,
               NodesReloadSecureSettingsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC,
               NodesReloadSecureSettingsResponse.NodeResponse.class);
         this.environment = environment;

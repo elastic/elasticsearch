@@ -73,11 +73,6 @@ public class RestBulkAction extends BaseRestHandler {
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");
         String defaultType = request.param("type");
-        final boolean includeTypeName = request.paramAsBoolean("include_type_name", true);
-        if (includeTypeName == false && defaultType != null) {
-            throw new IllegalArgumentException("You may only use the [include_type_name=false] option with the bulx APIs with the " +
-                    "[_bulk] and [{index}/_bulk] endpoints.");
-        }
         if (defaultType == null) {
             defaultType = MapperService.SINGLE_MAPPING_NAME;
         }

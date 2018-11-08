@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.security.action.token;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 
 import java.io.IOException;
@@ -15,7 +17,7 @@ import java.io.IOException;
 /**
  * Response for a invalidation of one or multiple tokens.
  */
-public final class InvalidateTokenResponse extends ActionResponse {
+public final class InvalidateTokenResponse extends ActionResponse implements ToXContent {
 
     private TokensInvalidationResult result;
 
@@ -39,5 +41,13 @@ public final class InvalidateTokenResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         result = TokensInvalidationResult.readFrom(in);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject()
+            .field("result", result.toXContent(builder, params))
+            .endObject();
+        return builder;
     }
 }

@@ -9,19 +9,22 @@ package org.elasticsearch.xpack.core.security.authc.support;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
  * The result of attempting to invalidate one or multiple tokens. The result contains information about:
  * <ul>
- * <li>which and how many of the tokens were actually invalidated</li>
- * <li>which and how many tokens are not invalidated in this request because they were already invalidated</li>
- * <li>which and how many tokens were not invalidated because of an error</li>
+ * <li>how many of the tokens were actually invalidated</li>
+ * <li>how many tokens are not invalidated in this request because they were already invalidated</li>
+ * <li>how many tokens were not invalidated because of an error and what the error was</li>
  * </ul>
  */
-public class TokensInvalidationResult {
+public class TokensInvalidationResult implements ToXContentObject {
 
     private final String[] invalidatedTokens;
     private final String[] prevInvalidatedTokens;
@@ -84,4 +87,23 @@ public class TokensInvalidationResult {
         return new TokensInvalidationResult(invalidatedTokens, prevUnvalidatedTokens, errors, attemptCounter);
     }
 
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject()
+            .field("invalidated_tokens", invalidatedTokens.length)
+            .field("prev_invalidated_tokens", prevInvalidatedTokens.length)
+            .startObject("errors")
+            .field("size", errors.length);
+        if (errors.length > 0) {
+            builder.field("error_messages");
+            builder.startArray();
+            for (String error : errors) {
+                builder.value(error);
+            }
+            builder.endArray();
+        }
+        builder.endObject()
+            .endObject();
+        return builder;
+    }
 }

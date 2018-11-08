@@ -58,18 +58,16 @@ public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             final InvalidateTokenRequest tokenRequest = PARSER.parse(parser, null);
             return channel -> client.execute(InvalidateTokenAction.INSTANCE, tokenRequest,
-                    new RestBuilderListener<InvalidateTokenResponse>(channel) {
-                        @Override
-                        public RestResponse buildResponse(InvalidateTokenResponse invalidateResp,
-                                                          XContentBuilder builder) throws Exception {
-                            return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                                .field("invalidated_tokens", invalidateResp.getResult().getInvalidatedTokens().length)
-                                .field("prev_invalidated_tokens", invalidateResp.getResult().getPrevInvalidatedTokens().length)
-                                //TODO Error messages
-                                .field("errors", invalidateResp.getResult().getErrors().length)
-                                    .endObject());
-                        }
-                    });
+                new RestBuilderListener<InvalidateTokenResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(InvalidateTokenResponse invalidateResp,
+                                                      XContentBuilder builder) throws Exception {
+                        builder.startObject();
+                        invalidateResp.toXContent(builder, channel.request());
+                        builder.endObject();
+                        return new BytesRestResponse(RestStatus.OK, builder);
+                    }
+                });
         }
     }
 }

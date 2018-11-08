@@ -53,6 +53,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * the connection when the connection manager is closed.
  */
 public class ConnectionManager implements Closeable {
+
     private static final Logger logger = LogManager.getLogger(ConnectionManager.class);
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();

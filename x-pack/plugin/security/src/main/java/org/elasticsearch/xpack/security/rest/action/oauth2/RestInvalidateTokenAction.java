@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,8 +35,25 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
 
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER =
-        new ConstructingObjectParser<>("invalidate_token", a ->
-            new InvalidateTokenRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3]));
+        new ConstructingObjectParser<>("invalidate_token", a -> {
+            final String token = (String) a[0];
+            final String refreshToken = (String) a[1];
+            final String tokenString;
+            final String tokenType;
+            if (Strings.hasLength(token) && Strings.hasLength(refreshToken)) {
+                throw new IllegalArgumentException("only one of [token, refresh_token] may be sent per request");
+            } else if (Strings.hasLength(token)) {
+                tokenString = token;
+                tokenType = InvalidateTokenRequest.Type.ACCESS_TOKEN.getValue();
+            } else if (Strings.hasLength(refreshToken)) {
+                tokenString = refreshToken;
+                tokenType = InvalidateTokenRequest.Type.REFRESH_TOKEN.getValue();
+            } else {
+                tokenString = null;
+                tokenType = null;
+            }
+            return new InvalidateTokenRequest(tokenString, tokenType, (String) a[2], (String) a[3]);
+        });
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("token"));
@@ -56,8 +75,8 @@ public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
-            final InvalidateTokenRequest tokenRequest = PARSER.parse(parser, null);
-            return channel -> client.execute(InvalidateTokenAction.INSTANCE, tokenRequest,
+            final InvalidateTokenRequest invalidateTokenRequest = PARSER.parse(parser, null);
+            return channel -> client.execute(InvalidateTokenAction.INSTANCE, invalidateTokenRequest,
                 new RestBuilderListener<InvalidateTokenResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(InvalidateTokenResponse invalidateResp,

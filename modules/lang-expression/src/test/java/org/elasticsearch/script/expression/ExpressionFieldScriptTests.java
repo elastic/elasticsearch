@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script.expression;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -64,7 +63,7 @@ public class ExpressionFieldScriptTests extends ESTestCase {
         when(fieldData.getFieldName()).thenReturn("field");
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
-        service = new ExpressionScriptEngine(Settings.EMPTY);
+        service = new ExpressionScriptEngine();
         lookup = new SearchLookup(mapperService, ignored -> fieldData, null);
     }
 

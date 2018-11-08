@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
@@ -25,7 +26,6 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -80,7 +80,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
  *
  * No caching is done by this class, it is handled at a higher level
  */
-public class NativeRolesStore extends AbstractComponent implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
+public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
 
     // these are no longer used, but leave them around for users upgrading
     private static final Setting<Integer> CACHE_SIZE_SETTING =
@@ -88,6 +88,7 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
     private static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(setting("authz.store.roles.index.cache.ttl"),
             TimeValue.timeValueMinutes(20), Property.NodeScope, Property.Deprecated);
     private static final String ROLE_DOC_TYPE = "doc";
+    private static final Logger logger = LogManager.getLogger(NativeRolesStore.class);
 
     private final Settings settings;
     private final Client client;
@@ -97,7 +98,6 @@ public class NativeRolesStore extends AbstractComponent implements BiConsumer<Se
     private final SecurityIndexManager securityIndex;
 
     public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex) {
-        super(settings);
         this.settings = settings;
         this.client = client;
         this.securityClient = new SecurityClient(client);

@@ -75,11 +75,13 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isOneOf;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35295")
 public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @Before

@@ -204,7 +204,7 @@ you can change this behavior by using the `script.cache.expire` setting.
 You can configure the size of this cache by using the `script.cache.max_size` setting.
 By default, the cache size is `100`.
 
-NOTE: The size of stored scripts is limited to 65,535 bytes. This can be
+NOTE: The size of scripts is limited to 65,535 bytes. This can be
 changed by setting `script.max_size_in_bytes` setting to increase that soft
 limit, but if scripts are really large then a
 <<modules-scripting-engine,native script engine>> should be considered.

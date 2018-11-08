@@ -54,7 +54,7 @@ class IndicesAndAliasesResolver {
     private final RemoteClusterResolver remoteClusterResolver;
 
     IndicesAndAliasesResolver(Settings settings, ClusterService clusterService) {
-        this.nameExpressionResolver = new IndexNameExpressionResolver(settings);
+        this.nameExpressionResolver = new IndexNameExpressionResolver();
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
     }
 

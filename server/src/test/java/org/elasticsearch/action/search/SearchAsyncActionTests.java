@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -30,7 +29,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -83,7 +81,7 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
+            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             10, randomBoolean(), primaryNode, replicaNode);
         int numSkipped = 0;
         for (SearchShardIterator iter : shardsIter) {
@@ -93,7 +91,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             }
         }
 
-        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null, null);
+        SearchTransportService transportService = new SearchTransportService(null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
@@ -183,9 +181,9 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-            new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
+            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
             10, randomBoolean(), primaryNode, replicaNode);
-        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null, null);
+        SearchTransportService transportService = new SearchTransportService(null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
@@ -283,10 +281,10 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<DiscoveryNode, Set<Long>> nodeToContextMap = newConcurrentMap();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
-                new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
+                new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
                 randomIntBetween(1, 10), randomBoolean(), primaryNode, replicaNode);
         AtomicInteger numFreedContext = new AtomicInteger();
-        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null, null) {
+        SearchTransportService transportService = new SearchTransportService(null, null) {
             @Override
             public void sendFreeContext(Transport.Connection connection, long contextId, OriginalIndices originalIndices) {
                 numFreedContext.incrementAndGet();

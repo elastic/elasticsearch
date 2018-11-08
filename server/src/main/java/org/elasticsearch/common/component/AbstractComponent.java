@@ -21,13 +21,16 @@ package org.elasticsearch.common.component;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.settings.Settings;
 
+/**
+ * @deprecated declare your own logger
+ */
+@Deprecated
 public abstract class AbstractComponent {
 
     protected final Logger logger;
 
-    public AbstractComponent(Settings settings) {
+    public AbstractComponent() {
         this.logger = LogManager.getLogger(getClass());
     }
 }

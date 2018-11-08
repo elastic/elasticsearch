@@ -59,6 +59,11 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
     }
 
     @Override
+    public void addConnectListener(ActionListener<Void> listener) {
+        addConnectListener(ActionListener.toBiConsumer(listener));
+    }
+
+    @Override
     public void close() {
         getContext().closeChannel();
     }

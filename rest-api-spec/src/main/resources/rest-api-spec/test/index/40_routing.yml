@@ -3,8 +3,7 @@
 
  - skip:
      version: " - 6.99.99"
-     reason:  include_type_name was introduced in 7.0.0
-
+     reason: types are required in requests before 7.0.0
  - do:
      indices.create:
        include_type_name: false
@@ -22,7 +21,6 @@
 
  - do:
       index:
-          include_type_name: false
           index:   test_1
           id:      1
           routing: 5
@@ -30,7 +28,6 @@
 
  - do:
       get:
-          include_type_name: false
           index:   test_1
           id:      1
           routing: 5
@@ -42,7 +39,6 @@
  - do:
       catch: missing
       get:
-          include_type_name: false
           index:   test_1
           id:      1
 

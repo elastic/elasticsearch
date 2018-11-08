@@ -502,7 +502,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
         routing = in.readOptionalString();
 
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         preference = in.readOptionalString();
@@ -545,7 +545,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             out.writeEnum(xContentType);
         }
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
         out.writeOptionalString(preference);

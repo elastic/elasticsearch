@@ -19,63 +19,32 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.client.rollup.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response for a role being deleted from the native realm
  */
-public final class DeleteUserResponse implements ToXContent {
+public final class DeleteUserResponse extends AcknowledgedResponse {
 
-    private final boolean found;
-    private static final String PARSE_FIELD = "found";
+    private static final String PARSE_FIELD_NAME = "found";
 
-    public DeleteUserResponse(boolean found) {
-        this.found = found;
+    private static final ConstructingObjectParser<DeleteUserResponse, Void> PARSER = AcknowledgedResponse
+        .generateParser("delete_rollup_job_response", DeleteUserResponse::new, PARSE_FIELD_NAME);
+
+    public DeleteUserResponse(boolean acknowledged) {
+        super(acknowledged);
     }
 
-    public boolean isFound() {
-        return this.found;
-    }
-
-    private static final ConstructingObjectParser<DeleteUserResponse, Void> PARSER =
-        new ConstructingObjectParser<>("delete_user_response", true, args -> new DeleteUserResponse((boolean) args[0]));
-
-    static {
-        PARSER.declareBoolean(constructorArg(), new ParseField(PARSE_FIELD));
-    }
-
-    public static DeleteUserResponse fromXContent(XContentParser parser) throws IOException {
+    public static DeleteUserResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field(PARSE_FIELD, isFound());
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        final DeleteUserResponse that = (DeleteUserResponse) o;
-        return isFound() == that.isFound();
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(found);
+    protected String getFieldName() {
+        return PARSE_FIELD_NAME;
     }
 }

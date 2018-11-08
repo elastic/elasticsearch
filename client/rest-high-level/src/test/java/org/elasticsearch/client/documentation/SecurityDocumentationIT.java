@@ -147,13 +147,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-user-execute
 
             // tag::delete-user-response
-            boolean found = deleteUserResponse.isFound();    // <1>
+            boolean found = deleteUserResponse.isAcknowledged();    // <1>
             // end::delete-user-response
             assertTrue(found);
 
             // check if deleting the already deleted user again will give us a different response
             deleteUserResponse = client.security().deleteUser(deleteUserRequest, RequestOptions.DEFAULT);
-            assertFalse(deleteUserResponse.isFound());
+            assertFalse(deleteUserResponse.isAcknowledged());
         }
 
         {

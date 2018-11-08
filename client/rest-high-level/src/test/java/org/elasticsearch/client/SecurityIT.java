@@ -69,7 +69,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
             new DeleteUserRequest(putUserRequest.getUsername(), putUserRequest.getRefreshPolicy());
         final DeleteUserResponse deleteUserResponse =
             execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
-        assertThat(deleteUserResponse.isFound(), is(true));
+        assertThat(deleteUserResponse.isAcknowledged(), is(true));
 
         // authentication no longer works
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> execute(securityClient::authenticate,
@@ -79,7 +79,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         // delete non-existing user
         final DeleteUserResponse deleteUserResponse2 =
             execute(deleteUserRequest, securityClient::deleteUser, securityClient::deleteUserAsync);
-        assertThat(deleteUserResponse2.isFound(), is(false));
+        assertThat(deleteUserResponse2.isAcknowledged(), is(false));
     }
 
     private static PutUserRequest randomPutUserRequest(boolean enabled) {

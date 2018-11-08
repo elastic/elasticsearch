@@ -1473,22 +1473,22 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (range.lower().foldable()) {
                             Integer compare = BinaryComparison.compare(range.lower().fold(), eqValue);
                             if (compare != null && (
-                                 // eq outside the lower boundary
-                                 compare > 0 ||
-                                 // eq matches the boundary but should not be included
-                                 (compare == 0 && !range.includeLower()))
-                                ) {
+                                // eq outside the lower boundary
+                                compare > 0 ||
+                                    // eq matches the boundary but should not be included
+                                    (compare == 0 && !range.includeLower()))
+                            ) {
                                 return FALSE;
                             }
                         }
                         if (range.upper().foldable()) {
                             Integer compare = BinaryComparison.compare(range.upper().fold(), eqValue);
                             if (compare != null && (
-                                 // eq outside the upper boundary
-                                 compare < 0 ||
-                                 // eq matches the boundary but should not be included
-                                 (compare == 0 && !range.includeUpper()))
-                                ) {
+                                // eq outside the upper boundary
+                                compare < 0 ||
+                                    // eq matches the boundary but should not be included
+                                    (compare == 0 && !range.includeUpper()))
+                            ) {
                                 return FALSE;
                             }
                         }
@@ -1561,25 +1561,25 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     if (main.left().semanticEquals(other.left())) {
                         // >/>= AND </<=
                         if ((main instanceof GreaterThan || main instanceof GreaterThanOrEqual)
-                                && (other instanceof LessThan || other instanceof LessThanOrEqual)) {
+                            && (other instanceof LessThan || other instanceof LessThanOrEqual)) {
                             bcs.remove(j);
                             bcs.remove(i);
 
                             ranges.add(new Range(and.location(), main.left(),
-                                    main.right(), main instanceof GreaterThanOrEqual,
-                                    other.right(), other instanceof LessThanOrEqual));
+                                main.right(), main instanceof GreaterThanOrEqual,
+                                other.right(), other instanceof LessThanOrEqual));
 
                             changed = true;
                         }
                         // </<= AND >/>=
                         else if ((other instanceof GreaterThan || other instanceof GreaterThanOrEqual)
-                                && (main instanceof LessThan || main instanceof LessThanOrEqual)) {
+                            && (main instanceof LessThan || main instanceof LessThanOrEqual)) {
                             bcs.remove(j);
                             bcs.remove(i);
 
                             ranges.add(new Range(and.location(), main.left(),
-                                    other.right(), other instanceof GreaterThanOrEqual,
-                                    main.right(), main instanceof LessThanOrEqual));
+                                other.right(), other instanceof GreaterThanOrEqual,
+                                main.right(), main instanceof LessThanOrEqual));
 
                             changed = true;
                         }
@@ -1653,17 +1653,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             lowerEq = comp == 0 && main.includeLower() == other.includeLower();
                             // AND
                             if (conjunctive) {
-                                        // (2 < a < 3) AND (1 < a < 3) -> (1 < a < 3)
+                                // (2 < a < 3) AND (1 < a < 3) -> (1 < a < 3)
                                 lower = comp > 0 ||
-                                        // (2 < a < 3) AND (2 < a <= 3) -> (2 < a < 3)
-                                        (comp == 0 && !main.includeLower() && other.includeLower());
+                                    // (2 < a < 3) AND (2 < a <= 3) -> (2 < a < 3)
+                                    (comp == 0 && !main.includeLower() && other.includeLower());
                             }
                             // OR
                             else {
-                                        // (1 < a < 3) OR (2 < a < 3) -> (1 < a < 3)
+                                // (1 < a < 3) OR (2 < a < 3) -> (1 < a < 3)
                                 lower = comp < 0 ||
-                                        // (2 <= a < 3) OR (2 < a < 3) -> (2 <= a < 3)
-                                        (comp == 0 && main.includeLower() && !other.includeLower()) || lowerEq;
+                                    // (2 <= a < 3) OR (2 < a < 3) -> (2 <= a < 3)
+                                    (comp == 0 && main.includeLower() && !other.includeLower()) || lowerEq;
                             }
                         }
                     }
@@ -1679,17 +1679,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                             // AND
                             if (conjunctive) {
-                                        // (1 < a < 2) AND (1 < a < 3) -> (1 < a < 2)
+                                // (1 < a < 2) AND (1 < a < 3) -> (1 < a < 2)
                                 upper = comp < 0 ||
-                                        // (1 < a < 2) AND (1 < a <= 2) -> (1 < a < 2)
-                                        (comp == 0 && !main.includeUpper() && other.includeUpper());
+                                    // (1 < a < 2) AND (1 < a <= 2) -> (1 < a < 2)
+                                    (comp == 0 && !main.includeUpper() && other.includeUpper());
                             }
                             // OR
                             else {
-                                        // (1 < a < 3) OR (1 < a < 2) -> (1 < a < 3)
+                                // (1 < a < 3) OR (1 < a < 2) -> (1 < a < 3)
                                 upper = comp > 0 ||
-                                        // (1 < a <= 3) OR (1 < a < 3) -> (2 < a < 3)
-                                        (comp == 0 && main.includeUpper() && !other.includeUpper()) || upperEq;
+                                    // (1 < a <= 3) OR (1 < a < 3) -> (2 < a < 3)
+                                    (comp == 0 && main.includeUpper() && !other.includeUpper()) || upperEq;
                             }
                         }
                     }
@@ -1700,11 +1700,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (lower || upper) {
                             ranges.remove(i);
                             ranges.add(i,
-                                    new Range(main.location(), main.value(),
-                                            lower ? main.lower() : other.lower(),
-                                            lower ? main.includeLower() : other.includeLower(),
-                                            upper ? main.upper() : other.upper(),
-                                            upper ? main.includeUpper() : other.includeUpper()));
+                                new Range(main.location(), main.value(),
+                                    lower ? main.lower() : other.lower(),
+                                    lower ? main.includeLower() : other.includeLower(),
+                                    upper ? main.upper() : other.upper(),
+                                    upper ? main.includeUpper() : other.includeUpper()));
                         }
 
                         // range was comparable
@@ -1716,11 +1716,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (lower && upper) {
                             ranges.remove(i);
                             ranges.add(i,
-                                    new Range(main.location(), main.value(),
-                                            lower ? main.lower() : other.lower(),
-                                            lower ? main.includeLower() : other.includeLower(),
-                                            upper ? main.upper() : other.upper(),
-                                            upper ? main.includeUpper() : other.includeUpper()));
+                                new Range(main.location(), main.value(),
+                                    lower ? main.lower() : other.lower(),
+                                    lower ? main.includeLower() : other.includeLower(),
+                                    upper ? main.upper() : other.upper(),
+                                    upper ? main.includeUpper() : other.includeUpper()));
                             return true;
                         }
 
@@ -1747,15 +1747,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             if (comp != null) {
                                 // 2 < a AND (2 <= a < 3) -> 2 < a < 3
                                 boolean lowerEq = comp == 0 && other.includeLower() && main instanceof GreaterThan;
-                                 // 2 < a AND (1 < a < 3) -> 2 < a < 3
+                                // 2 < a AND (1 < a < 3) -> 2 < a < 3
                                 boolean lower = comp > 0 || lowerEq;
 
                                 if (lower) {
                                     ranges.remove(i);
                                     ranges.add(i,
-                                            new Range(other.location(), other.value(),
-                                                    main.right(), lowerEq ? true : other.includeLower(),
-                                                    other.upper(), other.includeUpper()));
+                                        new Range(other.location(), other.value(),
+                                            main.right(), lowerEq ? true : other.includeLower(),
+                                            other.upper(), other.includeUpper()));
                                 }
 
                                 // found a match
@@ -1774,8 +1774,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 if (upper) {
                                     ranges.remove(i);
                                     ranges.add(i, new Range(other.location(), other.value(),
-                                            other.lower(), other.includeLower(),
-                                            main.right(), upperEq ? true : other.includeUpper()));
+                                        other.lower(), other.includeLower(),
+                                        main.right(), upperEq ? true : other.includeUpper()));
                                 }
 
                                 // found a match
@@ -1812,19 +1812,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         Integer compare = BinaryComparison.compare(value, other.right().fold());
 
                         if (compare != null) {
-                                 // AND
+                            // AND
                             if ((conjunctive &&
-                                  // a > 3 AND a > 2 -> a > 3
-                                  (compare > 0 ||
-                                  // a > 2 AND a >= 2 -> a > 2
-                                  (compare == 0 && main instanceof GreaterThan && other instanceof GreaterThanOrEqual)))
+                                // a > 3 AND a > 2 -> a > 3
+                                (compare > 0 ||
+                                    // a > 2 AND a >= 2 -> a > 2
+                                    (compare == 0 && main instanceof GreaterThan && other instanceof GreaterThanOrEqual)))
                                 ||
                                 // OR
                                 (!conjunctive &&
-                                  // a > 2 OR a > 3 -> a > 2
-                                  (compare < 0 ||
-                                  // a >= 2 OR a > 2 -> a >= 2
-                                  (compare == 0 && main instanceof GreaterThanOrEqual && other instanceof GreaterThan)))) {
+                                    // a > 2 OR a > 3 -> a > 2
+                                    (compare < 0 ||
+                                        // a >= 2 OR a > 2 -> a >= 2
+                                        (compare == 0 && main instanceof GreaterThanOrEqual && other instanceof GreaterThan)))) {
                                 bcs.remove(i);
                                 bcs.add(i, main);
                             }
@@ -1837,25 +1837,25 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
                 // if bc is a lower/higher value or lte vs lt, use it instead
                 else if ((other instanceof LessThan || other instanceof LessThanOrEqual) &&
-                        (main instanceof LessThan || main instanceof LessThanOrEqual)) {
+                    (main instanceof LessThan || main instanceof LessThanOrEqual)) {
 
                     if (main.left().semanticEquals(other.left())) {
                         Integer compare = BinaryComparison.compare(value, other.right().fold());
 
                         if (compare != null) {
-                                 // AND
+                            // AND
                             if ((conjunctive &&
-                                  // a < 2 AND a < 3 -> a < 2
-                                  (compare < 0 ||
-                                  // a < 2 AND a <= 2 -> a < 2
-                                  (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual)))
+                                // a < 2 AND a < 3 -> a < 2
+                                (compare < 0 ||
+                                    // a < 2 AND a <= 2 -> a < 2
+                                    (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual)))
                                 ||
                                 // OR
                                 (!conjunctive &&
-                                  // a < 2 OR a < 3 -> a < 3
-                                  (compare > 0 ||
-                                  // a <= 2 OR a < 2 -> a <= 2
-                                  (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
+                                    // a < 2 OR a < 3 -> a < 3
+                                    (compare > 0 ||
+                                        // a <= 2 OR a < 2 -> a <= 2
+                                        (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
                                 bcs.remove(i);
                                 bcs.add(i, main);
 
@@ -1972,7 +1972,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         public final LogicalPlan apply(LogicalPlan plan) {
             return direction == TransformDirection.DOWN ? plan.transformExpressionsDown(this::rule) : plan
-                    .transformExpressionsUp(this::rule);
+                .transformExpressionsUp(this::rule);
         }
 
         @Override

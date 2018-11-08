@@ -3,17 +3,29 @@
 
 experimental[The `json` field type is experimental and may be changed in a breaking way in future releases.]
 
-The `json` mapping type allows an entire JSON object to be indexed as a single field, with support for simple
-queries on the field's contents. A `json` field can be useful for modelling objects with a large number of
-distinct subfields whose keys are not known in advance. This type of situation might arise arise when
-some data is generated directly by users, or by an external third-party application.
+By default, each subfield in an object is mapped and indexed separately. If the names or types of the subfields
+are not known in advance, then they are <<dynamic-mapping, mapped dynamically>>.
 
-NOTE: The `json` mapping type should **not** be used for indexing all JSON content. The default approach to
-modelling documents, where each subfield of an object has its own entry in the mappings, works well in the
-majority of cases. If an object's subfields are not known in advance, then they can be
-<<dynamic-mapping, mapped dynamically>>. The `json` type provides limited search functionality and does not
-support some features that other field types do, such as aggregations and sorting.
+The `json` type provides an alternative approach, where the entire object is mapped as a single field.
+Given an object, the `json` mapping will parse out its leaf values and index them into one field. The object's
+contents can then be searched through simple keyword-style queries.
 
+This data type can be useful for indexing objects with a very large number of distinct keys. Compared to mapping
+each field separately, `json` fields have the following advantages:
+
+- Only one field mapping is created for the whole object, which can help prevent a
+  <<mapping-limit-settings, mappings explosion>> due to a large number of field mappings.
+- A `json` field may take up less space in the index, as only one underlying field is created.
+
+Compared to having a dedicated mapping for each subfield, `json` fields present a trade-off in terms of search
+functionality. Only basic queries are allowed, with no support for numeric range queries or aggregations. Further
+information on the limitations can be found in the <<supported-operations, Supported operations>> section.
+
+NOTE: The `json` mapping type should **not** be used for indexing all JSON content, as it provides only
+limited search functionality. The default approach, where each subfield has its own entry in the mappings,
+works well in the majority of cases.
+
+A `json` field can be created as follows:
 [source,js]
 --------------------------------
 PUT bug_reports
@@ -47,8 +59,8 @@ POST bug_reports/_doc/1
 --------------------------------
 // CONSOLE
 
-During indexing, the leaf values in the JSON object are parsed out and added as a distinct token. Each value is
-indexed as a string keyword, without analysis or special handling of numeric and date values.
+During indexing, tokens are created for each leaf value in the JSON object. The values are indexed
+as string keywords, without analysis or special handling for numbers or dates.
 
 Querying the top-level `json` field searches all leaf values in the object:
 [source,js]
@@ -76,6 +88,7 @@ POST bug_reports/_search
 // CONSOLE
 // TEST[continued]
 
+[[supported-operations]]
 ==== Supported operations
 
 Currently, `json` fields can be used with the following query types:
@@ -99,8 +112,8 @@ appear in the keys of the JSON object.
 [[stored-fields]]
 ==== Stored fields
 
-If the <<mapping-store,`store`>> option is enabled in the mappings, the entire JSON object will be stored
-in pretty-printed format. It can be retrieved through the top-level `json` field:
+If the <<mapping-store,`store`>> option is enabled, the entire JSON object will be stored in pretty-printed format.
+It can be retrieved through the top-level `json` field:
 
 [source,js]
 --------------------------------
@@ -156,12 +169,6 @@ with <<keyword, `keyword`>>. The following parameters are accepted:
     the JSON field. Defaults to `null`, which means null sfields are treated as
     if it were missing.
 
-<<mapping-store,`store`>>::
-
-    Whether the field value should be stored and retrievable separately from
-    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
-    (default).
-
 <<similarity,`similarity`>>::
 
     Which scoring algorithm or _similarity_ should be used. Defaults
@@ -171,3 +178,9 @@ with <<keyword, `keyword`>>. The following parameters are accepted:
 
     Whether <<full-text-queries,full text queries>> should split the input on whitespace
     when building a query for this field. Accepts `true` or `false` (default).
+
+<<mapping-store,`store`>>::
+
+    Whether the field value should be stored and retrievable separately from
+    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
+    (default).

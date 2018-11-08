@@ -146,7 +146,8 @@ public class CommonAnalysisPluginTests extends ESTestCase {
     public void testStandardHtmlStripAnalyzerDeprecationWarning() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(IndexMetaData.SETTING_VERSION_CREATED,
-                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_6_0))
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
+                    VersionUtils.getPreviousVersion(Version.V_7_0_0_alpha1)))
             .put("index.analysis.analyzer.custom_analyzer.type", "standard_html_strip")
             .putList("index.analysis.analyzer.custom_analyzer.stopwords", "a", "b")
             .build();

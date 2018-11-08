@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.client.rollup.AcknowledgedResponse;
+import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -33,7 +33,7 @@ public final class DeleteUserResponse extends AcknowledgedResponse {
     private static final String PARSE_FIELD_NAME = "found";
 
     private static final ConstructingObjectParser<DeleteUserResponse, Void> PARSER = AcknowledgedResponse
-        .generateParser("delete_rollup_job_response", DeleteUserResponse::new, PARSE_FIELD_NAME);
+        .generateParser("delete_user_response", DeleteUserResponse::new, PARSE_FIELD_NAME);
 
     public DeleteUserResponse(boolean acknowledged) {
         super(acknowledged);

@@ -146,7 +146,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public FieldMapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         if (context.externalValueSet()) {
             throw new IllegalArgumentException("[sparse_vector] field can't be used in multi-fields");
         }
@@ -160,7 +160,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
         int dim = 0;
         for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
             if (token == Token.FIELD_NAME) {
-                dim = Integer.parseInt(context.parser().currentName());
+                try {
+                    dim = Integer.parseInt(context.parser().currentName());
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("[sparse_vector]'s dimensions should be integers represented as strings, but got ["
+                        + context.parser().currentName() + "]");
+                }
             } else if (token == Token.VALUE_NUMBER) {
                 float value = context.parser().floatValue(true);
                 if (dims.length <= dimCount) { // ensure arrays have enough capacity
@@ -171,19 +176,18 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 dimCount ++;
             } else {
                 throw new IllegalArgumentException("[sparse_vector] field takes an object that maps a dimension number to a float, " +
-                    "but got unexpected token " + token);
+                    "but got unexpected token [" + token + "]");
             }
         }
 
         BytesRef br = encodeSparseVector(values, dims, dimCount);
         BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), br);
         context.doc().addWithKey(fieldType().name(), field);
-        return null; // no mapping update
     }
 
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
         throw new AssertionError("parse is implemented directly");
     }
 
@@ -212,7 +216,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     /**
      * Encodes a sparse array represented by values, dims and dimCount into a bytes array - BytesRef
-     * BytesRef --> int DimCount, int[] floats encoded as integers values, int[] dims
+     * BytesRef: int DimCount, int[] floats encoded as integers values, int[] dims
      * @param values - values of the sparse array
      * @param dims - dims of the sparse array
      * @param dimCount - number of the dimension
@@ -236,8 +240,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
     /**
      * Decodes a BytesRef into vector dimensions
      * executed after DenseVectorFieldMapper.decodeVector(vectorBR);
-     * @param vectorBR
-     * @param dimCount
+     * @param vectorBR - vector decoded in BytesRef
+     * @param dimCount - number of dimensions
      */
     public static int[] decodeVectorDims(BytesRef vectorBR, int dimCount) {
         int[] dims = new int[dimCount];

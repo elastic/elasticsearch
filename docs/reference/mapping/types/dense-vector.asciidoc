@@ -1,0 +1,51 @@
+[[dense-vector]]
+=== Dense vector datatype
+
+A `dense_vector` field indexes dense vectors of float values.
+Number of dimensions in a vector can be arbitrary and can be
+different across documents.
+
+These vectors can be used for document scoring.
+For example, a document score can represent a distance between
+a given query vector and the indexed document vector.
+
+You index a dense vector as an array of floats.
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "_doc": {
+      "properties": {
+        "my_vector": {
+          "type": "dense_vector"
+        },
+        "my_text" : {
+          "type" : "keyword"
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/_doc/1
+{
+  "my_text" : "text1",
+  "my_vector" : [0.5, 10, 6]
+}
+
+PUT my_index/_doc/2
+{
+  "my_text" : "text2",
+  "my_vector" : [-0.5, 10, 10, 4]
+}
+
+--------------------------------------------------
+// CONSOLE
+
+Internally, each dense document vector will be encoded as a binary
+doc value. Its size in bytes is equal to
+`INT_BYTES + INT_BYTES* NUMBER_OF_DIMENSIONS`,
+where `INT_BYTES` - number of bytes used to represent an integer,
+and `NUMBER_OF_DIMENSIONS` - number of the vector's dimensions.

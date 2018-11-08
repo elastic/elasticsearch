@@ -131,7 +131,6 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
         }
     }
 
-
     private DenseVectorFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                    Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
@@ -149,14 +148,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
     }
 
     @Override
-    public FieldMapper parse(ParseContext context) throws IOException {
+    public void parse(ParseContext context) throws IOException {
         if (context.externalValueSet()) {
             throw new IllegalArgumentException("[dense_vector] field can't be used in multi-fields");
         }
-        // buffer will encode array of floats
-        // buffer will first contain an integer -  number of dimensions
-        // after that arrays elements encoded as integers
 
+        // encode array of floats into buf
+        // buf contains an integer - number of dimensions, followed byn array of floats encoded as integers
         byte[] buf = new byte[INT_BYTES + 10 * INT_BYTES]; // initially allocating buffer for 10 dimensions
         int offset = INT_BYTES;
         int dim = 0;
@@ -170,17 +168,16 @@ public class DenseVectorFieldMapper extends FieldMapper implements ArrayValueMap
                 offset = offset + INT_BYTES;
                 dim++;
             } else {
-                throw new IllegalArgumentException("[dense_vector] field take an array of floats, but got unexpected token " + token);
+                throw new IllegalArgumentException("[dense_vector] field takes an array of floats, but got unexpected token " + token);
             }
         }
         NumericUtils.intToSortableBytes(dim, buf, 0); //recording number of dimensions at the beginning
         BinaryDocValuesField field = new BinaryDocValuesField(fieldType().name(), new BytesRef(buf, 0, offset));
         context.doc().addWithKey(fieldType().name(), field);
-        return null; // no mapping update
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) {
         throw new AssertionError("parse is implemented directly");
     }
 

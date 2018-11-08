@@ -58,8 +58,13 @@ public class SettingsUpdaterTests extends ESTestCase {
                 .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 4.5).build());
         ClusterState build = builder.metaData(metaData).build();
         ClusterState clusterState = updater.updateSettings(build,
-            Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.5).build(),
-            Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.4).build(), logger);
+            Settings.builder()
+                .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.5)
+                .build(),
+            Settings.builder()
+                .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.4)
+                .build(),
+            logger);
         assertNotSame(clusterState, build);
         assertEquals(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.get(clusterState.metaData().persistentSettings()), 0.4, 0.1);
         assertEquals(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.get(clusterState.metaData().persistentSettings()), 2.5, 0.1);
@@ -75,7 +80,8 @@ public class SettingsUpdaterTests extends ESTestCase {
 
         clusterState = updater.updateSettings(clusterState,
             Settings.EMPTY,
-            Settings.builder().putNull("cluster.routing.*")
+            Settings.builder()
+                .putNull("cluster.routing.*")
                 .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 10.0)
                 .build(),
             logger);

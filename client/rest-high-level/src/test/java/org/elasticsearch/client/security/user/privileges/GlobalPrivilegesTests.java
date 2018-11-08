@@ -37,8 +37,8 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
 
     @Override
     protected GlobalPrivileges createTestInstance() {
-        final List<GlobalScopedPrivilege> privilegeList = Arrays
-                .asList(randomArray(1, 4, size -> new GlobalScopedPrivilege[size], () -> buildRandomGlobalScopedPrivilege()));
+        final List<GlobalOperationPrivilege> privilegeList = Arrays
+                .asList(randomArray(1, 4, size -> new GlobalOperationPrivilege[size], () -> buildRandomGlobalScopedPrivilege()));
         return new GlobalPrivileges(privilegeList);
     }
 
@@ -55,28 +55,28 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
     public void testEmptyOrNullGlobalScopedPrivilege() {
         final Map<String, Object> privilege = randomBoolean() ? null : Collections.emptyMap();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new GlobalScopedPrivilege(randomAlphaOfLength(2), privilege));
+                () -> new GlobalOperationPrivilege(randomAlphaOfLength(2), privilege));
         assertThat(e.getMessage(), is("Privileges cannot be empty or null"));
     }
 
     public void testEmptyOrNullGlobalPrivileges() {
-        final List<GlobalScopedPrivilege> privileges = randomBoolean() ? null : Collections.emptyList();
+        final List<GlobalOperationPrivilege> privileges = randomBoolean() ? null : Collections.emptyList();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GlobalPrivileges(privileges));
         assertThat(e.getMessage(), is("Application privileges cannot be empty or null"));
     }
 
     public void testDuplicateGlobalScopedPrivilege() {
-        final GlobalScopedPrivilege privilege = buildRandomGlobalScopedPrivilege();
+        final GlobalOperationPrivilege privilege = buildRandomGlobalScopedPrivilege();
         // duplicate
-        final GlobalScopedPrivilege privilege2 = new GlobalScopedPrivilege(privilege.getScope(), new HashMap<>(privilege.getRaw()));
+        final GlobalOperationPrivilege privilege2 = new GlobalOperationPrivilege(privilege.getScope(), new HashMap<>(privilege.getRaw()));
         final GlobalPrivileges globalPrivilege = new GlobalPrivileges(Arrays.asList(privilege, privilege2));
         assertThat(globalPrivilege.getPrivileges().size(), is(1));
         assertThat(globalPrivilege.getPrivileges().iterator().next(), is(privilege));
     }
 
     public void testSameScopeGlobalScopedPrivilege() {
-        final GlobalScopedPrivilege privilege = buildRandomGlobalScopedPrivilege();
-        final GlobalScopedPrivilege sameScopePrivilege = new GlobalScopedPrivilege(privilege.getScope(),
+        final GlobalOperationPrivilege privilege = buildRandomGlobalScopedPrivilege();
+        final GlobalOperationPrivilege sameScopePrivilege = new GlobalOperationPrivilege(privilege.getScope(),
                 buildRandomGlobalScopedPrivilege().getRaw());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> new GlobalPrivileges(Arrays.asList(privilege, sameScopePrivilege)));
@@ -84,11 +84,11 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
                 "Application privileges have the same scope but the privileges differ. Only one privilege for any one scope is allowed."));
     }
 
-    private static GlobalScopedPrivilege buildRandomGlobalScopedPrivilege() {
+    private static GlobalOperationPrivilege buildRandomGlobalScopedPrivilege() {
         final Map<String, Object> privilege = new HashMap<>();
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
             privilege.put(randomAlphaOfLength(2) + idCounter++, randomAlphaOfLengthBetween(1, 4));
         }
-        return new GlobalScopedPrivilege(randomAlphaOfLength(2) + idCounter++, privilege);
+        return new GlobalOperationPrivilege(randomAlphaOfLength(2) + idCounter++, privilege);
     }
 }

@@ -26,9 +26,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -44,21 +46,26 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public final class GlobalPrivileges implements ToXContentObject {
 
-    static final ParseField APPLICATION = new ParseField("application");
+    // when categories change, adapting this field should suffice
+    static final List<String> CATEGORIES = Collections.unmodifiableList(Arrays.asList("application"));
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>("global_application_privileges",
             false, constructorObjects -> {
                 // ignore_unknown_fields is irrelevant here anyway, but let's keep it to false
                 // because this conveys strictness (woop woop)
-                return new GlobalPrivileges((Collection<GlobalScopedPrivilege>) constructorObjects[0]);
+                return new GlobalPrivileges((Collection<GlobalOperationPrivilege>) constructorObjects[0]);
             });
 
     static {
-        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> GlobalScopedPrivilege.fromXContent(n, p), APPLICATION);
+        for (final String category : CATEGORIES) {
+            PARSER.declareNamedObjects(optionalConstructorArg(),
+                    (parser, context, operation) -> GlobalOperationPrivilege.fromXContent(category, operation, parser),
+                    new ParseField(category));
+        }
     }
 
-    private final Set<? extends GlobalScopedPrivilege> applicationPrivileges;
+    private final Set<? extends GlobalOperationPrivilege> privileges;
 
     /**
      * Constructs global privileges by bundling the set of application privileges.
@@ -66,13 +73,13 @@ public final class GlobalPrivileges implements ToXContentObject {
      * @param applicationPrivileges
      *            The privileges over applications.
      */
-    public GlobalPrivileges(Collection<? extends GlobalScopedPrivilege> applicationPrivileges) {
+    public GlobalPrivileges(Collection<? extends GlobalOperationPrivilege> applicationPrivileges) {
         if (applicationPrivileges == null || applicationPrivileges.isEmpty()) {
             throw new IllegalArgumentException("Application privileges cannot be empty or null");
         }
-        this.applicationPrivileges = Collections.unmodifiableSet(new HashSet<>(Objects.requireNonNull(applicationPrivileges)));
-        final Set<String> allScopes = this.applicationPrivileges.stream().map(p -> p.getScope()).collect(Collectors.toSet());
-        if (allScopes.size() != this.applicationPrivileges.size()) {
+        this.privileges = Collections.unmodifiableSet(new HashSet<>(Objects.requireNonNull(applicationPrivileges)));
+        final Set<String> allScopes = this.privileges.stream().map(p -> p.getScope()).collect(Collectors.toSet());
+        if (allScopes.size() != this.privileges.size()) {
             throw new IllegalArgumentException(
                     "Application privileges have the same scope but the privileges differ. Only one privilege for any one scope is allowed.");
         }
@@ -81,11 +88,13 @@ public final class GlobalPrivileges implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject(APPLICATION.getPreferredName());
-        for (final GlobalScopedPrivilege privilege : applicationPrivileges) {
-            builder.field(privilege.getScope(), privilege.getRaw());
+        for (final String category : CATEGORIES) {
+            builder.startObject(category);
+            for (final GlobalOperationPrivilege privilege : privileges) {
+                builder.field(privilege.getScope(), privilege.getRaw());
+            }
+            builder.endObject();
         }
-        builder.endObject();
         return builder.endObject();
     }
 
@@ -93,8 +102,8 @@ public final class GlobalPrivileges implements ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    public Set<? extends GlobalScopedPrivilege> getPrivileges() {
-        return applicationPrivileges;
+    public Set<? extends GlobalOperationPrivilege> getPrivileges() {
+        return privileges;
     }
 
     @Override
@@ -106,12 +115,12 @@ public final class GlobalPrivileges implements ToXContentObject {
             return false;
         }
         final GlobalPrivileges that = (GlobalPrivileges) o;
-        return applicationPrivileges.equals(that.applicationPrivileges);
+        return privileges.equals(that.privileges);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(applicationPrivileges);
+        return Objects.hash(privileges);
     }
 
 }

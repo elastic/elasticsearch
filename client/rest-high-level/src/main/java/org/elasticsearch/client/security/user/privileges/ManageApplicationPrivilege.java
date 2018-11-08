@@ -29,7 +29,7 @@ import java.util.Set;
  * Represents the privilege to "manage" certain applications. The "manage"
  * privilege is actually defined outside of Elasticsearch.
  */
-public class ManageApplicationPrivilege extends GlobalScopedPrivilege {
+public class ManageApplicationPrivilege extends GlobalOperationPrivilege {
 
     private static final String SCOPE = "manage";
     private static final String APPLICATIONS = "applications";

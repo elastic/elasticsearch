@@ -31,9 +31,10 @@ import java.util.Objects;
  * application. The privilege definition, as well as the scope identifier, are
  * outside of the Elasticsearch jurisdiction.
  */
-public class GlobalScopedPrivilege {
+public class GlobalOperationPrivilege {
 
-    private final String scope;
+    private final String category;
+    private final String operation;
     private final Map<String, Object> privilege;
 
     /**
@@ -48,27 +49,32 @@ public class GlobalScopedPrivilege {
      *            The privilege definition. This is out of the Elasticsearch's
      *            control.
      */
-    public GlobalScopedPrivilege(String scope, Map<String, Object> privilege) {
-        this.scope = Objects.requireNonNull(scope);
+    public GlobalOperationPrivilege(String category, String operation, Map<String, Object> privilege) {
+        this.category = Objects.requireNonNull(category);
+        this.operation = Objects.requireNonNull(operation);
         if (privilege == null || privilege.isEmpty()) {
             throw new IllegalArgumentException("Privileges cannot be empty or null");
         }
         this.privilege = Collections.unmodifiableMap(privilege);
     }
 
-    public String getScope() {
-        return scope;
+    public String getCategory() {
+        return category;
+    }
+
+    public String getOperation() {
+        return operation;
     }
 
     public Map<String, Object> getRaw() {
         return privilege;
     }
 
-    public static GlobalScopedPrivilege fromXContent(String scope, XContentParser parser) throws IOException {
+    public static GlobalOperationPrivilege fromXContent(String category, String scope, XContentParser parser) throws IOException {
         // parser is still placed on the field name, advance to next token (field value)
         assert parser.currentToken().equals(XContentParser.Token.FIELD_NAME);
         parser.nextToken();
-        return new GlobalScopedPrivilege(scope, parser.map());
+        return new GlobalOperationPrivilege(category, scope, parser.map());
     }
 
     @Override
@@ -79,13 +85,13 @@ public class GlobalScopedPrivilege {
         if (o == null || this.getClass() != o.getClass()) {
             return false;
         }
-        final GlobalScopedPrivilege that = (GlobalScopedPrivilege) o;
-        return scope.equals(that.scope) && privilege.equals(that.privilege);
+        final GlobalOperationPrivilege that = (GlobalOperationPrivilege) o;
+        return category.equals(that.category) && operation.equals(that.operation) && privilege.equals(that.privilege);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(scope, privilege);
+        return Objects.hash(category, operation, privilege);
     }
 
 }

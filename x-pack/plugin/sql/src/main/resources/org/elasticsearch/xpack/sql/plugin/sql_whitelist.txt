@@ -36,6 +36,11 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Boolean notNull(Object)    
 
 #
+# Null
+#
+  Object coalesce(java.util.List)
+
+#
 # Regex
 #
   Boolean regex(String, String)

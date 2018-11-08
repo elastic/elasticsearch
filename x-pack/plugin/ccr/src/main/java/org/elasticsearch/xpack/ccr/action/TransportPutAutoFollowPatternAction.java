@@ -107,7 +107,7 @@ public class TransportPutAutoFollowPatternAction extends
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
 
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(client, filteredHeaders, request.getRemoteCluster(),
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(client, request.getRemoteCluster(),
             clusterStateRequest, listener::onFailure, consumer);
 
     }

@@ -45,7 +45,8 @@ public final class ConnectionProfile {
         Objects.requireNonNull(fallbackProfile);
         if (profile == null) {
             return fallbackProfile;
-        } else if (profile.getConnectTimeout() != null && profile.getHandshakeTimeout() != null && profile.getCompressionEnabled() != null) {
+        } else if (profile.getConnectTimeout() != null && profile.getHandshakeTimeout() != null
+            && profile.getCompressionEnabled() != null) {
             return profile;
         } else {
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
@@ -231,7 +232,8 @@ public final class ConnectionProfile {
             if (types.isEmpty() == false) {
                 throw new IllegalStateException("not all types are added for this connection profile - missing types: " + types);
             }
-            return new ConnectionProfile(Collections.unmodifiableList(handles), numConnections, connectTimeout, handshakeTimeout, compressionEnabled);
+            return new ConnectionProfile(Collections.unmodifiableList(handles), numConnections, connectTimeout, handshakeTimeout,
+                compressionEnabled);
         }
 
     }

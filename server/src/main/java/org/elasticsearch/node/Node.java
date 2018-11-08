@@ -26,7 +26,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -279,7 +278,7 @@ public class Node implements Closeable {
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
                 "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-                Version.displayVersion(Version.CURRENT, Build.CURRENT.isSnapshot()),
+                Build.CURRENT.getQualifiedVersion(),
                 jvmInfo.pid(),
                 Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
@@ -293,7 +292,11 @@ public class Node implements Closeable {
                 Constants.JAVA_VERSION,
                 Constants.JVM_VERSION);
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
-            warnIfPreRelease(Version.CURRENT, Build.CURRENT.isSnapshot(), logger);
+            if (Build.CURRENT.isProductionRelease() == false) {
+                logger.warn(
+                    "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
+                    Build.CURRENT.getQualifiedVersion());
+            }
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
@@ -490,7 +493,7 @@ public class Node implements Closeable {
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService
                 .filterPlugins(PersistentTaskPlugin.class).stream()
-                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client))
+                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule))
                 .flatMap(List::stream)
                 .collect(toList());
 
@@ -574,14 +577,6 @@ public class Node implements Closeable {
             if (!success) {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
-        }
-    }
-
-    static void warnIfPreRelease(final Version version, final boolean isSnapshot, final Logger logger) {
-        if (!version.isRelease() || isSnapshot) {
-            logger.warn(
-                "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                Version.displayVersion(version, isSnapshot));
         }
     }
 

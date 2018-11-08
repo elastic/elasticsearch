@@ -66,7 +66,6 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -520,6 +519,12 @@ public final class TokenService {
         }
     }
 
+    /**
+     * This method performs the steps necessary to invalidate a refresh token so that it may no longer be used.
+     *
+     * @param refreshToken The string representation of the refresh token
+     * @param listener  the listener to notify upon completion
+     */
     public void invalidateRefreshToken(String refreshToken, ActionListener<TokensInvalidationResult> listener) {
         ensureEnabled();
         if (Strings.isNullOrEmpty(refreshToken)) {
@@ -529,7 +534,7 @@ public final class TokenService {
             maybeStartTokenRemover();
             findTokenFromRefreshToken(refreshToken,
                     ActionListener.wrap(tuple -> {
-                        final String docId = tuple.v1().getHits().getAt(0).getId();
+                        final String docId = getTokenIdFromDocumentId(tuple.v1().getHits().getAt(0).getId());
                         indexInvalidation(Collections.singletonList(docId), listener, tuple.v2(), "refresh_token", null);
                     }, listener::onFailure), new AtomicInteger(0));
         }
@@ -594,9 +599,9 @@ public final class TokenService {
     }
 
     /**
-     * Performs the actual bwc invalidation of a token and then kicks off the new invalidation method
+     * Performs the actual bwc invalidation of a collection of tokens and then kicks off the new invalidation method.
      *
-     * @param tokenIds           the token to invalidate
+     * @param tokenIds             the collection of token ids or token document ids that should be invalidated
      * @param listener             the listener to notify upon completion
      * @param attemptCount         the number of attempts to invalidate that have already been tried
      * @param expirationEpochMilli the expiration time as milliseconds since the epoch
@@ -633,9 +638,9 @@ public final class TokenService {
                             logger.error(cause.getMessage());
                             traceLog("(bwc) invalidate all tokens", null, cause);
                             if (isShardNotAvailableException(cause)) {
-                                retryTokenIds.add(bulkItemResponse.getFailure().getId());
-                            } else if (cause instanceof VersionConflictEngineException == false) {
-                                // We don't handle VersionConflictEngineException, something else might have invalidated this token
+                                retryTokenIds.add(getTokenIdFromInvalidatedTokenDocumentId(bulkItemResponse.getFailure().getId()));
+                            } else if ((cause instanceof VersionConflictEngineException) == false){
+                                // We don't handle VersionConflictEngineException, the ticket has been invalidated
                                 listener.onFailure(bulkItemResponse.getFailure().getCause());
                             }
                         }
@@ -660,17 +665,18 @@ public final class TokenService {
     }
 
     /**
-     * Performs the actual invalidation of a token
+     * Performs the actual invalidation of a collection of tokens
      *
      * @param tokenIds        the tokens to invalidate
      * @param listener        the listener to notify upon completion
      * @param attemptCount    the number of attempts to invalidate that have already been tried
-     * @param srcPrefix       the prefix to use when constructing the doc to update
+     * @param srcPrefix       the prefix to use when constructing the doc to update, either refresh_token or access_token depending on
+     *                        what type of tokens should be invalidated
      */
     private void indexInvalidation(Collection<String> tokenIds, ActionListener<TokensInvalidationResult> listener,
                                    AtomicInteger attemptCount, String srcPrefix, @Nullable TokensInvalidationResult previousResult) {
         if (tokenIds.isEmpty()) {
-            logger.warn("No tokens provided for invalidation");
+            logger.warn("No [{}] tokens provided for invalidation", srcPrefix);
             listener.onFailure(invalidGrantException("No tokens provided for invalidation"));
         } else if (attemptCount.get() > MAX_RETRY_ATTEMPTS) {
             logger.warn("Failed to invalidate [{}] tokens after [{}] attempts", tokenIds.size(),
@@ -701,13 +707,11 @@ public final class TokenService {
                         for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
                             if (bulkItemResponse.isFailed()) {
                                 Throwable cause = bulkItemResponse.getFailure().getCause();
-                                if (cause instanceof DocumentMissingException) {
-                                    failedRequestResponses.add("Error invalidating " + bulkItemResponse.getFailure().getId() + ": " +
-                                        cause.getMessage());
-                                } else if (isShardNotAvailableException(cause)) {
-                                    retryTokenDocIds.add(bulkItemResponse.getFailure().getId());
-                                } else if (cause instanceof VersionConflictEngineException) {
-                                    retryTokenDocIds.add(bulkItemResponse.getFailure().getId());
+                                if (isShardNotAvailableException(cause)) {
+                                    retryTokenDocIds.add(getTokenIdFromDocumentId(bulkItemResponse.getFailure().getId()));
+                                }
+                                else {
+                                    failedRequestResponses.add("Error invalidating " + srcPrefix + ": " + cause.getMessage());
                                 }
                             } else {
                                 UpdateResponse updateResponse = bulkItemResponse.getResponse();
@@ -1084,11 +1088,23 @@ public final class TokenService {
     }
 
     private static String getTokenDocumentId(String id) {
-        // When retrying indexInvalidation, we already have the token document id, so we don't add another token_ prefix
-        if (id.substring(0, "token_".length()).equals("token_") == false) {
-            return "token_" + id;
+        return "token_" + id;
+    }
+
+    private static String getTokenIdFromDocumentId(String docId) {
+        if (docId.substring(0, "token_".length()).equals("token_") == false) {
+            throw new IllegalStateException("TokenDocument ID [" + docId + "] has unexpected value");
         } else {
-            return id;
+            return docId.substring("token_".length());
+        }
+    }
+
+    private static String getTokenIdFromInvalidatedTokenDocumentId(String docId) {
+        final String invalidatedTokenDocPrefix = INVALIDATED_TOKEN_DOC_TYPE + "_";
+        if (docId.substring(0, invalidatedTokenDocPrefix.length()).equals(invalidatedTokenDocPrefix) == false) {
+            throw new IllegalStateException("InvalidatedTokenDocument ID [" + docId + "] has unexpected value");
+        } else {
+            return docId.substring(invalidatedTokenDocPrefix.length());
         }
     }
 

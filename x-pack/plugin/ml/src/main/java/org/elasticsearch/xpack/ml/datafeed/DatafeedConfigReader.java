@@ -40,7 +40,7 @@ public class DatafeedConfigReader {
     }
 
     /**
-     * Merges the results of {@Link MlMetadata#expandDatafeedIds}
+     * Merges the results of {@link MlMetadata#expandDatafeedIds}
      * and {@link DatafeedConfigProvider#expandDatafeedIds(String, boolean, ActionListener)}
      */
     public void expandDatafeedIds(String expression, boolean allowNoDatafeeds, ClusterState clusterState,
@@ -75,7 +75,7 @@ public class DatafeedConfigReader {
     }
 
     /**
-     * Merges the results of {@Link MlMetadata#expandDatafeedIds}
+     * Merges the results of {@link MlMetadata#expandDatafeedIds}
      * and {@link DatafeedConfigProvider#expandDatafeedConfigs(String, boolean, ActionListener)}
      */
     public void expandDatafeedConfigs(String expression, boolean allowNoDatafeeds, ClusterState clusterState,

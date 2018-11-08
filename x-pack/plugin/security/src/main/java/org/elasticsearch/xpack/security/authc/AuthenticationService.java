@@ -61,12 +61,13 @@ public class AuthenticationService {
     private final String nodeName;
     private final AnonymousUser anonymousUser;
     private final TokenService tokenService;
+    private final ApiKeyService apiKeyService;
     private final boolean runAsEnabled;
     private final boolean isAnonymousUserEnabled;
 
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrail,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
-                                 AnonymousUser anonymousUser, TokenService tokenService) {
+                                 AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
         this.auditTrail = auditTrail;
@@ -76,6 +77,7 @@ public class AuthenticationService {
         this.runAsEnabled = AuthenticationServiceField.RUN_AS_ENABLED.get(settings);
         this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.tokenService = tokenService;
+        this.apiKeyService = apiKeyService;
     }
 
     /**
@@ -181,7 +183,7 @@ public class AuthenticationService {
                         if (userToken != null) {
                             writeAuthToContext(userToken.getAuthentication());
                         } else {
-                            extractToken(this::consumeToken);
+                            checkForApiKey();
                         }
                     }, e -> {
                         if (e instanceof ElasticsearchSecurityException &&
@@ -194,6 +196,31 @@ public class AuthenticationService {
                     }));
                 }
             });
+        }
+
+        private void checkForApiKey() {
+            apiKeyService.authenticateWithApiKeyIfPresent(threadContext, ActionListener.wrap(authResult -> {
+                    if (authResult.isAuthenticated()) {
+                        final User user = authResult.getUser();
+                        authenticatedBy = new RealmRef("_es_api_key", "_es_api_key", nodeName);
+                        writeAuthToContext(new Authentication(user, authenticatedBy, null));
+                    } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                        Exception e = (authResult.getException() != null) ? authResult.getException()
+                            : Exceptions.authenticationError(authResult.getMessage());
+                        listener.onFailure(e);
+                    } else {
+                        if (authResult.getMessage() != null) {
+                            if (authResult.getException() != null) {
+                                logger.warn(new ParameterizedMessage("Authentication using apikey failed - {}", authResult.getMessage()),
+                                    authResult.getException());
+                            } else {
+                                logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
+                            }
+                        }
+                        extractToken(this::consumeToken);
+                    }
+                },
+                e -> listener.onFailure(request.exceptionProcessingRequest(e, null))));
         }
 
         /**

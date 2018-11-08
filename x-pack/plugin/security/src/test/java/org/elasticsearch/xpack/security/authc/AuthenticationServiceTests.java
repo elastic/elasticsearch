@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetAction;
@@ -28,6 +29,8 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -37,8 +40,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -60,6 +65,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.Realm.Factory;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -75,10 +81,14 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -127,6 +137,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private ThreadContext threadContext;
     private TokenService tokenService;
+    private ApiKeyService apiKeyService;
     private SecurityIndexManager securityIndex;
     private Client client;
     private InetSocketAddress remoteAddress;
@@ -148,10 +159,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.type()).thenReturn("second");
         when(secondRealm.name()).thenReturn("second_realm");
         Settings settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("node.name", "authc_test")
-                .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
-                .build();
+            .put("path.home", createTempDir())
+            .put("node.name", "authc_test")
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+            .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
+            .build();
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.allowedRealmType()).thenReturn(XPackLicenseState.AllowedRealmType.ALL);
         when(licenseState.isAuthAllowed()).thenReturn(true);
@@ -194,9 +206,10 @@ public class AuthenticationServiceTests extends ESTestCase {
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings), tokenService);
+                new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings), tokenService, apiKeyService);
     }
 
     @After
@@ -461,7 +474,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         try {
             ThreadContext threadContext1 = threadPool1.getThreadContext();
             service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
-                    new DefaultAuthenticationFailureHandler(), threadPool1, new AnonymousUser(Settings.EMPTY), tokenService);
+                    new DefaultAuthenticationFailureHandler(), threadPool1, new AnonymousUser(Settings.EMPTY), tokenService, apiKeyService);
 
 
             threadContext1.putTransient(AuthenticationField.AUTHENTICATION_KEY, authRef.get());
@@ -484,8 +497,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             ThreadContext threadContext2 = threadPool2.getThreadContext();
             final String header;
             try (ThreadContext.StoredContext ignore = threadContext2.stashContext()) {
-                service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
-                        new DefaultAuthenticationFailureHandler(), threadPool2, new AnonymousUser(Settings.EMPTY), tokenService);
+                service = new AuthenticationService(Settings.EMPTY, realms, auditTrail, new DefaultAuthenticationFailureHandler(),
+                    threadPool2, new AnonymousUser(Settings.EMPTY), tokenService, apiKeyService);
                 threadContext2.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
 
                 BytesStreamOutput output = new BytesStreamOutput();
@@ -498,7 +511,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
             threadPool2.getThreadContext().putHeader(AuthenticationField.AUTHENTICATION_KEY, header);
             service = new AuthenticationService(Settings.EMPTY, realms, auditTrail,
-                    new DefaultAuthenticationFailureHandler(), threadPool2, new AnonymousUser(Settings.EMPTY), tokenService);
+                    new DefaultAuthenticationFailureHandler(), threadPool2, new AnonymousUser(Settings.EMPTY), tokenService, apiKeyService);
             service.authenticate("_action", new InternalMessage(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
                 assertThat(result, notNullValue());
                 assertThat(result.getUser(), equalTo(user1));
@@ -534,7 +547,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         Settings settings = builder.build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrail, new DefaultAuthenticationFailureHandler(),
-                threadPool, anonymousUser, tokenService);
+                threadPool, anonymousUser, tokenService, apiKeyService);
         RestRequest request = new FakeRestRequest();
 
         Authentication result = authenticateBlocking(request);
@@ -552,7 +565,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser, tokenService);
+                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser, tokenService, apiKeyService);
         InternalMessage message = new InternalMessage();
 
         Authentication result = authenticateBlocking("_action", message, null);
@@ -567,7 +580,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .build();
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser, tokenService);
+                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser, tokenService, apiKeyService);
 
         InternalMessage message = new InternalMessage();
 
@@ -1024,6 +1037,93 @@ public class AuthenticationServiceTests extends ESTestCase {
                     expectThrows(ElasticsearchSecurityException.class, () -> authenticateBlocking("_action", message, null));
             assertEquals(RestStatus.UNAUTHORIZED, e.status());
             assertEquals("token expired", e.getMessage());
+        }
+    }
+
+    public void testApiKeyAuthInvalidHeader() {
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            final String invalidHeader = randomFrom("apikey", "apikey ", "apikey foo");
+            threadContext.putHeader("Authorization", invalidHeader);
+            ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+                () -> authenticateBlocking("_action", message, null));
+            assertThat(e.getMessage(), containsString("missing authentication token"));
+            assertEquals(RestStatus.UNAUTHORIZED, e.status());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testApiKeyAuth() {
+        final String id = randomAlphaOfLength(12);
+        final String key = UUIDs.randomBase64UUID(random());
+        final String headerValue = "ApiKey " + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
+        doAnswer(invocationOnMock -> {
+            final GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
+            if (request.id().equals(id)) {
+                final Map<String, Object> source = new HashMap<>();
+                source.put("doc_type", "api_key");
+                source.put("creation_time", Instant.now().minus(5, ChronoUnit.MINUTES).toEpochMilli());
+                source.put("api_key_hash", new String(Hasher.BCRYPT4.hash(new SecureString(key.toCharArray()))));
+                source.put("role_descriptors", Collections.singletonList(Collections.singletonMap("name", "a role")));
+                source.put("name", "my api key for testApiKeyAuth");
+                Map<String, Object> creatorMap = new HashMap<>();
+                creatorMap.put("principal", "johndoe");
+                creatorMap.put("metadata", Collections.emptyMap());
+                creatorMap.put("realm", "auth realm");
+                source.put("creator", creatorMap);
+                GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 1L, true,
+                    BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap()));
+                listener.onResponse(getResponse);
+            } else {
+                listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(), -1L, false, null,
+                    Collections.emptyMap())));
+            }
+            return Void.TYPE;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.putHeader("Authorization", headerValue);
+            final Authentication authentication = authenticateBlocking("_action", message, null);
+            assertThat(authentication.getUser().principal(), is("johndoe"));
+        }
+    }
+
+    public void testExpiredApiKey() {
+        final String id = randomAlphaOfLength(12);
+        final String key = UUIDs.randomBase64UUID(random());
+        final String headerValue = "ApiKey " + Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
+        doAnswer(invocationOnMock -> {
+            final GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
+            final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
+            if (request.id().equals(id)) {
+                final Map<String, Object> source = new HashMap<>();
+                source.put("doc_type", "api_key");
+                source.put("creation_time", Instant.now().minus(5L, ChronoUnit.HOURS).toEpochMilli());
+                source.put("expiration_time", Instant.now().minus(1L, ChronoUnit.HOURS).toEpochMilli());
+                source.put("api_key_hash", new String(Hasher.BCRYPT4.hash(new SecureString(key.toCharArray()))));
+                source.put("role_descriptors", Collections.singletonList(Collections.singletonMap("name", "a role")));
+                source.put("name", "my api key for testApiKeyAuth");
+                Map<String, Object> creatorMap = new HashMap<>();
+                creatorMap.put("principal", "johndoe");
+                creatorMap.put("metadata", Collections.emptyMap());
+                creatorMap.put("realm", "auth realm");
+                source.put("creator", creatorMap);
+                GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 1L, true,
+                    BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap()));
+                listener.onResponse(getResponse);
+            } else {
+                listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(), -1L, false, null,
+                    Collections.emptyMap())));
+            }
+            return Void.TYPE;
+        }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            threadContext.putHeader("Authorization", headerValue);
+            ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+                () -> authenticateBlocking("_action", message, null));
+            assertThat(e.getMessage(), containsString("missing authentication token"));
+            assertEquals(RestStatus.UNAUTHORIZED, e.status());
         }
     }
 

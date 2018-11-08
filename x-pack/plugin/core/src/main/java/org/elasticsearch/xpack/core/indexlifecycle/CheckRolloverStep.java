@@ -16,12 +16,18 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.function.LongSupplier;
 
+/**
+ * Checks whether the {@link RolloverStep} immediately prior to this step has successfully rolled over, including
+ * attaching RolloverInfo necessary for subsequent steps. Without this step, sometimes the RolloverInfo is not attached
+ * before the next step runs, causing an error.
+ *
+ * This step includes a timeout, and will error if the rollover has not completed after the timeout has passed.
+ */
 public class CheckRolloverStep extends AsyncWaitStep {
     public static final String NAME = "check_rollover";
 
     private static final Logger logger = LogManager.getLogger(CheckRolloverStep.class);
     static final long TIMEOUT_MILLIS = TimeValue.timeValueMinutes(10).millis();
-
 
     private LongSupplier nowSupplier;
 
@@ -45,8 +51,9 @@ public class CheckRolloverStep extends AsyncWaitStep {
             LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(indexMetaData);
             Long stepTime = executionState.getStepTime();
 
+            assert NAME.equals(executionState.getStep()) : "the execution state must be on this step";
             if (stepTime == null) {
-                listener.onFailure(new IllegalStateException(indexMetaData.getIndex().getName() + " index has a null step_time"));
+                listener.onFailure(new IllegalStateException("index [" + indexMetaData.getIndex().getName()  + "] has a null step_time"));
                 return;
             }
             long millisSinceEnteringStep = nowSupplier.getAsLong() - stepTime;

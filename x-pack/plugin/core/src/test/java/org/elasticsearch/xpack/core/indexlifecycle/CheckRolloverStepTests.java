@@ -8,10 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
@@ -87,29 +84,9 @@ public class CheckRolloverStepTests extends AbstractStepTestCase<CheckRolloverSt
         return new CheckRolloverStep(instance.getKey(), instance.getNextStepKey(), null, () -> stepTime);
     }
 
-    private ClusterState createClusterState(boolean hasRolloverInfo) {
-        LifecycleExecutionState executionState = LifecycleExecutionState.builder()
-            .setStepTime(stepTime).build();
-
-        Settings.Builder indexSettingsBuilder = Settings.builder();
-        Settings indexSettings = indexSettingsBuilder.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, aliasName).build();
-        IndexMetaData.Builder indexMetadata = IndexMetaData.builder(indexName)
-            .settings(indexSettings)
-            .putCustom(ILM_CUSTOM_METADATA_KEY, executionState.asMap());
-        if (hasRolloverInfo) {
-            RolloverInfo rolloverInfo = new RolloverInfo(aliasName, null, stepTime);
-            indexMetadata.putRolloverInfo(rolloverInfo);
-        }
-
-        MetaData metadata = MetaData.builder().put(indexMetadata.build(), true).build();
-        return ClusterState.builder(new ClusterName("my_cluster")).metaData(metadata).build();
-    }
-
     private IndexMetaData createIndexMetaData(boolean hasRolloverInfo) {
         LifecycleExecutionState executionState = LifecycleExecutionState.builder()
+            .setStep(CheckRolloverStep.NAME)
             .setStepTime(stepTime).build();
 
         Settings.Builder indexSettingsBuilder = Settings.builder();

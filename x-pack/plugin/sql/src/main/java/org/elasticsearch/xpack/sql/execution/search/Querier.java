@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.session.Configuration;
+import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.type.Schema;
@@ -330,7 +331,15 @@ public class Querier {
                             succeeded -> listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), null)),
                             listener::onFailure));
                 } else {
-                    listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId));
+                    SchemaSearchHitRowSet hitRowSet = new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), scrollId);
+                    if (hitRowSet.nextPageCursor() == Cursor.EMPTY) {
+                        // clear the scroll
+                        clear(response.getScrollId(), ActionListener.wrap(
+                                succeeded -> listener.onResponse(new SchemaSearchHitRowSet(schema, exts, hits, query.limit(), null)),
+                                listener::onFailure));
+                    } else {
+                        listener.onResponse(hitRowSet);
+                    }
                 }
             }
             // no hits

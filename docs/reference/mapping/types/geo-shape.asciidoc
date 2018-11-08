@@ -218,10 +218,7 @@ PUT /example
     }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[warning:Field parameter [tree] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-// TEST[warning:Field parameter [strategy] is deprecated and will be removed in a future version. use [vector] indexing strategy instead.]
-
+// NOTCONSOLE
 
 This mapping maps the location field to the geo_shape type using the
 quad_tree implementation and a precision of 100m. Elasticsearch translates

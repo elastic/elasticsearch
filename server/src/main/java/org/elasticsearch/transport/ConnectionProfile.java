@@ -77,7 +77,6 @@ public final class ConnectionProfile {
         Builder builder = new Builder();
         builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
         builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
-        // TODO: Add test
         builder.setCompressionEnabled(Transport.TRANSPORT_TCP_COMPRESS.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);

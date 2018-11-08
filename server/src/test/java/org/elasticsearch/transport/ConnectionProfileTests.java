@@ -35,14 +35,19 @@ public class ConnectionProfileTests extends ESTestCase {
     public void testBuildConnectionProfile() {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         TimeValue connectTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
-        TimeValue handshaketTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
+        TimeValue handshakeTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
+        boolean compressionEnabled = randomBoolean();
         final boolean setConnectTimeout = randomBoolean();
         if (setConnectTimeout) {
             builder.setConnectTimeout(connectTimeout);
         }
         final boolean setHandshakeTimeout = randomBoolean();
         if (setHandshakeTimeout) {
-            builder.setHandshakeTimeout(handshaketTimeout);
+            builder.setHandshakeTimeout(handshakeTimeout);
+        }
+        final boolean setCompress = randomBoolean();
+        if (setCompress) {
+            builder.setCompressionEnabled(compressionEnabled);
         }
         builder.addConnections(1, TransportRequestOptions.Type.BULK);
         builder.addConnections(2, TransportRequestOptions.Type.STATE, TransportRequestOptions.Type.RECOVERY);
@@ -66,9 +71,15 @@ public class ConnectionProfileTests extends ESTestCase {
         }
 
         if (setHandshakeTimeout) {
-            assertEquals(handshaketTimeout, build.getHandshakeTimeout());
+            assertEquals(handshakeTimeout, build.getHandshakeTimeout());
         } else {
             assertNull(build.getHandshakeTimeout());
+        }
+
+        if (setCompress) {
+            assertEquals(compressionEnabled, build.getCompressionEnabled());
+        } else {
+            assertNull(build.getCompressionEnabled());
         }
 
         List<Integer> list = new ArrayList<>(10);
@@ -150,6 +161,11 @@ public class ConnectionProfileTests extends ESTestCase {
             builder.setHandshakeTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
 
+        final boolean connectionCompressSet = randomBoolean();
+        if (connectionCompressSet) {
+            builder.setCompressionEnabled(randomBoolean());
+        }
+
         final ConnectionProfile profile = builder.build();
         final ConnectionProfile resolved = ConnectionProfile.resolveConnectionProfile(profile, defaultProfile);
         assertNotEquals(resolved, defaultProfile);
@@ -160,6 +176,8 @@ public class ConnectionProfileTests extends ESTestCase {
             equalTo(connectionTimeoutSet ? profile.getConnectTimeout() : defaultProfile.getConnectTimeout()));
         assertThat(resolved.getHandshakeTimeout(),
             equalTo(connectionHandshakeSet ? profile.getHandshakeTimeout() : defaultProfile.getHandshakeTimeout()));
+        assertThat(resolved.getCompressionEnabled(),
+            equalTo(connectionCompressSet ? profile.getCompressionEnabled() : defaultProfile.getCompressionEnabled()));
     }
 
     public void testDefaultConnectionProfile() {
@@ -170,6 +188,9 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
         assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+        assertEquals(TransportService.TCP_CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getConnectTimeout());
+        assertEquals(TransportService.TCP_CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getHandshakeTimeout());
+        assertEquals(Transport.TRANSPORT_TCP_COMPRESS.get(Settings.EMPTY), profile.getCompressionEnabled());
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.builder().put("node.master", false).build());
         assertEquals(12, profile.getNumConnections());

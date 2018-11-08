@@ -730,7 +730,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
 
 
-        final IndexShard shard = mock(IndexShard.class);
+        final IndexShard shard = mockIndexShard(shardId, clusterService);
         when(shard.getPendingPrimaryTerm()).thenReturn(primaryTerm);
         when(shard.routingEntry()).thenReturn(routingEntry);
         when(shard.isRelocatedPrimary()).thenReturn(false);
@@ -1222,6 +1222,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService) {
         final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(shardId);
         doAnswer(invocation -> {
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
             count.incrementAndGet();

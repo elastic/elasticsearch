@@ -314,7 +314,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(getFullSettingKey(identifier, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM), VerificationMode.CERTIFICATE)
                 .build();
         final RealmConfig config = getRealmConfig(identifier, settings);
-        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(config.globalSettings(), config.env()), threadPool);
+        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, new SSLService(config.settings(), config.env()), threadPool);
         try {
             assertThat(sessionFactory, is(instanceOf(LdapUserSearchSessionFactory.class)));
         } finally {
@@ -435,7 +435,7 @@ public class LdapRealmTests extends LdapTestCase {
 
         RealmConfig config = getRealmConfig(identifier, settings.build());
 
-        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, new SSLService(config.globalSettings(), config.env()), threadPool);
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, new SSLService(config.settings(), config.env()), threadPool);
         LdapRealm realm = new LdapRealm(config, ldapFactory, new DnRoleMapper(config, resourceWatcherService), threadPool);
         realm.initialize(Collections.singleton(realm), licenseState);
 

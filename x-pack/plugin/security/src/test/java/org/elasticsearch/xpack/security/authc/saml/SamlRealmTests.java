@@ -140,7 +140,7 @@ public class SamlRealmTests extends SamlTestCase {
             assertEquals(0, proxyServer.requests().size());
 
             Tuple<RealmConfig, SSLService> config = buildConfig("https://localhost:" + proxyServer.getPort());
-            logger.info("Settings\n{}", config.v1().globalSettings().toDelimitedString('\n'));
+            logger.info("Settings\n{}", config.v1().settings().toDelimitedString('\n'));
             final ResourceWatcherService watcherService = mock(ResourceWatcherService.class);
             Tuple<AbstractReloadingMetadataResolver, Supplier<EntityDescriptor>> tuple
                     = SamlRealm.initializeResolver(logger, config.v1(), config.v2(), watcherService);
@@ -284,7 +284,7 @@ public class SamlRealmTests extends SamlTestCase {
         try {
             return new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp);
         } catch (SettingsException e) {
-            logger.info(new ParameterizedMessage("Settings are invalid:\n{}", config.globalSettings().toDelimitedString('\n')), e);
+            logger.info(new ParameterizedMessage("Settings are invalid:\n{}", config.settings().toDelimitedString('\n')), e);
             throw e;
         }
     }

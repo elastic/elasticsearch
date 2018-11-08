@@ -36,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -106,7 +105,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             IndexTemplateMetaData.builder("changed_test_template").patterns(randomIndexPatterns()).build()
         );
 
-        final TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, threadPool,
+        final TemplateUpgradeService service = new TemplateUpgradeService(null, clusterService, threadPool,
             Arrays.asList(
                 templates -> {
                     if (shouldAdd) {
@@ -206,7 +205,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             additions.put("add_template_" + i, new BytesArray("{\"index_patterns\" : \"*\", \"order\" : " + i + "}"));
         }
 
-        final TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
+        final TemplateUpgradeService service = new TemplateUpgradeService(mockClient, clusterService, threadPool,
             Collections.emptyList());
 
         IllegalStateException ise = expectThrows(IllegalStateException.class, () -> service.upgradeTemplates(additions, deletions));
@@ -298,7 +297,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             return null;
         }).when(mockIndicesAdminClient).deleteTemplate(any(DeleteIndexTemplateRequest.class), any(ActionListener.class));
 
-        final TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
+        final TemplateUpgradeService service = new TemplateUpgradeService(mockClient, clusterService, threadPool,
             Arrays.asList(
                 templates -> {
                     assertNull(templates.put("added_test_template", IndexTemplateMetaData.builder("added_test_template")

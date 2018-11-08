@@ -47,7 +47,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
     protected TransportAction(Settings settings, String actionName, ThreadPool threadPool, ActionFilters actionFilters,
                               IndexNameExpressionResolver indexNameExpressionResolver, TaskManager taskManager) {
-        super(settings);
+        // TODO drop settings from ctor
         this.threadPool = threadPool;
         this.actionName = actionName;
         this.filters = actionFilters.filters();

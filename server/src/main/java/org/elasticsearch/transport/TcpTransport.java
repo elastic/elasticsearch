@@ -117,8 +117,7 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
 
-    public static final String TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX = "transport_server_worker";
-    public static final String TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX = "transport_client_boss";
+    public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = "transport_worker";
 
     public static final Setting<List<String>> HOST =
         listSetting("transport.host", emptyList(), Function.identity(), Setting.Property.NodeScope);
@@ -175,6 +174,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public static final Setting<Settings> DEFAULT_FEATURES_SETTING = Setting.groupSetting(FEATURE_PREFIX + ".", Setting.Property.NodeScope);
     private final String[] features;
 
+    protected final Settings settings;
     private final CircuitBreakerService circuitBreakerService;
     protected final ThreadPool threadPool;
     private final BigArrays bigArrays;
@@ -213,6 +213,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                         NetworkService networkService) {
         super(settings);
+        this.settings = settings;
         this.profileSettings = getProfileSettings(settings);
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;

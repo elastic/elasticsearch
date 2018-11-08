@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -48,12 +46,11 @@ public class TriggeredWatch implements ToXContentObject {
         return builder;
     }
 
-    public static class Parser extends AbstractComponent {
+    public static class Parser {
 
         private final TriggerService triggerService;
 
-        public Parser(Settings settings, TriggerService triggerService) {
-            super(settings);
+        public Parser(TriggerService triggerService) {
             this.triggerService = triggerService;
         }
 

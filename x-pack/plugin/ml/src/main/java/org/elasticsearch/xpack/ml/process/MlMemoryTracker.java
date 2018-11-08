@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.process;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
@@ -38,28 +38,27 @@ import java.util.stream.Collectors;
  * 3. When a job is opened the memory requirement for that single job is updated
  * As a result of this every open job should have a value for its memory requirement that is no more than 30 seconds out-of-date.
  */
-public class MlMemoryTracker extends AbstractComponent implements LocalNodeMasterListener {
+public class MlMemoryTracker implements LocalNodeMasterListener {
 
     private static final Long RECENT_UPDATE_THRESHOLD_NS = 30_000_000_000L; // 30 seconds
+
+    private final Logger logger = LogManager.getLogger(MlMemoryTracker.class);
+    private final ConcurrentHashMap<String, Long> memoryRequirementByJob = new ConcurrentHashMap<>();
+    private final List<ActionListener<Void>> fullRefreshCompletionListeners = new ArrayList<>();
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
-    private final ConcurrentHashMap<String, Long> memoryRequirementByJob;
-    private final List<ActionListener<Void>> fullRefreshCompletionListeners;
     private volatile boolean isMaster;
     private volatile Long lastUpdateNanotime;
 
-    public MlMemoryTracker(Settings settings, ClusterService clusterService, ThreadPool threadPool, JobManager jobManager,
+    public MlMemoryTracker(ClusterService clusterService, ThreadPool threadPool, JobManager jobManager,
                            JobResultsProvider jobResultsProvider) {
-        super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
-        memoryRequirementByJob = new ConcurrentHashMap<>();
-        fullRefreshCompletionListeners = new ArrayList<>();
         clusterService.addLocalNodeMasterListener(this);
     }
 

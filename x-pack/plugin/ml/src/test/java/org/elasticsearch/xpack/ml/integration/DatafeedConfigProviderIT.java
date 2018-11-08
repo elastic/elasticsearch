@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -47,7 +46,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        datafeedConfigProvider = new DatafeedConfigProvider(client(), Settings.EMPTY, xContentRegistry());
+        datafeedConfigProvider = new DatafeedConfigProvider(client(), xContentRegistry());
         waitForMlTemplates();
     }
 

@@ -42,7 +42,7 @@ public class DocsTestPlugin extends RestTestPlugin {
              * to the version being built for testing but needs to resolve to
              * the last released version for docs. */
             '\\{version\\}':
-                VersionProperties.elasticsearch.toString().replace('-SNAPSHOT', ''),
+                VersionProperties.elasticsearch.replace('-SNAPSHOT', ''),
             '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
             '\\{build_flavor\\}' :
                 project.integTestCluster.distribution.startsWith('oss-') ? 'oss' : 'default',

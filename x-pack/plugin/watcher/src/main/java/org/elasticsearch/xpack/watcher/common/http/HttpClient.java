@@ -75,11 +75,10 @@ public class HttpClient extends AbstractComponent implements Closeable {
     private final CryptoService cryptoService;
 
     public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService) {
-        super(settings);
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
         this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
-        this.settingsProxy = getProxyFromSettings();
+        this.settingsProxy = getProxyFromSettings(settings);
         this.cryptoService = cryptoService;
 
         HttpClientBuilder clientBuilder = HttpClientBuilder.create();
@@ -228,7 +227,7 @@ public class HttpClient extends AbstractComponent implements Closeable {
      *
      * @return An HTTP proxy instance, if no settings are configured this will be an HttpProxy.NO_PROXY instance
      */
-    private HttpProxy getProxyFromSettings() {
+    private HttpProxy getProxyFromSettings(Settings settings) {
         String proxyHost = HttpSettings.PROXY_HOST.get(settings);
         Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings) ?
                 Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings)) : Scheme.HTTP;

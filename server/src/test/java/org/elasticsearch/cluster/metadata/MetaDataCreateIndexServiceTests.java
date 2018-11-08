@@ -156,8 +156,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -226,8 +226,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState("source", numShards, 0,
             Settings.builder().put("index.blocks.write", true).put("index.number_of_routing_shards", targetShards).build()))
             .nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
-        AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
-            Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+        AllocationService service = new AllocationService(new AllocationDeciders(
+            Collections.singleton(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -360,9 +360,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
                         .build();
 
         final AllocationService service = new AllocationService(
-                Settings.builder().build(),
-                new AllocationDeciders(Settings.EMPTY,
-                Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
+                new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
                 new TestGatewayAllocator(),
                 new BalancedShardsAllocator(Settings.EMPTY),
                 EmptyClusterInfoService.INSTANCE);
@@ -415,7 +413,8 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         MetaDataCreateIndexService.validateIndexName("foo:bar", ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
                         .getDefault(Settings.EMPTY)).build());
-        assertWarnings("index or alias name [foo:bar] containing ':' is deprecated and will not be supported in Elasticsearch 7.0+");
+        assertWarnings("index or alias name [foo:bar] containing ':' is deprecated. Elasticsearch 7.x will read, " +
+                        "but not allow creation of new indices containing ':'");
     }
 
     private void validateIndexName(String indexName, String errorMessage) {

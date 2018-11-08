@@ -77,7 +77,7 @@ public class DiscoveryModule {
         final Collection<BiConsumer<DiscoveryNode,ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<UnicastHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedHostsProvider(settings, transportService));
-        hostProviders.put("file", () -> new FileBasedUnicastHostsProvider(settings, configFile));
+        hostProviders.put("file", () -> new FileBasedUnicastHostsProvider(configFile));
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getZenHostsProviders(transportService, networkService).entrySet().forEach(entry -> {
                 if (hostProviders.put(entry.getKey(), entry.getValue()) != null) {

@@ -27,7 +27,6 @@ import java.time.ZonedDateTime;
  * - It can be used to produce results in testing that do not vary based on changes to the real normalization algorithms
  */
 public class MultiplyingNormalizerProcess implements NormalizerProcess {
-
     private static final Logger LOGGER = LogManager.getLogger(MultiplyingNormalizerProcess.class);
 
     private final double factor;

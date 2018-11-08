@@ -49,6 +49,38 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testMissingColumn() {
         assertEquals("1:8: Unknown column [xxx]", verify("SELECT xxx FROM test"));
     }
+    
+    public void testMissingColumnWithWildcard() {
+        assertEquals("1:8: Unknown column [xxx]", verify("SELECT xxx.* FROM test"));
+    }
+    
+    public void testMisspelledColumnWithWildcard() {
+        assertEquals("1:8: Unknown column [tex], did you mean [text]?", verify("SELECT tex.* FROM test"));
+    }
+    
+    public void testColumnWithNoSubFields() {
+        assertEquals("1:8: Cannot determine columns for [text.*]", verify("SELECT text.* FROM test"));
+    }
+    
+    public void testMultipleColumnsWithWildcard1() {
+        assertEquals("1:14: Unknown column [a]\n" + 
+                "line 1:17: Unknown column [b]\n" + 
+                "line 1:22: Unknown column [c]\n" + 
+                "line 1:25: Unknown column [tex], did you mean [text]?", verify("SELECT bool, a, b.*, c, tex.* FROM test"));
+    }
+    
+    public void testMultipleColumnsWithWildcard2() {
+        assertEquals("1:8: Unknown column [tex], did you mean [text]?\n" + 
+                "line 1:21: Unknown column [a]\n" + 
+                "line 1:24: Unknown column [dat], did you mean [date]?\n" + 
+                "line 1:31: Unknown column [c]", verify("SELECT tex.*, bool, a, dat.*, c FROM test"));
+    }
+    
+    public void testMultipleColumnsWithWildcard3() {
+        assertEquals("1:8: Unknown column [ate], did you mean [date]?\n" + 
+                "line 1:21: Unknown column [keyw], did you mean [keyword]?\n" + 
+                "line 1:29: Unknown column [da], did you mean [date]?" , verify("SELECT ate.*, bool, keyw.*, da FROM test"));
+    }
 
     public void testMisspelledColumn() {
         assertEquals("1:8: Unknown column [txt], did you mean [text]?", verify("SELECT txt FROM test"));

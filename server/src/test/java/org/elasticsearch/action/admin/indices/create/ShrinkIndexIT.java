@@ -81,6 +81,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30416")
     public void testCreateShrinkIndexToN() {
         assumeFalse("Broken on windows - https://github.com/elastic/elasticsearch/issues/33857", Constants.WINDOWS);
         int[][] possibleShardSplits = new int[][] {{8,4,2}, {9, 3, 1}, {4, 2, 1}, {15,5,1}};

@@ -53,6 +53,7 @@ import java.util.function.UnaryOperator;
  */
 public class MetaDataIndexUpgradeService extends AbstractComponent {
 
+    private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
@@ -61,7 +62,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
                                        IndexScopedSettings indexScopedSettings,
                                        Collection<UnaryOperator<IndexMetaData>> indexMetaDataUpgraders) {
-        super(settings);
+        this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;

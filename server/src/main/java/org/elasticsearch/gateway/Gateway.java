@@ -49,7 +49,6 @@ public class Gateway extends AbstractComponent {
     public Gateway(Settings settings, ClusterService clusterService,
                    TransportNodesListGatewayMetaState listGatewayMetaState,
                    IndicesService indicesService) {
-        super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.listGatewayMetaState = listGatewayMetaState;

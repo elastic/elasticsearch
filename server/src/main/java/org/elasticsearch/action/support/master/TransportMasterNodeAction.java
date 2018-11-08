@@ -70,12 +70,29 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
     }
 
+    protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService,
+                                        ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
+                                        Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver) {
+        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+    }
+
     protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
                                         TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         Supplier<Request> request) {
         super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, indexNameExpressionResolver,
             request);
+        this.transportService = transportService;
+        this.clusterService = clusterService;
+        this.executor = executor();
+    }
+
+    protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
+                                        TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                        ActionFilters actionFilters, Writeable.Reader<Request> request,
+                                        IndexNameExpressionResolver indexNameExpressionResolver) {
+        super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, request,
+            indexNameExpressionResolver);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.executor = executor();

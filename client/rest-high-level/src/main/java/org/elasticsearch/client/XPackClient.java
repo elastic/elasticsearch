@@ -94,4 +94,5 @@ public final class XPackClient {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, XPackRequestConverters::usage, options,
             XPackUsageResponse::fromXContent, listener, emptySet());
     }
+
 }

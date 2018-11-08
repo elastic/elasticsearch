@@ -42,7 +42,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         return false;
     }
 
-    protected void testConflict(String mapping, String mappingUpdate, Version idxVersion, String... errorMessages) throws InterruptedException {
+    protected void testConflict(String mapping, String mappingUpdate, Version idxVersion,String... errorMessages) {
         assertAcked(prepareCreate(INDEX).setSource(mapping, XContentType.JSON)
             .setSettings(Settings.builder().put("index.version.created", idxVersion.id)));
         ensureGreen(INDEX);
@@ -101,7 +101,8 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         // make sure all nodes have same cluster state
         for (Client client : cluster().getClients()) {
             GetMappingsResponse currentMapping = client.admin().indices().prepareGetMappings(INDEX).addTypes(TYPE).setLocal(true).get();
-            assertThat(previousMapping.getMappings().get(INDEX).get(TYPE).source(), equalTo(currentMapping.getMappings().get(INDEX).get(TYPE).source()));
+            assertThat(previousMapping.getMappings().get(INDEX).get(TYPE).source(),
+                equalTo(currentMapping.getMappings().get(INDEX).get(TYPE).source()));
         }
     }
 }

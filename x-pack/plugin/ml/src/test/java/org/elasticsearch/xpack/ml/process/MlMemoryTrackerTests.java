@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
@@ -24,7 +23,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -53,9 +51,10 @@ public class MlMemoryTrackerTests extends ESTestCase {
         when(threadPool.executor(anyString())).thenReturn(executorService);
         jobManager = mock(JobManager.class);
         jobResultsProvider = mock(JobResultsProvider.class);
-        memoryTracker = new MlMemoryTracker(Settings.EMPTY, clusterService, threadPool, jobManager, jobResultsProvider);
+        memoryTracker = new MlMemoryTracker(clusterService, threadPool, jobManager, jobResultsProvider);
     }
 
+    @SuppressWarnings("unchecked")
     public void testRefreshAll() {
 
         boolean isMaster = randomBoolean();
@@ -73,6 +72,11 @@ public class MlMemoryTrackerTests extends ESTestCase {
             tasks.put(task.getId(), task);
         }
         PersistentTasksCustomMetaData persistentTasks = new PersistentTasksCustomMetaData(numMlJobTasks, tasks);
+
+        doAnswer(invocation -> {
+            ((ActionListener<Long>) invocation.getArguments()[3]).onResponse(randomLongBetween(1000, 1000000));
+            return null;
+        }).when(jobResultsProvider).getEstablishedMemoryUsage(any(), any(), any(), any(), any());
 
         memoryTracker.refresh(persistentTasks, ActionListener.wrap(aVoid -> {}, ESTestCase::assertNull));
 
@@ -101,7 +105,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
 
         long modelBytes = 1024 * 1024;
         doAnswer(invocation -> {
-            ((Consumer<Long>) invocation.getArguments()[3]).accept(haveEstablishedModelMemory ? modelBytes : 0L);
+            ((ActionListener<Long>) invocation.getArguments()[3]).onResponse(haveEstablishedModelMemory ? modelBytes : 0L);
             return null;
         }).when(jobResultsProvider).getEstablishedMemoryUsage(eq(jobId), any(), any(), any(), any());
 

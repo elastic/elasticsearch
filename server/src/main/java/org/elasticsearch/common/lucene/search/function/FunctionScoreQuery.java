@@ -123,8 +123,7 @@ public class FunctionScoreQuery extends Query {
     final ScoreMode scoreMode;
     final float maxBoost;
     private final Float minScore;
-
-    protected final CombineFunction combineFunction;
+    private final CombineFunction combineFunction;
 
     /**
      * Creates a FunctionScoreQuery without function.
@@ -190,6 +189,10 @@ public class FunctionScoreQuery extends Query {
 
     public Float getMinScore() {
         return minScore;
+    }
+
+    public CombineFunction getCombineFunction() {
+        return combineFunction;
     }
 
     @Override

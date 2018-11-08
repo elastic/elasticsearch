@@ -35,6 +35,14 @@ public abstract class ClusterInfoRequest<Request extends ClusterInfoRequest<Requ
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
+    public ClusterInfoRequest() {
+
+    }
+
+    public ClusterInfoRequest(final StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public Request indices(String... indices) {

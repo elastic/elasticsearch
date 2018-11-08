@@ -61,7 +61,7 @@ public class OsInfo implements Writeable, ToXContentFragment {
         this.availableProcessors = in.readInt();
         this.allocatedProcessors = in.readInt();
         this.name = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
             this.prettyName = in.readOptionalString();
         } else {
             this.prettyName = null;
@@ -76,7 +76,7 @@ public class OsInfo implements Writeable, ToXContentFragment {
         out.writeInt(availableProcessors);
         out.writeInt(allocatedProcessors);
         out.writeOptionalString(name);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeOptionalString(prettyName);
         }
         out.writeOptionalString(arch);

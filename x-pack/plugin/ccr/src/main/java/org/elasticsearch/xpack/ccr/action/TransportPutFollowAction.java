@@ -105,20 +105,12 @@ public final class TransportPutFollowAction
         client.getRemoteClusterClient(remoteCluster);
 
         String leaderIndex = request.getLeaderIndex();
-        createFollowerIndexAndFollowRemoteIndex(request, remoteCluster, leaderIndex, listener);
-    }
-
-    private void createFollowerIndexAndFollowRemoteIndex(
-            final PutFollowAction.Request request,
-            final String remoteCluster,
-            final String leaderIndex,
-            final ActionListener<PutFollowAction.Response> listener) {
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
-                client,
-                remoteCluster,
-                leaderIndex,
-                listener::onFailure,
-                (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
+            client,
+            remoteCluster,
+            leaderIndex,
+            listener::onFailure,
+            (historyUUID, leaderIndexMetaData) -> createFollowerIndex(leaderIndexMetaData, historyUUID, request, listener));
     }
 
     private void createFollowerIndex(

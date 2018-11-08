@@ -19,7 +19,6 @@
 package org.elasticsearch.search.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -700,6 +699,45 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertEquals("1", hits[0].getId());
         assertEquals("2", hits[1].getId());
         assertThat(hits[0].getScore(), greaterThan(hits[1].getScore()));
+    }
+
+     public void testJsonFields() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("_doc")
+                .startObject("properties")
+                    .startObject("headers")
+                        .field("type", "json")
+                        .field("split_queries_on_whitespace", true)
+                    .endObject()
+                .endObject()
+           .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test_json").addMapping("_doc", mapping));
+
+        IndexRequestBuilder indexRequest = client().prepareIndex("test_json", "_doc", "1")
+           .setSource(XContentFactory.jsonBuilder()
+               .startObject()
+                   .startObject("headers")
+                       .field("content-type", "application/json")
+                       .field("origin", "https://www.elastic.co")
+                   .endObject()
+           .endObject());
+        indexRandom(true, false, indexRequest);
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(multiMatchQuery("application/json", "headers"))
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        searchResponse = client().prepareSearch()
+            .setQuery(multiMatchQuery("application/json text/plain", "headers.content-type"))
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        searchResponse = client().prepareSearch()
+            .setQuery(multiMatchQuery("application/json", "headers.origin"))
+            .get();
+        assertHitCount(searchResponse, 0L);
     }
 
     private static void assertEquivalent(String query, SearchResponse left, SearchResponse right) {

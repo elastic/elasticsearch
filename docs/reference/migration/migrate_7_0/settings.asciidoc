@@ -68,6 +68,26 @@ upgrade the setting from `search.remote.*` to `cluster.remote.*`. The fallback
 settings will be removed in 8.0.0.
 
 [float]
+[[audit-logfile-local-node-info]]
+==== Audit logfile local node info
+
+The following settings have been removed:
+
+- `xpack.security.audit.logfile.prefix.emit_node_host_address`, instead use
+  `xpack.security.audit.logfile.emit_node_host_address`
+- `xpack.security.audit.logfile.prefix.emit_node_host_name`, instead use
+  `xpack.security.audit.logfile.emit_node_host_name`
+- `xpack.security.audit.logfile.prefix.emit_node_name`, instead use
+  `xpack.security.audit.logfile.emit_node_name`
+
+The new settings have the same meaning as the removed ones, but the `prefix`
+name component is no longer meaningful as logfile audit entries are structured
+JSON documents and are not prefixed by anything.
+Moreover, `xpack.security.audit.logfile.emit_node_name` has changed its default
+from `true` to `false`. All other settings mentioned before, have kept their
+default value of `false`.
+
+[float]
 [[include-realm-type-in-setting]]
 ==== Security realms settings
 
@@ -84,7 +104,7 @@ xpack.security.authc.realms:
     url: "ldaps://ldap.example.com/"
 --------------------------------------------------
 
-Must be migrated to: 
+Must be migrated to:
 [source,yaml]
 --------------------------------------------------
 xpack.security.authc.realms:

@@ -211,6 +211,7 @@ public class MockTcpTransport extends TcpTransport {
         }
         builder.setHandshakeTimeout(connectionProfile.getHandshakeTimeout());
         builder.setConnectTimeout(connectionProfile.getConnectTimeout());
+        builder.setCompressionEnabled(connectionProfile.getCompressionEnabled());
         return builder.build();
     }
 

@@ -517,10 +517,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
-     * Disable automatic index creation per a single request. Defaults to {@code false}
+     * Disable automatic index creation for a request.
      */
-    public void setAutoCreateIndexDisabled(boolean autoCreateIndexDisabled) {
-        this.autoCreateIndexDisabled = autoCreateIndexDisabled;
+    public void setAutoCreateIndexDisabled() {
+        this.autoCreateIndexDisabled = true;
     }
 
     public ActiveShardCount waitForActiveShards() {
@@ -789,7 +789,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         versionType = VersionType.fromValue(in.readByte());
         detectNoop = in.readBoolean();
         scriptedUpsert = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             autoCreateIndexDisabled = in.readBoolean();
         }
     }
@@ -841,7 +841,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeByte(versionType.getValue());
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeBoolean(autoCreateIndexDisabled);
         }
     }

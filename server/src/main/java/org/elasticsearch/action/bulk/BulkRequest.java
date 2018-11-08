@@ -517,10 +517,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     }
 
     /**
-     * Disable automatic index creation per a single request. Defaults to {@code false}
+     * Disable automatic index creation for a request.
      */
-    public void setAutoCreateIndexDisabled(boolean autoCreateIndexDisabled) {
-        this.autoCreateIndexDisabled = autoCreateIndexDisabled;
+    public void setAutoCreateIndexDisabled() {
+        this.autoCreateIndexDisabled = true;
     }
 
     /**
@@ -605,7 +605,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             autoCreateIndexDisabled = in.readBoolean();
         }
     }
@@ -620,7 +620,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         }
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeBoolean(autoCreateIndexDisabled);
         }
     }

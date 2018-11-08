@@ -61,11 +61,11 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         createIndex(indexName1);
         ensureGreen(indexName1);
 
-        final BulkRequestBuilder bulkBuilder = client().prepareBulk();
-        bulkBuilder.setAutoCreateIndexDisabled(true);
-        bulkBuilder.add(client().prepareIndex(indexName1, "type", "1").setSource("field", "2"));
-        bulkBuilder.add(client().prepareIndex(indexName2, "type", "1").setSource("field", "2"));
-        bulkBuilder.add(client().prepareUpdate(indexName2, "type", "1").setDoc("{\"foo\":3}", XContentType.JSON));
+        final BulkRequestBuilder bulkBuilder = client().prepareBulk()
+            .setAutoCreateIndexDisabled()
+            .add(client().prepareIndex(indexName1, "type", "1").setSource("field", "2"))
+            .add(client().prepareIndex(indexName2, "type", "1").setSource("field", "2"))
+            .add(client().prepareUpdate(indexName2, "type", "1").setDoc("{\"foo\":3}", XContentType.JSON));
 
         final BulkResponse bulkResponse = bulkBuilder.get();
         assertThat(bulkResponse.hasFailures(), equalTo(true));
@@ -75,8 +75,8 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         assertThat("Missing index should have been flagged", items[1].isFailed(), equalTo(true));
         assertThat("Missing index should have been flagged", items[2].isFailed(), equalTo(true));
         assertThat(items[1].getFailureMessage(),
-            containsString("IndexNotFoundException[no such index [wontwork] and parameter [disable_auto_create_index] is [true]]"));
+            containsString("IndexNotFoundException[no such index [wontwork] and parameter [auto_create_index] is [false]]"));
         assertThat(items[2].getFailureMessage(),
-            containsString("IndexNotFoundException[no such index [wontwork] and parameter [disable_auto_create_index] is [true]]"));
+            containsString("IndexNotFoundException[no such index [wontwork] and parameter [auto_create_index] is [false]]"));
     }
 }

@@ -74,7 +74,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destination = new IndexRequest();
         destination.readFrom(in);
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             autoCreateIndexDisabled = in.readBoolean();
         }
     }
@@ -261,10 +261,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     }
 
     /**
-     * Disable automatic index creation per a single request. Defaults to {@code false}
+     * Disable automatic index creation for a request.
      */
-    public void setAutoCreateIndexDisabled(boolean autoCreateIndexDisabled) {
-        this.autoCreateIndexDisabled = autoCreateIndexDisabled;
+    public void setAutoCreateIndexDisabled() {
+        this.autoCreateIndexDisabled = true;
     }
 
     @Override
@@ -284,7 +284,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         super.writeTo(out);
         destination.writeTo(out);
         out.writeOptionalWriteable(remoteInfo);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             out.writeBoolean(autoCreateIndexDisabled);
         }
     }

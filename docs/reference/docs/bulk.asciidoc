@@ -224,18 +224,16 @@ before starting to process the bulk request. See
 example.
 
 [float]
-[[bulk-disable-auto-create-index]]
+[[bulk-auto-create-index]]
 === Disable auto create index
 
-Node setting <<index-creation,`action.auto_create_index`>> allows automatic index creation
-on index request.
-
-To disable automatic index creation for a single bulk request use
-`disable_auto_create_index` parameter (default value is `false`):
+To disable automatic index creation for a single bulk request set request
+parameter `auto_create_index` to `false` or skip this parameter to follow
+default behaviour defined by <<index-creation,`action.auto_create_index`>>:
 
 [source,js]
 --------------------------------------------------
-POST _bulk?disable_auto_create_index
+POST _bulk?auto_create_index=false
 { "index" : { "_index" : "non_existed_index", "_type" : "_doc", "_id" : "1" } }
 { "field1" : "value1" }
 { "index" : { "_index" : "existed_index", "_type" : "_doc", "_id" : "1" } }

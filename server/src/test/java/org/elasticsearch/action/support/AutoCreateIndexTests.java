@@ -85,7 +85,7 @@ public class AutoCreateIndexTests extends ESTestCase {
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         String randomIndex = randomAlphaOfLengthBetween(1, 10);
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
-            autoCreateIndex.shouldAutoCreate(randomIndex, buildClusterState(), randomBoolean()));
+            autoCreateIndex.shouldAutoCreate(randomIndex, buildClusterState(), false));
         assertEquals("no such index [" + randomIndex + "] and [action.auto_create_index] is [false]", e.getMessage());
     }
 
@@ -95,7 +95,7 @@ public class AutoCreateIndexTests extends ESTestCase {
         String index = randomAlphaOfLengthBetween(1, 10);
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () ->
             autoCreateIndex.shouldAutoCreate(index, buildClusterState(), true));
-        assertEquals("no such index [" + index + "] and parameter [disable_auto_create_index] is [true]", e.getMessage());
+        assertEquals("no such index [" + index + "] and parameter [auto_create_index] is [false]", e.getMessage());
     }
 
     public void testAutoCreationEnabled() {
@@ -114,7 +114,7 @@ public class AutoCreateIndexTests extends ESTestCase {
                 randomAlphaOfLengthBetween(7, 10)).toString()).build();
         AutoCreateIndex autoCreateIndex = newAutoCreateIndex(settings);
         assertThat(autoCreateIndex.shouldAutoCreate(randomFrom("index1", "index2", "index3"),
-                buildClusterState("index1", "index2", "index3"), true), equalTo(false));
+                buildClusterState("index1", "index2", "index3"), randomBoolean()), equalTo(false));
     }
 
     public void testAutoCreationPatternEnabled() {

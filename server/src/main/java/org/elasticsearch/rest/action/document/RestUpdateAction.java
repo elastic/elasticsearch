@@ -69,7 +69,13 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
         updateRequest.version(RestActions.parseVersion(request));
         updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
-        updateRequest.setAutoCreateIndexDisabled(request.paramAsBoolean("disable_auto_create_index", false));
+        if (request.hasParam("auto_create_index")) {
+            final Boolean autoCreateIndex = request.paramAsBoolean("auto_create_index", null);
+            if (Boolean.TRUE.equals(autoCreateIndex)) {
+                throw new IllegalArgumentException("request parameter [auto_create_index] could not be set to [true]");
+            }
+            updateRequest.setAutoCreateIndexDisabled();
+        }
 
         request.applyContentParser(parser -> {
             updateRequest.fromXContent(parser);

@@ -251,24 +251,26 @@ public class UpdateIT extends ESIntegTestCase {
 
         final boolean autoCreateIndexDisabled = randomBoolean();
         try {
-            client().prepareUpdate(index, "type1", "1")
+            final UpdateRequestBuilder builder = client().prepareUpdate(index, "type1", "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setDocAsUpsert(false)
-                .setFetchSource(true)
-                .setAutoCreateIndexDisabled(autoCreateIndexDisabled)
-                .get();
+                .setFetchSource(true);
+            if (autoCreateIndexDisabled) {
+                builder.setAutoCreateIndexDisabled();
+            }
+            builder.get();
             fail();
         } catch (Exception e) {
             if (autoCreateIndexDisabled) {
                 assertThat(e, instanceOf(IndexNotFoundException.class));
                 assertThat(e.getMessage(),
-                    containsString("no such index [index42] and parameter [disable_auto_create_index] is [true"));
+                    equalTo("no such index [index42] and parameter [auto_create_index] is [false]"));
             } else {
                 assertThat(e, instanceOf(DocumentMissingException.class));
             }
         }
 
-        assertThat(autoCreateIndexDisabled ? "index should not be created when autoCreateIndexDisabled parameter is used"
+        assertThat(autoCreateIndexDisabled == false ? "index should not be created when autoCreateIndex=false"
             : "update request creates index implicitly even if it fails",
             client().admin().indices().prepareExists(index).execute().actionGet().isExists(),
             equalTo(autoCreateIndexDisabled == false));

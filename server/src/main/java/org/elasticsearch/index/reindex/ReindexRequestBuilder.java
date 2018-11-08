@@ -77,10 +77,10 @@ public class ReindexRequestBuilder extends
     }
 
     /**
-     * Disable automatic index creation per a single request. Defaults to {@code false}
+     * Disable automatic index creation for a request.
      */
-    public final ReindexRequestBuilder setAutoCreateIndexDisabled(boolean autoCreateIndexDisabled) {
-        request.setAutoCreateIndexDisabled(autoCreateIndexDisabled);
+    public final ReindexRequestBuilder setAutoCreateIndexDisabled() {
+        request.setAutoCreateIndexDisabled();
         return this;
     }
 }

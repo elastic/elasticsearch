@@ -536,33 +536,28 @@ public final class TokenService {
     }
 
     /**
-     * Invalidate all access tokens and all refresh tokens of a given {@code realmName} so that they may no longer be used
+     * Invalidate all access tokens and all refresh tokens of a given {@code realmName} and/or of a given
+     * {@code username} so that they may no longer be used
      *
      * @param realmName the realm of which the tokens should be invalidated
      * @param username the username for which the tokens should be invalidated
      * @param listener  the listener to notify upon completion
      */
-    public void invalidateActiveTokensForRealmAndUser(String realmName, String username,
+    public void invalidateActiveTokensForRealmAndUser(@Nullable String realmName, @Nullable String username,
                                                       ActionListener<TokensInvalidationResult> listener) {
         ensureEnabled();
         if (Strings.isNullOrEmpty(realmName) && Strings.isNullOrEmpty(username)) {
             logger.trace("No realm name or username provided");
             listener.onFailure(new IllegalArgumentException("realm name or username must be provided"));
         } else {
-            maybeStartTokenRemover();
-            final long expirationEpochMilli = getExpirationTime().toEpochMilli();
             if (Strings.isNullOrEmpty(realmName)) {
-                findActiveTokensForUser(username, ActionListener.wrap(tokens -> {
-                    List<String> accessTokenIds = new ArrayList<>();
-                    tokens.forEach(t -> {
-                        accessTokenIds.add(t.v1().getId());
-                    });
-                    // Invalidate the refresh tokens first
-                    indexInvalidation(accessTokenIds, ActionListener.wrap(result ->
-                            indexBwcInvalidation(accessTokenIds, listener, new AtomicInteger(result.getAttemptCounter()),
-                                expirationEpochMilli, result),
-                        listener::onFailure), new AtomicInteger(0), "refresh_token", null);
-
+                findActiveTokensForUser(username, ActionListener.wrap(tokenTuples -> {
+                    if (tokenTuples.isEmpty()) {
+                        logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
+                        listener.onResponse(TokensInvalidationResult.emptyResult());
+                    } else {
+                        invalidateAllTokens(tokenTuples.stream().map(t -> t.v1().getId()).collect(Collectors.toList()), listener);
+                    }
                 }, listener::onFailure));
             } else {
                 Predicate filter = null;
@@ -573,17 +568,29 @@ public final class TokenService {
                     if (tokenTuples.isEmpty()) {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
                         listener.onResponse(TokensInvalidationResult.emptyResult());
-                    }else {
-                        List<String> accessTokenIds = tokenTuples.stream().map(t -> t.v1().getId()).collect(Collectors.toList());
-                        // Invalidate the refresh tokens first
-                        indexInvalidation(accessTokenIds, ActionListener.wrap(result ->
-                                indexBwcInvalidation(accessTokenIds, listener, new AtomicInteger(result.getAttemptCounter()),
-                                    expirationEpochMilli, result),
-                            listener::onFailure), new AtomicInteger(0), "refresh_token", null);
+                    } else {
+                        invalidateAllTokens(tokenTuples.stream().map(t -> t.v1().getId()).collect(Collectors.toList()), listener);
                     }
                 }, listener::onFailure), filter);
             }
         }
+    }
+
+    /**
+     * Invalidates a collection of access_token and refresh_token that were retrieved by
+     * {@link TokenService#invalidateActiveTokensForRealmAndUser}
+     *
+     * @param accessTokenIds The ids of the access tokens which should be invalidated (along with the respective refresh_token)
+     * @param listener  the listener to notify upon completion
+     */
+    private void invalidateAllTokens(Collection<String> accessTokenIds, ActionListener<TokensInvalidationResult> listener) {
+        maybeStartTokenRemover();
+        final long expirationEpochMilli = getExpirationTime().toEpochMilli();
+        // Invalidate the refresh tokens first
+        indexInvalidation(accessTokenIds, ActionListener.wrap(result ->
+                indexBwcInvalidation(accessTokenIds, listener, new AtomicInteger(result.getAttemptCounter()),
+                    expirationEpochMilli, result),
+            listener::onFailure), new AtomicInteger(0), "refresh_token", null);
     }
 
     /**

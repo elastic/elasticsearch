@@ -716,14 +716,10 @@ class ClusterFormationTasks {
 
             Collection<String> unicastHosts = new HashSet<>()
             nodes.forEach { node ->
-                List<String> manualSeedUris = node.config.manualSeedUris.call()
-                if (manualSeedUris.empty == false) {
-                    unicastHosts.addAll(manualSeedUris)
-                } else {
-                    String unicastHost = node.config.unicastTransportUri(node, null, project.ant)
-                    if (unicastHost != null) {
-                        unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
-                    }
+                unicastHosts.addAll(node.config.otherUnicastHostAddresses.call())
+                String unicastHost = node.config.unicastTransportUri(node, null, project.ant)
+                if (unicastHost != null) {
+                    unicastHosts.addAll(Arrays.asList(unicastHost.split(",")))
                 }
             }
             String unicastHostsTxt = String.join("\n", unicastHosts)

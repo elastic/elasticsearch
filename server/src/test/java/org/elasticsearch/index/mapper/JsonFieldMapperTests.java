@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonFieldType;
 import org.elasticsearch.index.mapper.JsonFieldMapper.RootJsonFieldType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -42,7 +43,6 @@ import java.util.Collection;
 
 import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class JsonFieldMapperTests extends ESSingleNodeTestCase {
     private IndexService indexService;
@@ -417,7 +417,8 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(new BytesRef("key\0placeholder"), prefixedOtherFields[0].binaryValue());
     }
 
-     public void testSplitQueriesOnWhitespace() throws IOException {
+    public void testSplitQueriesOnWhitespace() throws IOException {
+        MapperService mapperService = indexService.mapperService();
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")
                 .startObject("properties")
@@ -427,13 +428,16 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
             .endObject().endObject());
-        indexService.mapperService().merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        MappedFieldType fieldType = indexService.mapperService().fullName("field");
-        assertThat(fieldType, instanceOf(RootJsonFieldType.class));
+        RootJsonFieldType rootFieldType = (RootJsonFieldType) mapperService.fullName("field");
+        assertThat(rootFieldType.searchAnalyzer(), equalTo(JsonFieldMapper.WHITESPACE_ANALYZER));
+        assertTokenStreamContents(rootFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            new String[] {"Hello", "World"});
 
-        RootJsonFieldType ft = (RootJsonFieldType) fieldType;
-        assertThat(ft.searchAnalyzer(), equalTo(JsonFieldMapper.WHITESPACE_ANALYZER));
-        assertTokenStreamContents(ft.searchAnalyzer().analyzer().tokenStream("", "Hello World"), new String[] {"Hello", "World"});
+        KeyedJsonFieldType keyedFieldType = (KeyedJsonFieldType) mapperService.fullName("field.key");
+        assertThat(keyedFieldType.searchAnalyzer(), equalTo(JsonFieldMapper.WHITESPACE_ANALYZER));
+        assertTokenStreamContents(keyedFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            new String[] {"Hello", "World"});
     }
 }

@@ -69,6 +69,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirs
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -643,7 +644,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHits(response.getHits(), "2", "3");
     }
 
-
     public void testFieldAliasOnDisallowedFieldType() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
@@ -662,6 +662,40 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertNoFailures(response);
         assertHitCount(response, 1);
         assertHits(response.getHits(), "1");
+    }
+
+    public void testJsonField() throws Exception {
+        String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
+        assertAcked(prepareCreate("test").setSource(indexBody, XContentType.JSON));
+        ensureGreen("test");
+
+        IndexRequestBuilder indexRequest = client().prepareIndex("test", "_doc", "1")
+            .setSource(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("f_json")
+                        .field("field1", "value")
+                        .field("field2", "2.718")
+                    .endObject()
+                .endObject());
+        indexRandom(true, false, indexRequest);
+
+        SearchResponse response = client().prepareSearch("test")
+            .setQuery(simpleQueryStringQuery("value").field("f_json.field1"))
+            .get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
+
+        response = client().prepareSearch("test")
+            .setQuery(simpleQueryStringQuery("+value +2.718").field("f_json"))
+            .get();
+        assertSearchResponse(response);
+        assertHitCount(response, 1);
+
+        response = client().prepareSearch("test")
+            .setQuery(simpleQueryStringQuery("+value +3.141").field("f_json"))
+            .get();
+        assertSearchResponse(response);
+        assertHitCount(response, 0);
     }
 
     private void assertHits(SearchHits hits, String... ids) {

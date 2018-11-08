@@ -39,6 +39,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -226,5 +227,42 @@ public class ExistsIT extends ESIntegTestCase {
             .get();
         assertSearchResponse(response);
         assertHitCount(response, 2);
+    }
+
+    public void testJsonFields() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("type")
+                .startObject("properties")
+                    .startObject("headers")
+                        .field("type", "json")
+                    .endObject()
+                .endObject()
+           .endObject()
+        .endObject();
+        assertAcked(prepareCreate("test").addMapping("type", mapping));
+
+        IndexRequestBuilder indexRequest = client().prepareIndex("test", "type", "1")
+           .setSource(XContentFactory.jsonBuilder()
+               .startObject()
+                   .startObject("headers")
+                       .field("content-type", "application/json")
+                   .endObject()
+           .endObject());
+        indexRandom(true, false, indexRequest);
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(existsQuery("headers"))
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        searchResponse = client().prepareSearch()
+            .setQuery(existsQuery("headers.content-type"))
+            .get();
+        assertHitCount(searchResponse, 1L);
+
+        searchResponse = client().prepareSearch()
+            .setQuery(existsQuery("headers.nonexistent"))
+            .get();
+        assertHitCount(searchResponse, 0L);
     }
 }

@@ -60,8 +60,6 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -769,111 +767,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
         assertEquals(nbItems, bulkResponse.getItems().length);
 
         validateBulkResponses(nbItems, errors, bulkResponse, bulkRequest);
-    }
-
-    public void testReindex() throws Exception {
-        final String sourceIndex = "source1";
-        final String destinationIndex = "dest";
-        {
-            // Prepare
-            Settings settings = Settings.builder()
-                .put("number_of_shards", 1)
-                .put("number_of_replicas", 0)
-                .build();
-            createIndex(sourceIndex, settings);
-            createIndex(destinationIndex, settings);
-            BulkRequest bulkRequest = new BulkRequest()
-                    .add(new IndexRequest(sourceIndex, "type", "1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
-                    .add(new IndexRequest(sourceIndex, "type", "2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
-                    .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-            assertEquals(
-                RestStatus.OK,
-                highLevelClient().bulk(
-                    bulkRequest,
-                    RequestOptions.DEFAULT
-                ).status()
-            );
-        }
-        {
-            // test1: create one doc in dest
-            ReindexRequest reindexRequest = new ReindexRequest();
-            reindexRequest.setSourceIndices(sourceIndex);
-            reindexRequest.setDestIndex(destinationIndex);
-            reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1").types("type"));
-            reindexRequest.setRefresh(true);
-            BulkByScrollResponse bulkResponse = execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
-            assertEquals(1, bulkResponse.getCreated());
-            assertEquals(1, bulkResponse.getTotal());
-            assertEquals(0, bulkResponse.getDeleted());
-            assertEquals(0, bulkResponse.getNoops());
-            assertEquals(0, bulkResponse.getVersionConflicts());
-            assertEquals(1, bulkResponse.getBatches());
-            assertTrue(bulkResponse.getTook().getMillis() > 0);
-            assertEquals(1, bulkResponse.getBatches());
-            assertEquals(0, bulkResponse.getBulkFailures().size());
-            assertEquals(0, bulkResponse.getSearchFailures().size());
-        }
-        {
-            // test2: create 1 and update 1
-            ReindexRequest reindexRequest = new ReindexRequest();
-            reindexRequest.setSourceIndices(sourceIndex);
-            reindexRequest.setDestIndex(destinationIndex);
-            BulkByScrollResponse bulkResponse = execute(reindexRequest, highLevelClient()::reindex, highLevelClient()::reindexAsync);
-            assertEquals(1, bulkResponse.getCreated());
-            assertEquals(2, bulkResponse.getTotal());
-            assertEquals(1, bulkResponse.getUpdated());
-            assertEquals(0, bulkResponse.getDeleted());
-            assertEquals(0, bulkResponse.getNoops());
-            assertEquals(0, bulkResponse.getVersionConflicts());
-            assertEquals(1, bulkResponse.getBatches());
-            assertTrue(bulkResponse.getTook().getMillis() > 0);
-            assertEquals(1, bulkResponse.getBatches());
-            assertEquals(0, bulkResponse.getBulkFailures().size());
-            assertEquals(0, bulkResponse.getSearchFailures().size());
-        }
-        {
-            // test reindex rethrottling
-            ReindexRequest reindexRequest = new ReindexRequest();
-            reindexRequest.setSourceIndices(sourceIndex);
-            reindexRequest.setDestIndex(destinationIndex);
-
-            // this following settings are supposed to halt reindexing after first document
-            reindexRequest.setSourceBatchSize(1);
-            reindexRequest.setRequestsPerSecond(0.00001f);
-            final CountDownLatch reindexTaskFinished = new CountDownLatch(1);
-            highLevelClient().reindexAsync(reindexRequest, RequestOptions.DEFAULT, new ActionListener<BulkByScrollResponse>() {
-
-                @Override
-                public void onResponse(BulkByScrollResponse response) {
-                    reindexTaskFinished.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail(e.toString());
-                }
-            });
-
-            TaskId taskIdToRethrottle = findTaskToRethrottle(ReindexAction.NAME);
-            float requestsPerSecond = 1000f;
-            ListTasksResponse response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
-                    highLevelClient()::reindexRethrottle, highLevelClient()::reindexRethrottleAsync);
-            assertThat(response.getTasks(), hasSize(1));
-            assertEquals(taskIdToRethrottle, response.getTasks().get(0).getTaskId());
-            assertThat(response.getTasks().get(0).getStatus(), instanceOf(RawTaskStatus.class));
-            assertEquals(Float.toString(requestsPerSecond),
-                    ((RawTaskStatus) response.getTasks().get(0).getStatus()).toMap().get("requests_per_second").toString());
-            reindexTaskFinished.await(2, TimeUnit.SECONDS);
-
-            // any rethrottling after the reindex is done performed with the same taskId should result in a failure
-            response = execute(new RethrottleRequest(taskIdToRethrottle, requestsPerSecond),
-                    highLevelClient()::reindexRethrottle, highLevelClient()::reindexRethrottleAsync);
-            assertTrue(response.getTasks().isEmpty());
-            assertFalse(response.getNodeFailures().isEmpty());
-            assertEquals(1, response.getNodeFailures().size());
-            assertEquals("Elasticsearch exception [type=resource_not_found_exception, reason=task [" + taskIdToRethrottle + "] is missing]",
-                    response.getNodeFailures().get(0).getCause().getMessage());
-        }
     }
 
     private TaskId findTaskToRethrottle(String actionName) throws IOException {

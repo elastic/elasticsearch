@@ -494,9 +494,18 @@ final class RequestConverters {
     }
 
     static Request reindex(ReindexRequest reindexRequest) throws IOException {
+        return prepareReindexRequest(reindexRequest, true);
+    }
+
+    static Request submitReindex(ReindexRequest reindexRequest) throws IOException {
+        return prepareReindexRequest(reindexRequest, false);
+    }
+
+    private static Request prepareReindexRequest(ReindexRequest reindexRequest, boolean waitForCompletion) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new Params(request)
+            .withWaitForCompletion(waitForCompletion)
             .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards(), ActiveShardCount.DEFAULT)
@@ -912,11 +921,8 @@ final class RequestConverters {
             return this;
         }
 
-        Params withWaitForCompletion(boolean waitForCompletion) {
-            if (waitForCompletion) {
-                return putParam("wait_for_completion", Boolean.TRUE.toString());
-            }
-            return this;
+        Params withWaitForCompletion(Boolean waitForCompletion) {
+            return putParam("wait_for_completion", waitForCompletion.toString());
         }
 
         Params withNodes(String[] nodes) {

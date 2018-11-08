@@ -56,7 +56,6 @@ for (Version version : bwcVersions.wireCompatible) {
     mustRunAfter(precommit)
   }
 
-  Object extension = extensions.findByName("${baseName}#oldClusterTestCluster")
   configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
     bwcVersion = version
     numBwcNodes = 3
@@ -78,7 +77,6 @@ for (Version version : bwcVersions.wireCompatible) {
       dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
       clusterName = 'rolling-upgrade'
       unicastTransportUri = { seedNode, node, ant -> unicastSeed() }
-      minimumMasterNodes = { 3 }
       /* Override the data directory so the new node always gets the node we
       * just stopped's data directory. */
       dataDir = { nodeNumber -> oldClusterTest.nodes[stopNode].dataDir }

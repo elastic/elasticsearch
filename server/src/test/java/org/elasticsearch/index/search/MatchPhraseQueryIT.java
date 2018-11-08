@@ -24,7 +24,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
@@ -33,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
@@ -55,7 +55,7 @@ public class MatchPhraseQueryIT extends ESIntegTestCase {
         List<IndexRequestBuilder> indexRequests = getIndexRequests();
         indexRandom(true, false, indexRequests);
 
-        MatchPhraseQueryBuilder baseQuery = QueryBuilders.matchPhraseQuery("name", "the who")
+        MatchPhraseQueryBuilder baseQuery = matchPhraseQuery("name", "the who")
             .analyzer("standard_stopwords");
 
         MatchPhraseQueryBuilder matchNoneQuery = baseQuery.zeroTermsQuery(ZeroTermsQuery.NONE);
@@ -66,7 +66,6 @@ public class MatchPhraseQueryIT extends ESIntegTestCase {
         SearchResponse matchAllResponse = client().prepareSearch(INDEX).setQuery(matchAllQuery).get();
         assertHitCount(matchAllResponse, 2L);
     }
-
 
     private List<IndexRequestBuilder> getIndexRequests() {
         List<IndexRequestBuilder> requests = new ArrayList<>();

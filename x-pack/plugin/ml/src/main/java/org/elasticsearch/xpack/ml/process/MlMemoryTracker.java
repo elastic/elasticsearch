@@ -231,7 +231,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         }
     }
 
-    void recordUpdateTimeInClusterState(ActionListener<Boolean> listener) {
+    private void recordUpdateTimeInClusterState(ActionListener<Boolean> listener) {
 
         clusterService.submitStateUpdateTask("ml-memory-last-update-time",
             new AckedClusterStateUpdateTask<Boolean>(ACKED_REQUEST, listener) {
@@ -244,8 +244,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 public ClusterState execute(ClusterState currentState) {
                     MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(currentState);
                     MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
-                    MlMetadata newMlMetadata = builder.build();
                     builder.setLastMemoryRefreshTime(lastUpdateTime);
+                    MlMetadata newMlMetadata = builder.build();
                     if (newMlMetadata.equals(currentMlMetadata)) {
                         // Return same reference if nothing has changed
                         return currentState;

@@ -6,11 +6,14 @@
 package org.elasticsearch.xpack.ml.process;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -19,12 +22,15 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.anyString;
@@ -49,6 +55,12 @@ public class MlMemoryTrackerTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            Runnable r = (Runnable) invocation.getArguments()[0];
+            r.run();
+            return null;
+        }).when(executorService).execute(any(Runnable.class));
         when(threadPool.executor(anyString())).thenReturn(executorService);
         jobManager = mock(JobManager.class);
         jobResultsProvider = mock(JobResultsProvider.class);
@@ -78,7 +90,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
             Consumer<Long> listener = (Consumer<Long>) invocation.getArguments()[3];
             listener.accept(randomLongBetween(1000, 1000000));
             return null;
-        }).when(jobResultsProvider).getEstablishedMemoryUsage(any(), any(), any(), any(), any());
+        }).when(jobResultsProvider).getEstablishedMemoryUsage(anyString(), any(), any(), any(Consumer.class), any());
 
         memoryTracker.refresh(persistentTasks, ActionListener.wrap(aVoid -> {}, ESTestCase::assertNull));
 
@@ -110,7 +122,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
             Consumer<Long> listener = (Consumer<Long>) invocation.getArguments()[3];
             listener.accept(haveEstablishedModelMemory ? modelBytes : 0L);
             return null;
-        }).when(jobResultsProvider).getEstablishedMemoryUsage(eq(jobId), any(), any(), any(), any());
+        }).when(jobResultsProvider).getEstablishedMemoryUsage(eq(jobId), any(), any(), any(Consumer.class), any());
 
         long modelMemoryLimitMb = 2;
         Job job = mock(Job.class);
@@ -120,7 +132,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
             ActionListener<Job> listener = (ActionListener<Job>) invocation.getArguments()[1];
             listener.onResponse(job);
             return null;
-        }).when(jobManager).getJob(eq(jobId), any());
+        }).when(jobManager).getJob(eq(jobId), any(ActionListener.class));
 
         AtomicReference<Long> refreshedMemoryRequirement = new AtomicReference<>();
         memoryTracker.refreshJobMemory(jobId, ActionListener.wrap(refreshedMemoryRequirement::set, ESTestCase::assertNull));
@@ -141,6 +153,40 @@ public class MlMemoryTrackerTests extends ESTestCase {
 
         memoryTracker.removeJob(jobId);
         assertNull(memoryTracker.getJobMemoryRequirement(jobId));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRecordUpdateTimeInClusterState() {
+
+        boolean isMaster = randomBoolean();
+        if (isMaster) {
+            memoryTracker.onMaster();
+        } else {
+            memoryTracker.offMaster();
+        }
+
+        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+
+        AtomicReference<Instant> updateTime = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocation.getArguments()[1];
+            ClusterState currentClusterState = ClusterState.EMPTY_STATE;
+            ClusterState newClusterState = task.execute(currentClusterState);
+            assertThat(currentClusterState, not(equalTo(newClusterState)));
+            MlMetadata newMlMetadata = MlMetadata.getMlMetadata(newClusterState);
+            updateTime.set(newMlMetadata.getLastMemoryRefreshTime());
+            task.onAllNodesAcked(null);
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(AckedClusterStateUpdateTask.class));
+
+        memoryTracker.asyncRefresh(ActionListener.wrap(ESTestCase::assertTrue, ESTestCase::assertNull));
+
+        if (isMaster) {
+            assertNotNull(updateTime.get());
+        } else {
+            assertNull(updateTime.get());
+        }
     }
 
     private PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> makeTestTask(String jobId) {

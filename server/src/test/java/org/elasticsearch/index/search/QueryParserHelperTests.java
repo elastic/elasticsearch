@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Collections;
@@ -32,36 +33,56 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public class QueryParserHelperTests extends ESSingleNodeTestCase {
 
+    private Integer maxClauseCountSetting;
+
+    @Override
+    public void setUp() throws Exception {
+        this.maxClauseCountSetting = randomIntBetween(50, 100);
+        super.setUp();
+    }
+
     /**
-     * Test that when {@link QueryParserHelper#resolveMappingFields(QueryShardContext, java.util.Map, String)} exceeds
-     * the limit of 1024 fields, we emit a warning
+     * Test that when
+     * {@link QueryParserHelper#resolveMappingFields(QueryShardContext, java.util.Map, String)}
+     * exceeds the limit defined by
+     * {@link SearchModule#INDICES_MAX_CLAUSE_COUNT_SETTING}.
      */
     public void testLimitOnExpandedFields() throws Exception {
-
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
-        builder.startObject("type1");
+        builder.startObject("_doc");
         builder.startObject("properties");
-        for (int i = 0; i < 1025; i++) {
+        for (int i = 0; i < maxClauseCountSetting + 1; i++) {
             builder.startObject("field" + i).field("type", "text").endObject();
         }
         builder.endObject(); // properties
         builder.endObject(); // type1
         builder.endObject();
-        IndexService indexService = createIndex("toomanyfields", Settings.builder()
-                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1200).build(),
-                "type1", builder);
-        client().prepareIndex("toomanyfields", "type1", "1").setSource("field171", "foo bar baz").get();
+        IndexService indexService = createIndex(
+                "toomanyfields", Settings.builder()
+                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), maxClauseCountSetting + 100).build(),
+                "_doc", builder);
+        client().prepareIndex("toomanyfields", "_doc", "1").setSource("field1", "foo bar baz").get();
 
-        QueryShardContext queryShardContext = indexService.newQueryShardContext(
-                randomInt(20), null, () -> { throw new UnsupportedOperationException(); }, null);
+        QueryShardContext queryShardContext = indexService.newQueryShardContext(randomInt(20), null, () -> {
+            throw new UnsupportedOperationException();
+        }, null);
+
+        final String expectedWarning = "Field expansion matches too many fields, got: "+ (maxClauseCountSetting + 1) +". "
+                + "This will be limited starting with version 7.0 of Elasticsearch. The limit will be detemined by the "
+                + "`indices.query.bool.max_clause_count` setting which is currently set to " + maxClauseCountSetting + ". "
+                + "You should look at lowering the maximum number of fields targeted by a query or increase the above limit "
+                + "while being aware that this can negatively affect your clusters performance.";
 
         QueryParserHelper.resolveMappingField(queryShardContext, "*", 1.0f, true, false);
-        assertWarnings("Field expansion matches too many fields, got: 1025. A limit of 1024 will be enforced starting with "
-                + "version 7.0 of Elasticsearch. Lowering the number of fields will be necessary before upgrading.");
+        assertWarnings(expectedWarning);
 
-        QueryParserHelper.resolveMappingFields(queryShardContext,Collections.singletonMap("*", 1.0f));
-        assertWarnings("Field expansion matches too many fields, got: 1025. A limit of 1024 will be enforced starting with "
-                + "version 7.0 of Elasticsearch. Lowering the number of fields will be necessary before upgrading.");
+        QueryParserHelper.resolveMappingFields(queryShardContext, Collections.singletonMap("*", 1.0f));
+        assertWarnings(expectedWarning);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), this.maxClauseCountSetting).build();
     }
 }

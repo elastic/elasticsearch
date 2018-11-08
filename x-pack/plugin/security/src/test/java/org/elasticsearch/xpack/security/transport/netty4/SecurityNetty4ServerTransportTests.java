@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.ssl.SslHandler;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -68,6 +69,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
                         .build();
         return new SecurityNetty4ServerTransport(
                 settings,
+                Version.CURRENT,
                 mock(ThreadPool.class),
                 new NetworkService(Collections.emptyList()),
                 mock(BigArrays.class),

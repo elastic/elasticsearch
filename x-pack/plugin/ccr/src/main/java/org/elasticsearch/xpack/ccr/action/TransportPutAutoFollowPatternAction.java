@@ -74,7 +74,7 @@ public class TransportPutAutoFollowPatternAction extends
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final Client leaderClient = client.getRemoteClusterClient(request.getRemoteCluster());
+        final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
@@ -84,9 +84,9 @@ public class TransportPutAutoFollowPatternAction extends
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
-        ccrLicenseChecker.hasPrivilegesToFollowIndices(leaderClient, indices, e -> {
+        ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
             if (e == null) {
-                leaderClient.admin().cluster().state(
+                remoteClient.admin().cluster().state(
                     clusterStateRequest,
                     ActionListener.wrap(
                         clusterStateResponse -> {

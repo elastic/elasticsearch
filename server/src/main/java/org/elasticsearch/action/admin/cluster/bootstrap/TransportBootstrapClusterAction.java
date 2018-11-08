@@ -38,12 +38,14 @@ public class TransportBootstrapClusterAction extends HandledTransportAction<Boot
     @Nullable // TODO make this not nullable
     private final Coordinator coordinator;
     private final TransportService transportService;
+    private final String discoveryType;
 
     @Inject
     public TransportBootstrapClusterAction(Settings settings, ActionFilters actionFilters, TransportService transportService,
                                            Discovery discovery) {
-        super(settings, BootstrapClusterAction.NAME, transportService, actionFilters, BootstrapClusterRequest::new);
+        super(BootstrapClusterAction.NAME, transportService, actionFilters, BootstrapClusterRequest::new);
         this.transportService = transportService;
+        this.discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
         if (discovery instanceof Coordinator) {
             coordinator = (Coordinator) discovery;
         } else {
@@ -54,8 +56,7 @@ public class TransportBootstrapClusterAction extends HandledTransportAction<Boot
     @Override
     protected void doExecute(Task task, BootstrapClusterRequest request, ActionListener<BootstrapClusterResponse> listener) {
         if (coordinator == null) { // TODO remove when not nullable
-            throw new IllegalArgumentException("cluster bootstrapping is not supported by discovery type ["
-                + DISCOVERY_TYPE_SETTING.get(settings) + "]");
+            throw new IllegalArgumentException("cluster bootstrapping is not supported by discovery type [" + discoveryType + "]");
         }
 
         final DiscoveryNode localNode = transportService.getLocalNode();

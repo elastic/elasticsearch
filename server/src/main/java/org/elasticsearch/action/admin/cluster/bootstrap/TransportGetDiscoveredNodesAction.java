@@ -50,13 +50,15 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
     @Nullable // TODO make this not nullable
     private final Coordinator coordinator;
     private final TransportService transportService;
+    private final String discoveryType;
 
     @Inject
     public TransportGetDiscoveredNodesAction(Settings settings, ActionFilters actionFilters, TransportService transportService,
                                              Discovery discovery) {
-        super(settings, GetDiscoveredNodesAction.NAME, transportService, actionFilters,
+        super(GetDiscoveredNodesAction.NAME, transportService, actionFilters,
             (Reader<GetDiscoveredNodesRequest>) GetDiscoveredNodesRequest::new);
 
+        this.discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
         this.transportService = transportService;
         if (discovery instanceof Coordinator) {
             coordinator = (Coordinator) discovery;
@@ -68,8 +70,7 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
     @Override
     protected void doExecute(Task task, GetDiscoveredNodesRequest request, ActionListener<GetDiscoveredNodesResponse> listener) {
         if (coordinator == null) { // TODO remove when not nullable
-            throw new IllegalArgumentException("discovered nodes are not exposed by discovery type ["
-                + DISCOVERY_TYPE_SETTING.get(settings) + "]");
+            throw new IllegalArgumentException("discovered nodes are not exposed by discovery type [" + discoveryType + "]");
         }
 
         final DiscoveryNode localNode = transportService.getLocalNode();

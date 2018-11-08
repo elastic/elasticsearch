@@ -40,14 +40,14 @@ public class And extends BinaryLogic implements Negateable {
 
     @Override
     public boolean nullable() {
-        if (left().nullable() && Foldables.foldsAndMatches(right(), o -> o == Boolean.FALSE)) {
-            return false;
+        if (left().nullable() && Foldables.foldsAndMatches(right(), o -> o == Boolean.TRUE)) {
+            return true;
         }
 
-        if (right().nullable() && Foldables.foldsAndMatches(left(), o -> o == Boolean.FALSE)) {
-            return false;
+        if (right().nullable() && Foldables.foldsAndMatches(left(), o -> o == Boolean.TRUE)) {
+            return true;
         }
 
-        return true;
+        return false;
     }
 }

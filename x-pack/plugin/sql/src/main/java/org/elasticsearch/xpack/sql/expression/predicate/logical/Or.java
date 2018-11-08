@@ -41,11 +41,11 @@ public class Or extends BinaryLogic implements Negateable {
     @Override
     public boolean nullable() {
         if (left().nullable() && Foldables.foldsAndMatches(right(), o -> o == Boolean.FALSE)) {
-            return false;
+            return true;
         }
 
         if (right().nullable() && Foldables.foldsAndMatches(left(), o -> o == Boolean.FALSE)) {
-            return false;
+            return true;
         }
 
         return false;

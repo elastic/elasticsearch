@@ -26,7 +26,6 @@ public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
     }
 
     public void testAutoFollow() throws Exception {
-        assumeFalse("windows is the worst", Constants.WINDOWS);
         if ("follow".equals(targetCluster)) {
             final Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
             request.setJsonEntity("{\"leader_index_patterns\":[\"*\"], \"remote_cluster\": \"leader_cluster\"}");

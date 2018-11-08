@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.test.AbstractBuilderTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
+import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ScriptQuery;
@@ -29,13 +30,13 @@ import org.joda.time.DateTime;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.TimeZone;
 
-import static org.hamcrest.core.StringStartsWith.startsWith;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.startsWith;
 
-public class QueryTranslatorTests extends AbstractBuilderTestCase {
+public class QueryTranslatorTests extends ESTestCase {
 
     private static SqlParser parser;
     private static Analyzer analyzer;
@@ -160,7 +161,7 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
         assertEquals("Scalar function (LTRIM(keyword)) not allowed (yet) as arguments for LIKE", ex.getMessage());
     }
 
-    public void testTranslateInExpression_WhereClause() throws IOException {
+    public void testTranslateInExpression_WhereClause() {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', 'bar', 'lala', 'foo', concat('la', 'la'))");
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
@@ -170,10 +171,11 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
         Query query = translation.query;
         assertTrue(query instanceof TermsQuery);
         TermsQuery tq = (TermsQuery) query;
-        assertEquals("keyword:(bar foo lala)", tq.asBuilder().toQuery(createShardContext()).toString());
+        assertEquals("{\"terms\":{\"keyword\":[\"foo\",\"bar\",\"lala\"],\"boost\":1.0}}",
+            tq.asBuilder().toString().replaceAll("\\s", ""));
     }
 
-    public void testTranslateInExpression_WhereClauseAndNullHandling() throws IOException {
+    public void testTranslateInExpression_WhereClauseAndNullHandling() {
         LogicalPlan p = plan("SELECT * FROM test WHERE keyword IN ('foo', null, 'lala', null, 'foo', concat('la', 'la'))");
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
@@ -183,7 +185,8 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
         Query query = translation.query;
         assertTrue(query instanceof TermsQuery);
         TermsQuery tq = (TermsQuery) query;
-        assertEquals("keyword:(foo lala)", tq.asBuilder().toQuery(createShardContext()).toString());
+        assertEquals("{\"terms\":{\"keyword\":[\"foo\",\"lala\"],\"boost\":1.0}}",
+            tq.asBuilder().toString().replaceAll("\\s", ""));
     }
 
     public void testTranslateInExpressionInvalidValues_WhereClause() {
@@ -194,32 +197,68 @@ public class QueryTranslatorTests extends AbstractBuilderTestCase {
         assertFalse(condition.foldable());
         SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> QueryTranslator.toQuery(condition, false));
         assertEquals("Line 1:52: Comparisons against variables are not (currently) supported; " +
-                "offender [keyword] in [keyword IN(foo, bar, keyword)]", ex.getMessage());
+                "offender [keyword] in [keyword IN (foo, bar, keyword)]", ex.getMessage());
+    }
+
+    public void testTranslateInExpression_WhereClause_Painless() {
+        LogicalPlan p = plan("SELECT int FROM test WHERE POWER(int, 2) IN (10, null, 20, 30 - 10)");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(" +
+                "InternalSqlScriptUtils.power(InternalSqlScriptUtils.docValue(doc,params.v0),params.v1), params.v2))",
+            sc.script().toString());
+        assertEquals("[{v=int}, {v=2}, {v=[10.0, null, 20.0]}]", sc.script().params().toString());
     }
 
     public void testTranslateInExpression_HavingClause_Painless() {
-        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) in (10, 20, 30 - 10)");
+        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IN (10, 20, 30 - 10)");
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sq = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(params.a0==10 || params.a0==20)", sq.script().toString());
-        assertThat(sq.script().params().toString(), startsWith("[{a=MAX(int){a->"));
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
+            aggFilter.scriptTemplate().toString());
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, 20]}]"));
     }
 
-    public void testTranslateInExpression_HavingClauseAndNullHandling_Painless() {
-        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) in (10, null, 20, null, 30 - 10)");
+    public void testTranslateInExpression_HavingClause_PainlessOneArg() {
+        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IN (10, 30 - 20)");
         assertTrue(p instanceof Project);
         assertTrue(p.children().get(0) instanceof Filter);
         Expression condition = ((Filter) p.children().get(0)).condition();
         assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
-        assertTrue(translation.query instanceof ScriptQuery);
-        ScriptQuery sq = (ScriptQuery) translation.query;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(params.a0==10 || params.a0==20)", sq.script().toString());
-        assertThat(sq.script().params().toString(), startsWith("[{a=MAX(int){a->"));
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
+            aggFilter.scriptTemplate().toString());
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10]}]"));
+
+    }
+
+    public void testTranslateInExpression_HavingClause_PainlessAndNullHandling() {
+        LogicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) IN (10, null, 20, 30, null, 30 - 10)");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.in(params.a0, params.v0))",
+            aggFilter.scriptTemplate().toString());
+        assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
+        assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=[10, null, 20, 30]}]"));
     }
 }

@@ -38,7 +38,7 @@ public class MetaStateServiceTests extends ESTestCase {
 
     public void testWriteLoadIndex() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
 
             IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
             metaStateService.writeIndex("test_write", index);
@@ -48,14 +48,14 @@ public class MetaStateServiceTests extends ESTestCase {
 
     public void testLoadMissingIndex() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
             assertThat(metaStateService.loadIndexState(new Index("test1", "test1UUID")), nullValue());
         }
     }
 
     public void testWriteLoadGlobal() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
 
             MetaData metaData = MetaData.builder()
                     .persistentSettings(Settings.builder().put("test1", "value1").build())
@@ -67,7 +67,7 @@ public class MetaStateServiceTests extends ESTestCase {
 
     public void testWriteGlobalStateWithIndexAndNoIndexIsLoaded() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
 
             MetaData metaData = MetaData.builder()
                     .persistentSettings(Settings.builder().put("test1", "value1").build())
@@ -83,7 +83,7 @@ public class MetaStateServiceTests extends ESTestCase {
 
     public void testLoadGlobal() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
-            MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env, xContentRegistry());
+            MetaStateService metaStateService = new MetaStateService(env, xContentRegistry());
 
             IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
             MetaData metaData = MetaData.builder()

@@ -101,7 +101,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
                 formatVersionToLine("6.5.0"),
                 formatVersionToLine("7.0.0")
             ),
-            Version.fromString("7.0.0")
+            Version.fromString("6.5.0")
         );
     }
 

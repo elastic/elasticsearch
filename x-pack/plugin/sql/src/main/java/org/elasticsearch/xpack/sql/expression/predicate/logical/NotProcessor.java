@@ -14,7 +14,7 @@ import java.io.IOException;
 
 public class NotProcessor implements Processor {
     
-    static final NotProcessor INSTANCE = new NotProcessor();
+    public static final NotProcessor INSTANCE = new NotProcessor();
 
     public static final String NAME = "ln";
 

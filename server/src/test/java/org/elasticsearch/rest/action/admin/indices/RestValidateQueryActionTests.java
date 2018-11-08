@@ -68,7 +68,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     public static void stubValidateQueryAction() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
-        final TransportAction transportAction = new TransportAction(Settings.EMPTY, ValidateQueryAction.NAME,
+        final TransportAction transportAction = new TransportAction(ValidateQueryAction.NAME,
             new ActionFilters(Collections.emptySet()), taskManager) {
             @Override
             protected void doExecute(Task task, ActionRequest request, ActionListener listener) {

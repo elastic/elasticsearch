@@ -19,6 +19,8 @@
 package org.elasticsearch.discovery.ec2;
 
 import org.apache.http.NameValuePair;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
@@ -60,7 +62,7 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
 
     @Override
     protected Response handle(final Request request) throws IOException {
-        if ("/".equals(request.getPath()) && ("POST".equals(request.getMethod()))) {
+        if ("/".equals(request.getPath()) && (HttpPost.METHOD_NAME.equals(request.getMethod()))) {
             final String userAgent = request.getHeader("User-Agent");
             if (userAgent != null && userAgent.startsWith("aws-sdk-java")) {
                 // Simulate an EC2 DescribeInstancesResponse
@@ -73,6 +75,9 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
                 }
                 return new Response(RestStatus.OK.getStatus(), contentType("text/xml; charset=UTF-8"), responseBody);
             }
+        }
+        if ("/latest/meta-data/local-ipv4".equals(request.getPath()) && (HttpGet.METHOD_NAME.equals(request.getMethod()))) {
+            return new Response(RestStatus.OK.getStatus(), TEXT_PLAIN_CONTENT_TYPE, "127.0.0.1".getBytes(UTF_8));
         }
         return null;
     }

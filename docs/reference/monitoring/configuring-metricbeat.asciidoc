@@ -35,6 +35,9 @@ PUT _cluster/settings
 ----------------------------------
 // CONSOLE
 
+NOTE: If {es} {security-features} are enabled, you must have `monitor` cluster 
+privileges to view the settings and `manage` cluster privileges to change them. 
+
 For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
 --
 

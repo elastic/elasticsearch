@@ -93,8 +93,33 @@ public final class ConnectionProfile {
      * Builds a connection profile that is dedicated to a single channel type. Use this
      * when opening single use connections
      */
+    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType) {
+        return buildSingleChannelProfile(channelType, null, null);
+    }
+
+    /**
+     * Builds a connection profile that is dedicated to a single channel type. Allows passing compression
+     * settings.
+     */
+    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, boolean compressionEnabled) {
+        return buildSingleChannelProfile(channelType, null, null, compressionEnabled);
+    }
+
+    /**
+     * Builds a connection profile that is dedicated to a single channel type. Allows passing connection and
+     * handshake timeouts.
+     */
     public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, @Nullable TimeValue connectTimeout,
                                                               @Nullable TimeValue handshakeTimeout) {
+        return buildSingleChannelProfile(channelType, connectTimeout, handshakeTimeout, null);
+    }
+
+    /**
+     * Builds a connection profile that is dedicated to a single channel type. Allows passing connection and
+     * handshake timeouts and compression settings.
+     */
+    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, @Nullable TimeValue connectTimeout,
+                                                              @Nullable TimeValue handshakeTimeout, @Nullable Boolean compressionEnabled) {
         Builder builder = new Builder();
         builder.addConnections(1, channelType);
         final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);
@@ -105,6 +130,9 @@ public final class ConnectionProfile {
         }
         if (handshakeTimeout != null) {
             builder.setHandshakeTimeout(handshakeTimeout);
+        }
+        if (compressionEnabled != null) {
+            builder.setCompressionEnabled(compressionEnabled);
         }
         return builder.build();
     }

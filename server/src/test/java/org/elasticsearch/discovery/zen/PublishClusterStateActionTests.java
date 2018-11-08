@@ -270,7 +270,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 new DiscoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         return new MockPublishAction(
-                settings,
                 transportService,
                 namedWriteableRegistry,
                 listener,
@@ -881,9 +880,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
         AtomicBoolean timeoutOnCommit = new AtomicBoolean();
         AtomicBoolean errorOnCommit = new AtomicBoolean();
 
-        public MockPublishAction(Settings settings, TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
+        public MockPublishAction(TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
                                  IncomingClusterStateListener listener, DiscoverySettings discoverySettings) {
-            super(settings, transportService, namedWriteableRegistry, listener, discoverySettings);
+            super(transportService, namedWriteableRegistry, listener, discoverySettings);
         }
 
         @Override

@@ -31,7 +31,7 @@ public class SqlPluginTests extends ESTestCase {
         assertThat(plugin.getActions(), empty());
         assertThat(plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, new SettingsFilter(Settings.EMPTY, Collections.emptyList()),
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, new SettingsFilter(Collections.emptyList()),
                 mock(IndexNameExpressionResolver.class), () -> mock(DiscoveryNodes.class)), empty());
     }
 

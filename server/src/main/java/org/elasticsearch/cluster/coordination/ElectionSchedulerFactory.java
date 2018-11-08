@@ -84,8 +84,6 @@ public class ElectionSchedulerFactory extends AbstractComponent {
     private final Random random;
 
     public ElectionSchedulerFactory(Settings settings, Random random, ThreadPool threadPool) {
-        super(settings);
-
         this.random = random;
         this.threadPool = threadPool;
 

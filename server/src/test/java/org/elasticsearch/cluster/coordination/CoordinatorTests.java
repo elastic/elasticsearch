@@ -1185,7 +1185,6 @@ public class CoordinatorTests extends ESTestCase {
             private ClusterStateApplyResponse clusterStateApplyResponse = ClusterStateApplyResponse.SUCCEED;
 
             ClusterNode(int nodeIndex) {
-                super(Settings.builder().put(NODE_NAME_SETTING.getKey(), nodeIdFromIndex(nodeIndex)).build());
                 this.nodeIndex = nodeIndex;
                 localNode = createDiscoveryNode();
                 persistedState = new MockPersistedState(0L,
@@ -1242,6 +1241,7 @@ public class CoordinatorTests extends ESTestCase {
                     }
                 };
 
+                final Settings settings = Settings.EMPTY;
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
                 clusterApplier = new FakeClusterApplier(settings, clusterSettings);
                 masterService = new AckedFakeThreadPoolMasterService("test_node", "test",

@@ -3,7 +3,9 @@
 [[configuring-metricbeat]]
 === Monitoring {es} with {metricbeat}
 
-beta[] In 6.5 and later, you can use {metricbeat} to collect data about {es} 
+beta[]
+
+In 6.5 and later, you can use {metricbeat} to collect data about {es} 
 and ship it to the monitoring cluster, rather than routing it through exporters 
 as described in <<configuring-monitoring>>. 
 

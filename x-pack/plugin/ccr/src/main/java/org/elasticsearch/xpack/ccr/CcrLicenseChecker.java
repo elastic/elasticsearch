@@ -103,9 +103,8 @@ public final class CcrLicenseChecker {
      * @param leaderIndex   the name of the leader index
      * @param onFailure     the failure consumer
      * @param consumer      the consumer for supplying the leader index metadata and historyUUIDs of all leader shards
-     * @param <T>           the type of response the listener is waiting for
      */
-    public <T> void checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
+    public void checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             final Client client,
             final String clusterAlias,
             final String leaderIndex,
@@ -118,8 +117,8 @@ public final class CcrLicenseChecker {
         request.indices(leaderIndex);
         checkRemoteClusterLicenseAndFetchClusterState(
                 client,
-                Collections.emptyMap(),
                 clusterAlias,
+                client.getRemoteClusterClient(clusterAlias),
                 request,
                 onFailure,
                 leaderClusterState -> {
@@ -151,22 +150,20 @@ public final class CcrLicenseChecker {
      *
      * @param client                     the client
      * @param clusterAlias               the remote cluster alias
-     * @param headers                    the headers to use for leader client
      * @param request                    the cluster state request
      * @param onFailure                  the failure consumer
      * @param leaderClusterStateConsumer the leader cluster state consumer
      */
     public void checkRemoteClusterLicenseAndFetchClusterState(
             final Client client,
-            final Map<String, String> headers,
             final String clusterAlias,
             final ClusterStateRequest request,
             final Consumer<Exception> onFailure,
             final Consumer<ClusterState> leaderClusterStateConsumer) {
         checkRemoteClusterLicenseAndFetchClusterState(
                 client,
-                headers,
                 clusterAlias,
+                systemClient(client.getRemoteClusterClient(clusterAlias)),
                 request,
                 onFailure,
                 leaderClusterStateConsumer,
@@ -182,18 +179,17 @@ public final class CcrLicenseChecker {
      *
      * @param client                     the client
      * @param clusterAlias               the remote cluster alias
-     * @param headers                    the headers to use for leader client
+     * @param leaderClient               the leader client to use to execute cluster state API
      * @param request                    the cluster state request
      * @param onFailure                  the failure consumer
      * @param leaderClusterStateConsumer the leader cluster state consumer
      * @param nonCompliantLicense        the supplier for when the license state of the remote cluster is non-compliant
      * @param unknownLicense             the supplier for when the license state of the remote cluster is unknown due to failure
-     * @param <T>                        the type of response the listener is waiting for
      */
-    private <T> void checkRemoteClusterLicenseAndFetchClusterState(
+    private void checkRemoteClusterLicenseAndFetchClusterState(
             final Client client,
-            final Map<String, String> headers,
             final String clusterAlias,
+            final Client leaderClient,
             final ClusterStateRequest request,
             final Consumer<Exception> onFailure,
             final Consumer<ClusterState> leaderClusterStateConsumer,
@@ -207,7 +203,6 @@ public final class CcrLicenseChecker {
                     @Override
                     public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
                         if (licenseCheck.isSuccess()) {
-                            final Client leaderClient = wrapClient(client.getRemoteClusterClient(clusterAlias), headers);
                             final ActionListener<ClusterStateResponse> clusterStateListener =
                                     ActionListener.wrap(s -> leaderClusterStateConsumer.accept(s.getState()), onFailure);
                             // following an index in remote cluster, so use remote client to fetch leader index metadata
@@ -244,6 +239,11 @@ public final class CcrLicenseChecker {
         String leaderIndex = leaderIndexMetaData.getIndex().getName();
         CheckedConsumer<IndicesStatsResponse, Exception> indicesStatsHandler = indicesStatsResponse -> {
             IndexStats indexStats = indicesStatsResponse.getIndices().get(leaderIndex);
+            if (indexStats == null) {
+                onFailure.accept(new IllegalArgumentException("no index stats available for the leader index"));
+                return;
+            }
+
             String[] historyUUIDs = new String[leaderIndexMetaData.getNumberOfShards()];
             for (IndexShardStats indexShardStats : indexStats) {
                 for (ShardStats shardStats : indexShardStats) {
@@ -354,6 +354,21 @@ public final class CcrLicenseChecker {
                 }
             };
         }
+    }
+
+    private static Client systemClient(Client client) {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        return new FilterClient(client) {
+            @Override
+            protected <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+                final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                    threadContext.markAsSystemContext();
+                    super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
+                }
+            }
+        };
     }
 
     private static ThreadContext.StoredContext stashWithHeaders(ThreadContext threadContext, Map<String, String> headers) {

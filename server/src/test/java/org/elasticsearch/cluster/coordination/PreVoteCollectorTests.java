@@ -110,7 +110,7 @@ public class PreVoteCollectorTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        preVoteCollector = new PreVoteCollector(settings, transportService, () -> {
+        preVoteCollector = new PreVoteCollector(transportService, () -> {
             assert electionOccurred == false;
             electionOccurred = true;
         }, l -> {

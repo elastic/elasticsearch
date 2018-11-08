@@ -116,7 +116,7 @@ public class MasterService extends AbstractLifecycleComponent {
     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
         return EsExecutors.newSinglePrioritizing(
                 nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
-                daemonThreadFactory(settings, MASTER_UPDATE_THREAD_NAME),
+                daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
                 threadPool.getThreadContext(),
                 threadPool.scheduler());
     }

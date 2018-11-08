@@ -55,8 +55,8 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static ThreadPool threadPool = new TestThreadPool(RestValidateQueryActionTests.class.getName());
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
-    private static UsageService usageService = new UsageService(Settings.EMPTY);
-    private static RestController controller = new RestController(Settings.EMPTY, emptySet(), null, client, null, usageService);
+    private static UsageService usageService = new UsageService();
+    private static RestController controller = new RestController(emptySet(), null, client, null, usageService);
     private static RestValidateQueryAction action = new RestValidateQueryAction(Settings.EMPTY, controller);
 
     /**
@@ -68,7 +68,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     public static void stubValidateQueryAction() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
-        final TransportAction transportAction = new TransportAction(Settings.EMPTY, ValidateQueryAction.NAME,
+        final TransportAction transportAction = new TransportAction(ValidateQueryAction.NAME,
             new ActionFilters(Collections.emptySet()), taskManager) {
             @Override
             protected void doExecute(Task task, ActionRequest request, ActionListener listener) {

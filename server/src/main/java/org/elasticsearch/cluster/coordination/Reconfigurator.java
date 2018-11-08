@@ -60,7 +60,6 @@ public class Reconfigurator extends AbstractComponent {
     private volatile boolean autoShrinkVotingConfiguration;
 
     public Reconfigurator(Settings settings, ClusterSettings clusterSettings) {
-        super(settings);
         autoShrinkVotingConfiguration = CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION, this::setAutoShrinkVotingConfiguration);
     }
@@ -94,15 +93,6 @@ public class Reconfigurator extends AbstractComponent {
     public ClusterState.VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds,
                                                         ClusterState.VotingConfiguration currentConfig) {
         logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}", this, currentConfig, liveNodes, retiredNodeIds);
-
-        // The new configuration may only shrink if CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION is true, and even then may not shrink
-        // to fewer than 3 nodes.
-        final int minimumConfigurationSize;
-        if (autoShrinkVotingConfiguration) {
-            minimumConfigurationSize = Math.min(roundDownToOdd(currentConfig.getNodeIds().size()), 3);
-        } else {
-            minimumConfigurationSize = currentConfig.getNodeIds().size();
-        }
 
         /*
          *  There are three true/false properties of each node in play: live/non-live, retired/non-retired and in-config/not-in-config.

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.trigger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
@@ -33,8 +32,7 @@ public class TriggerService extends AbstractComponent {
     private final Map<String, TriggerEngine> engines;
     private final Map<String, TriggerWatchStats> perWatchStats = new HashMap<>();
 
-    public TriggerService(Settings settings, Set<TriggerEngine> engines) {
-        super(settings);
+    public TriggerService(Set<TriggerEngine> engines) {
         Map<String, TriggerEngine> builder = new HashMap<>();
         for (TriggerEngine engine : engines) {
             builder.put(engine.type(), engine);

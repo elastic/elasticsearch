@@ -298,6 +298,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     RemoteClusterService.SEARCH_REMOTE_NODE_ATTRIBUTE,
                     RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
                     RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS,
+                    RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
                     TransportService.TRACE_LOG_EXCLUDE_SETTING,
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,

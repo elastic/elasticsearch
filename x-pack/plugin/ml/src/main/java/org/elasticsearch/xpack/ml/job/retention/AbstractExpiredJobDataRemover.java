@@ -15,9 +15,8 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.utils.VolatileCursorIterator;
-import org.joda.time.DateTime;
-import org.joda.time.chrono.ISOChronology;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -70,7 +69,7 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     }
 
     private long calcCutoffEpochMs(long retentionDays) {
-        long nowEpochMs = DateTime.now(ISOChronology.getInstance()).getMillis();
+        long nowEpochMs = Instant.now().toEpochMilli();
         return nowEpochMs - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
     }
 

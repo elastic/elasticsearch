@@ -20,7 +20,6 @@ import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -176,17 +175,15 @@ class AggregationToJsonProcessor {
     }
 
     /*
-     * Date Histograms have a {@link DateTime} object as the key,
+     * Date Histograms have a {@link ZonedDateTime} object as the key,
      * Histograms have either a Double or Long.
      */
     private long toHistogramKeyToEpoch(Object key) {
-        if (key instanceof DateTime) {
-            return ((DateTime)key).getMillis();
-        } else if (key instanceof ZonedDateTime) {
+        if (key instanceof ZonedDateTime) {
             return ((ZonedDateTime)key).toInstant().toEpochMilli();
         } else if (key instanceof Double) {
             return ((Double)key).longValue();
-        } else if (key instanceof Long){
+        } else if (key instanceof Long) {
             return (Long)key;
         } else {
             throw new IllegalStateException("Histogram key [" + key + "] cannot be converted to a timestamp");

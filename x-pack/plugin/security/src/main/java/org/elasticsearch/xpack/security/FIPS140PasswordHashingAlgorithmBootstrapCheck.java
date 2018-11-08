@@ -7,18 +7,11 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Locale;
 
 public class FIPS140PasswordHashingAlgorithmBootstrapCheck implements BootstrapCheck {
-
-    private final boolean fipsModeEnabled;
-
-    FIPS140PasswordHashingAlgorithmBootstrapCheck(final Settings settings) {
-        this.fipsModeEnabled = XPackSettings.FIPS_MODE_ENABLED.get(settings);
-    }
 
     /**
      * Test if the node fails the check.
@@ -28,7 +21,7 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheck implements BootstrapC
      */
     @Override
     public BootstrapCheckResult check(final BootstrapContext context) {
-        if (fipsModeEnabled) {
+        if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings)) {
             final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(context.settings);
             if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
                 return BootstrapCheckResult.failure("Only PBKDF2 is allowed for password hashing in a FIPS-140 JVM. Please set the " +

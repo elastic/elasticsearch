@@ -7,7 +7,10 @@ package org.elasticsearch.xpack.core.watcher.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
@@ -19,9 +22,7 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateW
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequestBuilder;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchReques
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceRequestBuilder;
-import org.elasticsearch.xpack.core.watcher.transport.actions.service.WatcherServiceResponse;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequestBuilder;
@@ -268,14 +268,14 @@ public class WatcherClient {
     /**
      * Perform an watcher service request to either start, stop or restart the service.
      */
-    public void watcherService(WatcherServiceRequest request, ActionListener<WatcherServiceResponse> listener) {
+    public void watcherService(WatcherServiceRequest request, ActionListener<AcknowledgedResponse> listener) {
         client.execute(WatcherServiceAction.INSTANCE, request, listener);
     }
 
     /**
      * Perform an watcher service request to either start, stop or restart the service.
      */
-    public ActionFuture<WatcherServiceResponse> watcherService(WatcherServiceRequest request) {
+    public ActionFuture<AcknowledgedResponse> watcherService(WatcherServiceRequest request) {
         return client.execute(WatcherServiceAction.INSTANCE, request);
     }
 

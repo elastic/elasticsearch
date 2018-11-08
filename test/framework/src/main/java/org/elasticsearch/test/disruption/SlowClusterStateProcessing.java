@@ -150,7 +150,8 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
                         continue;
                     }
                     if (intervalBetweenDelaysMax > 0) {
-                        duration = new TimeValue(intervalBetweenDelaysMin + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin)));
+                        duration = new TimeValue(intervalBetweenDelaysMin
+                                + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin)));
                         if (disrupting && disruptedNode != null) {
                             Thread.sleep(duration.millis());
                         }

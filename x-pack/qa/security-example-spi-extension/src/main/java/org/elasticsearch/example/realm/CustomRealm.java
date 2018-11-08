@@ -12,9 +12,9 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.support.CharArrays;
+import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 
 public class CustomRealm extends Realm {
 
@@ -28,7 +28,7 @@ public class CustomRealm extends Realm {
     static final String[] ROLES = new String[] { "superuser" };
 
     public CustomRealm(RealmConfig config) {
-        super(TYPE, config);
+        super(config);
     }
 
     @Override

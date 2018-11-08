@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
@@ -64,38 +63,17 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
         parser.declareString(Builder::setJobId, Job.ID);
         parser.declareString(Builder::setMinVersion, MIN_VERSION);
-        parser.declareField(Builder::setTimestamp, p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for ["
-                    + TIMESTAMP.getPreferredName() + "]");
-        }, TIMESTAMP, ValueType.VALUE);
+        parser.declareField(Builder::setTimestamp,
+                p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()), TIMESTAMP, ValueType.VALUE);
         parser.declareString(Builder::setDescription, DESCRIPTION);
         parser.declareString(Builder::setSnapshotId, ModelSnapshotField.SNAPSHOT_ID);
         parser.declareInt(Builder::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
         parser.declareObject(Builder::setModelSizeStats, ignoreUnknownFields ? ModelSizeStats.LENIENT_PARSER : ModelSizeStats.STRICT_PARSER,
                 ModelSizeStats.RESULT_TYPE_FIELD);
-        parser.declareField(Builder::setLatestRecordTimeStamp, p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + LATEST_RECORD_TIME.getPreferredName() + "]");
-        }, LATEST_RECORD_TIME, ValueType.VALUE);
-        parser.declareField(Builder::setLatestResultTimeStamp, p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + LATEST_RESULT_TIME.getPreferredName() + "]");
-        }, LATEST_RESULT_TIME, ValueType.VALUE);
+        parser.declareField(Builder::setLatestRecordTimeStamp,
+                p -> TimeUtils.parseTimeField(p, LATEST_RECORD_TIME.getPreferredName()), LATEST_RECORD_TIME, ValueType.VALUE);
+        parser.declareField(Builder::setLatestResultTimeStamp,
+                p -> TimeUtils.parseTimeField(p, LATEST_RESULT_TIME.getPreferredName()), LATEST_RESULT_TIME, ValueType.VALUE);
         parser.declareObject(Builder::setQuantiles, ignoreUnknownFields ? Quantiles.LENIENT_PARSER : Quantiles.STRICT_PARSER, QUANTILES);
         parser.declareBoolean(Builder::setRetain, RETAIN);
 
@@ -140,10 +118,10 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public ModelSnapshot(StreamInput in) throws IOException {
         jobId = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
             minVersion = Version.readVersion(in);
         } else {
-            minVersion = Version.V_5_5_0;
+            minVersion = Version.CURRENT.minimumCompatibilityVersion();
         }
         timestamp = in.readBoolean() ? new Date(in.readVLong()) : null;
         description = in.readOptionalString();
@@ -159,7 +137,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             Version.writeVersion(minVersion, out);
         }
         if (timestamp != null) {
@@ -357,9 +335,8 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         private String jobId;
 
         // Stored snapshot documents created prior to 6.3.0 will have no
-        // value for min_version. We default it to 5.5.0 as there were
-        // no model changes between 5.5.0 and 6.3.0.
-        private Version minVersion = Version.V_5_5_0;
+        // value for min_version.
+        private Version minVersion = Version.V_6_3_0;
 
         private Date timestamp;
         private String description;

@@ -7,12 +7,12 @@
 
   - do:
       indices.create:
+          include_type_name: false
           index: test_1
 
   - do:
       update:
           index:  test_1
-          type:   test
           id:     1
           parent: 5
           fields: [ _routing ]
@@ -25,7 +25,6 @@
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
           parent: 5
           stored_fields: [ _routing ]

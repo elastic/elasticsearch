@@ -36,7 +36,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,10 +76,10 @@ public abstract class TransportTasksAction<
 
     protected final String transportNodeAction;
 
-    protected TransportTasksAction(Settings settings, String actionName, ClusterService clusterService,
-                                   TransportService transportService, ActionFilters actionFilters, Supplier<TasksRequest> requestSupplier,
+    protected TransportTasksAction(String actionName, ClusterService clusterService, TransportService transportService,
+                                   ActionFilters actionFilters, Supplier<TasksRequest> requestSupplier,
                                    Supplier<TasksResponse> responseSupplier, String nodeExecutor) {
-        super(settings, actionName, transportService, actionFilters, requestSupplier);
+        super(actionName, transportService, actionFilters, requestSupplier);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";
@@ -270,8 +269,10 @@ public abstract class TransportTasksAction<
                             transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
-                                    public NodeTasksResponse newInstance() {
-                                        return new NodeTasksResponse();
+                                    public NodeTasksResponse read(StreamInput in) throws IOException {
+                                        NodeTasksResponse response = new NodeTasksResponse();
+                                        response.readFrom(in);
+                                        return response;
                                     }
 
                                     @Override

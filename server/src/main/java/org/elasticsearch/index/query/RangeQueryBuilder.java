@@ -23,17 +23,16 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -108,14 +107,12 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (formatString != null) {
             format = Joda.forPattern(formatString);
         }
-        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
-            String relationString = in.readOptionalString();
-            if (relationString != null) {
-                relation = ShapeRelation.getRelationByName(relationString);
-                if (relation != null && !isRelationAllowed(relation)) {
-                    throw new IllegalArgumentException(
-                        "[range] query does not support relation [" + relationString + "]");
-                }
+        String relationString = in.readOptionalString();
+        if (relationString != null) {
+            relation = ShapeRelation.getRelationByName(relationString);
+            if (relation != null && !isRelationAllowed(relation)) {
+                throw new IllegalArgumentException(
+                    "[range] query does not support relation [" + relationString + "]");
             }
         }
     }
@@ -139,18 +136,17 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             formatString = this.format.format();
         }
         out.writeOptionalString(formatString);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
-            String relationString = null;
-            if (this.relation != null) {
-                relationString = this.relation.getRelationName();
-            }
-            out.writeOptionalString(relationString);
+        String relationString = null;
+        if (this.relation != null) {
+            relationString = this.relation.getRelationName();
         }
+        out.writeOptionalString(relationString);
     }
 
     /**
      * Get the field name for this query.
      */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }
@@ -307,7 +303,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     DateMathParser getForceDateParser() { // pkg private for testing
         if (this.format != null) {
-            return new DateMathParser(this.format);
+            return this.format.toDateMathParser();
         }
         return null;
     }
@@ -463,6 +459,16 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        // Percolator queries get rewritten and pre-processed at index time.
+        // If a range query has a date range using 'now' and 'now' gets resolved at index time then
+        // the pre-processing uses that to pre-process. This can then lead to mismatches at query time.
+        if (queryRewriteContext.convertNowRangeToMatchAll()) {
+            if ((from() != null && from().toString().contains("now")) ||
+                (to() != null && to().toString().contains("now"))) {
+                return new MatchAllQueryBuilder();
+            }
+        }
+
         final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
         switch (relation) {
         case DISJOINT:

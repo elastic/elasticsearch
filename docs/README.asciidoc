@@ -19,9 +19,9 @@ are tests even if they don't have `// CONSOLE` but usually `// TEST` is used
 for its modifiers:
   * `// TEST[s/foo/bar/]`: Replace `foo` with `bar` in the generated test. This
   should be used sparingly because it makes the snippet "lie". Sometimes,
-  though, you can use it to make the snippet more clear more clear. Keep in
-  mind the that if there are multiple substitutions then they are applied in
-  the order that they are defined.
+  though, you can use it to make the snippet more clear. Keep in mind that
+  if there are multiple substitutions then they are applied in the order that
+  they are defined.
   * `// TEST[catch:foo]`: Used to expect errors in the requests. Replace `foo`
   with `request` to expect a 400 error, for example. If the snippet contains
   multiple requests then only the last request will expect the error.
@@ -63,6 +63,8 @@ for its modifiers:
   * `// TESTRESPONSE[_cat]`: Add substitutions for testing `_cat` responses. Use
   this after all other substitutions so it doesn't make other substitutions
   difficult.
+  * `// TESTRESPONSE[skip:reason]`: Skip the assertions specified by this
+  response.
 * `// TESTSETUP`: Marks this snippet as the "setup" for all other snippets in
   this file. This is a somewhat natural way of structuring documentation. You
   say "this is the data we use to explain this feature" then you add the
@@ -73,6 +75,10 @@ for its modifiers:
   right in the documentation file. In general, we should prefer `// TESTSETUP`
   over `// TEST[setup:name]` because it makes it more clear what steps have to
   be taken before the examples will work.
+* `// NOTCONSOLE`: Marks this snippet as neither `// CONSOLE` nor
+  `// TESTRESPONSE`, excluding it from the list of unconverted snippets. We
+  should only use this for snippets that *are* JSON but are *not* responses or
+  requests.
 
 In addition to the standard CONSOLE syntax these snippets can contain blocks
 of yaml surrounded by markers like this:

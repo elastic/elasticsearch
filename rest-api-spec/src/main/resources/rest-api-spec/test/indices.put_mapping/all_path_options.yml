@@ -1,12 +1,18 @@
 setup:
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
   - do:
       indices.create:
+        include_type_name: false
         index: test_index1
   - do:
       indices.create:
+        include_type_name: false
         index: test_index2
   - do:
       indices.create:
+        include_type_name: false
         index: foo
 
 
@@ -14,34 +20,33 @@ setup:
 "put one mapping per index":
   - do:
       indices.put_mapping:
+        include_type_name: false
         index: test_index1
-        type: test_type
         body:
-          test_type:
-            properties:
-              text:
-                type:     text
-                analyzer: whitespace
+          properties:
+            text:
+              type:     text
+              analyzer: whitespace
   - do:
       indices.put_mapping:
+        include_type_name: false
         index: test_index2
-        type: test_type
         body:
-          test_type:
-            properties:
-              text:
-                type:     text
-                analyzer: whitespace
+          properties:
+            text:
+              type:     text
+              analyzer: whitespace
 
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: false
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     text}
-  - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {test_index1.mappings.properties.text.type:     text}
+  - match: {test_index1.mappings.properties.text.analyzer: whitespace}
 
-  - match: {test_index2.mappings.test_type.properties.text.type:     text}
-  - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {test_index2.mappings.properties.text.type:     text}
+  - match: {test_index2.mappings.properties.text.analyzer: whitespace}
 
   - match: { foo.mappings: {} }
 
@@ -50,73 +55,73 @@ setup:
 
   - do:
       indices.put_mapping:
+        include_type_name: false
         index: _all
-        type: test_type
         body:
-          test_type:
-            properties:
-              text:
-                type:     text
-                analyzer: whitespace
+          properties:
+            text:
+              type:     text
+              analyzer: whitespace
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: false
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     text}
-  - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {test_index1.mappings.properties.text.type:     text}
+  - match: {test_index1.mappings.properties.text.analyzer: whitespace}
 
-  - match: {test_index2.mappings.test_type.properties.text.type:     text}
-  - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {test_index2.mappings.properties.text.type:     text}
+  - match: {test_index2.mappings.properties.text.analyzer: whitespace}
 
-  - match: {foo.mappings.test_type.properties.text.type:     text}
-  - match: {foo.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {foo.mappings.properties.text.type:     text}
+  - match: {foo.mappings.properties.text.analyzer: whitespace}
 
 ---
 "put mapping in * index":
   - do:
       indices.put_mapping:
+        include_type_name: false
         index: "*"
-        type: test_type
         body:
-          test_type:
-            properties:
-              text:
-                type:     text
-                analyzer: whitespace
+          properties:
+            text:
+              type:     text
+              analyzer: whitespace
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: false
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     text}
-  - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {test_index1.mappings.properties.text.type:     text}
+  - match: {test_index1.mappings.properties.text.analyzer: whitespace}
 
-  - match: {test_index2.mappings.test_type.properties.text.type:     text}
-  - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {test_index2.mappings.properties.text.type:     text}
+  - match: {test_index2.mappings.properties.text.analyzer: whitespace}
 
-  - match: {foo.mappings.test_type.properties.text.type:     text}
-  - match: {foo.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {foo.mappings.properties.text.type:     text}
+  - match: {foo.mappings.properties.text.analyzer: whitespace}
 
 ---
 "put mapping in prefix* index":
   - do:
       indices.put_mapping:
+        include_type_name: false
         index: "test_index*"
-        type: test_type
         body:
-          test_type:
-            properties:
-              text:
-                type:     text
-                analyzer: whitespace
+          properties:
+            text:
+              type:     text
+              analyzer: whitespace
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: false
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     text}
-  - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {test_index1.mappings.properties.text.type:     text}
+  - match: {test_index1.mappings.properties.text.analyzer: whitespace}
 
-  - match: {test_index2.mappings.test_type.properties.text.type:     text}
-  - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {test_index2.mappings.properties.text.type:     text}
+  - match: {test_index2.mappings.properties.text.analyzer: whitespace}
 
   - match: { foo.mappings: {} }
 
@@ -124,67 +129,34 @@ setup:
 "put mapping in list of indices":
   - do:
       indices.put_mapping:
+        include_type_name: false
         index: [test_index1, test_index2]
-        type: test_type
         body:
-          test_type:
-            properties:
-              text:
-                type:     text
-                analyzer: whitespace
+          properties:
+            text:
+              type:     text
+              analyzer: whitespace
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: false
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     text}
-  - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {test_index1.mappings.properties.text.type:     text}
+  - match: {test_index1.mappings.properties.text.analyzer: whitespace}
 
-  - match: {test_index2.mappings.test_type.properties.text.type:     text}
-  - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
+  - match: {test_index2.mappings.properties.text.type:     text}
+  - match: {test_index2.mappings.properties.text.analyzer: whitespace}
 
   - match: { foo.mappings: {} }
-
----
-"put mapping with blank index":
-  - do:
-      indices.put_mapping:
-        type: test_type
-        body:
-          test_type:
-            properties:
-              text:
-                type:     text
-                analyzer: whitespace
-
-  - do:
-      indices.get_mapping: {}
-
-  - match: {test_index1.mappings.test_type.properties.text.type:     text}
-  - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
-
-  - match: {test_index2.mappings.test_type.properties.text.type:     text}
-  - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
-
-  - match: {foo.mappings.test_type.properties.text.type:     text}
-  - match: {foo.mappings.test_type.properties.text.analyzer: whitespace}
-
----
-"put mapping with missing type":
-
-
-  - do:
-      catch: param
-      indices.put_mapping: {}
 
 ---
 "post a mapping with default analyzer twice":
 
   - do:
       indices.put_mapping:
+        include_type_name: false
         index: test_index1
-        type: test_type
         body:
-          test_type:
             dynamic: false
             properties:
               text:
@@ -193,18 +165,18 @@ setup:
 
   - do:
       indices.put_mapping:
+        include_type_name: false
         index: test_index1
-        type: test_type
         body:
-          test_type:
-            dynamic: false
-            properties:
-              text:
-                analyzer: default
-                type:     text
+          dynamic: false
+          properties:
+            text:
+              analyzer: default
+              type:     text
 
   - do:
-      indices.get_mapping: {}
+      indices.get_mapping:
+        include_type_name: false
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     text}
+  - match: {test_index1.mappings.properties.text.type:     text}
  

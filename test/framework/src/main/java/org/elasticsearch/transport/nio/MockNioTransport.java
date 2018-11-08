@@ -21,7 +21,9 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -45,7 +47,6 @@ import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpServerChannel;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -64,17 +65,15 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 
 public class MockNioTransport extends TcpTransport {
 
-    private static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_WORKER_THREAD_NAME_PREFIX;
-
     private final PageCacheRecycler pageCacheRecycler;
     private final ConcurrentMap<String, MockTcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private volatile NioGroup nioGroup;
     private volatile MockTcpChannelFactory clientChannelFactory;
 
-    MockNioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
+    MockNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                      PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                      CircuitBreakerService circuitBreakerService) {
-        super("mock-nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        super("mock-nio", settings, version, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
         this.pageCacheRecycler = pageCacheRecycler;
     }
 
@@ -85,17 +84,16 @@ public class MockNioTransport extends TcpTransport {
     }
 
     @Override
-    protected MockSocketChannel initiateChannel(InetSocketAddress address, ActionListener<Void> connectListener) throws IOException {
-        MockSocketChannel channel = nioGroup.openChannel(address, clientChannelFactory);
-        channel.addConnectListener(ActionListener.toBiConsumer(connectListener));
-        return channel;
+    protected MockSocketChannel initiateChannel(DiscoveryNode node) throws IOException {
+        InetSocketAddress address = node.getAddress().address();
+        return nioGroup.openChannel(address, clientChannelFactory);
     }
 
     @Override
     protected void doStart() {
         boolean success = false;
         try {
-            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX), 2,
+            nioGroup = new NioGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX), 2,
                 (s) -> new TestingSocketEventHandler(this::onNonChannelException, s));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
@@ -133,16 +131,15 @@ public class MockNioTransport extends TcpTransport {
     }
 
     @Override
-    protected ConnectionProfile resolveConnectionProfile(ConnectionProfile connectionProfile) {
-        ConnectionProfile resolvedProfile = resolveConnectionProfile(connectionProfile, defaultConnectionProfile);
-        if (resolvedProfile.getNumConnections() <= 3) {
-            return resolvedProfile;
+    protected ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
+        if (connectionProfile.getNumConnections() <= 3) {
+            return connectionProfile;
         }
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
         Set<TransportRequestOptions.Type> allTypesWithConnection = new HashSet<>();
         Set<TransportRequestOptions.Type> allTypesWithoutConnection = new HashSet<>();
         for (TransportRequestOptions.Type type : TransportRequestOptions.Type.values()) {
-            int numConnections = resolvedProfile.getNumConnectionsPerType(type);
+            int numConnections = connectionProfile.getNumConnectionsPerType(type);
             if (numConnections > 0) {
                 allTypesWithConnection.add(type);
             } else {
@@ -155,8 +152,8 @@ public class MockNioTransport extends TcpTransport {
         if (allTypesWithoutConnection.isEmpty() == false) {
             builder.addConnections(0, allTypesWithoutConnection.toArray(new TransportRequestOptions.Type[0]));
         }
-        builder.setHandshakeTimeout(resolvedProfile.getHandshakeTimeout());
-        builder.setConnectTimeout(resolvedProfile.getConnectTimeout());
+        builder.setHandshakeTimeout(connectionProfile.getHandshakeTimeout());
+        builder.setConnectTimeout(connectionProfile.getConnectTimeout());
         return builder.build();
     }
 
@@ -192,6 +189,7 @@ public class MockNioTransport extends TcpTransport {
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
                 readWriteHandler, new InboundChannelBuffer(pageSupplier));
             nioChannel.setContext(context);
+            nioChannel.setSoLinger(0);
             return nioChannel;
         }
 
@@ -274,9 +272,15 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
+        public void addConnectListener(ActionListener<Void> listener) {
+            addConnectListener(ActionListener.toBiConsumer(listener));
+        }
+
+        @Override
         public void setSoLinger(int value) throws IOException {
-            if (isOpen()) {
-                getRawChannel().setOption(StandardSocketOptions.SO_LINGER, value);
+            SocketChannel rawChannel = getRawChannel();
+            if (rawChannel.isConnected()) {
+                rawChannel.setOption(StandardSocketOptions.SO_LINGER, value);
             }
         }
 

@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.security.rest.RestRequestFilter;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -34,12 +34,13 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestChangePasswordAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
     private final SecurityContext securityContext;
-    private final Hasher passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+    private final Hasher passwordHasher;
 
     public RestChangePasswordAction(Settings settings, RestController controller, SecurityContext securityContext,
                                     XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
+        passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         controller.registerHandler(POST, "/_xpack/security/user/{username}/_password", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}/_password", this);
         controller.registerHandler(POST, "/_xpack/security/user/_password", this);

@@ -141,7 +141,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         } else {
             jobVersion = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1) && in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.V_7_0_0) && in.readBoolean()) {
             modelSnapshotMinVersion = Version.readVersion(in);
         } else {
             modelSnapshotMinVersion = null;
@@ -183,7 +183,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 out.writeBoolean(false);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
             if (modelSnapshotMinVersion != null) {
                 out.writeBoolean(true);
                 Version.writeVersion(modelSnapshotMinVersion, out);
@@ -258,7 +258,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     }
 
     public boolean isAutodetectProcessUpdate() {
-        return modelPlotConfig != null || detectorUpdates != null;
+        return modelPlotConfig != null || detectorUpdates != null || groups != null;
     }
 
     @Override

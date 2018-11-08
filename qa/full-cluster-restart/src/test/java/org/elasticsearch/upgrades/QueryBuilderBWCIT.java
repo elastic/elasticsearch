@@ -20,10 +20,8 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -48,7 +46,6 @@ import org.elasticsearch.index.query.SpanTermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -71,7 +68,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  * The queries to test are specified in json format, which turns out to work because we tend break here rarely. If the
  * json format of a query being tested here then feel free to change this.
  */
-public class QueryBuilderBWCIT extends ESRestTestCase {
+public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
 
     private static final List<Object[]> CANDIDATES = new ArrayList<>();
 
@@ -145,32 +142,9 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
         CANDIDATES.add(new Object[]{"{\"query\": {" + querySource + "}}", expectedQb});
     }
 
-    private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-    private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveSnapshotsUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveReposUponCompletion() {
-        return true;
-    }
-
-    @Override
-    protected boolean preserveTemplatesUponCompletion() {
-        return true;
-    }
-
     public void testQueryBuilderBWC() throws Exception {
         String index = "queries";
-        if (runningAgainstOldCluster) {
+        if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
             {
@@ -222,7 +196,7 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
                 QueryBuilder expectedQueryBuilder = (QueryBuilder) CANDIDATES.get(i)[1];
                 Request request = new Request("GET", "/" + index + "/_search");
                 request.setJsonEntity("{\"query\": {\"ids\": {\"values\": [\"" + Integer.toString(i) + "\"]}}, " +
-                        "\"docvalue_fields\" : [\"query.query_builder_field\"]}");
+                        "\"docvalue_fields\": [{\"field\":\"query.query_builder_field\", \"format\":\"use_field_mapping\"}]}");
                 Response rsp = client().performRequest(request);
                 assertEquals(200, rsp.getStatusLine().getStatusCode());
                 Map<?, ?> hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>)toMap(rsp).get("hits")).get("hits")).get(0);
@@ -230,7 +204,7 @@ public class QueryBuilderBWCIT extends ESRestTestCase {
                 byte[] qbSource = Base64.getDecoder().decode(queryBuilderStr);
                 try (InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length)) {
                     try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)) {
-                        input.setVersion(oldClusterVersion);
+                        input.setVersion(getOldClusterVersion());
                         QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                         assert in.read() == -1;
                         assertEquals(expectedQueryBuilder, queryBuilder);

@@ -2,7 +2,7 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: xpackModule('core'), configuration: 'shadow')
+  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
 }
 
 // bring in watcher rest test suite
@@ -14,6 +14,7 @@ task copyWatcherRestTests(type: Copy) {
 
 integTestCluster {
   dependsOn copyWatcherRestTests
+  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.security.enabled', 'true'

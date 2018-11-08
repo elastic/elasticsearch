@@ -19,12 +19,13 @@
 
 package org.elasticsearch.cluster.ack;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -49,6 +50,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
+@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33673")
 @ClusterScope(scope = TEST, minNumDataNodes = 2)
 public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
 
@@ -109,7 +111,8 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
         assertAcked(clusterUpdateSettingsResponse);
-        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
+        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"),
+            equalTo(excludedNodeId));
 
         for (Client client : clients()) {
             ClusterState clusterState = getLocalClusterState(client);
@@ -118,9 +121,11 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
                         assert clusterState.nodes() != null;
-                        if (shardRouting.unassigned() == false && clusterState.nodes().get(shardRouting.currentNodeId()).getId().equals(excludedNodeId)) {
-                            //if the shard is still there it must be relocating and all nodes need to know, since the request was acknowledged
-                            //reroute happens as part of the update settings and we made sure no throttling comes into the picture via settings
+                        if (shardRouting.unassigned() == false && clusterState.nodes()
+                            .get(shardRouting.currentNodeId()).getId().equals(excludedNodeId)) {
+                            // if the shard is still there it must be relocating and all nodes need to know,
+                            // since the request was acknowledged reroute happens as part of the update settings
+                            // and we made sure no throttling comes into the picture via settings
                             assertThat(shardRouting.relocating(), equalTo(true));
                         }
                     }
@@ -152,7 +157,8 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings().setTimeout("0s")
                 .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
         assertThat(clusterUpdateSettingsResponse.isAcknowledged(), equalTo(false));
-        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
+        assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"),
+            equalTo(excludedNodeId));
     }
 
     private static ClusterState getLocalClusterState(Client client) {
@@ -163,7 +169,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
         removePublishTimeout();
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
+        AcknowledgedResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
 
         OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();

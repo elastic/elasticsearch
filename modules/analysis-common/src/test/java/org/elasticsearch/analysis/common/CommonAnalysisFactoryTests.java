@@ -24,8 +24,6 @@ import org.apache.lucene.analysis.en.PorterStemFilterFactory;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
-import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.List;
@@ -50,7 +48,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("edgengram", EdgeNGramTokenizerFactory.class);
         tokenizers.put("classic", ClassicTokenizerFactory.class);
         tokenizers.put("letter", LetterTokenizerFactory.class);
-        tokenizers.put("lowercase", LowerCaseTokenizerFactory.class);
+        // tokenizers.put("lowercase", XLowerCaseTokenizerFactory.class);
         tokenizers.put("pathhierarchy", PathHierarchyTokenizerFactory.class);
         tokenizers.put("pattern", PatternTokenizerFactory.class);
         tokenizers.put("uax29urlemail", UAX29URLEmailTokenizerFactory.class);
@@ -107,6 +105,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("stemmeroverride", StemmerOverrideTokenFilterFactory.class);
         filters.put("kstem", KStemTokenFilterFactory.class);
         filters.put("synonym", SynonymTokenFilterFactory.class);
+        filters.put("synonymgraph", SynonymGraphTokenFilterFactory.class);
         filters.put("dictionarycompoundword", DictionaryCompoundWordTokenFilterFactory.class);
         filters.put("hyphenationcompoundword", HyphenationCompoundWordTokenFilterFactory.class);
         filters.put("reversestring", ReverseTokenFilterFactory.class);
@@ -224,7 +223,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     protected Map<String, Class<?>> getPreConfiguredTokenizers() {
         Map<String, Class<?>> tokenizers = new TreeMap<>(super.getPreConfiguredTokenizers());
         tokenizers.put("keyword", null);
-        tokenizers.put("lowercase", null);
+        tokenizers.put("lowercase", Void.class);
         tokenizers.put("classic", null);
         tokenizers.put("uax_url_email", org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class);
         tokenizers.put("path_hierarchy", null);

@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: headers
   - do:
       indices.create:
         index: foo
@@ -209,4 +211,5 @@ setup:
           status:
             job_state: "stopped"
             upgraded_doc_id: true
+
 

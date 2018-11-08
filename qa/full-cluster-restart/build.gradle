@@ -53,9 +53,6 @@ for (Version version : bwcVersions.indexCompatible) {
     // some tests rely on the translog not being flushed
     setting 'indices.memory.shard_inactive_time', '20m'
 
-    // debug logging for testRecovery
-    setting 'logger.level', 'DEBUG'
-
     if (version.onOrAfter('5.3.0')) {
       setting 'http.content_type.required', 'true'
     }
@@ -74,9 +71,6 @@ for (Version version : bwcVersions.indexCompatible) {
 
     // some tests rely on the translog not being flushed
     setting 'indices.memory.shard_inactive_time', '20m'
-
-    // debug logging for testRecovery
-    setting 'logger.level', 'DEBUG'
 
     numNodes = 2
     dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
@@ -104,7 +98,7 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
   if (project.bwc_tests_enabled) {
-    for (final def version : bwcVersions.snapshotsIndexCompatible) {
+    for (final def version : bwcVersions.unreleasedIndexCompatible) {
       dependsOn "v${version}#bwcTest"
     }
   }

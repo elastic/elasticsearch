@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.doc
 
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RestTestPlugin
 import org.gradle.api.Project
@@ -35,15 +36,14 @@ public class DocsTestPlugin extends RestTestPlugin {
         // The distribution can be configured with -Dtests.distribution on the command line
         project.integTestCluster.distribution = System.getProperty('tests.distribution', 'zip')
         // Docs are published separately so no need to assemble
-        project.tasks.remove(project.assemble)
-        project.build.dependsOn.remove('assemble')
+        project.tasks.assemble.enabled = false
         Map<String, String> defaultSubstitutions = [
-            /* These match up with the asciidoc syntax for substitutions but
-             * the values may differ. In particular {version} needs to resolve
-             * to the version being built for testing but needs to resolve to
-             * the last released version for docs. */
-            '\\{version\\}':
-                VersionProperties.elasticsearch.toString().replace('-SNAPSHOT', ''),
+                /* These match up with the asciidoc syntax for substitutions but
+                 * the values may differ. In particular {version} needs to resolve
+                 * to the version being built for testing but needs to resolve to
+                 * the last released version for docs. */
+            '\\{version\\}': Version.fromString(VersionProperties.elasticsearch).toString(),
+            '\\{version_qualified\\}': VersionProperties.elasticsearch,
             '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
             '\\{build_flavor\\}' :
                 project.integTestCluster.distribution.startsWith('oss-') ? 'oss' : 'default',

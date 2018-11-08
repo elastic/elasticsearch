@@ -1,10 +1,12 @@
 ---
 "Index result field":
 
+  - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
   - do:
       index:
           index:  test_index
-          type:   test
           id:     1
           body:   { foo: bar }
 
@@ -13,7 +15,6 @@
   - do:
       index:
           index:    test_index
-          type:     test
           id:       1
           body:     { foo: bar }
           op_type:  index

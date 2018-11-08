@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.Channel;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.transport.TcpServerChannel;
@@ -41,7 +42,7 @@ public class Netty4TcpServerChannel implements TcpServerChannel {
             } else {
                 Throwable cause = f.cause();
                 if (cause instanceof Error) {
-                    Netty4Utils.maybeDie(cause);
+                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
                     closeContext.completeExceptionally(new Exception(cause));
                 } else {
                     closeContext.completeExceptionally((Exception) cause);

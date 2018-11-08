@@ -114,3 +114,11 @@ And it'd respond:
 
 <1> The stemmer has also emitted a token `home` at position 1, but because it is a
 duplicate of this token it has been removed from the token stream
+
+NOTE: The synonym and synonym_graph filters use their preceding analysis chain to
+parse and analyse their synonym lists, and ignore any token filters in the chain
+that produce multiple tokens at the same position.  This means that any filters
+within the multiplexer will be ignored for the purpose of synonyms.  If you want to
+use filters contained within the multiplexer for parsing synonyms (for example, to
+apply stemming to the synonym lists), then you should append the synonym filter
+to the relevant multiplexer filter list.

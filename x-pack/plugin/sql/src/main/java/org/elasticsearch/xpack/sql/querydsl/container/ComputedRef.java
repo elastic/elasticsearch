@@ -7,17 +7,17 @@ package org.elasticsearch.xpack.sql.querydsl.container;
 
 import org.elasticsearch.xpack.sql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
-import org.elasticsearch.xpack.sql.expression.function.scalar.processor.definition.ProcessorDefinition;
+import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 
 public class ComputedRef implements FieldExtraction {
 
-    private final ProcessorDefinition processor;
+    private final Pipe processor;
 
-    public ComputedRef(ProcessorDefinition processor) {
+    public ComputedRef(Pipe processor) {
         this.processor = processor;
     }
 
-    public ProcessorDefinition processor() {
+    public Pipe processor() {
         return processor;
     }
 

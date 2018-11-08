@@ -125,6 +125,20 @@ public class DateHistogramGroupConfigSerializingTests extends AbstractSerializin
         assertThat(e.validationErrors().size(), equalTo(0));
     }
 
+    public void testValidateWeek() {
+        ActionRequestValidationException e = new ActionRequestValidationException();
+        Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
+
+        // Have to mock fieldcaps because the ctor's aren't public...
+        FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(true);
+        responseMap.put("my_field", Collections.singletonMap("date", fieldCaps));
+
+        DateHistogramGroupConfig config = new DateHistogramGroupConfig("my_field", new DateHistogramInterval("1w"), null, null);
+        config.validateMappings(responseMap, e);
+        assertThat(e.validationErrors().size(), equalTo(0));
+    }
+
     /**
      * Tests that a DateHistogramGroupConfig can be serialized/deserialized correctly after
      * the timezone was changed from DateTimeZone to String.

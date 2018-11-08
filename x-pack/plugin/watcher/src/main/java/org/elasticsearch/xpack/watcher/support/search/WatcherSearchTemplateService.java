@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.support.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -36,8 +35,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
 
-    public WatcherSearchTemplateService(Settings settings, ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
-        super(settings);
+    public WatcherSearchTemplateService(ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
     }
@@ -45,7 +43,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
     public String renderTemplate(Script source, WatchExecutionContext ctx, Payload payload) throws IOException {
         // Due the inconsistency with templates in ES 1.x, we maintain our own template format.
         // This template format we use now, will become the template structure in ES 2.0
-        Map<String, Object> watcherContextParams = Variables.createCtxModel(ctx, payload);
+        Map<String, Object> watcherContextParams = Variables.createCtxParamsMap(ctx, payload);
         // Here we convert watcher template into a ES core templates. Due to the different format we use, we
         // convert to the template format used in ES core
         if (source.getParams() != null) {

@@ -498,15 +498,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
         if (in.readBoolean()) {
             doc = in.readBytesReference();
-            if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
-                xContentType = in.readEnum(XContentType.class);
-            } else {
-                xContentType = XContentHelper.xContentType(doc);
-            }
+            xContentType = in.readEnum(XContentType.class);
         }
         routing = in.readOptionalString();
-        
-        if (in.getVersion().before(Version.V_7_0_0_alpha1)) {
+
+        if (in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalString(); // _parent
         }
         preference = in.readOptionalString();
@@ -546,12 +542,10 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
-            if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
-                out.writeEnum(xContentType);
-            }
+            out.writeEnum(xContentType);
         }
         out.writeOptionalString(routing);
-        if (out.getVersion().before(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalString(null); // _parent
         }
         out.writeOptionalString(preference);

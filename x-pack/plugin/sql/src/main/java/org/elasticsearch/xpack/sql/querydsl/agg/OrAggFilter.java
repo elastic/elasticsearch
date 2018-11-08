@@ -5,14 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.Params;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder;
-import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.type.DataType;
-
-import java.util.Locale;
-
-import static java.lang.String.format;
+import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
 
 public class OrAggFilter extends AggFilter {
 
@@ -21,12 +14,6 @@ public class OrAggFilter extends AggFilter {
     }
 
     public OrAggFilter(String name, AggFilter left, AggFilter right) {
-        super(name, and(left.scriptTemplate(), right.scriptTemplate()));
-    }
-
-    private static ScriptTemplate and(ScriptTemplate left, ScriptTemplate right) {
-        String template = format(Locale.ROOT, "( %s ) || ( %s )", left.template(), right.template());
-        Params params = new ParamsBuilder().script(left.params()).script(right.params()).build();
-        return new ScriptTemplate(template, params, DataType.BOOLEAN);
+        super(name, Scripts.or(left.scriptTemplate(), right.scriptTemplate()));
     }
 }

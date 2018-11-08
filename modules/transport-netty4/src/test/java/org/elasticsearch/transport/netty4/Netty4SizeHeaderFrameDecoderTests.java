@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty4;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +45,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.is;
 
 /**
- * This test checks, if a HTTP look-alike request (starting with a HTTP method and a space)
+ * This test checks, if an HTTP look-alike request (starting with an HTTP method and a space)
  * actually returns text response instead of just dropping the connection
  */
 public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
@@ -65,7 +66,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
         threadPool = new ThreadPool(settings);
         NetworkService networkService = new NetworkService(Collections.emptyList());
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        nettyTransport = new Netty4Transport(settings, threadPool, networkService, bigArrays,
+        nettyTransport = new Netty4Transport(settings, Version.CURRENT, threadPool, networkService, bigArrays,
             new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
         nettyTransport.start();
 
@@ -91,7 +92,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
             socket.getOutputStream().flush();
 
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {
-                assertThat(reader.readLine(), is("This is not a HTTP port"));
+                assertThat(reader.readLine(), is("This is not an HTTP port"));
             }
         }
     }

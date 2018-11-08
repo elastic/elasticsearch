@@ -1,8 +1,13 @@
 ---
 "Realtime Refresh":
 
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
  - do:
       indices.create:
+        include_type_name: false
         index:    test_1
         body:
           settings:
@@ -17,7 +22,6 @@
  - do:
       index:
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
 
@@ -25,14 +29,12 @@
       catch:        missing
       get:
           index:    test_1
-          type:     test
           id:       1
           realtime: false
 
  - do:
       get:
           index:    test_1
-          type:     test
           id:       1
           realtime: true
 
@@ -41,7 +43,6 @@
  - do:
       get:
           index:    test_1
-          type:     test
           id:       1
           realtime: false
           refresh:  true

@@ -6,11 +6,14 @@
 package org.elasticsearch.xpack.sql.type;
 
 import java.sql.JDBCType;
+import java.sql.SQLType;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toMap;
 
 /**
  * Elasticsearch data types that supported by SQL interface
@@ -34,21 +37,79 @@ public enum DataType {
     SCALED_FLOAT(JDBCType.FLOAT,     Double.class,    Double.BYTES,      19,                25, false, true, true),
     KEYWORD(     JDBCType.VARCHAR,   String.class,    Integer.MAX_VALUE, 256,               0),
     TEXT(        JDBCType.VARCHAR,   String.class,    Integer.MAX_VALUE, Integer.MAX_VALUE, 0, false, false, false),
-    OBJECT(      JDBCType.STRUCT,    null,            -1,                0,                 0),
-    NESTED(      JDBCType.STRUCT,    null,            -1,                0,                 0),
+    OBJECT(      JDBCType.STRUCT,    null,            -1,                0,                 0, false, false, false),
+    NESTED(      JDBCType.STRUCT,    null,            -1,                0,                 0, false, false, false),
     BINARY(      JDBCType.VARBINARY, byte[].class,    -1,                Integer.MAX_VALUE, 0),
     // since ODBC and JDBC interpret precision for Date as display size,
     // the precision is 23 (number of chars in ISO8601 with millis) + Z (the UTC timezone)
     // see https://github.com/elastic/elasticsearch/issues/30386#issuecomment-386807288
-    DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        24,                24);
+    DATE(        JDBCType.TIMESTAMP, Timestamp.class, Long.BYTES,        24,                24),
+    //
+    // specialized types
+    //
+    // IP can be v4 or v6. The latter has 2^128 addresses or 340,282,366,920,938,463,463,374,607,431,768,211,456
+    // aka 39 chars
+    IP(          JDBCType.VARCHAR,   String.class,     39,               39,                0,false, false, true);
     // @formatter:on
 
-    private static final Map<JDBCType, DataType> jdbcToEs;
+    public static final String ODBC_DATATYPE_PREFIX = "SQL_";
+
+    private static final Map<SQLType, DataType> jdbcToEs;
+    private static final Map<String, DataType> odbcToEs;
 
     static {
         jdbcToEs = Arrays.stream(DataType.values())
-                .filter(dataType -> dataType != TEXT && dataType != NESTED && dataType != SCALED_FLOAT) // Remove duplicates
-                .collect(Collectors.toMap(dataType -> dataType.jdbcType, dataType -> dataType));
+                .filter(type -> type != TEXT && type != NESTED
+                                && type != SCALED_FLOAT && type != IP) // Remove duplicates
+                .collect(toMap(dataType -> dataType.jdbcType, dataType -> dataType));
+
+        odbcToEs = new HashMap<>(36);
+
+        // Numeric
+        odbcToEs.put("SQL_BIT", BOOLEAN);
+        odbcToEs.put("SQL_TINYINT", BYTE);
+        odbcToEs.put("SQL_SMALLINT", SHORT);
+        odbcToEs.put("SQL_INTEGER", INTEGER);
+        odbcToEs.put("SQL_BIGINT", LONG);
+        odbcToEs.put("SQL_FLOAT", FLOAT);
+        odbcToEs.put("SQL_REAL", FLOAT);
+        odbcToEs.put("SQL_DOUBLE", DOUBLE);
+        odbcToEs.put("SQL_DECIMAL", DOUBLE);
+        odbcToEs.put("SQL_NUMERIC", DOUBLE);
+
+        // String
+        odbcToEs.put("SQL_GUID", KEYWORD);
+        odbcToEs.put("SQL_CHAR", KEYWORD);
+        odbcToEs.put("SQL_WCHAR", KEYWORD);
+        odbcToEs.put("SQL_VARCHAR", TEXT);
+        odbcToEs.put("SQL_WVARCHAR", TEXT);
+        odbcToEs.put("SQL_LONGVARCHAR", TEXT);
+        odbcToEs.put("SQL_WLONGVARCHAR", TEXT);
+
+        // Binary
+        odbcToEs.put("SQL_BINARY", BINARY);
+        odbcToEs.put("SQL_VARBINARY", BINARY);
+        odbcToEs.put("SQL_LONGVARBINARY", BINARY);
+
+        // Date
+        odbcToEs.put("SQL_DATE", DATE);
+        odbcToEs.put("SQL_TIME", DATE);
+        odbcToEs.put("SQL_TIMESTAMP", DATE);
+
+        // Intervals - Currently Not Supported
+        odbcToEs.put("SQL_INTERVAL_HOUR_TO_MINUTE", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_HOUR_TO_SECOND", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_MINUTE_TO_SECOND", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_MONTH", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_YEAR", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_YEAR_TO_MONTH", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_DAY", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_HOUR", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_MINUTE", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_SECOND", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_DAY_TO_HOUR", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_DAY_TO_MINUTE", UNSUPPORTED);
+        odbcToEs.put("SQL_INTERVAL_DAY_TO_SECOND", UNSUPPORTED);
     }
 
     /**
@@ -59,7 +120,7 @@ public enum DataType {
     /**
      * Compatible JDBC type
      */
-    public final JDBCType jdbcType;
+    public final SQLType jdbcType;
 
     /**
      * Size of the type in bytes
@@ -102,7 +163,7 @@ public enum DataType {
 
     private final Class<?> javaClass;
 
-    DataType(JDBCType jdbcType, Class<?> javaClass, int size, int defaultPrecision, int displaySize, boolean isInteger, boolean isRational,
+    DataType(SQLType jdbcType, Class<?> javaClass, int size, int defaultPrecision, int displaySize, boolean isInteger, boolean isRational,
              boolean defaultDocValues) {
         this.esType = name().toLowerCase(Locale.ROOT);
         this.javaClass = javaClass;
@@ -115,7 +176,7 @@ public enum DataType {
         this.defaultDocValues = defaultDocValues;
     }
 
-    DataType(JDBCType jdbcType, Class<?> javaClass, int size, int defaultPrecision, int displaySize) {
+    DataType(SQLType jdbcType, Class<?> javaClass, int size, int defaultPrecision, int displaySize) {
         this(jdbcType, javaClass, size, defaultPrecision, displaySize, false, false, true);
     }
 
@@ -147,26 +208,42 @@ public enum DataType {
         return this != OBJECT && this != NESTED;
     }
 
-    public static DataType fromJdbcType(JDBCType jdbcType) {
+    public static DataType fromJdbcType(SQLType jdbcType) {
         if (jdbcToEs.containsKey(jdbcType) == false) {
             throw new IllegalArgumentException("Unsupported JDBC type [" + jdbcType + "]");
         }
         return jdbcToEs.get(jdbcType);
     }
     
-    public static Class<?> fromJdbcTypeToJava(JDBCType jdbcType) {
+    public static Class<?> fromJdbcTypeToJava(SQLType jdbcType) {
         if (jdbcToEs.containsKey(jdbcType) == false) {
             throw new IllegalArgumentException("Unsupported JDBC type [" + jdbcType + "]");
         }
         return jdbcToEs.get(jdbcType).javaClass();
     }
 
+    public static DataType fromODBCType(String odbcType) {
+        return odbcToEs.get(odbcType);
+    }
     /**
      * Creates returns DataType enum coresponding to the specified es type
      * <p>
      * For any dataType DataType.fromEsType(dataType.esType) == dataType
      */
     public static DataType fromEsType(String esType) {
-        return DataType.valueOf(esType.toUpperCase(Locale.ROOT));
+        try {
+            return DataType.valueOf(esType.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            return DataType.UNSUPPORTED;
+        }
+    }
+
+    public boolean isCompatibleWith(DataType other) {
+        if (this == other) {
+            return true;
+        } else return
+            (this == NULL || other == NULL) ||
+            (isString() && other.isString()) ||
+            (isNumeric() && other.isNumeric());
     }
 }

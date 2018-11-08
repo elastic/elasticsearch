@@ -20,6 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.search.Scroll;
 
 import java.util.HashMap;
@@ -30,8 +31,8 @@ public final class ScrollContext {
 
     private Map<String, Object> context = null;
 
-    public long totalHits = -1;
-    public float maxScore;
+    public TotalHits totalHits = null;
+    public float maxScore = Float.NaN;
     public ScoreDoc lastEmittedDoc;
     public Scroll scroll;
 

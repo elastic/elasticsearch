@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc.file;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
@@ -24,7 +25,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
 
 import java.io.IOException;
@@ -42,8 +43,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 public class FileUserPasswdStore {
-
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(FileUserPasswdStore.class);
 
     private final Path file;
     private final Settings settings;
@@ -55,9 +55,8 @@ public class FileUserPasswdStore {
     }
 
     FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, Runnable listener) {
-        logger = config.logger(FileUserPasswdStore.class);
         file = resolveFile(config.env());
-        settings = config.globalSettings();
+        settings = config.settings();
         users = parseFileLenient(file, logger, settings);
         listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));
         FileWatcher watcher = new FileWatcher(file.getParent());

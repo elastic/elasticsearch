@@ -104,6 +104,12 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
         }
+        // special handling if query is "now" and no field specified. This hits the "mapped_date" field which leads to the query not being
+        // cacheable and trigger later test failures (see https://github.com/elastic/elasticsearch/issues/35183)
+        if (fieldCount == 0 && result.value().equalsIgnoreCase("now")) {
+            fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
+        }
+
         result.fields(fields);
         if (randomBoolean()) {
             result.autoGenerateSynonymsPhraseQuery(randomBoolean());
@@ -233,7 +239,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     public void testDefaultFieldParsing() throws IOException {
         assumeTrue("5.x behaves differently, so skip on non-6.x indices",
-                indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1));
+                indexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1));
 
         String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
@@ -613,10 +619,58 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .field(STRING_FIELD_NAME)
             .analyzer("stop")
             .toQuery(createShardContext());
-        BooleanQuery expected = new BooleanQuery.Builder()
+        Query expected = new BooleanQuery.Builder()
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "quick")), BooleanClause.Occur.SHOULD)
             .add(new TermQuery(new Term(STRING_FIELD_NAME, "fox")), BooleanClause.Occur.SHOULD)
             .build();
+        assertEquals(expected, query);
+
+        query = new SimpleQueryStringBuilder("the quick fox")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "quick")),
+                    new TermQuery(new Term(STRING_FIELD_NAME_2, "quick"))
+                ), 1.0f), BooleanClause.Occur.SHOULD)
+            .add(new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "fox")),
+                    new TermQuery(new Term(STRING_FIELD_NAME_2, "fox"))
+                ), 1.0f), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new SimpleQueryStringBuilder("the")
+            .field(STRING_FIELD_NAME)
+            .field(STRING_FIELD_NAME_2)
+            .analyzer("stop")
+            .toQuery(createShardContext());
+        assertEquals(new MatchNoDocsQuery(), query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new SimpleQueryStringBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD)
+            .build();
+        assertEquals(expected, query);
+
+        query = new BoolQueryBuilder()
+            .should(
+                new SimpleQueryStringBuilder("the")
+                    .field(STRING_FIELD_NAME)
+                    .field(STRING_FIELD_NAME_2)
+                    .analyzer("stop")
+            )
+            .toQuery(createShardContext());
         assertEquals(expected, query);
     }
 

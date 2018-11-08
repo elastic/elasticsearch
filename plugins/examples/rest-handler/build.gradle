@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
   name 'rest-handler'
   description 'An example plugin showing how to register a REST handler'
   classname 'org.elasticsearch.example.resthandler.ExampleRestHandlerPlugin'
+  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile rootProject.file('NOTICE.txt')
 }
 
 // No unit tests in this example

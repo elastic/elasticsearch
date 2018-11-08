@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteCalendarAction extends Action<DeleteCalendarAction.Response> {
+public class DeleteCalendarAction extends Action<AcknowledgedResponse> {
 
     public static final DeleteCalendarAction INSTANCE = new DeleteCalendarAction();
     public static final String NAME = "cluster:admin/xpack/ml/calendars/delete";
@@ -29,8 +29,8 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Response> 
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -82,19 +82,10 @@ public class DeleteCalendarAction extends Action<DeleteCalendarAction.Response> 
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
+    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
 
         public RequestBuilder(ElasticsearchClient client, DeleteCalendarAction action) {
             super(client, action, new Request());
         }
-    }
-
-    public static class Response extends AcknowledgedResponse {
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-
-        public Response() {}
     }
 }

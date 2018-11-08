@@ -26,6 +26,11 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -39,7 +44,8 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
  * of reasons, not least of which that scripts are allowed to change the destination request in drastic ways, including changing the index
  * to which documents are written.
  */
-public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> implements CompositeIndicesRequest {
+public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest>
+                            implements CompositeIndicesRequest, ToXContentObject {
     /**
      * Prototype for index requests.
      */
@@ -48,9 +54,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     private RemoteInfo remoteInfo;
 
     public ReindexRequest() {
+        this(new SearchRequest(), new IndexRequest(), true);
     }
 
-    public ReindexRequest(SearchRequest search, IndexRequest destination) {
+    ReindexRequest(SearchRequest search, IndexRequest destination) {
         this(search, destination, true);
     }
 
@@ -121,14 +128,124 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
     }
 
+    /**
+     * Set the indices which will act as the source for the ReindexRequest
+     */
+    public ReindexRequest setSourceIndices(String... sourceIndices) {
+        if (sourceIndices != null) {
+            this.getSearchRequest().indices(sourceIndices);
+        }
+        return this;
+    }
+
+    /**
+     * Set the document types which need to be copied from the source indices
+     */
+    public ReindexRequest setSourceDocTypes(String... docTypes) {
+        if (docTypes != null) {
+            this.getSearchRequest().types(docTypes);
+        }
+        return this;
+    }
+
+    /**
+     * Sets the scroll size for setting how many documents are to be processed in one batch during reindex
+     */
+    public ReindexRequest setSourceBatchSize(int size) {
+        this.getSearchRequest().source().size(size);
+        return this;
+    }
+
+    /**
+     * Set the query for selecting documents from the source indices
+     */
+    public ReindexRequest setSourceQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder != null) {
+            this.getSearchRequest().source().query(queryBuilder);
+        }
+        return this;
+    }
+
+    /**
+     * Add a sort against the given field name.
+     *
+     * @param name The name of the field to sort by
+     * @param order The order in which to sort
+     */
+    public ReindexRequest addSortField(String name, SortOrder order) {
+        this.getSearchRequest().source().sort(name, order);
+        return this;
+    }
+
+    /**
+     * Set the target index for the ReindexRequest
+     */
+    public ReindexRequest setDestIndex(String destIndex) {
+        if (destIndex != null) {
+            this.getDestination().index(destIndex);
+        }
+        return this;
+    }
+
+    /**
+     * Set the document type for the destination index
+     */
+    public ReindexRequest setDestDocType(String docType) {
+        this.getDestination().type(docType);
+        return this;
+    }
+
+    /**
+     * Set the routing to decide which shard the documents need to be routed to
+     */
+    public ReindexRequest setDestRouting(String routing) {
+        this.getDestination().routing(routing);
+        return this;
+    }
+
+    /**
+     * Set the version type for the target index. A {@link VersionType#EXTERNAL} helps preserve the version
+     * if the document already existed in the target index.
+     */
+    public ReindexRequest setDestVersionType(VersionType versionType) {
+        this.getDestination().versionType(versionType);
+        return this;
+    }
+
+    /**
+     * Allows to set the ingest pipeline for the target index.
+     */
+    public void setDestPipeline(String pipelineName) {
+        this.getDestination().setPipeline(pipelineName);
+    }
+
+    /**
+     * Sets the optype on the destination index
+     * @param opType must be one of {create, index}
+     */
+    public ReindexRequest setDestOpType(String opType) {
+        this.getDestination().opType(opType);
+        return this;
+    }
+
+    /**
+     * Set the {@link RemoteInfo} if the source indices are in a remote cluster.
+     */
+    public ReindexRequest setRemoteInfo(RemoteInfo remoteInfo) {
+        this.remoteInfo = remoteInfo;
+        return this;
+    }
+
+    /**
+     * Gets the target for this reindex request in the for of an {@link IndexRequest}
+     */
     public IndexRequest getDestination() {
         return destination;
     }
 
-    public void setRemoteInfo(RemoteInfo remoteInfo) {
-        this.remoteInfo = remoteInfo;
-    }
-
+    /**
+     * Get the {@link RemoteInfo} if it was set for this request.
+     */
     public RemoteInfo getRemoteInfo() {
         return remoteInfo;
     }
@@ -165,5 +282,52 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             b.append('[').append(destination.type()).append(']');
         }
         return b.toString();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        {
+            // build source
+            builder.startObject("source");
+            if (remoteInfo != null) {
+                builder.field("remote", remoteInfo);
+            }
+            builder.array("index", getSearchRequest().indices());
+            builder.array("type", getSearchRequest().types());
+            getSearchRequest().source().innerToXContent(builder, params);
+            builder.endObject();
+        }
+        {
+            // build destination
+            builder.startObject("dest");
+            builder.field("index", getDestination().index());
+            if (getDestination().type() != null) {
+                builder.field("type", getDestination().type());
+            }
+            if (getDestination().routing() != null) {
+                builder.field("routing", getDestination().routing());
+            }
+            builder.field("op_type", getDestination().opType().getLowercase());
+            if (getDestination().getPipeline() != null) {
+                builder.field("pipeline", getDestination().getPipeline());
+            }
+            builder.field("version_type", VersionType.toString(getDestination().versionType()));
+            builder.endObject();
+        }
+        {
+            // Other fields
+            if (getSize() != -1 || getSize() > 0) {
+                builder.field("size", getSize());
+            }
+            if (getScript() != null) {
+                builder.field("script", getScript());
+            }
+            if (isAbortOnVersionConflict() == false) {
+                builder.field("conflicts", "proceed");
+            }
+        }
+        builder.endObject();
+        return builder;
     }
 }

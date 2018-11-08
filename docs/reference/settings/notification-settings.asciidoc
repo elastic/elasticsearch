@@ -60,7 +60,7 @@ The maximum period of inactivity between two data packets, before the
 request is aborted.
 
 `xpack.http.max_response_size`::
-Specifies the maximum size a HTTP response is allowed to have, defaults to
+Specifies the maximum size an HTTP response is allowed to have, defaults to
 `10mb`, the maximum configurable value is `50mb`.
 
 [[ssl-notification-settings]]
@@ -119,6 +119,13 @@ can specify the following email account attributes:
   `smtp.starttls.required`;;
   If `true`, then `STARTTLS` will be required. If that command fails, the
   connection will fail. Defaults to `false`.
+
+  `smtp.ssl.trust`;;
+  A list of SMTP server hosts that are assumed trusted and for which
+  certificate verification is disabled. If set to "*", all hosts are
+  trusted. If set to a whitespace separated list of hosts, those hosts
+  are trusted. Otherwise, trust depends on the certificate the server
+  presents.
 
   `smtp.timeout`;;
   The socket read timeout. Default is two minutes.

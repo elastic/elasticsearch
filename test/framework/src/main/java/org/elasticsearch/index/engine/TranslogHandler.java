@@ -46,7 +46,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 
-public class TranslogHandler implements EngineConfig.TranslogRecoveryRunner {
+public class TranslogHandler implements Engine.TranslogRecoveryRunner {
 
     private final MapperService mapperService;
     public Mapping mappingUpdate = null;

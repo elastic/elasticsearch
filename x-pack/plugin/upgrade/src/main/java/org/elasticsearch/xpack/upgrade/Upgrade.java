@@ -44,13 +44,11 @@ import java.util.function.Supplier;
 
 public class Upgrade extends Plugin implements ActionPlugin {
 
-    public static final Version UPGRADE_INTRODUCED = Version.V_5_6_0;
+    public static final Version UPGRADE_INTRODUCED = Version.CURRENT.minimumCompatibilityVersion();
 
-    private final Settings settings;
     private final List<BiFunction<Client, ClusterService, IndexUpgradeCheck>> upgradeCheckFactories;
 
-    public Upgrade(Settings settings) {
-        this.settings = settings;
+    public Upgrade() {
         this.upgradeCheckFactories = new ArrayList<>();
     }
 
@@ -63,7 +61,7 @@ public class Upgrade extends Plugin implements ActionPlugin {
         for (BiFunction<Client, ClusterService, IndexUpgradeCheck> checkFactory : upgradeCheckFactories) {
             upgradeChecks.add(checkFactory.apply(client, clusterService));
         }
-        return Collections.singletonList(new IndexUpgradeService(settings, Collections.unmodifiableList(upgradeChecks)));
+        return Collections.singletonList(new IndexUpgradeService(Collections.unmodifiableList(upgradeChecks)));
     }
 
     @Override

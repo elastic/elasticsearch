@@ -230,7 +230,7 @@ As many Elasticsearch tests are checking for a similar output, like the amount o
 `assertMatchCount()`::      Asserts a matching count from a percolation response
 `assertFirstHit()`::        Asserts the first hit hits the specified matcher
 `assertSecondHit()`::       Asserts the second hit hits the specified matcher
-`assertThirdHit()`::        Asserts the third hits hits the specified matcher
+`assertThirdHit()`::        Asserts the third hit hits the specified matcher
 `assertSearchHit()`::       Assert a certain element in a search response hits the specified matcher
 `assertNoFailures()`::      Asserts that no shard failures have occurred in the response
 `assertFailures()`::        Asserts that shard failures have happened during a search request

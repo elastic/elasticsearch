@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
@@ -26,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -61,12 +64,58 @@ public final class ConnectionProfile {
     private final TimeValue connectTimeout;
     private final TimeValue handshakeTimeout;
 
-    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout, TimeValue handshakeTimeout)
-    {
+    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
+                              TimeValue handshakeTimeout) {
         this.handles = handles;
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
         this.handshakeTimeout = handshakeTimeout;
+    }
+
+    /**
+     * takes a {@link ConnectionProfile} resolves it to a fully specified (i.e., no nulls) profile
+     */
+    public static ConnectionProfile resolveConnectionProfile(@Nullable ConnectionProfile profile, ConnectionProfile fallbackProfile) {
+        Objects.requireNonNull(fallbackProfile);
+        if (profile == null) {
+            return fallbackProfile;
+        } else if (profile.getConnectTimeout() != null && profile.getHandshakeTimeout() != null) {
+            return profile;
+        } else {
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
+            if (profile.getConnectTimeout() == null) {
+                builder.setConnectTimeout(fallbackProfile.getConnectTimeout());
+            }
+            if (profile.getHandshakeTimeout() == null) {
+                builder.setHandshakeTimeout(fallbackProfile.getHandshakeTimeout());
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Builds a default connection profile based on the provided settings.
+     *
+     * @param settings to build the connection profile from
+     * @return the connection profile
+     */
+    public static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
+        int connectionsPerNodeRecovery = TransportService.CONNECTIONS_PER_NODE_RECOVERY.get(settings);
+        int connectionsPerNodeBulk = TransportService.CONNECTIONS_PER_NODE_BULK.get(settings);
+        int connectionsPerNodeReg = TransportService.CONNECTIONS_PER_NODE_REG.get(settings);
+        int connectionsPerNodeState = TransportService.CONNECTIONS_PER_NODE_STATE.get(settings);
+        int connectionsPerNodePing = TransportService.CONNECTIONS_PER_NODE_PING.get(settings);
+        Builder builder = new Builder();
+        builder.setConnectTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.setHandshakeTimeout(TransportService.TCP_CONNECT_TIMEOUT.get(settings));
+        builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
+        builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
+        // if we are not master eligible we don't need a dedicated channel to publish the state
+        builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
+        // if we are not a data-node we don't need any dedicated channels for recovery
+        builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
+        builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
+        return builder.build();
     }
 
     /**

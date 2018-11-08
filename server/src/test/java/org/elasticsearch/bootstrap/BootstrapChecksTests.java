@@ -52,7 +52,7 @@ import static org.mockito.Mockito.when;
 
 public class BootstrapChecksTests extends ESTestCase {
 
-    private static final BootstrapContext defaultContext = new BootstrapContext(Settings.EMPTY, MetaData.EMPTY_META_DATA);
+    static final BootstrapContext defaultContext = new BootstrapContext(Settings.EMPTY, MetaData.EMPTY_META_DATA);
 
     public void testNonProductionMode() throws NodeValidationException {
         // nothing should happen since we are in non-production mode
@@ -353,31 +353,6 @@ public class BootstrapChecksTests extends ESTestCase {
 
         // nothing should happen if max file size is not available
         maxFileSize.set(Long.MIN_VALUE);
-        BootstrapChecks.check(defaultContext, true, Collections.singletonList(check));
-    }
-
-    public void testMaxMapCountCheck() throws NodeValidationException {
-        final int limit = 1 << 18;
-        final AtomicLong maxMapCount = new AtomicLong(randomIntBetween(1, limit - 1));
-        final BootstrapChecks.MaxMapCountCheck check = new BootstrapChecks.MaxMapCountCheck() {
-            @Override
-            long getMaxMapCount() {
-                return maxMapCount.get();
-            }
-        };
-
-        final NodeValidationException e = expectThrows(
-                NodeValidationException.class,
-                () -> BootstrapChecks.check(defaultContext, true, Collections.singletonList(check)));
-        assertThat(e.getMessage(), containsString("max virtual memory areas vm.max_map_count"));
-
-        maxMapCount.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
-
-        BootstrapChecks.check(defaultContext, true, Collections.singletonList(check));
-
-        // nothing should happen if current vm.max_map_count is not
-        // available
-        maxMapCount.set(-1);
         BootstrapChecks.check(defaultContext, true, Collections.singletonList(check));
     }
 

@@ -66,7 +66,7 @@ public class HasPrivilegesResponse extends ActionResponse {
         super.readFrom(in);
         completeMatch = in.readBoolean();
         index = readResourcePrivileges(in);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
             application = in.readMap(StreamInput::readString, HasPrivilegesResponse::readResourcePrivileges);
         }
     }
@@ -87,7 +87,7 @@ public class HasPrivilegesResponse extends ActionResponse {
         super.writeTo(out);
         out.writeBoolean(completeMatch);
         writeResourcePrivileges(out, index);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0_alpha1)) {
+        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
             out.writeMap(application, StreamOutput::writeString, HasPrivilegesResponse::writeResourcePrivileges);
         }
     }

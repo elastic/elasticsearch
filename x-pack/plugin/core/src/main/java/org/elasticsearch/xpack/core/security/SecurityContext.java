@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.core.security;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.protocol.xpack.security.User;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,8 +23,8 @@ import java.util.function.Consumer;
  * A lightweight utility that can find the current user and authentication information for the local thread.
  */
 public class SecurityContext {
+    private final Logger logger = LogManager.getLogger(SecurityContext.class);
 
-    private final Logger logger;
     private final ThreadContext threadContext;
     private final UserSettings userSettings;
     private final String nodeName;
@@ -35,9 +35,8 @@ public class SecurityContext {
      * and {@link UserSettings#getAuthentication()} will always return null.
      */
     public SecurityContext(Settings settings, ThreadContext threadContext) {
-        this.logger = Loggers.getLogger(getClass(), settings);
         this.threadContext = threadContext;
-        this.userSettings = new UserSettings(settings, threadContext);
+        this.userSettings = new UserSettings(threadContext);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
     }
 

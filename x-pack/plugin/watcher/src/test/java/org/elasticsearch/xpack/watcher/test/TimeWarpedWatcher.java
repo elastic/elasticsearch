@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.test;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -30,13 +30,13 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
+    private static final Logger logger = LogManager.getLogger(TimeWarpedWatcher.class);
 
     // use a single clock across all nodes using this plugin, this lets keep it static
     private static final ClockMock clock = new ClockMock();
 
     public TimeWarpedWatcher(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
-        Logger logger = Loggers.getLogger(TimeWarpedWatcher.class, settings);
         logger.info("using time warped watchers plugin");
 
         TimeWarpedWatcher thisVar = this;
@@ -59,7 +59,7 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
 
             @Override
             protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry){
-                return new ScheduleTriggerEngineMock(settings, scheduleRegistry, clock);
+                return new ScheduleTriggerEngineMock(scheduleRegistry, clock);
             }
 
             @Override
@@ -69,7 +69,7 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
 
             @Override
             protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService){
-                return new SyncTriggerEventConsumer(settings, executionService);
+                return new SyncTriggerEventConsumer(executionService);
             }
         });
     }

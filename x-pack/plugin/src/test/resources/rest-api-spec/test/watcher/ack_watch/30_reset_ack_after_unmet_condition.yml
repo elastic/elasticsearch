@@ -12,7 +12,7 @@ teardown:
         ignore: 404
 
 ---
-"Ensure that ack status is reset after unsuccesful execution":
+"Ensure that ack status is reset after unsuccessful execution":
 
   - do:
       xpack.watcher.put_watch:

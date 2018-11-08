@@ -1,10 +1,13 @@
 ---
 "External GTE version":
 
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
  - do:
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external_gte
@@ -15,7 +18,6 @@
  - do:
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external_gte
@@ -27,7 +29,6 @@
       catch:             conflict
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar }
           version_type:   external_gte
@@ -36,7 +37,6 @@
  - do:
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar2 }
           version_type:   external_gte
@@ -47,7 +47,6 @@
  - do:
       index:
           index:          test_1
-          type:           test
           id:             1
           body:           { foo: bar2 }
           version_type:   external_gte

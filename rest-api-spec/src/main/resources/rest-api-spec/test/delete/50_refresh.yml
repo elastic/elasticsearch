@@ -1,8 +1,13 @@
 ---
 "Refresh":
 
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
  - do:
       indices.create:
+          include_type_name: false
           index:    test_1
           body:
               settings:
@@ -17,7 +22,6 @@
  - do:
       index:
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
           refresh: true
@@ -28,7 +32,6 @@
  - do:
       index:
           index:   test_1
-          type:    test
           id:      3
           body:    { foo: bar }
           refresh: true
@@ -45,7 +48,6 @@
  - do:
       delete:
           index:   test_1
-          type:    test
           id:      1
 
  - do:
@@ -59,7 +61,6 @@
  - do:
       delete:
           index:   test_1
-          type:    test
           id:      3
           refresh: true
 
@@ -77,10 +78,14 @@
 
 ---
 "When refresh url parameter is an empty string that means \"refresh immediately\"":
+
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
  - do:
       index:
           index:   test_1
-          type:    test
           id:      1
           body:    { foo: bar }
           refresh: true
@@ -96,7 +101,6 @@
  - do:
       delete:
           index:   test_1
-          type:    test
           id:      1
           refresh: ""
 
@@ -109,10 +113,14 @@
 
 ---
 "refresh=wait_for waits until changes are visible in search":
+
+ - skip:
+      version: " - 6.99.99"
+      reason: types are required in requests before 7.0.0
+
  - do:
       index:
           index:   delete_50_refresh_1
-          type:    test
           id:      delete_50_refresh_id1
           body:    { foo: bar }
           refresh: true
@@ -128,7 +136,6 @@
  - do:
      delete:
          index:   delete_50_refresh_1
-         type:    test
          id:      delete_50_refresh_id1
          refresh: wait_for
  - is_false: forced_refresh

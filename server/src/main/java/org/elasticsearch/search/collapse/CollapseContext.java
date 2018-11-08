@@ -60,11 +60,11 @@ public class CollapseContext {
         return innerHits;
     }
 
-    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, boolean trackMaxScore) {
+    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN) {
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-            return CollapsingTopDocsCollector.createKeyword(fieldType.name(), sort, topN, trackMaxScore);
+            return CollapsingTopDocsCollector.createKeyword(fieldType.name(), sort, topN);
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            return CollapsingTopDocsCollector.createNumeric(fieldType.name(), sort, topN, trackMaxScore);
+            return CollapsingTopDocsCollector.createNumeric(fieldType.name(), sort, topN);
         } else {
             throw new IllegalStateException("unknown type for collapse field " + fieldType.name() +
                 ", only keywords and numbers are accepted");

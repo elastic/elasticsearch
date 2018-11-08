@@ -19,17 +19,25 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.Scorable;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ScriptedMetricAggContextsTests extends ScriptTestCase {
     @Override
@@ -58,22 +66,19 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         assertEquals(10, state.get("testField"));
     }
 
-    public void testMapBasic() {
+    public void testMapBasic() throws IOException {
         ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile("test",
             "state.testField = 2*_score", ScriptedMetricAggContexts.MapScript.CONTEXT, Collections.emptyMap());
 
         Map<String, Object> params = new HashMap<>();
         Map<String, Object> state = new HashMap<>();
 
-        Scorer scorer = new Scorer(null) {
+        Scorable scorer = new Scorable() {
             @Override
             public int docID() { return 0; }
 
             @Override
             public float score() { return 0.5f; }
-
-            @Override
-            public DocIdSetIterator iterator() { return null; }
         };
 
         ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, null);
@@ -84,6 +89,32 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
 
         assert(state.containsKey("testField"));
         assertEquals(1.0, state.get("testField"));
+    }
+
+    public void testMapSourceAccess() throws IOException {
+        ScriptedMetricAggContexts.MapScript.Factory factory = scriptEngine.compile("test",
+            "state.testField = params._source.three", ScriptedMetricAggContexts.MapScript.CONTEXT, Collections.emptyMap());
+
+        Map<String, Object> params = new HashMap<>();
+        Map<String, Object> state = new HashMap<>();
+
+        MemoryIndex index = new MemoryIndex();
+        // we don't need a real index, just need to construct a LeafReaderContext which cannot be mocked
+        LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
+
+        SearchLookup lookup = mock(SearchLookup.class);
+        LeafSearchLookup leafLookup = mock(LeafSearchLookup.class);
+        when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafLookup);
+        SourceLookup sourceLookup = mock(SourceLookup.class);
+        when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", sourceLookup));
+        when(sourceLookup.get("three")).thenReturn(3);
+        ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, lookup);
+        ScriptedMetricAggContexts.MapScript script = leafFactory.newInstance(leafReaderContext);
+
+        script.execute();
+
+        assert(state.containsKey("testField"));
+        assertEquals(3, state.get("testField"));
     }
 
     public void testCombineBasic() {

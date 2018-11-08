@@ -98,11 +98,6 @@ public class AcknowledgedResponse extends ActionResponse implements ToXContentOb
                 ObjectParser.ValueType.BOOLEAN);
     }
 
-    @Deprecated
-    public static boolean parseAcknowledged(XContentParser parser) {
-        return ACKNOWLEDGED_FLAG_PARSER.apply(parser, null);
-    }
-
     public static AcknowledgedResponse fromXContent(XContentParser parser) throws IOException {
         return new AcknowledgedResponse(ACKNOWLEDGED_FLAG_PARSER.apply(parser, null));
     }

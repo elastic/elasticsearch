@@ -16,34 +16,25 @@ subprojects {
     project.esplugin.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
     project.esplugin.noticeFile = xpackRootProject.file('NOTICE.txt')
   }
-
-  if (project.name != 'protocol') {
-    tasks.withType(LicenseHeadersTask.class) {
-        approvedLicenses = ['Elastic License', 'Generated']
-        additionalLicense 'ELAST', 'Elastic License', 'Licensed under the Elastic License'
-    }
-
-    ext.licenseName = 'Elastic License'
-    ext.licenseUrl = ext.elasticLicenseUrl
-
-    project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
-    project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')
+  
+  tasks.withType(LicenseHeadersTask.class) {
+      approvedLicenses = ['Elastic License', 'Generated']
+      additionalLicense 'ELAST', 'Elastic License', 'Licensed under the Elastic License'
   }
+
+  ext.licenseName = 'Elastic License'
+  ext.licenseUrl = ext.elasticLicenseUrl
+
+  project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE.txt')
+  project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')
 }
 
-File checkstyleSuppressions = file('dev-tools/checkstyle_suppressions.xml')
 subprojects {
-  tasks.withType(Checkstyle) {
-    inputs.file(checkstyleSuppressions)
-    // Use x-pack-elasticsearch specific suppressions file rather than the open source one.
-    configProperties = [
-      suppressions: checkstyleSuppressions
-    ]
-  }
-
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ccr:${version}": xpackModule('ccr')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-core:${version}": xpackModule('core')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-deprecation:${version}": xpackModule('deprecation')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-graph:${version}": xpackModule('graph')]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ilm:${version}": xpackModule('ilm')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-logstash:${version}": xpackModule('logstash')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-ml:${version}": xpackModule('ml')]
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-monitoring:${version}": xpackModule('monitoring')]

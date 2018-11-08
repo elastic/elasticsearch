@@ -223,7 +223,7 @@ public class NettyListener implements BiConsumer<Void, Exception>, ChannelPromis
                     biConsumer.accept(null, null);
                 } else {
                     if (cause instanceof Error) {
-                        ExceptionsHelper.dieOnError(cause);
+                        ExceptionsHelper.maybeDieOnAnotherThread(cause);
                         biConsumer.accept(null, new Exception(cause));
                     } else {
                         biConsumer.accept(null, (Exception) cause);

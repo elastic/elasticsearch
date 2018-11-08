@@ -1,6 +1,6 @@
 {
   "xpack.security.disable_user": {
-    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-users.html#security-api-disable-user",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html",
     "methods": [ "PUT", "POST" ],
     "url": {
       "path": "/_xpack/security/user/{username}/_disable",

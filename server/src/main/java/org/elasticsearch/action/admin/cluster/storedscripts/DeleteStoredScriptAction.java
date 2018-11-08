@@ -20,8 +20,9 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class DeleteStoredScriptAction extends Action<DeleteStoredScriptResponse> {
+public class DeleteStoredScriptAction extends Action<AcknowledgedResponse> {
 
     public static final DeleteStoredScriptAction INSTANCE = new DeleteStoredScriptAction();
     public static final String NAME = "cluster:admin/script/delete";
@@ -31,7 +32,7 @@ public class DeleteStoredScriptAction extends Action<DeleteStoredScriptResponse>
     }
 
     @Override
-    public DeleteStoredScriptResponse newResponse() {
-        return new DeleteStoredScriptResponse();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 }

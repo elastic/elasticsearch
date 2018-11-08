@@ -347,6 +347,6 @@
               }
             ]
           }
-  - match: { error.header.processor_type: "set" }
+  - match: { error.processor_type: "set" }
   - match: { error.type: "script_exception" }
   - match: { error.reason: "Mustache function [join] must contain one and only one identifier" }

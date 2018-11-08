@@ -325,4 +325,21 @@ public abstract class ArchiveTestCase extends PackagingTestCase {
         }
     }
 
+    public void test100RepairIndexCliPackaging() {
+        assumeThat(installation, is(notNullValue()));
+
+        final Installation.Executables bin = installation.executables();
+        final Shell sh = new Shell();
+
+        Platforms.PlatformAction action = () -> {
+            final Result result = sh.run(bin.elasticsearchShard + " help");
+            assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
+        };
+
+        if (distribution().equals(Distribution.DEFAULT_TAR) || distribution().equals(Distribution.DEFAULT_ZIP)) {
+            Platforms.onLinux(action);
+            Platforms.onWindows(action);
+        }
+    }
+
 }

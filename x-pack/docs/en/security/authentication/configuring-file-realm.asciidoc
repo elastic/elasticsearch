@@ -25,10 +25,9 @@ explicitly configure a `file` realm.
 For more information about file realms, see 
 {xpack-ref}/file-realm.html[File-based user authentication].
 
-. (Optional) Add a realm configuration of type `file` to `elasticsearch.yml` 
-under the `xpack.security.authc.realms` namespace. At a minimum, you must set 
-the realm `type` to `file`. If you are configuring multiple realms, you should 
-also explicitly set the `order` attribute. 
+. (Optional) Add a realm configuration to `elasticsearch.yml` under the
+`xpack.security.authc.realms.file` namespace. At a minimum, you must set 
+the realm's `order` attribute.
 +
 --
 //See <<ref-users-settings>> for all of the options you can set for a `file` realm.
@@ -42,9 +41,9 @@ xpack:
   security:
     authc:
       realms:
-        file1:
-          type: file
-          order: 0
+        file:
+          file1:
+            order: 0
 ------------------------------------------------------------
 --
 
@@ -55,18 +54,23 @@ cluster.
 +
 --
 The `users` file stores all the users and their passwords. Each line in the file 
-represents a single user entry consisting of the username and **hashed** password.
+represents a single user entry consisting of the username and **hashed** and **salted** password.
 
 [source,bash]
 ----------------------------------------------------------------------
 rdeniro:$2a$10$BBJ/ILiyJ1eBTYoRKxkqbuDEdYECplvxnqQ47uiowE7yGqvCEgj9W
 alpacino:$2a$10$cNwHnElYiMYZ/T3K4PvzGeJ1KbpXZp2PfoQD.gfaVdImnHOwIuBKS
-jacknich:$2a$10$GYUNWyABV/Ols/.bcwxuBuuaQzV6WIauW6RdboojxcixBq3LtI3ni
+jacknich:{PBKDF2}50000$z1CLJt0MEFjkIK5iEfgvfnA6xq7lF25uasspsTKSo5Q=$XxCVLbaKDimOdyWgLCLJiyoiWpA/XDMe/xtVgn1r5Sg=
 ----------------------------------------------------------------------
 
-{security} uses `bcrypt` to hash the user passwords.
+NOTE: To limit exposure to credential theft and mitigate credential compromise,
+the file realm stores passwords and caches user credentials according to
+security best practices. By default, a hashed version of user credentials
+is stored in memory, using a salted `sha-256` hash algorithm and a hashed
+version of passwords is stored on disk salted and hashed with the `bcrypt`
+hash algorithm. To use different hash algorithms, see <<hashing-settings>>.
 
-While it is possible to modify this files directly using any standard text
+While it is possible to modify the `users` files directly using any standard text
 editor, we strongly recommend using the <<users-command>> tool to apply the 
 required changes.
 

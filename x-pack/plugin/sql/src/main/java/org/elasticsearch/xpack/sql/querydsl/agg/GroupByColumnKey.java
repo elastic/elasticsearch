@@ -25,7 +25,8 @@ public class GroupByColumnKey extends GroupByKey {
     public TermsValuesSourceBuilder asValueSource() {
         return new TermsValuesSourceBuilder(id())
                 .field(fieldName())
-                .order(direction().asOrder());
+                .order(direction().asOrder())
+                .missingBucket(true);
     }
 
     @Override

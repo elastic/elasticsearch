@@ -173,6 +173,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             key -> timeSetting(key, TcpTransport.PING_SCHEDULE, Setting.Property.NodeScope),
             REMOTE_CLUSTERS_SEEDS);
 
+    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
+        "cluster.remote.",
+        "transport.compress",
+        key -> boolSetting(key, Transport.TRANSPORT_TCP_COMPRESS, Setting.Property.NodeScope),
+        REMOTE_CLUSTERS_SEEDS);
+
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
             && (node.isMasterNode() == false  || node.isDataNode() || node.isIngestNode());
 

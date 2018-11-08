@@ -24,38 +24,59 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 
 /**
- * An authenticated user
+ * A user to be utilized with security APIs.
+ * Can be an existing authenticated user or it can be a new user to be enrolled to the native realm.
  */
 public final class User {
 
     private final String username;
-    private final Collection<String> roles;
+    private final Set<String> roles;
     private final Map<String, Object> metadata;
     @Nullable private final String fullName;
     @Nullable private final String email;
 
+    /**
+     * Builds the user to be utilized with security APIs.
+     *
+     * @param username the username, also known as the principal, unique for in the scope of a realm
+     * @param roles the roles that this user is assigned
+     * @param metadata a map of additional user attributes that may be used in templating roles
+     * @param fullName the full name of the user that may be used for display purposes
+     * @param email the email address of the user
+     */
     public User(String username, Collection<String> roles, Map<String, Object> metadata, @Nullable String fullName,
             @Nullable String email) {
-        Objects.requireNonNull(username, "`username` cannot be null");
-        Objects.requireNonNull(roles, "`roles` cannot be null. Pass an empty collection instead.");
-        Objects.requireNonNull(roles, "`metadata` cannot be null. Pass an empty map instead.");
-        this.username = username;
-        this.roles = roles;
-        this.metadata = Collections.unmodifiableMap(metadata);
+        this.username = username = Objects.requireNonNull(username, "`username` is required, cannot be null");
+        this.roles = Collections.unmodifiableSet(new HashSet<>(
+                Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead.")));
+        this.metadata = Collections
+                .unmodifiableMap(Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
         this.fullName = fullName;
         this.email = email;
+    }
+
+    /**
+     * Builds the user to be utilized with security APIs.
+     *
+     * @param username the username, also known as the principal, unique for in the scope of a realm
+     * @param roles the roles that this user is assigned
+     */
+    public User(String username, Collection<String> roles) {
+        this(username, roles, Collections.emptyMap(), null, null);
     }
 
     /**
      * @return  The principal of this user - effectively serving as the
      *          unique identity of the user. Can never be {@code null}.
      */
-    public String username() {
+    public String getUsername() {
         return this.username;
     }
 
@@ -64,28 +85,28 @@ public final class User {
      *          identified by their unique names and each represents as
      *          set of permissions. Can never be {@code null}.
      */
-    public Collection<String> roles() {
+    public Set<String> getRoles() {
         return this.roles;
     }
 
     /**
      * @return  The metadata that is associated with this user. Can never be {@code null}.
      */
-    public Map<String, Object> metadata() {
+    public Map<String, Object> getMetadata() {
         return metadata;
     }
 
     /**
      * @return  The full name of this user. May be {@code null}.
      */
-    public @Nullable String fullName() {
+    public @Nullable String getFullName() {
         return fullName;
     }
 
     /**
      * @return  The email of this user. May be {@code null}.
      */
-    public @Nullable String email() {
+    public @Nullable String getEmail() {
         return email;
     }
 
@@ -103,28 +124,14 @@ public final class User {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o instanceof User == false) {
-            return false;
-        }
-
-        final User user = (User) o;
-
-        if (!username.equals(user.username)) {
-            return false;
-        }
-        if (!roles.equals(user.roles)) {
-            return false;
-        }
-        if (!metadata.equals(user.metadata)) {
-            return false;
-        }
-        if (fullName != null ? !fullName.equals(user.fullName) : user.fullName != null) {
-            return false;
-        }
-        return !(email != null ? !email.equals(user.email) : user.email != null);
+        if (this == o) return true;
+        if (o == null || this.getClass() != o.getClass()) return false;
+        final User that = (User) o;
+        return Objects.equals(username, that.username)
+                && Objects.equals(roles, that.roles)
+                && Objects.equals(metadata, that.metadata)
+                && Objects.equals(fullName, that.fullName)
+                && Objects.equals(email, that.email);
     }
 
     @Override

@@ -58,7 +58,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         XPackClient xPackClient = new XPackClient(client());
         PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
         xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("index"), future);
-        future.get();
+        assertAcked(future.get());
         assertAcked(client().admin().indices().prepareOpen("index"));
         expectThrows(ClusterBlockException.class, () -> client().prepareIndex("index", "_doc", "4").setSource("field", "value")
             .setRefreshPolicy(IMMEDIATE).get());
@@ -111,7 +111,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         TransportFreezeIndexAction.FreezeRequest request =
             new TransportFreezeIndexAction.FreezeRequest("index");
         xPackClient.freeze(request, future);
-        future.get();
+        assertAcked(future.get());
         assertAcked(client().admin().indices().prepareOpen("index"));
         int numRequests = randomIntBetween(20, 50);
         CountDownLatch latch = new CountDownLatch(numRequests);
@@ -158,7 +158,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         TransportFreezeIndexAction.FreezeRequest request =
             new TransportFreezeIndexAction.FreezeRequest("index");
         xPackClient.freeze(request, future);
-        future.get();
+        assertAcked(future.get());
         assertAcked(client().admin().indices().prepareOpen("index"));
         {
             IndicesService indexServices = getInstanceFromNode(IndicesService.class);
@@ -173,7 +173,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         request.setFreeze(false);
         PlainActionFuture<AcknowledgedResponse> future1= new PlainActionFuture<>();
         xPackClient.freeze(request, future1);
-        future1.get();
+        assertAcked(future1.get());
         assertAcked(client().admin().indices().prepareOpen("index"));
         client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder().put("index.blocks.write", false)).get();
         {
@@ -186,5 +186,17 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             assertThat(engine, Matchers.instanceOf(InternalEngine.class));
         }
         client().prepareIndex("index", "_doc", "4").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+    }
+
+    public void testIndexMustBeClosed() {
+        createIndex("test-idx", Settings.builder().put("index.number_of_shards", 2).build());
+        XPackClient xPackClient = new XPackClient(client());
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+        TransportFreezeIndexAction.FreezeRequest request =
+            new TransportFreezeIndexAction.FreezeRequest("test-idx");
+        xPackClient.freeze(request, future);
+        ExecutionException executionException = expectThrows(ExecutionException.class, () -> future.get());
+        assertThat(executionException.getCause(), Matchers.instanceOf(IllegalStateException.class));
+        assertEquals("index [test-idx] is not closed", executionException.getCause().getMessage());
     }
 }

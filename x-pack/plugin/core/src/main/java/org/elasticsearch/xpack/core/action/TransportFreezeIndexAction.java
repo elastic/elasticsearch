@@ -10,7 +10,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.FrozenEngine;
@@ -39,6 +39,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public final class TransportFreezeIndexAction extends
     TransportMasterNodeAction<TransportFreezeIndexAction.FreezeRequest, AcknowledgedResponse> {
@@ -84,7 +86,7 @@ public final class TransportFreezeIndexAction extends
                 final MetaData.Builder builder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 for (Index index : concreteIndices) {
-                    IndexMetaData meta = currentState.metaData().index(index);
+                    IndexMetaData meta = currentState.metaData().getIndexSafe(index);
                     if (meta.getState() != IndexMetaData.State.CLOSE) {
                         throw new IllegalStateException("index [" + index.getName() + "] is not closed");
                     }
@@ -135,21 +137,24 @@ public final class TransportFreezeIndexAction extends
 
     public static class FreezeRequest extends AcknowledgedRequest<FreezeRequest>
         implements IndicesRequest.Replaceable {
-        private OpenIndexRequest openIndexRequest;
+        private String[] indices;
         private boolean freeze = true;
+        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, false, true);
 
-        public FreezeRequest() {
-            openIndexRequest = new OpenIndexRequest();
-        }
 
         public FreezeRequest(String... indices) {
-            openIndexRequest = new OpenIndexRequest(indices);
+            this.indices = indices;
         }
 
         @Override
         public ActionRequestValidationException validate() {
-            return openIndexRequest.validate();
+            ActionRequestValidationException validationException = null;
+            if (CollectionUtils.isEmpty(indices)) {
+                validationException = addValidationError("index is missing", validationException);
+            }
+            return validationException;
         }
+
 
         public void setFreeze(boolean freeze) {
             this.freeze = freeze;
@@ -162,36 +167,54 @@ public final class TransportFreezeIndexAction extends
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            openIndexRequest = new OpenIndexRequest();
-            openIndexRequest.readFrom(in);
+            indicesOptions = IndicesOptions.readIndicesOptions(in);
+            indices = in.readStringArray();
             freeze = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            openIndexRequest.writeTo(out);
+            indicesOptions.writeIndicesOptions(out);
+            out.writeStringArray(indices);
             out.writeBoolean(freeze);
         }
 
+        /**
+         * The indices to be opened
+         * @return the indices to be opened
+         */
         @Override
         public String[] indices() {
-            return openIndexRequest.indices();
+            return indices;
         }
 
+        /**
+         * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+         * For example indices that don't exist.
+         *
+         * @return the current behaviour when it comes to index names and wildcard indices expressions
+         */
         @Override
         public IndicesOptions indicesOptions() {
-            return openIndexRequest.indicesOptions();
+            return indicesOptions;
+        }
+
+        /**
+         * Specifies what type of requested indices to ignore and how to deal with wildcard expressions.
+         * For example indices that don't exist.
+         *
+         * @param indicesOptions the desired behaviour regarding indices to ignore and wildcard indices expressions
+         * @return the request itself
+         */
+        public FreezeRequest indicesOptions(IndicesOptions indicesOptions) {
+            this.indicesOptions = indicesOptions;
+            return this;
         }
 
         @Override
         public IndicesRequest indices(String... indices) {
-            openIndexRequest.indices(indices);
-            return this;
-        }
-
-        public FreezeRequest indicesOptions(IndicesOptions indicesOptions) {
-            openIndexRequest.indicesOptions(indicesOptions);
+            this.indices = indices;
             return this;
         }
     }

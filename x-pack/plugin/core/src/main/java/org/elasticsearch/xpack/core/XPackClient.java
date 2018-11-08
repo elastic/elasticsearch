@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;

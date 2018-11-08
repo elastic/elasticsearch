@@ -22,6 +22,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.JsonFieldMapper.RootJsonFieldType;
@@ -81,6 +82,21 @@ public class RootJsonFieldTypeTests extends FieldTypeTestCase {
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.fuzzyQuery("valuee", Fuzziness.fromEdits(2), 1, 50, true));
         assertEquals("[fuzzy] queries are not currently supported on [json] fields.", e.getMessage());
+    }
+
+    public void testRangeQuery() {
+        RootJsonFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+
+        TermRangeQuery expected = new TermRangeQuery("field",
+            new BytesRef("lower"),
+            new BytesRef("upper"), false, false);
+        assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, null));
+
+        expected = new TermRangeQuery("field",
+            new BytesRef("lower"),
+            new BytesRef("upper"), true, true);
+        assertEquals(expected, ft.rangeQuery("lower", "upper", true, true, null));
     }
 
     public void testRegexpQuery() {

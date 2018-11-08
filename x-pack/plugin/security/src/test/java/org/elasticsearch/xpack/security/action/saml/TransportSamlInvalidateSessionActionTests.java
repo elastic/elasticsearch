@@ -309,7 +309,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(((TermQueryBuilder) filter1.get(1)).fieldName(), equalTo("refresh_token.token"));
         assertThat(((TermQueryBuilder) filter1.get(1)).value(), equalTo(tokenToInvalidate1.v2()));
 
-        assertThat(bulkRequests.size(), equalTo(6)); // 4 updates (refresh-token + access-token) and 2 indexes (bwc-invalidate * 2)
+        assertThat(bulkRequests.size(), equalTo(6)); // 4 updates (refresh-token + access-token) plus 2 indexes (bwc-invalidate * 2)
         // Invalidate refresh token 1
         assertThat(bulkRequests.get(0).requests().get(0), instanceOf(UpdateRequest.class));
         assertThat(bulkRequests.get(0).requests().get(0).id(), equalTo("token_" + tokenToInvalidate1.v1().getId()));

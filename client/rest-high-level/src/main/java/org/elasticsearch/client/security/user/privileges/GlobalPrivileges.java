@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -66,8 +67,15 @@ public final class GlobalPrivileges implements ToXContentObject {
      *            The privileges over applications.
      */
     public GlobalPrivileges(Collection<? extends GlobalScopedPrivilege> applicationPrivileges) {
-        this.applicationPrivileges = applicationPrivileges == null ? Collections.emptySet()
-                : Collections.unmodifiableSet(new HashSet<>(applicationPrivileges));
+        if (applicationPrivileges == null || applicationPrivileges.isEmpty()) {
+            throw new IllegalArgumentException("Application privileges cannot be empty or null");
+        }
+        this.applicationPrivileges = Collections.unmodifiableSet(new HashSet<>(Objects.requireNonNull(applicationPrivileges)));
+        final Set<String> allScopes = this.applicationPrivileges.stream().map(p -> p.getScope()).collect(Collectors.toSet());
+        if (allScopes.size() != this.applicationPrivileges.size()) {
+            throw new IllegalArgumentException(
+                    "Application privileges have the same scope but the privileges differ. Only one privilege for any one scope is allowed.");
+        }
     }
 
     @Override

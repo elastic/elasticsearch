@@ -50,10 +50,10 @@ public class GlobalScopedPrivilege {
      */
     public GlobalScopedPrivilege(String scope, Map<String, Object> privilege) {
         this.scope = Objects.requireNonNull(scope);
-        this.privilege = Collections.unmodifiableMap(Objects.requireNonNull(privilege));
-        if (privilege.isEmpty()) {
-            throw new IllegalArgumentException("Privileges cannot be empty. Simply don't add this privilege at all.");
+        if (privilege == null || privilege.isEmpty()) {
+            throw new IllegalArgumentException("Privileges cannot be empty or null");
         }
+        this.privilege = Collections.unmodifiableMap(privilege);
     }
 
     public String getScope() {

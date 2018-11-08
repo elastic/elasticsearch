@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -63,16 +62,19 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
     private final NodeClient client;
 
     @Inject
-    public TransportUpgradeAction(Settings settings, ClusterService clusterService,
-                                  TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
-        super(settings, UpgradeAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpgradeRequest::new, ThreadPool.Names.FORCE_MERGE);
+    public TransportUpgradeAction(ClusterService clusterService, TransportService transportService, IndicesService indicesService,
+                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                  NodeClient client) {
+        super(UpgradeAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+            UpgradeRequest::new, ThreadPool.Names.FORCE_MERGE);
         this.indicesService = indicesService;
         this.client = client;
     }
 
     @Override
-    protected UpgradeResponse newResponse(UpgradeRequest request, int totalShards, int successfulShards, int failedShards, List<ShardUpgradeResult> shardUpgradeResults, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
+    protected UpgradeResponse newResponse(UpgradeRequest request, int totalShards, int successfulShards, int failedShards,
+                                          List<ShardUpgradeResult> shardUpgradeResults,
+                                          List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
         Map<String, Integer> successfulPrimaryShards = new HashMap<>();
         Map<String, Tuple<Version, org.apache.lucene.util.Version>> versions = new HashMap<>();
         for (ShardUpgradeResult result : shardUpgradeResults) {
@@ -111,8 +113,8 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
             if (primaryCount == metaData.index(index).getNumberOfShards()) {
                 updatedVersions.put(index, new Tuple<>(versionEntry.getValue().v1(), versionEntry.getValue().v2().toString()));
             } else {
-                logger.warn("Not updating settings for the index [{}] because upgraded of some primary shards failed - expected[{}], received[{}]", index,
-                        expectedPrimaryCount, primaryCount == null ? 0 : primaryCount);
+                logger.warn("Not updating settings for the index [{}] because upgraded of some primary shards failed - " +
+                        "expected[{}], received[{}]", index, expectedPrimaryCount, primaryCount == null ? 0 : primaryCount);
             }
         }
 
@@ -152,7 +154,8 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
             return iterator;
         }
         // If some primary shards are not available the request should fail.
-        throw new PrimaryMissingActionException("Cannot upgrade indices because the following indices are missing primary shards " + indicesWithMissingPrimaries);
+        throw new PrimaryMissingActionException("Cannot upgrade indices because the following indices are missing primary shards " +
+            indicesWithMissingPrimaries);
     }
 
     /**

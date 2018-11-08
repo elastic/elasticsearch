@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.transport.netty4;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -58,15 +60,15 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
 
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
-        final Netty4Transport nettyA = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
-            BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
+        final Netty4Transport nettyA = new Netty4Transport(settings, Version.CURRENT, threadPool,
+            new NetworkService(Collections.emptyList()), BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
         MockTransportService serviceA = new MockTransportService(settings, nettyA, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         serviceA.start();
         serviceA.acceptIncomingRequests();
 
-        final Netty4Transport nettyB = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
-            BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
+        final Netty4Transport nettyB = new Netty4Transport(settings, Version.CURRENT, threadPool,
+            new NetworkService(Collections.emptyList()), BigArrays.NON_RECYCLING_INSTANCE, registry, circuitBreakerService);
         MockTransportService serviceB = new MockTransportService(settings, nettyB, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
 
@@ -102,7 +104,7 @@ public class Netty4ScheduledPingTests extends ESTestCase {
                 TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(randomBoolean()).build(),
                 new TransportResponseHandler<TransportResponse.Empty>() {
                     @Override
-                    public TransportResponse.Empty newInstance() {
+                    public TransportResponse.Empty read(StreamInput in) {
                         return TransportResponse.Empty.INSTANCE;
                     }
 

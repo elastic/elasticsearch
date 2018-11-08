@@ -19,13 +19,24 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.security.CreateTokenRequest;
+import org.elasticsearch.client.security.DeleteRoleMappingRequest;
+import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
+import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
+import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -65,6 +76,53 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/user/" + putUserRequest.getUsername(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(putUserRequest, request.getEntity());
+    }
+
+    public void testPutRoleMapping() throws IOException {
+        final String username = randomAlphaOfLengthBetween(4, 7);
+        final String rolename = randomAlphaOfLengthBetween(4, 7);
+        final String roleMappingName = randomAlphaOfLengthBetween(4, 7);
+        final String groupname = "cn="+randomAlphaOfLengthBetween(4, 7)+",dc=example,dc=com";
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams;
+        if (refreshPolicy != RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
+        } else {
+            expectedParams = Collections.emptyMap();
+        }
+
+        final RoleMapperExpression rules = AnyRoleMapperExpression.builder()
+                .addExpression(FieldRoleMapperExpression.ofUsername(username))
+                .addExpression(FieldRoleMapperExpression.ofGroups(groupname))
+                .build();
+        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(roleMappingName, true, Collections.singletonList(
+                rolename), rules, null, refreshPolicy);
+
+        final Request request = SecurityRequestConverters.putRoleMapping(putRoleMappingRequest);
+
+        assertEquals(HttpPut.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/role_mapping/" + roleMappingName, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(putRoleMappingRequest, request.getEntity());
+    }
+
+    public void testGetRoleMappings() throws IOException {
+        int noOfRoleMappingNames = randomIntBetween(0, 2);
+        final String[] roleMappingNames =
+                randomArray(noOfRoleMappingNames, noOfRoleMappingNames, String[]::new, () -> randomAlphaOfLength(5));
+        final GetRoleMappingsRequest getRoleMappingsRequest = new GetRoleMappingsRequest(roleMappingNames);
+
+        final Request request = SecurityRequestConverters.getRoleMappings(getRoleMappingsRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        if (noOfRoleMappingNames == 0) {
+            assertEquals("/_xpack/security/role_mapping", request.getEndpoint());
+        } else {
+            assertEquals("/_xpack/security/role_mapping/" +
+                    Strings.collectionToCommaDelimitedString(getRoleMappingsRequest.getRoleMappingNames()), request.getEndpoint());
+        }
+        assertEquals(Collections.emptyMap(), request.getParameters());
+        assertNull(request.getEntity());
     }
 
     public void testEnableUser() {
@@ -122,5 +180,66 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/security/user/_password", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(changePasswordRequest, request.getEntity());
+    }
+
+    public void testDeleteRoleMapping() throws IOException {
+        final String roleMappingName = randomAlphaOfLengthBetween(4, 7);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams;
+        if (refreshPolicy != RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
+        } else {
+            expectedParams = Collections.emptyMap();
+        }
+        final DeleteRoleMappingRequest deleteRoleMappingRequest = new DeleteRoleMappingRequest(roleMappingName, refreshPolicy);
+
+        final Request request = SecurityRequestConverters.deleteRoleMapping(deleteRoleMappingRequest);
+
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/role_mapping/" + roleMappingName, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testDeleteRole() {
+        final String name = randomAlphaOfLengthBetween(1, 12);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams = getExpectedParamsFromRefreshPolicy(refreshPolicy);
+        DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest(name, refreshPolicy);
+        Request request = SecurityRequestConverters.deleteRole(deleteRoleRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/role/" + name, request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertNull(request.getEntity());
+    }
+
+    public void testCreateTokenWithPasswordGrant() throws Exception {
+        final String username = randomAlphaOfLengthBetween(1, 12);
+        final String password = randomAlphaOfLengthBetween(8, 12);
+        CreateTokenRequest createTokenRequest = CreateTokenRequest.passwordGrant(username, password.toCharArray());
+        Request request = SecurityRequestConverters.createToken(createTokenRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertToXContentBody(createTokenRequest, request.getEntity());
+    }
+
+    public void testCreateTokenWithRefreshTokenGrant() throws Exception {
+        final String refreshToken = randomAlphaOfLengthBetween(8, 24);
+        CreateTokenRequest createTokenRequest = CreateTokenRequest.refreshTokenGrant(refreshToken);
+        Request request = SecurityRequestConverters.createToken(createTokenRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertToXContentBody(createTokenRequest, request.getEntity());
+    }
+
+    public void testCreateTokenWithClientCredentialsGrant() throws Exception {
+        CreateTokenRequest createTokenRequest = CreateTokenRequest.clientCredentialsGrant();
+        Request request = SecurityRequestConverters.createToken(createTokenRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/security/oauth2/token", request.getEndpoint());
+        assertEquals(0, request.getParameters().size());
+        assertToXContentBody(createTokenRequest, request.getEntity());
     }
 }

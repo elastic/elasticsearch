@@ -33,7 +33,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LazyInitializable;
 
 import java.util.Random;
@@ -41,14 +40,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Service {
 
-    public static final String EC2_METADATA_URL = "http://169.254.169.254/latest/meta-data/";
-
     private final AtomicReference<LazyInitializable<AmazonEc2Reference, ElasticsearchException>> lazyClientReference =
             new AtomicReference<>();
-
-    AwsEc2ServiceImpl(Settings settings) {
-        super(settings);
-    }
 
     private AmazonEC2 buildClient(Ec2ClientSettings clientSettings) {
         final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);

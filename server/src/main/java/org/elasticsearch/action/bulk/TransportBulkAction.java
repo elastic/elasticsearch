@@ -51,7 +51,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -99,21 +98,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex) {
-        this(settings, threadPool, transportService, clusterService, ingestService, shardBulkAction, client, actionFilters,
+        this(threadPool, transportService, clusterService, ingestService, shardBulkAction, client, actionFilters,
             indexNameExpressionResolver, autoCreateIndex, System::nanoTime);
     }
 
-    public TransportBulkAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
-        super(settings, BulkAction.NAME, transportService, actionFilters, BulkRequest::new);
+        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -256,9 +255,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         client.admin().indices().create(createIndexRequest, listener);
     }
 
-    private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest<?> request, String index, Exception e) {
+    private boolean setResponseFailureIfIndexMatches(AtomicArray<BulkItemResponse> responses, int idx, DocWriteRequest<?> request,
+                                                     String index, Exception e) {
         if (index.equals(request.index())) {
-            responses.set(idx, new BulkItemResponse(idx, request.opType(), new BulkItemResponse.Failure(request.index(), request.type(), request.id(), e)));
+            responses.set(idx, new BulkItemResponse(idx, request.opType(), new BulkItemResponse.Failure(request.index(), request.type(),
+                request.id(), e)));
             return true;
         }
         return false;
@@ -327,19 +328,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
                             break;
                         case UPDATE:
-                            TransportUpdateAction.resolveAndValidateRouting(metaData, concreteIndex.getName(), (UpdateRequest) docWriteRequest);
+                            TransportUpdateAction.resolveAndValidateRouting(metaData, concreteIndex.getName(),
+                                (UpdateRequest) docWriteRequest);
                             break;
                         case DELETE:
                             docWriteRequest.routing(metaData.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             // check if routing is required, if so, throw error if routing wasn't specified
-                            if (docWriteRequest.routing() == null && metaData.routingRequired(concreteIndex.getName(), docWriteRequest.type())) {
+                            if (docWriteRequest.routing() == null && metaData.routingRequired(concreteIndex.getName(),
+                                docWriteRequest.type())) {
                                 throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id());
                             }
                             break;
                         default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException e) {
-                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.type(), docWriteRequest.id(), e);
+                    BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(), docWriteRequest.type(),
+                        docWriteRequest.id(), e);
                     BulkItemResponse bulkItemResponse = new BulkItemResponse(i, docWriteRequest.opType(), failure);
                     responses.set(i, bulkItemResponse);
                     // make sure the request gets never processed again
@@ -355,13 +359,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     continue;
                 }
                 String concreteIndex = concreteIndices.getConcreteIndex(request.index()).getName();
-                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, request.id(), request.routing()).shardId();
+                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, request.id(),
+                    request.routing()).shardId();
                 List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
                 shardRequests.add(new BulkItemRequest(i, request));
             }
 
             if (requestsByShard.isEmpty()) {
-                listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos)));
+                listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
+                    buildTookInMillis(startTimeNanos)));
                 return;
             }
 
@@ -407,7 +413,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
 
                     private void finishHim() {
-                        listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTimeNanos)));
+                        listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
+                            buildTookInMillis(startTimeNanos)));
                     }
                 });
             }
@@ -535,7 +542,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 } else {
                     long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
                     BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
-                    ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis, listener);
+                    ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(ingestTookInMillis,
+                        listener);
                     if (bulkRequest.requests().isEmpty()) {
                         // at this stage, the transport bulk action can't deal with a bulk request with no requests,
                         // so we stop and send an empty response back to the client.
@@ -628,7 +636,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // 2) Add a bulk item failure for this request
             // 3) Continue with the next request in the bulk.
             failedSlots.set(currentSlot);
-            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e);
+            BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(),
+                indexRequest.id(), e);
             itemResponses.add(new BulkItemResponse(currentSlot, indexRequest.opType(), failure));
         }
 
@@ -641,7 +650,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         private final List<BulkItemResponse> itemResponses;
         private final ActionListener<BulkResponse> actionListener;
 
-        IngestBulkResponseListener(long ingestTookInMillis, int[] originalSlots, List<BulkItemResponse> itemResponses, ActionListener<BulkResponse> actionListener) {
+        IngestBulkResponseListener(long ingestTookInMillis, int[] originalSlots, List<BulkItemResponse> itemResponses,
+                                   ActionListener<BulkResponse> actionListener) {
             this.ingestTookInMillis = ingestTookInMillis;
             this.itemResponses = itemResponses;
             this.actionListener = actionListener;

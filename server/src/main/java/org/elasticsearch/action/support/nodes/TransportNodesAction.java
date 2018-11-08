@@ -27,7 +27,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
@@ -39,6 +39,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -60,11 +61,11 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
     final String transportNodeAction;
 
-    protected TransportNodesAction(Settings settings, String actionName, ThreadPool threadPool,
+    protected TransportNodesAction(String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    Supplier<NodesRequest> request, Supplier<NodeRequest> nodeRequest, String nodeExecutor,
                                    Class<NodeResponse> nodeResponseClass) {
-        super(settings, actionName, transportService, actionFilters, request);
+        super(actionName, transportService, actionFilters, request);
         this.threadPool = threadPool;
         this.clusterService = Objects.requireNonNull(clusterService);
         this.transportService = Objects.requireNonNull(transportService);
@@ -186,8 +187,10 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                     transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
                             new TransportResponseHandler<NodeResponse>() {
                                 @Override
-                                public NodeResponse newInstance() {
-                                    return newNodeResponse();
+                                public NodeResponse read(StreamInput in) throws IOException {
+                                    NodeResponse nodeResponse = newNodeResponse();
+                                    nodeResponse.readFrom(in);
+                                    return nodeResponse;
                                 }
 
                                 @Override

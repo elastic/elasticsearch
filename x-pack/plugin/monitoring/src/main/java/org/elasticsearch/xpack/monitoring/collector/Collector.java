@@ -15,7 +15,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackField;
@@ -48,9 +47,8 @@ public abstract class Collector extends AbstractComponent {
     protected final ClusterService clusterService;
     protected final XPackLicenseState licenseState;
 
-    public Collector(final Settings settings, final String name, final ClusterService clusterService,
+    public Collector(final String name, final ClusterService clusterService,
                      final Setting<TimeValue> timeoutSetting, final XPackLicenseState licenseState) {
-        super(settings);
         this.name = name;
         this.clusterService = clusterService;
         this.collectionTimeoutSetting = timeoutSetting;

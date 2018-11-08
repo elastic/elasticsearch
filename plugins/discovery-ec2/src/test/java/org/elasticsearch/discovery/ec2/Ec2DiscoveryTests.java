@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.model.Tag;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -74,8 +73,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     public void createTransportService() {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         final Transport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()),
-            Version.CURRENT) {
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList())) {
             @Override
             public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
                 // we just need to ensure we don't resolve DNS here
@@ -298,7 +296,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
     }
 
     public void testGetNodeListEmptyCache() throws Exception {
-        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(Settings.EMPTY, 1, null);
+        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(1, null);
         DummyEc2HostProvider provider = new DummyEc2HostProvider(Settings.EMPTY, transportService, awsEc2Service) {
             @Override
             protected List<TransportAddress> fetchDynamicNodes() {

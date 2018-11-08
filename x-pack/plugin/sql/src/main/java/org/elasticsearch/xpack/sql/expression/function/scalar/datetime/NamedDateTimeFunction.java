@@ -6,19 +6,15 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.expression.gen.pipeline.UnaryPipe;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
-import org.joda.time.DateTime;
 
 import java.util.Locale;
-import java.util.Objects;
 import java.util.TimeZone;
 
 import static java.lang.String.format;
@@ -29,25 +25,23 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
  */
 abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 
-    NamedDateTimeFunction(Location location, Expression field, TimeZone timeZone) {
+    private final NameExtractor nameExtractor;
+
+    NamedDateTimeFunction(Location location, Expression field, TimeZone timeZone, NameExtractor nameExtractor) {
         super(location, field, timeZone);
+        this.nameExtractor = nameExtractor;
     }
 
     @Override
-    public Object fold() {
-        DateTime folded = (DateTime) field().fold();
-        if (folded == null) {
-            return null;
-        }
-
-        return nameExtractor().extract(folded.getMillis(), timeZone().getID());
+    protected Object doFold(long millis, String tzId) {
+        return nameExtractor.extract(millis, tzId);
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(
-                formatTemplate(format(Locale.ROOT, "{sql}.%s(doc[{}].value.millis, {})",
-                        StringUtils.underscoreToLowerCamelCase(nameExtractor().name()))),
+                formatTemplate(format(Locale.ROOT, "{sql}.%s(doc[{}].value, {})",
+                        StringUtils.underscoreToLowerCamelCase(nameExtractor.name()))),
                 paramsBuilder()
                   .variable(field.name())
                   .variable(timeZone().getID()).build(),
@@ -55,30 +49,12 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
     }
 
     @Override
-    protected final Pipe makePipe() {
-        return new UnaryPipe(location(), this, Expressions.pipe(field()),
-                new NamedDateTimeProcessor(nameExtractor(), timeZone()));
+    protected Processor makeProcessor() {
+        return new NamedDateTimeProcessor(nameExtractor, timeZone());
     }
 
-    protected abstract NameExtractor nameExtractor();
-    
     @Override
     public DataType dataType() {
         return DataType.KEYWORD;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        NamedDateTimeFunction other = (NamedDateTimeFunction) obj;
-        return Objects.equals(other.field(), field())
-            && Objects.equals(other.timeZone(), timeZone());
-    }
-    
-    @Override
-    public int hashCode() {
-        return Objects.hash(field(), timeZone());
     }
 }

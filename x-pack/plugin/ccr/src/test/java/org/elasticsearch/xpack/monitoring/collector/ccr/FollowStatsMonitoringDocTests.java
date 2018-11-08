@@ -93,7 +93,8 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         final int numberOfConcurrentWrites = randomIntBetween(1, Integer.MAX_VALUE);
         final int writeBufferOperationCount = randomIntBetween(0, Integer.MAX_VALUE);
         final long writeBufferSizeInBytes = randomNonNegativeLong();
-        final long followerMappingVersion = randomIntBetween(0, Integer.MAX_VALUE);
+        final long followerMappingVersion = randomNonNegativeLong();
+        final long followerSettingsVersion = randomNonNegativeLong();
         final long totalReadTimeMillis = randomLongBetween(0, 4096);
         final long totalReadRemoteExecTimeMillis = randomLongBetween(0, 4096);
         final long successfulReadRequests = randomNonNegativeLong();
@@ -124,6 +125,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                 writeBufferOperationCount,
                 writeBufferSizeInBytes,
                 followerMappingVersion,
+                followerSettingsVersion,
                 totalReadTimeMillis,
                 totalReadRemoteExecTimeMillis,
                 successfulReadRequests,
@@ -170,6 +172,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                                         + "\"write_buffer_operation_count\":" + writeBufferOperationCount + ","
                                         + "\"write_buffer_size_in_bytes\":" + writeBufferSizeInBytes + ","
                                         + "\"follower_mapping_version\":" + followerMappingVersion + ","
+                                        + "\"follower_settings_version\":" + followerSettingsVersion + ","
                                         + "\"total_read_time_millis\":" + totalReadTimeMillis + ","
                                         + "\"total_read_remote_exec_time_millis\":" + totalReadRemoteExecTimeMillis + ","
                                         + "\"successful_read_requests\":" + successfulReadRequests + ","
@@ -204,6 +207,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             "leader_index",
             "follower_index",
             0,
+            1,
             1,
             1,
             1,

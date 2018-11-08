@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,7 +43,6 @@ public class TransportPutAutoFollowPatternAction extends
 
     @Inject
     public TransportPutAutoFollowPatternAction(
-            final Settings settings,
             final TransportService transportService,
             final ClusterService clusterService,
             final ThreadPool threadPool,
@@ -52,7 +50,7 @@ public class TransportPutAutoFollowPatternAction extends
             final Client client,
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final CcrLicenseChecker ccrLicenseChecker) {
-        super(settings, PutAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(PutAutoFollowPatternAction.NAME, transportService, clusterService, threadPool, actionFilters,
             PutAutoFollowPatternAction.Request::new, indexNameExpressionResolver);
         this.client = client;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
@@ -76,7 +74,7 @@ public class TransportPutAutoFollowPatternAction extends
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final Client leaderClient = client.getRemoteClusterClient(request.getRemoteCluster());
+        final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
@@ -86,9 +84,9 @@ public class TransportPutAutoFollowPatternAction extends
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
-        ccrLicenseChecker.hasPrivilegesToFollowIndices(leaderClient, indices, e -> {
+        ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
             if (e == null) {
-                leaderClient.admin().cluster().state(
+                remoteClient.admin().cluster().state(
                     clusterStateRequest,
                     ActionListener.wrap(
                         clusterStateResponse -> {

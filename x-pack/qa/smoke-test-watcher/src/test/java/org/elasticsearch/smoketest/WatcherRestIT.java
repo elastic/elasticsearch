@@ -44,7 +44,7 @@ public class WatcherRestIT extends ESClientYamlSuiteTestCase {
                         getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
                     boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
-                    break;
+                    throw new AssertionError("waiting until stopped state reached started state");
                 case "stopping":
                     throw new AssertionError("waiting until stopping state reached stopped state to start again");
                 case "starting":
@@ -86,7 +86,7 @@ public class WatcherRestIT extends ESClientYamlSuiteTestCase {
                         getAdminExecutionContext().callApi("xpack.watcher.stop", emptyMap(), emptyList(), emptyMap());
                     boolean isAcknowledged = (boolean) stopResponse.evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
-                    break;
+                    throw new AssertionError("waiting until started state reached stopped state");
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }

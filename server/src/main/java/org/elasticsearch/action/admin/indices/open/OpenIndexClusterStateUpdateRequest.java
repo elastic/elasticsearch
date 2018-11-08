@@ -28,7 +28,7 @@ public class OpenIndexClusterStateUpdateRequest extends IndicesClusterStateUpdat
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
-    public OpenIndexClusterStateUpdateRequest() {
+    OpenIndexClusterStateUpdateRequest() {
 
     }
 

@@ -40,10 +40,10 @@ public class OpenIndexResponse extends ShardsAcknowledgedResponse {
         declareAcknowledgedAndShardsAcknowledgedFields(PARSER);
     }
 
-    public OpenIndexResponse() {
+    OpenIndexResponse() {
     }
 
-    public OpenIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {
+    OpenIndexResponse(boolean acknowledged, boolean shardsAcknowledged) {
         super(acknowledged, shardsAcknowledged);
     }
 

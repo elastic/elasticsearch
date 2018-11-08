@@ -91,11 +91,11 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                                                  PersistentTasksCustomMetaData.PersistentTask<ShardFollowTask> taskInProgress,
                                                  Map<String, String> headers) {
         ShardFollowTask params = taskInProgress.getParams();
-        final Client leaderClient;
+        final Client remoteClient;
         if (params.getRemoteCluster() != null) {
-            leaderClient = wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
+            remoteClient = wrapClient(client.getRemoteClusterClient(params.getRemoteCluster()), params.getHeaders());
         } else {
-            leaderClient = wrapClient(client, params.getHeaders());
+            remoteClient = wrapClient(client, params.getHeaders());
         }
         Client followerClient = wrapClient(client, params.getHeaders());
         BiConsumer<TimeValue, Runnable> scheduler = (delay, command) -> {
@@ -124,7 +124,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 clusterStateRequest.metaData(true);
                 clusterStateRequest.indices(leaderIndex.getName());
 
-                leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
+                remoteClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(clusterStateResponse -> {
                     IndexMetaData indexMetaData = clusterStateResponse.getState().metaData().getIndexSafe(leaderIndex);
                     if (indexMetaData.getMappings().isEmpty()) {
                         assert indexMetaData.getMappingVersion() == 1;
@@ -186,7 +186,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                         }
                     }
                 };
-                leaderClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
+                remoteClient.admin().cluster().state(clusterStateRequest, ActionListener.wrap(onResponse, errorHandler));
             }
 
             private void closeIndexUpdateSettingsAndOpenIndex(String followIndex,
@@ -240,7 +240,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 request.setMaxOperationCount(maxOperationCount);
                 request.setMaxBatchSize(params.getMaxReadRequestSize());
                 request.setPollTimeout(params.getReadPollTimeout());
-                leaderClient.execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
+                remoteClient.execute(ShardChangesAction.INSTANCE, request, ActionListener.wrap(handler::accept, errorHandler));
             }
         };
     }

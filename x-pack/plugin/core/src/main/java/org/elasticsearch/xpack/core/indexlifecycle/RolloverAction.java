@@ -35,9 +35,6 @@ public class RolloverAction implements LifecycleAction {
     public static final String LIFECYCLE_ROLLOVER_ALIAS = "index.lifecycle.rollover_alias";
     public static final Setting<String> LIFECYCLE_ROLLOVER_ALIAS_SETTING = Setting.simpleString(LIFECYCLE_ROLLOVER_ALIAS,
         Setting.Property.Dynamic, Setting.Property.IndexScope);
-    public static final String LIFECYCLE_ROLLOVER_TIMEOUT = "indices.lifecycle.rollover.timeout";
-    public static final Setting<TimeValue> LIFECYCLE_ROLLOVER_TIMEOUT_SETTING = Setting.positiveTimeSetting(LIFECYCLE_ROLLOVER_TIMEOUT,
-        TimeValue.timeValueMinutes(10), Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private static final ConstructingObjectParser<RolloverAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
             a -> new RolloverAction((ByteSizeValue) a[0], (TimeValue) a[1], (Long) a[2]));

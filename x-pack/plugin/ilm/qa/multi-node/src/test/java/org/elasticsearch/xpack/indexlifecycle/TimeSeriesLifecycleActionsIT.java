@@ -59,13 +59,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         policy = randomAlphaOfLength(5);
     }
 
-    @After
-    public void resetRolloverTimeout() throws IOException {
-        Request resetTimeout = new Request("PUT", "_cluster/settings");
-        resetTimeout.setJsonEntity("{\"transient\": {\"" + RolloverAction.LIFECYCLE_ROLLOVER_TIMEOUT + "\": null}}");
-        client().performRequest(resetTimeout);
-    }
-
     public static void updatePolicy(String indexName, String policy) throws IOException {
 
         Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");

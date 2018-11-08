@@ -112,7 +112,7 @@ that is sent by <<es-monitoring-exporters,exporters>>.
 .. If Elastic {security-features} are enabled, you must also provide a user ID 
 and password so that {metricbeat} can collect metrics successfully. 
 
-... Create a user that has the 
+... Create a user on the production cluster that has the 
 {stack-ov}/built-in-roles.html[`remote_monitoring_collector` built-in role]. 
 Alternatively, use the {stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].
 
@@ -163,7 +163,7 @@ For more information about these configuration options, see
 must provide a valid user ID and password so that {metricbeat} can send metrics 
 successfully. 
 
-... Create a user that has the 
+... Create a user on the monitoring cluster that has the 
 {stack-ov}/built-in-roles.html[`remote_monitoring_agent` built-in role]. 
 Alternatively, use the 
 {stack-ov}/built-in-users.html[`remote_monitoring_user` built-in user].

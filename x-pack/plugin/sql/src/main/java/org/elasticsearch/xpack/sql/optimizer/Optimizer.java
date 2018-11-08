@@ -685,7 +685,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            Expression condition = filter.condition().transformUp(FoldNull::foldBinaryLogic);
+            Expression condition = filter.condition().transformUp(PruneFilters::foldBinaryLogic);
 
             if (condition instanceof Literal) {
                 if (TRUE.equals(condition)) {
@@ -700,6 +700,30 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return new Filter(filter.location(), filter.child(), condition);
             }
             return filter;
+        }
+
+        private static Expression foldBinaryLogic(Expression expression) {
+            if (expression instanceof Or) {
+                Or or = (Or) expression;
+                boolean nullLeft = Expressions.isNull(or.left());
+                boolean nullRight = Expressions.isNull(or.right());
+                if (nullLeft && nullRight) {
+                    return Literal.NULL;
+                }
+                if (nullLeft) {
+                    return or.right();
+                }
+                if (nullRight) {
+                    return or.left();
+                }
+            }
+            if (expression instanceof And) {
+                And and = (And) expression;
+                if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
+                    return Literal.NULL;
+                }
+            }
+            return expression;
         }
     }
 
@@ -1137,40 +1161,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
                 // see https://github.com/elastic/elasticsearch/issues/34876
                 // similar for IsNull once it gets introduced
+
             } else if (e instanceof In) {
                 In in = (In) e;
                 if (Expressions.isNull(in.value())) {
                     return Literal.of(in, null);
                 }
+
             } else if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
             return e;
-        }
-
-
-        static Expression foldBinaryLogic(Expression expression) {
-            if (expression instanceof Or) {
-                Or or = (Or) expression;
-                boolean nullLeft = Expressions.isNull(or.left());
-                boolean nullRight = Expressions.isNull(or.right());
-                if (nullLeft && nullRight) {
-                    return Literal.NULL;
-                }
-                if (nullLeft) {
-                    return or.right();
-                }
-                if (nullRight) {
-                    return or.left();
-                }
-            }
-            if (expression instanceof And) {
-                And and = (And) expression;
-                if (Expressions.isNull(and.left()) || Expressions.isNull(and.right())) {
-                    return Literal.NULL;
-                }
-            }
-            return expression;
         }
     }
 
@@ -1987,4 +1988,3 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         UP, DOWN
     };
 }
-

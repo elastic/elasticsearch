@@ -22,10 +22,9 @@ the following advantages:
 - A `json` field may take up less space in the index, as only one underlying
   field is created.
 
-Compared to having a dedicated mapping for each subfield, `json` fields present
-a trade-off in terms of search functionality. Only basic queries are allowed,
-with no support for numeric range queries or aggregations. Further information
-on the limitations can be found in the
+However, `json` fields present a trade-off in terms of search functionality.
+Only basic queries are allowed, with no support for numeric range queries or
+aggregations. Further information on the limitations can be found in the
 <<supported-operations, Supported operations>> section.
 
 NOTE: The `json` mapping type should **not** be used for indexing all JSON

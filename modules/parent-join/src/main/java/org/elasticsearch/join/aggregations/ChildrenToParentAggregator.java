@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
@@ -31,26 +32,29 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class ParentToChildrenAggregator extends ParentJoinAggregator {
+/**
+ * A {@link BucketsAggregator} which resolves to the matching parent documents.
+ */
+public class ChildrenToParentAggregator extends ParentJoinAggregator {
 
     static final ParseField TYPE_FIELD = new ParseField("type");
 
-    public ParentToChildrenAggregator(String name, AggregatorFactories factories,
+    public ChildrenToParentAggregator(String name, AggregatorFactories factories,
             SearchContext context, Aggregator parent, Query childFilter,
             Query parentFilter, ValuesSource.Bytes.WithOrdinals valuesSource,
             long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, parentFilter, childFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
+        super(name, factories, context, parent, childFilter, parentFilter, valuesSource, maxOrd, pipelineAggregators, metaData);
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalChildren(name, bucketDocCount(owningBucketOrdinal),
+        return new InternalParent(name, bucketDocCount(owningBucketOrdinal),
                 bucketAggregations(owningBucketOrdinal), pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalChildren(name, 0, buildEmptySubAggregations(), pipelineAggregators(),
+        return new InternalParent(name, 0, buildEmptySubAggregations(), pipelineAggregators(),
                 metaData());
     }
 }

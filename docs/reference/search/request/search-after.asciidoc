@@ -21,7 +21,7 @@ GET twitter/_search
     },
     "sort": [
         {"date": "asc"},
-        {"tie_breaker_id", "asc"}      <1>
+        {"tie_breaker_id": "asc"}      <1>
     ]
 }
 --------------------------------------------------

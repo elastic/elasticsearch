@@ -75,14 +75,14 @@ public class TransportPutAutoFollowPatternAction extends
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
-        final Client leaderClient = client.getRemoteClusterClient(request.getRemoteCluster());
+        final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
         final Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
             .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-        Consumer<ClusterState> consumer = leaderClusterState -> {
+        Consumer<ClusterState> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
-            ccrLicenseChecker.hasPrivilegesToFollowIndices(leaderClient, indices, e -> {
+            ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
                 if (e == null) {
                     clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getRemoteCluster(),
                         new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
@@ -94,7 +94,7 @@ public class TransportPutAutoFollowPatternAction extends
 
                             @Override
                             public ClusterState execute(ClusterState currentState) throws Exception {
-                                return innerPut(request, filteredHeaders, currentState, leaderClusterState);
+                                return innerPut(request, filteredHeaders, currentState, remoteClusterState);
                             }
                         });
                 } else {
@@ -115,7 +115,7 @@ public class TransportPutAutoFollowPatternAction extends
     static ClusterState innerPut(PutAutoFollowPatternAction.Request request,
                                  Map<String, String> filteredHeaders,
                                  ClusterState localState,
-                                 ClusterState leaderClusterState) {
+                                 ClusterState remoteClusterState) {
         // auto patterns are always overwritten
         // only already followed index uuids are updated
 
@@ -143,10 +143,10 @@ public class TransportPutAutoFollowPatternAction extends
         followedLeaderIndices.put(request.getName(), followedIndexUUIDs);
         // Mark existing leader indices as already auto followed:
         if (previousPattern != null) {
-            markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), leaderClusterState.metaData(),
+            markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), remoteClusterState.metaData(),
                 previousPattern, followedIndexUUIDs);
         } else {
-            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), leaderClusterState.metaData(),
+            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), remoteClusterState.metaData(),
                 followedIndexUUIDs);
         }
 

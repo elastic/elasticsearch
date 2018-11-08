@@ -495,12 +495,12 @@ The above call returns
 [float]
 ==== Document APIs
 
-Index APIs must be call with the `{index}/_doc` path for automatic generation of
+Index APIs must be called with the `{index}/_doc` path for automatic generation of
 the `_id` and `{index}/_doc/{id}` with explicit ids.
 
 [source,js]
 --------------------------------------------------
-PUT index/_doc/1?include_type_name=false
+PUT index/_doc/1
 {
   "foo": "bar"
 }
@@ -512,6 +512,7 @@ PUT index/_doc/1?include_type_name=false
 {
   "_index": "index", <1>
   "_id": "1",
+  "_type": "_doc",
   "_version": 1,
   "result": "created",
   "_shards": {
@@ -526,6 +527,6 @@ PUT index/_doc/1?include_type_name=false
 // TESTRESPONSE
 <1> The response does not include a `_type`.
 
-Likewise the <<docs-index_,GET>>, <<docs-delete,`DELETE`>>,
-<<docs-update,`_update`>> and <<search,`_search`>> APIs do not return a `_type`
-key in the response when `include_type_name` is set to `false`.
+The <<docs-index_,GET>>, <<docs-delete,`DELETE`>>, <<docs-update,`_update`>> and <<search,`_search`>> APIs
+will continue to return a `_type` key in the response in 7.0, but it is considered deprecated and will be
+removed in 8.0.

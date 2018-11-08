@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.bootstrap.BootstrapConfiguration;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -67,11 +68,13 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.elasticsearch.discovery.DiscoverySettings.NO_MASTER_BLOCK_WRITES;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
@@ -115,6 +118,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private Optional<Join> lastJoin;
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
+
+    private final Set<Consumer<Iterable<DiscoveryNode>>> discoveredNodesListeners = newConcurrentSet();
 
     public Coordinator(String nodeName, Settings settings, ClusterSettings clusterSettings, TransportService transportService,
                        AllocationService allocationService, MasterService masterService,
@@ -564,13 +569,40 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
-    public void setInitialConfiguration(final VotingConfiguration votingConfiguration) {
+    public boolean isInitialConfigurationSet() {
+        return getStateForMasterService().getLastAcceptedConfiguration().isEmpty() == false;
+    }
+
+    /**
+     * Sets the initial configuration by resolving the given {@link BootstrapConfiguration} to concrete nodes. This method is safe to call
+     * more than once, as long as each call's bootstrap configuration resolves to the same set of nodes.
+     *
+     * @param bootstrapConfiguration A description of the nodes that should form the initial configuration.
+     * @return whether this call successfully set the initial configuration - if false, the cluster has already been bootstrapped.
+     */
+    public boolean setInitialConfiguration(final BootstrapConfiguration bootstrapConfiguration) {
+        final List<DiscoveryNode> selfAndDiscoveredPeers = new ArrayList<>();
+        selfAndDiscoveredPeers.add(getLocalNode());
+        getFoundPeers().forEach(selfAndDiscoveredPeers::add);
+        final VotingConfiguration votingConfiguration = bootstrapConfiguration.resolve(selfAndDiscoveredPeers);
+        return setInitialConfiguration(votingConfiguration);
+    }
+
+    /**
+     * Sets the initial configuration to the given {@link VotingConfiguration}. This method is safe to call
+     * more than once, as long as the argument to each call is the same.
+     *
+     * @param votingConfiguration The nodes that should form the initial configuration.
+     * @return whether this call successfully set the initial configuration - if false, the cluster has already been bootstrapped.
+     */
+    public boolean setInitialConfiguration(final VotingConfiguration votingConfiguration) {
         synchronized (mutex) {
             final ClusterState currentState = getStateForMasterService();
 
-            if (currentState.getLastAcceptedConfiguration().isEmpty() == false) {
-                throw new CoordinationStateRejectedException("Cannot set initial configuration: configuration has already been set");
+            if (isInitialConfigurationSet()) {
+                return false;
             }
+
             assert currentState.term() == 0 : currentState;
             assert currentState.version() == 0 : currentState;
 
@@ -597,6 +629,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             coordinationState.get().setInitialState(builder.build());
             preVoteCollector.update(getPreVoteResponse(), null); // pick up the change to last-accepted version
             startElectionScheduler();
+            return true;
         }
     }
 
@@ -835,10 +868,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
         @Override
         protected void onFoundPeersUpdated() {
+            final Iterable<DiscoveryNode> foundPeers;
             synchronized (mutex) {
+                foundPeers = getFoundPeers();
                 if (mode == Mode.CANDIDATE) {
                     final CoordinationState.VoteCollection expectedVotes = new CoordinationState.VoteCollection();
-                    getFoundPeers().forEach(expectedVotes::addVote);
+                    foundPeers.forEach(expectedVotes::addVote);
                     expectedVotes.addVote(Coordinator.this.getLocalNode());
                     final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
                     final boolean foundQuorum = CoordinationState.isElectionQuorum(expectedVotes, lastAcceptedState);
@@ -851,6 +886,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         closePrevotingAndElectionScheduler();
                     }
                 }
+            }
+
+            for (Consumer<Iterable<DiscoveryNode>> discoveredNodesListener : discoveredNodesListeners) {
+                discoveredNodesListener.accept(foundPeers);
             }
         }
     }
@@ -877,6 +916,19 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 return "scheduling of new prevoting round";
             }
         });
+    }
+
+    public Releasable withDiscoveryListener(Consumer<Iterable<DiscoveryNode>> listener) {
+        discoveredNodesListeners.add(listener);
+        return () -> {
+            boolean removed = discoveredNodesListeners.remove(listener);
+            assert removed : listener;
+        };
+    }
+
+    public Iterable<DiscoveryNode> getFoundPeers() {
+        // TODO everyone takes this and adds the local node. Maybe just add the local node here?
+        return peerFinder.getFoundPeers();
     }
 
     class CoordinatorPublication extends Publication {

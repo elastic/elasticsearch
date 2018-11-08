@@ -224,7 +224,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                 } catch (NodeValidationException e) {
                     throw new RuntimeException(e);
                 }
-            }, Collections.singletonList(node), logger);
+            }, Collections.singletonList(node), logger, this::wrapClient);
         return node;
     }
 
@@ -232,7 +232,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * Returns a client to the single-node cluster.
      */
     public Client client() {
-        return NODE.client();
+        return wrapClient(NODE.client());
+    }
+
+    public Client wrapClient(final Client client) {
+        return client;
     }
 
     /**

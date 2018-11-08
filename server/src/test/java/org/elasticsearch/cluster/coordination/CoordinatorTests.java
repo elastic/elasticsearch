@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -61,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -96,7 +98,9 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -660,6 +664,39 @@ public class CoordinatorTests extends ESTestCase {
 //        assertTrue("expected ack from " + follower1, ackCollector.hasAckedSuccessfully(follower1));
     }
 
+    public void testDiscoveryOfPeersTriggersNotification() {
+        final Cluster cluster = new Cluster(randomIntBetween(2, 5));
+
+        // register a listener and then deregister it again to show that it is not called after deregistration
+        try (Releasable ignored = cluster.getAnyNode().coordinator.withDiscoveryListener(ns -> {
+            throw new AssertionError("should not be called");
+        })) {
+            // do nothing
+        }
+
+        final long startTimeMillis = cluster.deterministicTaskQueue.getCurrentTimeMillis();
+        final ClusterNode bootstrapNode = cluster.getAnyNode();
+        final AtomicBoolean hasDiscoveredAllPeers = new AtomicBoolean();
+        assertFalse(bootstrapNode.coordinator.getFoundPeers().iterator().hasNext());
+        try (Releasable ignored = bootstrapNode.coordinator.withDiscoveryListener(discoveryNodes -> {
+            int peerCount = 0;
+            for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                peerCount++;
+            }
+            assertThat(peerCount, lessThan(cluster.size()));
+            if (peerCount == cluster.size() - 1 && hasDiscoveredAllPeers.get() == false) {
+                hasDiscoveredAllPeers.set(true);
+                final long elapsedTimeMillis = cluster.deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis;
+                logger.info("--> {} discovered {} peers in {}ms", bootstrapNode.getId(), cluster.size() - 1, elapsedTimeMillis);
+                assertThat(elapsedTimeMillis, lessThanOrEqualTo(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2));
+            }
+        })) {
+            cluster.runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2 + randomLongBetween(0, 60000), "discovery phase");
+        }
+
+        assertTrue(hasDiscoveredAllPeers.get());
+    }
+
     public void testSettingInitialConfigurationTriggersElection() {
         final Cluster cluster = new Cluster(randomIntBetween(1, 5));
         cluster.runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2 + randomLongBetween(0, 60000), "initial discovery phase");
@@ -669,13 +706,22 @@ public class CoordinatorTests extends ESTestCase {
             assertThat(nodeId + " is in term 0", clusterNode.coordinator.getCurrentTerm(), is(0L));
             assertThat(nodeId + " last accepted in term 0", clusterNode.coordinator.getLastAcceptedState().term(), is(0L));
             assertThat(nodeId + " last accepted version 0", clusterNode.coordinator.getLastAcceptedState().version(), is(0L));
+            assertFalse(nodeId + " has not received an initial configuration", clusterNode.coordinator.isInitialConfigurationSet());
             assertTrue(nodeId + " has an empty last-accepted configuration",
                 clusterNode.coordinator.getLastAcceptedState().getLastAcceptedConfiguration().isEmpty());
             assertTrue(nodeId + " has an empty last-committed configuration",
                 clusterNode.coordinator.getLastAcceptedState().getLastCommittedConfiguration().isEmpty());
+
+            final Set<DiscoveryNode> foundPeers = new HashSet<>();
+            clusterNode.coordinator.getFoundPeers().forEach(foundPeers::add);
+            assertTrue(nodeId + " should not have discovered itself", foundPeers.add(clusterNode.getLocalNode()));
+            assertThat(nodeId + " should have found all peers", foundPeers, hasSize(cluster.size()));
         }
 
-        cluster.getAnyNode().applyInitialConfiguration();
+        final ClusterNode bootstrapNode = cluster.getAnyNode();
+        bootstrapNode.applyInitialConfiguration();
+        assertTrue(bootstrapNode.getId() + " has been bootstrapped", bootstrapNode.coordinator.isInitialConfigurationSet());
+
         cluster.stabilise(
             // the first election should succeed, because only one node knows of the initial configuration and therefore can win a
             // pre-voting round and proceed to an election, so there cannot be any collisions
@@ -696,10 +742,7 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise();
 
         final Coordinator coordinator = cluster.getAnyNode().coordinator;
-        final CoordinationStateRejectedException exception = expectThrows(CoordinationStateRejectedException.class,
-            () -> coordinator.setInitialConfiguration(coordinator.getLastAcceptedState().getLastCommittedConfiguration()));
-
-        assertThat(exception.getMessage(), is("Cannot set initial configuration: configuration has already been set"));
+        assertFalse(coordinator.setInitialConfiguration(coordinator.getLastAcceptedState().getLastCommittedConfiguration()));
     }
 
     public void testCannotSetInitialConfigurationWithoutQuorum() {
@@ -715,7 +758,7 @@ public class CoordinatorTests extends ESTestCase {
         assertThat(exceptionMessage, containsString(coordinator.getLocalNode().toString()));
 
         // This is VERY BAD: setting a _different_ initial configuration. Yet it works if the first attempt will never be a quorum.
-        coordinator.setInitialConfiguration(new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId())));
+        assertTrue(coordinator.setInitialConfiguration(new VotingConfiguration(Collections.singleton(coordinator.getLocalNode().getId()))));
         cluster.stabilise();
     }
 
@@ -965,7 +1008,7 @@ public class CoordinatorTests extends ESTestCase {
                 deterministicTaskQueue.getExecutionDelayVariabilityMillis(), lessThanOrEqualTo(DEFAULT_DELAY_VARIABILITY));
             assertFalse("stabilisation requires stable storage", disruptStorage);
 
-            if (clusterNodes.stream().allMatch(n -> n.coordinator.getLastAcceptedState().getLastAcceptedConfiguration().isEmpty())) {
+            if (clusterNodes.stream().allMatch(n -> n.coordinator.isInitialConfigurationSet() == false)) {
                 assertThat("setting initial configuration may fail with disconnected nodes", disconnectedNodes, empty());
                 assertThat("setting initial configuration may fail with blackholed nodes", blackholedNodes, empty());
                 runFor(defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) * 2, "discovery prior to setting initial configuration");
@@ -983,6 +1026,7 @@ public class CoordinatorTests extends ESTestCase {
             final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
             final String leaderId = leader.getId();
 
+            assertTrue(leaderId + " has been bootstrapped", leader.coordinator.isInitialConfigurationSet());
             assertTrue(leaderId + " exists in its last-applied state", leader.getLastAppliedClusterState().getNodes().nodeExists(leaderId));
             assertThat(leaderId + " has applied its state ", leader.getLastAppliedClusterState().getVersion(), isEqualToLeaderVersion);
 
@@ -1008,6 +1052,7 @@ public class CoordinatorTests extends ESTestCase {
                     }
                     assertTrue(nodeId + " is in the latest applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId));
+                    assertTrue(nodeId + " has been bootstrapped", clusterNode.coordinator.isInitialConfigurationSet());
                 } else {
                     assertThat(nodeId + " is not following " + leaderId, clusterNode.coordinator.getMode(), is(CANDIDATE));
                     assertFalse(nodeId + " is not in the applied state on " + leaderId,

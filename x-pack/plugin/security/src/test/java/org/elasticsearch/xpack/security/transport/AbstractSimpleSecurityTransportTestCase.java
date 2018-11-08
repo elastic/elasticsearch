@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.transport;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -106,7 +107,7 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
     }
 
     @Override
-    public void testTcpHandshake() throws IOException, InterruptedException {
+    public void testTcpHandshake() throws InterruptedException {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
 
@@ -115,9 +116,10 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
              TcpTransport.NodeChannels connection = originalTransport.openConnection(
                  new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
                  connectionProfile)) {
-            Version version = originalTransport.executeHandshake(connection.getNode(),
-                connection.channel(TransportRequestOptions.Type.PING), TimeValue.timeValueSeconds(10));
-            assertEquals(version, Version.CURRENT);
+            PlainActionFuture<Version> listener = PlainActionFuture.newFuture();
+            originalTransport.executeHandshake(connection.getNode(), connection.channel(TransportRequestOptions.Type.PING),
+                TimeValue.timeValueSeconds(10), listener);
+            assertEquals(listener.actionGet(), Version.CURRENT);
         }
     }
 

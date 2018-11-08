@@ -764,6 +764,12 @@ A node will not start if either of these plugins are not available.
 The <<ingest-stats,node stats API>> can be used to fetch ingest usage statistics, globally and on a per
 pipeline basis. Useful to find out which pipelines are used the most or spent the most time on preprocessing.
 
+[float]
+=== Ingest Processor Plugins
+
+Additional ingest processors can be implemented and installed as Elasticsearch {plugins}/intro.html[plugins].
+See {plugins}/ingest.html[Ingest plugins] for information about the available ingest plugins.
+
 [[append-processor]]
 === Append Processor
 Appends one or more values to an existing array if the field already exists and it is an array.
@@ -778,6 +784,7 @@ Accepts a single value or an array of values.
 | Name      | Required  | Default  | Description
 | `field`  | yes       | -        | The field to be appended to. Supports <<accessing-template-fields,template snippets>>.
 | `value`  | yes       | -        | The value to be appended. Supports <<accessing-template-fields,template snippets>>.
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -806,6 +813,7 @@ the field is not a supported format or resultant value exceeds 2^63.
 | `field`          | yes       | -        | The field to convert
 | `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -820,7 +828,7 @@ the field is not a supported format or resultant value exceeds 2^63.
 
 [[convert-processor]]
 === Convert Processor
-Converts an existing field's value to a different type, such as converting a string to an integer.
+Converts a field in the currently ingested document to a different type, such as converting a string to an integer.
 If the field value is an array, all members will be converted.
 
 The supported types include: `integer`, `long`, `float`, `double`, `string`, `boolean`, and `auto`.
@@ -844,15 +852,22 @@ still be updated with the unconverted field value.
 | `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
 | `type`           | yes       | -        | The type to convert the existing value to
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
 --------------------------------------------------
+PUT _ingest/pipeline/my-pipeline-id
 {
-  "convert": {
-    "field" : "url.port",
-    "type": "integer"
-  }
+  "description": "converts the content of the id field to an integer",
+  "processors" : [
+    {
+      "convert" : {
+        "field" : "id",
+        "type": "integer"
+      }
+    }
+  ]
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -876,6 +891,7 @@ in the same order they were defined as part of the processor definition.
 | `formats`              | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`        | no        | UTC                 | The timezone to use when parsing the date. Supports <<accessing-template-fields,template snippets>>.
 | `locale`          | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days. Supports <<accessing-template-fields,template snippets>>.
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 Here is an example that adds the parsed date to the `timestamp` field based on the `initial_date` field:
@@ -1065,6 +1081,7 @@ understands this to mean `2016-04-01` as is explained in the <<date-math-index-n
 | `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
 | `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
 | `index_name_format`    | no        | yyyy-MM-dd                   | The format to be used when printing the parsed date into the index name. An valid Joda pattern is expected here. Supports <<accessing-template-fields,template snippets>>.
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [[dissect-processor]]
@@ -1134,7 +1151,7 @@ See <<dissect-key-modifiers, below>> for more information.
 | `pattern`         | yes       | -        | The pattern to apply to the field
 | `append_separator`| no        | "" (empty string) | The character(s) that separate the appended fields.
 | `ignore_missing`  | no        | false             | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
-| `
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -1162,7 +1179,6 @@ modifiers.
 | `+` with `/n` | Append with order  | left and right | `%{+keyname/2} %{+keyname/1}` | Appends two or more fields together in the order specified   | <<dissect-modifier-append-key-with-order,link>>
 | `?`           | Named skip key     | left           | `%{?ignoreme}`  | Skips the matched value in the output. Same behavior as `%{}`| <<dissect-modifier-named-skip-key,link>>
 | `*` and `&`   | Reference keys     | left           | `%{*r1} %{&r1}`    | Sets the output key as value of `*` and output value of `&`  | <<dissect-modifier-reference-keys,link>>
-| `
 |======
 
 [[dissect-modifier-skip-right-padding]]
@@ -1265,6 +1281,14 @@ Reference key modifier example
 Drops the document without raising any errors. This is useful to prevent the document from
 getting indexed based on some condition.
 
+[[drop-options]]
+.Drop Options
+[options="header"]
+|======
+| Name              | Required  | Default  | Description
+include::ingest-node-common-processor.asciidoc[]
+|======
+
 [source,js]
 --------------------------------------------------
 {
@@ -1289,6 +1313,7 @@ Otherwise these <<accessing-data-in-pipelines,fields>> can't be accessed by any 
 | Name     | Required  | Default  | Description
 | `field`  | yes       | -        | The field to expand into an object field
 | `path`   | no        | -        | The field that contains the field to expand. Only required if the field to expand is part another object field, because the `field` option can only understand leaf fields.
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -1406,6 +1431,7 @@ to the requester.
 |======
 | Name       | Required  | Default  | Description
 | `message`  | yes       | -        | The error message thrown by the processor. Supports <<accessing-template-fields,template snippets>>.
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -1452,6 +1478,7 @@ then it aborts the execution and leaves the array unmodified.
 | `field`          | yes       | -        | The array field
 | `processor`      | yes       | -        | The processor to execute against each field
 | `ignore_missing` | no        | false    | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 Assume the following document:
@@ -1645,6 +1672,7 @@ Grok expression.
 | `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the current processor. Patterns matching existing names will override the pre-existing definition.
 | `trace_match`          | no        | false               | when true, `_ingest._grok_match_index` will be inserted into your matched document's metadata with the index into the pattern found in `patterns` that matched.
 | `ignore_missing`       | no        | false               | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 Here is an example of using the provided patterns to extract out and name structured fields from a string field in
@@ -1919,6 +1947,7 @@ If the field is not a string, the processor will throw an exception.
 | `replacement`     | yes       | -        | The string to replace the matching patterns with
 | `target_field`    | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
 | `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -1946,6 +1975,7 @@ Throws an error when the field is not an array.
 | `field`           | yes       | -        | The field to be separated
 | `separator`       | yes       | -        | The separator character
 | `target_field`    | no        | `field`  | The field to assign the joined value to, by default `field` is updated in-place
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -1971,6 +2001,7 @@ Converts a JSON string into a structured JSON object.
 | `field`        | yes       | -        | The field to be parsed
 | `target_field` | no        | `field`  | The field to insert the converted structured object into
 | `add_to_root`  | no        | false    | Flag that forces the serialized json to be injected into the top level of the document. `target_field` must not be set when this option is chosen.
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 All JSON-supported types will be parsed (null, boolean, number, array, object, string).
@@ -2082,6 +2113,7 @@ For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`
 | `trim_key`       | no        | `null`   | String of characters to trim from extracted keys
 | `trim_value`     | no        | `null`   | String of characters to trim from extracted values
 | `strip_brackets` | no        | `false`  | If `true` strip brackets `()`, `<>`, `[]` as well as quotes `'` and `"` from extracted values
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 
@@ -2097,6 +2129,7 @@ Converts a string to its lowercase equivalent.
 | `field`          | yes       | -        | The field to make lowercase
 | `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -2119,6 +2152,7 @@ Executes another pipeline.
 |======
 | Name             | Required  | Default  | Description
 | `name`           | yes       | -        | The name of the pipeline to execute
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -2234,6 +2268,7 @@ Removes existing fields. If one field doesn't exist, an exception will be thrown
 | Name             | Required  | Default  | Description
 | `field`          | yes       | -        | Fields to be removed. Supports <<accessing-template-fields,template snippets>>.
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 Here is an example to remove a single field:
@@ -2272,6 +2307,7 @@ Renames an existing field. If the field doesn't exist or the new name is already
 | `field`           | yes       | -        | The field to be renamed. Supports <<accessing-template-fields,template snippets>>.
 | `target_field`    | yes       | -        | The new name of the field. Supports <<accessing-template-fields,template snippets>>.
 | `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -2305,6 +2341,7 @@ caching see <<modules-scripting-using-caching, Script Caching>>.
 | `id`                   | no        | -          | The stored script id to refer to
 | `source`               | no        | -          | An inline script to be executed
 | `params`               | no        | -          | Script Parameters
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 One of `id` or `source` options must be provided in order to properly reference a script to execute.
@@ -2401,6 +2438,7 @@ its value will be replaced with the provided one.
 | `field` | yes       | -        | The field to insert, upsert, or update. Supports <<accessing-template-fields,template snippets>>.
 | `value` | yes       | -        | The value to be set for the field. Supports <<accessing-template-fields,template snippets>>.
 | `override` | no        | true     | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -2413,6 +2451,43 @@ its value will be replaced with the provided one.
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+
+[[ingest-node-set-security-user-processor]]
+=== Set Security User Processor
+Sets user-related details (such as `username`,  `roles`, `email`, `full_name`
+and `metadata` ) from the current
+authenticated user to the current document by pre-processing the ingest.
+
+IMPORTANT: Requires an authenticated user for the index request.
+
+[[set-security-user-options]]
+.Set Security User Options
+[options="header"]
+|======
+| Name          | Required  | Default                                                   | Description
+| `field`       | yes       | -                                                         | The field to store the user information into.
+| `properties`  | no        | [`username`, `roles`, `email`, `full_name`, `metadata`]   | Controls what user related properties are added to the `field`.
+include::ingest-node-common-processor.asciidoc[]
+|======
+
+The following example adds all user details for the current authenticated user
+to the `user` field for all documents that are processed by this pipeline:
+
+[source,js]
+--------------------------------------------------
+{
+  "processors" : [
+    {
+      "set_security_user": {
+        "field": "user"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
 
 [[split-processor]]
 === Split Processor
@@ -2427,6 +2502,7 @@ Splits a field into an array using a separator character. Only works on string f
 | `separator`       | yes       | -        | A regex which matches the separator, eg `,` or `\s+`
 | `target_field`    | no        | `field`  | The field to assign the split value to, by default `field` is updated in-place
 | `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -2455,6 +2531,7 @@ Throws an error when the field is not an array.
 | `field`           | yes       | -        | The field to be sorted
 | `order`           | no        | `"asc"`  | The sort order to use. Accepts `"asc"` or `"desc"`.
 | `target_field`    | no        | `field`  | The field to assign the sorted value to, by default `field` is updated in-place
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -2482,6 +2559,7 @@ NOTE: This only works on leading and trailing whitespace.
 | `field`           | yes       | -        | The string-valued field to trim whitespace from
 | `target_field`    | no        | `field`  | The field to assign the trimmed value to, by default `field` is updated in-place
 | `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -2506,6 +2584,7 @@ Converts a string to its uppercase equivalent.
 | `field`          | yes       | -        | The field to make uppercase
 | `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]
@@ -2530,6 +2609,7 @@ URL-decodes a string
 | `field`          | yes       | -        | The field to decode
 | `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+include::ingest-node-common-processor.asciidoc[]
 |======
 
 [source,js]

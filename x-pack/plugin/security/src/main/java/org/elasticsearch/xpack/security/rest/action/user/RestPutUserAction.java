@@ -36,10 +36,11 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 public class RestPutUserAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
-    private final Hasher passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+    private final Hasher passwordHasher;
 
     public RestPutUserAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
+        passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         controller.registerHandler(POST, "/_xpack/security/user/{username}", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}", this);
     }

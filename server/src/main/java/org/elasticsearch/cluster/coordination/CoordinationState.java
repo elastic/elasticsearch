@@ -50,8 +50,6 @@ public class CoordinationState extends AbstractComponent {
     private VoteCollection publishVotes;
 
     public CoordinationState(Settings settings, DiscoveryNode localNode, PersistedState persistedState) {
-        super(settings);
-
         this.localNode = localNode;
 
         // persisted state

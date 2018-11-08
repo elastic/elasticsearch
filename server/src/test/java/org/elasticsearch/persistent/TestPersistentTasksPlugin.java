@@ -44,7 +44,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -90,8 +90,10 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool, Client client) {
-        return Collections.singletonList(new TestPersistentTasksExecutor(Settings.EMPTY, clusterService));
+                                                                       ThreadPool threadPool,
+                                                                       Client client,
+                                                                       SettingsModule settingsModule) {
+        return Collections.singletonList(new TestPersistentTasksExecutor(clusterService));
     }
 
     @Override
@@ -292,8 +294,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         public static final String NAME = "cluster:admin/persistent/test";
         private final ClusterService clusterService;
 
-        public TestPersistentTasksExecutor(Settings settings, ClusterService clusterService) {
-            super(settings, NAME, ThreadPool.Names.GENERIC);
+        public TestPersistentTasksExecutor(ClusterService clusterService) {
+            super(NAME, ThreadPool.Names.GENERIC);
             this.clusterService = clusterService;
         }
 
@@ -510,9 +512,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             TestTasksRequest, TestTasksResponse, TestTaskResponse> {
 
         @Inject
-        public TransportTestTaskAction(Settings settings, ClusterService clusterService,
-                                       TransportService transportService, ActionFilters actionFilters) {
-            super(settings, TestTaskAction.NAME, clusterService, transportService, actionFilters,
+        public TransportTestTaskAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+            super(TestTaskAction.NAME, clusterService, transportService, actionFilters,
                 TestTasksRequest::new, TestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 

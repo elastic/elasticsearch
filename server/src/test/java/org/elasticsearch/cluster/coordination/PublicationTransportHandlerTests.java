@@ -51,7 +51,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
             clusterSettings, Collections.emptySet());
-        final PublicationTransportHandler handler = new PublicationTransportHandler(Settings.EMPTY, transportService,
+        final PublicationTransportHandler handler = new PublicationTransportHandler(transportService,
             writableRegistry(), pu -> null, (pu, l) -> {});
         transportService.start();
         transportService.acceptIncomingRequests();

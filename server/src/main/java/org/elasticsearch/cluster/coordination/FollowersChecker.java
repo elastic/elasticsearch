@@ -94,7 +94,6 @@ public class FollowersChecker extends AbstractComponent {
     public FollowersChecker(Settings settings, TransportService transportService,
                             Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
                             BiConsumer<DiscoveryNode, String> onNodeFailure) {
-        super(settings);
         this.transportService = transportService;
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
         this.onNodeFailure = onNodeFailure;

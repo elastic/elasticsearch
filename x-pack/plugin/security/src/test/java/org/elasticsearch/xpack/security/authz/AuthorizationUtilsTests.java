@@ -140,7 +140,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
         threadContext.putHeader(headerName, headerValue);
         threadContext.putTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME,
                 randomFrom(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.DEPRECATION_ORIGIN,
-                        ClientHelper.MONITORING_ORIGIN, ClientHelper.PERSISTENT_TASK_ORIGIN));
+                        ClientHelper.MONITORING_ORIGIN, ClientHelper.PERSISTENT_TASK_ORIGIN, ClientHelper.INDEX_LIFECYCLE_ORIGIN));
 
         AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, consumer);
 

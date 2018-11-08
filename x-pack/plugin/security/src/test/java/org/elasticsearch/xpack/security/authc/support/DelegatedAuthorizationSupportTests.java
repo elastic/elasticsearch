@@ -63,7 +63,12 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
     }
 
     private RealmConfig buildRealmConfig(String name, Settings settings) {
-        return new RealmConfig(name, settings, globalSettings, env, threadContext);
+        return new RealmConfig(new RealmConfig.RealmIdentifier("test", name),
+            Settings.builder().put(settings)
+                .normalizePrefix("xpack.security.authc.realms.test." + name + ".")
+                .put(globalSettings)
+                .build(),
+            env, threadContext);
     }
 
     public void testEmptyDelegationList() throws ExecutionException, InterruptedException {
@@ -96,13 +101,13 @@ public class DelegatedAuthorizationSupportTests extends ESTestCase {
             .build();
         globalSettings = Settings.builder()
             .put(globalSettings)
-            .putList("xpack.security.authc.realms.lookup-2.authorization_realms", "lookup-1")
+            .putList("xpack.security.authc.realms.test.lookup-2.authorization_realms", "lookup-1")
             .build();
         final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () ->
             new DelegatedAuthorizationSupport(realms, buildRealmConfig("realm1", settings), license)
         );
         assertThat(ex.getMessage(),
-            equalTo("cannot use realm [mock/lookup-2] as an authorization realm - it is already delegating authorization to [[lookup-1]]"));
+            equalTo("cannot use realm [test/lookup-2] as an authorization realm - it is already delegating authorization to [[lookup-1]]"));
     }
 
     public void testMatchInDelegationList() throws Exception {

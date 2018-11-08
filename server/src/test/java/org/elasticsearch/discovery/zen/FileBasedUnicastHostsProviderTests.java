@@ -114,7 +114,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
 
     public void testUnicastHostsDoesNotExist() {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(settings, createTempDir().toAbsolutePath());
+        final FileBasedUnicastHostsProvider provider = new FileBasedUnicastHostsProvider(createTempDir().toAbsolutePath());
         final List<TransportAddress> addresses = provider.buildDynamicHosts((hosts, limitPortCounts) ->
             UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
                 TimeValue.timeValueSeconds(10)));
@@ -148,7 +148,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
             writer.write(String.join("\n", hostEntries));
         }
 
-        return new FileBasedUnicastHostsProvider(settings, configPath).buildDynamicHosts((hosts, limitPortCounts) ->
+        return new FileBasedUnicastHostsProvider(configPath).buildDynamicHosts((hosts, limitPortCounts) ->
             UnicastZenPing.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
                 TimeValue.timeValueSeconds(10)));
     }

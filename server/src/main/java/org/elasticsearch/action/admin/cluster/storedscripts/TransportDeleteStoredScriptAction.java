@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,10 +38,10 @@ public class TransportDeleteStoredScriptAction extends TransportMasterNodeAction
     private final ScriptService scriptService;
 
     @Inject
-    public TransportDeleteStoredScriptAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                             ThreadPool threadPool, ActionFilters actionFilters,
-                                             IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
-        super(settings, DeleteStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
+    public TransportDeleteStoredScriptAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                             ScriptService scriptService) {
+        super(DeleteStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, DeleteStoredScriptRequest::new);
         this.scriptService = scriptService;
     }

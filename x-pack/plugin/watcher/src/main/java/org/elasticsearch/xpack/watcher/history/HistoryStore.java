@@ -12,7 +12,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -32,8 +31,7 @@ public class HistoryStore extends AbstractComponent {
 
     private final BulkProcessor bulkProcessor;
 
-    public HistoryStore(Settings settings, BulkProcessor bulkProcessor) {
-        super(settings);
+    public HistoryStore(BulkProcessor bulkProcessor) {
         this.bulkProcessor = bulkProcessor;
     }
 

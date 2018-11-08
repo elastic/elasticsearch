@@ -80,7 +80,6 @@ public abstract class PeerFinder extends AbstractComponent {
 
     public PeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
                       ConfiguredHostsResolver configuredHostsResolver) {
-        super(settings);
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         this.transportService = transportService;
@@ -248,7 +247,7 @@ public abstract class PeerFinder extends AbstractComponent {
             }
         });
 
-        transportService.getThreadPool().schedule(findPeersInterval, Names.GENERIC, new AbstractRunnable() {
+        transportService.getThreadPool().scheduleUnlessShuttingDown(findPeersInterval, Names.GENERIC, new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
                 return true;

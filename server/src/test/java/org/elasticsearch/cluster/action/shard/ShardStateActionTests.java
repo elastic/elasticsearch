@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -39,8 +40,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -89,9 +88,9 @@ public class ShardStateActionTests extends ESTestCase {
     private ClusterService clusterService;
 
     private static class TestShardStateAction extends ShardStateAction {
-        TestShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
+        TestShardStateAction(ClusterService clusterService, TransportService transportService,
                              AllocationService allocationService, RoutingService routingService) {
-            super(settings, clusterService, transportService, allocationService, routingService, THREAD_POOL);
+            super(clusterService, transportService, allocationService, routingService, THREAD_POOL);
         }
 
         private Runnable onBeforeWaitForNewMasterAndRetry;
@@ -130,7 +129,7 @@ public class ShardStateActionTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
         transportService.start();
         transportService.acceptIncomingRequests();
-        shardStateAction = new TestShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);
+        shardStateAction = new TestShardStateAction(clusterService, transportService, null, null);
         shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {
         });
         shardStateAction.setOnAfterWaitForNewMasterAndRetry(() -> {

@@ -43,7 +43,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -265,10 +264,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
     public static class TransportTestTaskAction extends TransportNodesAction<NodesRequest, NodesResponse, NodeRequest, NodeResponse> {
 
         @Inject
-        public TransportTestTaskAction(Settings settings, ThreadPool threadPool,
-                                       ClusterService clusterService, TransportService transportService) {
-            super(settings, TestTaskAction.NAME, threadPool, clusterService, transportService,
-                  new ActionFilters(new HashSet<>()),
+        public TransportTestTaskAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService) {
+            super(TestTaskAction.NAME, threadPool, clusterService, transportService, new ActionFilters(new HashSet<>()),
                 NodesRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeResponse.class);
         }
 
@@ -424,8 +421,8 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         UnblockTestTasksResponse, UnblockTestTaskResponse> {
 
         @Inject
-        public TransportUnblockTestTasksAction(Settings settings, ClusterService clusterService, TransportService transportService) {
-            super(settings, UnblockTestTasksAction.NAME, clusterService, transportService, new ActionFilters(new HashSet<>()),
+        public TransportUnblockTestTasksAction(ClusterService clusterService, TransportService transportService) {
+            super(UnblockTestTasksAction.NAME, clusterService, transportService, new ActionFilters(new HashSet<>()),
                   UnblockTestTasksRequest::new, UnblockTestTasksResponse::new, ThreadPool.Names.MANAGEMENT);
         }
 

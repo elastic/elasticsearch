@@ -135,10 +135,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 .put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), randomBoolean())
                 .put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), randomBoolean())
-                .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.file.order", 0)
-                .put("xpack.security.authc.realms.index.type", NativeRealmSettings.TYPE)
-                .put("xpack.security.authc.realms.index.order", "1");
+                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".file.order", 0)
+                .put("xpack.security.authc.realms." + NativeRealmSettings.TYPE + ".index.order", "1");
         addNodeSSLSettings(builder);
         return builder.build();
     }

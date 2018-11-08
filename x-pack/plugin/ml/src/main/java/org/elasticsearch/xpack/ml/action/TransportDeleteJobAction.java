@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -65,6 +64,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
@@ -99,11 +99,11 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     private final Map<String, List<ActionListener<AcknowledgedResponse>>> listenersByJobId;
 
     @Inject
-    public TransportDeleteJobAction(Settings settings, TransportService transportService, ClusterService clusterService,
+    public TransportDeleteJobAction(TransportService transportService, ClusterService clusterService,
                                     ThreadPool threadPool, ActionFilters actionFilters,
                                     IndexNameExpressionResolver indexNameExpressionResolver, PersistentTasksService persistentTasksService,
                                     Client client, Auditor auditor, JobResultsProvider jobResultsProvider) {
-        super(settings, DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
+        super(DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, DeleteJobAction.Request::new);
         this.client = client;
         this.persistentTasksService = persistentTasksService;
@@ -136,6 +136,8 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
     protected void masterOperation(Task task, DeleteJobAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) {
         logger.debug("Deleting job '{}'", request.getJobId());
+
+        JobManager.getJobOrThrowIfUnknown(request.getJobId(), state);
 
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, taskId);

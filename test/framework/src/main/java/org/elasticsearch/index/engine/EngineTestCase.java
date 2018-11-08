@@ -88,6 +88,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -573,7 +574,15 @@ public abstract class EngineTestCase extends ESTestCase {
 
     public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
                                ReferenceManager.RefreshListener refreshListener, Sort indexSort, LongSupplier globalCheckpointSupplier) {
-        IndexWriterConfig iwc = newIndexWriterConfig();
+        return config(indexSettings, store, translogPath, mergePolicy, refreshListener, null, indexSort, globalCheckpointSupplier,
+            new NoneCircuitBreakerService());
+    }
+
+    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy,
+                               ReferenceManager.RefreshListener externalRefreshListener,
+                               ReferenceManager.RefreshListener internalRefreshListener,
+                               Sort indexSort, LongSupplier globalCheckpointSupplier, CircuitBreakerService breakerService) {
+            IndexWriterConfig iwc = newIndexWriterConfig();
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
         Engine.EventListener listener = new Engine.EventListener() {
             @Override
@@ -581,13 +590,15 @@ public abstract class EngineTestCase extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
-        final List<ReferenceManager.RefreshListener> refreshListenerList =
-                refreshListener == null ? emptyList() : Collections.singletonList(refreshListener);
+        final List<ReferenceManager.RefreshListener> extRefreshListenerList =
+            externalRefreshListener == null ? emptyList() : Collections.singletonList(externalRefreshListener);
+        final List<ReferenceManager.RefreshListener> intRefreshListenerList =
+            internalRefreshListener == null ? emptyList() : Collections.singletonList(internalRefreshListener);
         EngineConfig config = new EngineConfig(shardId, allocationId.getId(), threadPool, indexSettings, null, store,
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), listener,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), refreshListenerList, Collections.emptyList(), indexSort,
-                new NoneCircuitBreakerService(),
+                TimeValue.timeValueMinutes(5), extRefreshListenerList, intRefreshListenerList, indexSort,
+                breakerService,
                 globalCheckpointSupplier == null ?
                     new ReplicationTracker(shardId, allocationId.getId(), indexSettings, SequenceNumbers.NO_OPS_PERFORMED, update -> {}) :
                     globalCheckpointSupplier, primaryTerm::get, tombstoneDocSupplier());

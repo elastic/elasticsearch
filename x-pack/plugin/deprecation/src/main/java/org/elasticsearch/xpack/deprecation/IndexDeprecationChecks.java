@@ -145,7 +145,7 @@ public class IndexDeprecationChecks {
     }
 
     static DeprecationIssue delimitedPayloadFilterCheck(IndexMetaData indexMetaData) {
-        if (indexMetaData.getCreationVersion().before(Version.V_7_0_0_alpha1)) {
+        if (indexMetaData.getCreationVersion().before(Version.V_7_0_0)) {
             List<String> issues = new ArrayList<>();
                 Map<String, Settings> filters = indexMetaData.getSettings().getGroups(AnalysisRegistry.INDEX_ANALYSIS_FILTER);
                 for (Map.Entry<String, Settings> entry : filters.entrySet()) {

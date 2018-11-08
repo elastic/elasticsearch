@@ -106,15 +106,18 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
             );
         }
         {
-            ReindexRequest reindexRequest = new ReindexRequest();
+            // tag::submit-reindex-task
+            ReindexRequest reindexRequest = new ReindexRequest(); // <1>
             reindexRequest.setSourceIndices(sourceIndex);
             reindexRequest.setDestIndex(destinationIndex);
-            reindexRequest.setSourceQuery(new IdsQueryBuilder().addIds("1").types("type"));
             reindexRequest.setRefresh(true);
 
-            TaskSubmissionResponse reindexSubmission = highLevelClient().submitReindexTask(reindexRequest, RequestOptions.DEFAULT);
+            TaskSubmissionResponse reindexSubmission = highLevelClient().submitReindexTask(reindexRequest, RequestOptions.DEFAULT); // <2>
 
-            BooleanSupplier hasUpgradeCompleted = checkCompletionStatus(reindexSubmission.getTask());
+            String taskId = reindexSubmission.getTask(); // <3>
+            // end::submit-reindex-task
+
+            BooleanSupplier hasUpgradeCompleted = checkCompletionStatus(taskId);
             awaitBusy(hasUpgradeCompleted);
         }
     }

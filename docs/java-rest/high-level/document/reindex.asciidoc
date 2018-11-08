@@ -10,7 +10,7 @@
 [id="{upid}-{api}-request"]
 ==== Reindex Request
 
-A +{request} can be used to copy documents from one or more indexes into a
+A +{request}+ can be used to copy documents from one or more indexes into a
 destination index.
 
 It requires an existing source index and a target index which may or may not exist pre-request. Reindex does not attempt
@@ -100,7 +100,7 @@ include-tagged::{doc-tests-file}[{api}-request-sort]
 <1> add descending sort to`field1`
 <2> add ascending sort to `field2`
 
-+{request} also supports a `script` that modifies the document. It allows you to
++{request}+ also supports a `script` that modifies the document. It allows you to
 also change the document's metadata. The following example illustrates that.
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -156,6 +156,20 @@ include-tagged::{doc-tests-file}[{api}-request-refresh]
 <1> Refresh index after calling reindex
 
 include::../execution.asciidoc[]
+
+[id="{upid}-{api}-task-submission"]
+==== Reindex task submission
+It is also possible to submit a +{request}+ and not wait for it completion with the use of Task API. This is an equivalent of a REST request
+with wait_for_completion flag set to false.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{hlrc-tests}/ReindexIT.java[submit-reindex-task]
+--------------------------------------------------
+
+<1> A +{request}+ is constructed the same way as for the synchronous method
+<2> A submit method returns a `TaskSubmissionResponse` which contains a task identifier.
+<3> The task identifier can be used to get `response` from a completed task.
 
 [id="{upid}-{api}-response"]
 ==== Reindex Response

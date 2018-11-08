@@ -60,7 +60,8 @@
           "type": "alias",
           "path": "f_geop"
         },
-        "f_geos": {"type": "geo_shape"}
+        "f_geos": {"type": "geo_shape"},
+        "f_json": {"type": "json"}
       }
     }
   }

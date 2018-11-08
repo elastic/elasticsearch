@@ -67,7 +67,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
-            DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
+            DOUBLE_FIELD_NAME, DATE_FIELD_NAME, JSON_FIELD_NAME);
         Object value;
         if (isTextField(fieldName)) {
             int terms = randomIntBetween(0, 3);
@@ -155,7 +155,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery && fieldType != null) {
             String queryValue = queryBuilder.value().toString();
-            if (queryBuilder.analyzer() == null || queryBuilder.analyzer().equals("simple")) {
+            if (isTextField(queryBuilder.fieldName())
+                  && (queryBuilder.analyzer() == null || queryBuilder.analyzer().equals("simple"))) {
                 queryValue = queryValue.toLowerCase(Locale.ROOT);
             }
             Query expectedTermQuery = fieldType.termQuery(queryValue, context);
@@ -473,7 +474,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
         expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
     }
-    
+
     private static class MockGraphAnalyzer extends Analyzer {
 
         CannedBinaryTokenStream tokenStream;

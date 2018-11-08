@@ -20,13 +20,19 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonFieldType;
 import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
 
@@ -73,12 +79,36 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
+    public void testTermsQuery() {
+        KeyedJsonFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+
+        Query expected = new TermInSetQuery("field",
+            new BytesRef("key\0value1"),
+            new BytesRef("key\0value2"));
+
+        List<String> terms = new ArrayList<>();
+        terms.add("value1");
+        terms.add("value2");
+        Query actual = ft.termsQuery(terms, null);
+
+        assertEquals(expected, actual);
+    }
+
     public void testExistsQuery() {
         KeyedJsonFieldType ft = createDefaultFieldType();
         ft.setName("field");
 
         Query expected = new PrefixQuery(new Term("field", "key\0"));
         assertEquals(expected, ft.existsQuery(null));
+    }
+
+    public void testPrefixQuery() {
+        KeyedJsonFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+
+        Query expected = new PrefixQuery(new Term("field", "key\0val"));
+        assertEquals(expected, ft.prefixQuery("val", MultiTermQuery.CONSTANT_SCORE_REWRITE, null));
     }
 
     public void testFuzzyQuery() {
@@ -88,6 +118,31 @@ public class KeyedJsonFieldTypeTests extends FieldTypeTestCase {
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.fuzzyQuery("valuee", Fuzziness.fromEdits(2), 1, 50, true));
         assertEquals("[fuzzy] queries are not currently supported on [json] fields.", e.getMessage());
+    }
+
+    public void testRangeQuery() {
+        KeyedJsonFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+
+        TermRangeQuery expected = new TermRangeQuery("field",
+            new BytesRef("key\0lower"),
+            new BytesRef("key\0upper"), false, false);
+        assertEquals(expected, ft.rangeQuery("lower", "upper", false, false, null));
+
+        expected = new TermRangeQuery("field",
+            new BytesRef("key\0lower"),
+            new BytesRef("key\0upper"), true, true);
+        assertEquals(expected, ft.rangeQuery("lower", "upper", true, true, null));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            ft.rangeQuery("lower", null, false, false, null));
+        assertEquals("[range] queries on keyed [json] fields must include both an upper and a lower bound.",
+            e.getMessage());
+
+        e = expectThrows(IllegalArgumentException.class, () ->
+            ft.rangeQuery(null, "upper", false, false, null));
+        assertEquals("[range] queries on keyed [json] fields must include both an upper and a lower bound.",
+            e.getMessage());
     }
 
     public void testRegexpQuery() {

@@ -10,8 +10,8 @@ import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.UserAttributeGroupsResolverSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 
@@ -22,9 +22,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
-import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
 
 /**
 * Resolves the groups of a user based on the value of a attribute of the user's ldap entry
@@ -34,8 +34,8 @@ class UserAttributeGroupsResolver implements GroupsResolver {
     private final String attribute;
     private final boolean ignoreReferralErrors;
 
-    UserAttributeGroupsResolver(Settings settings) {
-        this(UserAttributeGroupsResolverSettings.ATTRIBUTE.get(settings), IGNORE_REFERRAL_ERRORS_SETTING.get(settings));
+    UserAttributeGroupsResolver(RealmConfig realmConfig) {
+        this(realmConfig.getSetting(UserAttributeGroupsResolverSettings.ATTRIBUTE), realmConfig.getSetting(IGNORE_REFERRAL_ERRORS_SETTING));
     }
 
     private UserAttributeGroupsResolver(String attribute, boolean ignoreReferralErrors) {

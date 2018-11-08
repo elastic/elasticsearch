@@ -32,7 +32,7 @@ public class ExecutableChainInputTests extends ESTestCase {
         ChainInput chainInput = new ChainInput(Arrays.asList(new Tuple<>("whatever", new SimpleInput(Payload.EMPTY))));
 
         Tuple<String, ExecutableInput> tuple = new Tuple<>("whatever", new FailingExecutableInput());
-        ExecutableChainInput executableChainInput = new ExecutableChainInput(chainInput, Arrays.asList(tuple), logger);
+        ExecutableChainInput executableChainInput = new ExecutableChainInput(chainInput, Arrays.asList(tuple));
         ChainInput.Result result = executableChainInput.execute(ctx, Payload.EMPTY);
         assertThat(result.status(), is(Status.SUCCESS));
     }
@@ -40,7 +40,7 @@ public class ExecutableChainInputTests extends ESTestCase {
     private class FailingExecutableInput extends ExecutableInput<SimpleInput, Input.Result> {
 
         protected FailingExecutableInput() {
-            super(new SimpleInput(Payload.EMPTY), ExecutableChainInputTests.this.logger);
+            super(new SimpleInput(Payload.EMPTY));
         }
 
         @Override

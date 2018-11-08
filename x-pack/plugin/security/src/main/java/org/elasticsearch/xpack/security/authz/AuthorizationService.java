@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -30,7 +32,6 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +42,7 @@ import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -78,7 +80,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 
-public class AuthorizationService extends AbstractComponent {
+public class AuthorizationService {
     public static final Setting<Boolean> ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING =
             Setting.boolSetting(setting("authc.anonymous.authz_exception"), true, Property.NodeScope);
     public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
@@ -86,12 +88,13 @@ public class AuthorizationService extends AbstractComponent {
 
     private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(
-            ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME);
+            ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME);
 
     private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
     private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
     private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
     private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
+    private static final Logger logger = LogManager.getLogger(AuthorizationService.class);
 
     private final ClusterService clusterService;
     private final CompositeRolesStore rolesStore;
@@ -107,7 +110,6 @@ public class AuthorizationService extends AbstractComponent {
     public AuthorizationService(Settings settings, CompositeRolesStore rolesStore, ClusterService clusterService,
                                 AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
                                 ThreadPool threadPool, AnonymousUser anonymousUser) {
-        super(settings);
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
@@ -522,7 +524,8 @@ public class AuthorizationService extends AbstractComponent {
                 return checkChangePasswordAction(authentication);
             }
 
-            assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action) || sameUsername == false
+            assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
+                || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
                     : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
             return sameUsername;
         }
@@ -568,9 +571,12 @@ public class AuthorizationService extends AbstractComponent {
         }
         // check for run as
         if (authentication.getUser().isRunAs()) {
+            logger.debug("action [{}] is unauthorized for user [{}] run as [{}]", action, authUser.principal(),
+                    authentication.getUser().principal());
             return authorizationError("action [{}] is unauthorized for user [{}] run as [{}]", action, authUser.principal(),
                     authentication.getUser().principal());
         }
+        logger.debug("action [{}] is unauthorized for user [{}]", action, authUser.principal());
         return authorizationError("action [{}] is unauthorized for user [{}]", action, authUser.principal());
     }
 

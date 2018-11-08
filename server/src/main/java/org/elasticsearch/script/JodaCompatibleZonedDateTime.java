@@ -19,9 +19,9 @@
 
 package org.elasticsearch.script;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -47,13 +47,13 @@ import java.util.Locale;
  * A wrapper around ZonedDateTime that exposes joda methods for backcompat.
  */
 public class JodaCompatibleZonedDateTime {
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(ESLoggerFactory.getLogger(JodaCompatibleZonedDateTime.class));
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
 
     private static void logDeprecated(String key, String message, Object... params) {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog(key, message, params);
+            deprecationLogger.deprecatedAndMaybeLog(key, message, params);
             return null;
         });
     }

@@ -6,8 +6,7 @@
 package org.elasticsearch.xpack.watcher.trigger;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
@@ -30,13 +29,12 @@ import java.util.concurrent.ConcurrentMap;
  * jobCount.
  */
 public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
+    private static final Logger logger = LogManager.getLogger(ScheduleTriggerEngineMock.class);
 
-    private final Logger logger;
     private final ConcurrentMap<String, Watch> watches = new ConcurrentHashMap<>();
 
-    public ScheduleTriggerEngineMock(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
-        super(settings, scheduleRegistry, clock);
-        this.logger = Loggers.getLogger(ScheduleTriggerEngineMock.class, settings);
+    public ScheduleTriggerEngineMock(ScheduleRegistry scheduleRegistry, Clock clock) {
+        super(scheduleRegistry, clock);
     }
 
     @Override

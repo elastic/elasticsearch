@@ -9,9 +9,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.sql.tree.Location;
 
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-
 import java.util.Objects;
+
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 
 public class NotQuery extends Query {
     private final Query child;

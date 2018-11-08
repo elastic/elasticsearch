@@ -34,12 +34,13 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestChangePasswordAction extends SecurityBaseRestHandler implements RestRequestFilter {
 
     private final SecurityContext securityContext;
-    private final Hasher passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+    private final Hasher passwordHasher;
 
     public RestChangePasswordAction(Settings settings, RestController controller, SecurityContext securityContext,
                                     XPackLicenseState licenseState) {
         super(settings, licenseState);
         this.securityContext = securityContext;
+        passwordHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
         controller.registerHandler(POST, "/_xpack/security/user/{username}/_password", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}/_password", this);
         controller.registerHandler(POST, "/_xpack/security/user/_password", this);

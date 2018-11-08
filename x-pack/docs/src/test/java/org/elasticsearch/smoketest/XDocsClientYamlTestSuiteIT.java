@@ -88,7 +88,7 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
                                 getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
                         boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                         assertThat(isAcknowledged, is(true));
-                        break;
+                        throw new AssertionError("waiting until stopped state reached started state");
                     case "stopping":
                         throw new AssertionError("waiting until stopping state reached stopped state to start again");
                     case "starting":
@@ -118,12 +118,6 @@ public class XDocsClientYamlTestSuiteIT extends XPackRestIT {
     protected boolean isMachineLearningTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("ml/") || testName.contains("ml\\"));
-    }
-
-    @Override
-    protected boolean isRollupTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("rollup/") || testName.contains("rollup\\"));
     }
 
     /**

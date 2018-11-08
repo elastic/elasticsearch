@@ -5,14 +5,23 @@
  */
 package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 
+import java.util.Set;
+
 /**
  * Comparison utilities.
  */
-abstract class Comparisons {
+public final class Comparisons {
 
-    static Boolean eq(Object l, Object r) {
+    private Comparisons() {}
+
+    public static Boolean eq(Object l, Object r) {
         Integer i = compare(l, r);
         return i == null ? null : i.intValue() == 0;
+    }
+
+    static Boolean neq(Object l, Object r) {
+        Integer i = compare(l, r);
+        return i == null ? null : i.intValue() != 0;
     }
 
     static Boolean lt(Object l, Object r) {
@@ -35,6 +44,10 @@ abstract class Comparisons {
         return i == null ? null : i.intValue() >= 0;
     }
 
+    static Boolean in(Object l, Set<Object> r) {
+        return r.contains(l);
+    }
+
     /**
      * Compares two expression arguments (typically Numbers), if possible.
      * Otherwise returns null (the arguments are not comparable or at least
@@ -42,6 +55,9 @@ abstract class Comparisons {
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     static Integer compare(Object l, Object r) {
+        if (l == null || r == null) {
+            return null;
+        }
         // typical number comparison
         if (l instanceof Number && r instanceof Number) {
             return compare((Number) l, (Number) r);

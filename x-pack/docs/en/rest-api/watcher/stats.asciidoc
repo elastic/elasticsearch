@@ -25,7 +25,7 @@ currently being executed by {watcher}. Additional information is shared per
 watch that is currently executing. This information includes the `watch_id`,
 the time its execution started and its current execution phase.
 
-To include this metric, the `metric` option should be set to `executing_watches`
+To include this metric, the `metric` option should be set to `current_watches`
 or `_all`. In addition you can also specify the `emit_stacktraces=true`
 parameter, which adds stack traces for each watch that is being executed. These
 stack traces can give you more insight into an execution of a watch.
@@ -51,7 +51,7 @@ To include this metric, the `metric` option should include `queued_watches` or
 
 `metric`::
   (enum) Defines which additional metrics are included in the response.
-  `executing_watches`::: Includes the current executing watches in the response.
+  `current_watches`::: Includes the current executing watches in the response.
   `queued_watches`::: Includes the watches queued for execution in the response.
   `_all`::: Includes all metrics in the response.
 
@@ -98,7 +98,7 @@ and will include the basic metrics and metrics about the current executing watch
 
 [source,js]
 --------------------------------------------------
-GET _xpack/watcher/stats?metric=executing_watches
+GET _xpack/watcher/stats?metric=current_watches
 --------------------------------------------------
 // CONSOLE
 

@@ -48,7 +48,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                     Response startResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_start"));
                     boolean isAcknowledged = ObjectPath.createFromResponse(startResponse).evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
-                    break;
+                    throw new AssertionError("waiting until stopped state reached started state");
                 case "stopping":
                     throw new AssertionError("waiting until stopping state reached stopped state to start again");
                 case "starting":
@@ -87,7 +87,7 @@ public class SmokeTestWatcherTestSuiteIT extends ESRestTestCase {
                     Response stopResponse = adminClient().performRequest(new Request("POST", "/_xpack/watcher/_stop"));
                     boolean isAcknowledged = ObjectPath.createFromResponse(stopResponse).evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
-                    break;
+                    throw new AssertionError("waiting until started state reached stopped state");
                 default:
                     throw new AssertionError("unknown state[" + state + "]");
             }

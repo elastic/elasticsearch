@@ -132,6 +132,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
      * Recovery from an existing on-disk store
      */
     public static final class ExistingStoreRecoverySource extends RecoverySource {
+        /**
+         * Special allocation id that shard has during initialization on allocate_stale_primary
+         */
+        public static final String FORCED_ALLOCATION_ID = "_forced_allocation_";
+
         public static final ExistingStoreRecoverySource INSTANCE = new ExistingStoreRecoverySource(false);
         public static final ExistingStoreRecoverySource FORCE_STALE_PRIMARY_INSTANCE = new ExistingStoreRecoverySource(true);
 

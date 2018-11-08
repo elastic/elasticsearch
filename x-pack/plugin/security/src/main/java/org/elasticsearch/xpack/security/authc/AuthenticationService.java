@@ -5,13 +5,15 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -48,7 +50,9 @@ import java.util.function.Consumer;
  * This service also supports request level caching of authenticated users (i.e. once a user authenticated
  * successfully, it is set on the request context to avoid subsequent redundant authentication process)
  */
-public class AuthenticationService extends AbstractComponent {
+public class AuthenticationService {
+
+    private static final Logger logger = LogManager.getLogger(AuthenticationService.class);
 
     private final Realms realms;
     private final AuditTrail auditTrail;
@@ -63,7 +67,6 @@ public class AuthenticationService extends AbstractComponent {
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrail,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
                                  AnonymousUser anonymousUser, TokenService tokenService) {
-        super(settings);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
         this.auditTrail = auditTrail;
@@ -139,6 +142,7 @@ public class AuthenticationService extends AbstractComponent {
         private RealmRef authenticatedBy = null;
         private RealmRef lookedupBy = null;
         private AuthenticationToken authenticationToken = null;
+        private AuthenticationResult authenticationResult = null;
 
         Authenticator(RestRequest request, ActionListener<Authentication> listener) {
             this(new AuditableRestRequest(auditTrail, failureHandler, threadContext, request), null, listener);
@@ -266,6 +270,7 @@ public class AuthenticationService extends AbstractComponent {
                             if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                                 // user was authenticated, populate the authenticated by information
                                 authenticatedBy = new RealmRef(realm.name(), realm.type(), nodeName);
+                                authenticationResult = result;
                                 userListener.onResponse(result.getUser());
                             } else {
                                 // the user was not authenticated, call this so we can audit the correct event
@@ -294,9 +299,9 @@ public class AuthenticationService extends AbstractComponent {
                     }
                 };
                 final IteratingActionListener<User, Realm> authenticatingListener =
-                        new IteratingActionListener<>(ActionListener.wrap(
-                                (user) -> consumeUser(user, messages),
-                                (e) -> listener.onFailure(request.exceptionProcessingRequest(e, token))),
+                    new IteratingActionListener<>(ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(
+                        (user) -> consumeUser(user, messages),
+                        (e) -> listener.onFailure(request.exceptionProcessingRequest(e, token))), threadContext),
                         realmAuthenticatingConsumer, realmsList, threadContext);
                 try {
                     authenticatingListener.run();
@@ -359,6 +364,7 @@ public class AuthenticationService extends AbstractComponent {
                 });
                 listener.onFailure(request.authenticationFailed(authenticationToken));
             } else {
+                threadContext.putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, authenticationResult);
                 if (runAsEnabled) {
                     final String runAsUsername = threadContext.getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
                     if (runAsUsername != null && runAsUsername.isEmpty() == false) {

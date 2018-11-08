@@ -35,9 +35,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -71,7 +69,7 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public final class SearchPhaseController extends AbstractComponent {
+public final class SearchPhaseController {
 
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
@@ -79,11 +77,9 @@ public final class SearchPhaseController extends AbstractComponent {
 
     /**
      * Constructor.
-     * @param settings Node settings
      * @param reduceContextFunction A function that builds a context for the reduce of an {@link InternalAggregation}
      */
-    public SearchPhaseController(Settings settings, Function<Boolean, ReduceContext> reduceContextFunction) {
-        super(settings);
+    public SearchPhaseController(Function<Boolean, ReduceContext> reduceContextFunction) {
         this.reduceContextFunction = reduceContextFunction;
     }
 
@@ -328,7 +324,7 @@ public final class SearchPhaseController extends AbstractComponent {
                         SearchPhaseResult searchResultProvider = resultsLookup.apply(shardDoc.shardIndex);
                         if (searchResultProvider == null) {
                             // this can happen if we are hitting a shard failure during the fetch phase
-                            // in this case we referenced the shard result via teh ScoreDoc but never got a
+                            // in this case we referenced the shard result via the ScoreDoc but never got a
                             // result from fetch.
                             // TODO it would be nice to assert this in the future
                             continue;
@@ -380,7 +376,7 @@ public final class SearchPhaseController extends AbstractComponent {
                 SearchPhaseResult fetchResultProvider = resultsLookup.apply(shardDoc.shardIndex);
                 if (fetchResultProvider == null) {
                     // this can happen if we are hitting a shard failure during the fetch phase
-                    // in this case we referenced the shard result via teh ScoreDoc but never got a
+                    // in this case we referenced the shard result via the ScoreDoc but never got a
                     // result from fetch.
                     // TODO it would be nice to assert this in the future
                     continue;

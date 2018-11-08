@@ -5,13 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -25,9 +26,11 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioException;
 
-public class HistoryStore extends AbstractComponent {
+public class HistoryStore {
 
     public static final String DOC_TYPE = "doc";
+
+    private static final Logger logger = LogManager.getLogger(HistoryStore.class);
 
     private final BulkProcessor bulkProcessor;
 

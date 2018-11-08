@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -48,7 +49,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.ioException;
 import static org.joda.time.DateTimeZone.UTC;
 
-public class WatchParser extends AbstractComponent {
+public class WatchParser {
+
+    private static final Logger logger = LogManager.getLogger(WatchParser.class);
 
     private final TriggerService triggerService;
     private final ActionRegistry actionRegistry;

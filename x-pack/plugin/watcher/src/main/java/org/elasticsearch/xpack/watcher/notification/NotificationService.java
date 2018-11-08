@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.notification;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -21,7 +20,7 @@ import java.util.function.BiFunction;
 /**
  * Basic notification service
  */
-public abstract class NotificationService<Account> extends AbstractComponent {
+public abstract class NotificationService<Account> {
 
     private final String type;
     // both are guarded by this

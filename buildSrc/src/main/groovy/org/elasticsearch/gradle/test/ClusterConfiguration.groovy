@@ -111,7 +111,7 @@ class ClusterConfiguration {
     }
 
     /**
-     * A close to call which returns a manually supplied list of unicast seed hosts.
+     * A closure to call which returns a manually supplied list of unicast seed hosts.
      */
     @Input
     Closure<List<String>> manualSeedUris = {

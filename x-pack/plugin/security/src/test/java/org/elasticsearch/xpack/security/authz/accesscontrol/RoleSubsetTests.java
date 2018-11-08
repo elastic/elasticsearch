@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchAction;
@@ -98,12 +99,13 @@ public class RoleSubsetTests extends AbstractBuilderTestCase {
         // This is what I need to do next to update the child role descriptors:
         Map<Set<String>, BoolQueryBuilder> indexNamePatternsToBoolQueryBuilder = new HashMap<>();
         for (Set<String> indexNamePattern : result.setOfIndexNamesForCombiningDLSQueries()) {
+            Automaton indexNamesAutomaton = Automatons.patterns(indexNamePattern);
             BoolQueryBuilder parentFilterQueryBuilder = QueryBuilders.boolQuery();
             // Now find the index name patterns from all base descriptors that
             // match and combine queries
             for (RoleDescriptor rdbase : baseDescriptors) {
                 for (IndicesPrivileges ip : rdbase.getIndicesPrivileges()) {
-                    if (Operations.subsetOf(Automatons.patterns(indexNamePattern), Automatons.patterns(ip.getIndices()))) {
+                    if (Operations.subsetOf(indexNamesAutomaton, Automatons.patterns(ip.getIndices()))) {
                         // TODO handle if the query is template
                         parentFilterQueryBuilder.should(
                                 AbstractQueryBuilder.parseInnerQueryBuilder(createParser(XContentType.JSON.xContent(), ip.getQuery())));

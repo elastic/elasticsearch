@@ -281,20 +281,20 @@ public final class IndicesPermission implements Iterable<IndicesPermission.Group
 
         public SubsetResult isSubsetOf(Group other) {
             SubsetResult result = SubsetResult.isNotASubset();
-            final boolean areIndicesSubsetOf = Operations.subsetOf(Automatons.patterns(this.indices()),
+            final boolean areIndicesASubset = Operations.subsetOf(Automatons.patterns(this.indices()),
                     Automatons.patterns(other.indices()));
-            if (areIndicesSubsetOf) {
-                final boolean arePrivilegesSubsetOf = Operations.subsetOf(this.privilege().getAutomaton(),
+            if (areIndicesASubset) {
+                final boolean arePrivilegesASubset = Operations.subsetOf(this.privilege().getAutomaton(),
                         other.privilege().getAutomaton());
-                if (arePrivilegesSubsetOf) {
+                if (arePrivilegesASubset) {
                     final Automaton thisFieldsPermissionAutomaton = FieldPermissions
                             .initializePermittedFieldsAutomaton(this.getFieldPermissions().getFieldPermissionsDefinition());
                     final Automaton otherFieldsPermissionAutomaton = FieldPermissions
                             .initializePermittedFieldsAutomaton(other.getFieldPermissions().getFieldPermissionsDefinition());
-                    final boolean areFieldPermissionsSubsetOf = Operations.subsetOf(thisFieldsPermissionAutomaton,
+                    final boolean areFieldPermissionsASubset = Operations.subsetOf(thisFieldsPermissionAutomaton,
                             otherFieldsPermissionAutomaton);
 
-                    if (areFieldPermissionsSubsetOf == true) {
+                    if (areFieldPermissionsASubset == true) {
                         if (this.getQuery() == null || other.getQuery() == null) {
                             result = SubsetResult.isASubset();
                         } else {

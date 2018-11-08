@@ -1242,18 +1242,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
-        {
-            // tag::multi-search-request-index
-            MultiSearchRequest request = new MultiSearchRequest();
-            request.add(new SearchRequest("posts")  // <1>
-                    .types("doc"));                 // <2>
-            // end::multi-search-request-index
-            MultiSearchResponse response = client.msearch(request, RequestOptions.DEFAULT);
-            MultiSearchResponse.Item firstResponse = response.getResponses()[0];
-            assertNull(firstResponse.getFailure());
-            SearchResponse searchResponse = firstResponse.getResponse();
-            assertEquals(3, searchResponse.getHits().getTotalHits());
-        }
     }
 
     private void indexSearchTestData() throws IOException {

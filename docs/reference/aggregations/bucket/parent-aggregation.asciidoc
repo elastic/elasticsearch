@@ -144,7 +144,7 @@ Possible response:
   },
   "hits": {
     "total": 3,
-    "max_score": null,
+    "max_score": 0.0,
     "hits": []
   },
   "aggregations": {

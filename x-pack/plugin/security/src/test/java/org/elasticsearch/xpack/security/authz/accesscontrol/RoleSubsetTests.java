@@ -98,30 +98,34 @@ public class RoleSubsetTests extends AbstractBuilderTestCase {
         // This is what I need to do next to update the child role descriptors:
         Map<Set<String>, BoolQueryBuilder> indexNamePatternsToBoolQueryBuilder = new HashMap<>();
         for (Set<String> indexNamePattern : result.setOfIndexNamesForCombiningDLSQueries()) {
-            BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
+            BoolQueryBuilder parentFilterQueryBuilder = QueryBuilders.boolQuery();
             // Now find the index name patterns from all base descriptors that
             // match and combine queries
             for (RoleDescriptor rdbase : baseDescriptors) {
                 for (IndicesPrivileges ip : rdbase.getIndicesPrivileges()) {
                     if (Operations.subsetOf(Automatons.patterns(indexNamePattern), Automatons.patterns(ip.getIndices()))) {
-                        // Do we want to use filter here? do we need scores?
-                        boolQueryBuilder.must(
+                        // TODO handle if the query is template
+                        parentFilterQueryBuilder.should(
                                 AbstractQueryBuilder.parseInnerQueryBuilder(createParser(XContentType.JSON.xContent(), ip.getQuery())));
                     }
                 }
             }
+            parentFilterQueryBuilder.minimumShouldMatch(1);
+            BoolQueryBuilder finalBoolQueryBuilder = QueryBuilders.boolQuery();
+            finalBoolQueryBuilder.filter(parentFilterQueryBuilder);
+            finalBoolQueryBuilder.minimumShouldMatch(1);
             // Iterate on child role descriptors and combine queries if the
             // index name patterns match.
             for (RoleDescriptor childRD : childDescriptors) {
                 for (IndicesPrivileges ip : childRD.getIndicesPrivileges()) {
                     if (Sets.newHashSet(ip.getIndices()).equals(indexNamePattern)) {
-                        // Do we want to use filter here? do we need scores?
-                        boolQueryBuilder.must(
+                        // TODO handle if the query is template
+                        finalBoolQueryBuilder.should(
                                 AbstractQueryBuilder.parseInnerQueryBuilder(createParser(XContentType.JSON.xContent(), ip.getQuery())));
                     }
                 }
             }
-            indexNamePatternsToBoolQueryBuilder.put(indexNamePattern, boolQueryBuilder);
+            indexNamePatternsToBoolQueryBuilder.put(indexNamePattern, finalBoolQueryBuilder);
         }
 
         final Set<RoleDescriptor> newChildDescriptors = new HashSet<>();
@@ -170,18 +174,41 @@ public class RoleSubsetTests extends AbstractBuilderTestCase {
                 QueryBuilder queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(createParser(XContentType.JSON.xContent(), q));
                 assertThat(queryBuilder, instanceOf(BoolQueryBuilder.class));
                 BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
-                assertThat(boolQueryBuilder.must().size(), is(3));
-                Set<String> valuesExpected = Sets.newHashSet("BRD1", "BRD2", "RD1");
-                Set<String> actualValues = new HashSet<>();
-                for (QueryBuilder qb : boolQueryBuilder.must()) {
-                    assertThat(qb, instanceOf(MatchQueryBuilder.class));
-                    MatchQueryBuilder matchQB = (MatchQueryBuilder) qb;
-                    String fieldName = matchQB.fieldName();
+
+                // Verify should (from child)
+                assertThat(boolQueryBuilder.should().size(), is(1));
+                assertThat(boolQueryBuilder.minimumShouldMatch(), is("1"));
+                {
+                    QueryBuilder shouldQueryBuilder = boolQueryBuilder.should().get(0);
+                    assertThat(shouldQueryBuilder, instanceOf(MatchQueryBuilder.class));
+                    MatchQueryBuilder shouldMatchQB = (MatchQueryBuilder) shouldQueryBuilder;
+                    String fieldName = shouldMatchQB.fieldName();
                     assertThat(fieldName, equalTo("category"));
-                    String value = (String) matchQB.value();
-                    actualValues.add(value);
+                    String value = (String) shouldMatchQB.value();
+                    assertThat(value, equalTo("RD1"));
                 }
-                assertThat(actualValues, equalTo(valuesExpected));
+
+                // Verify filter (from base)
+                assertThat(boolQueryBuilder.filter().size(), is(1));
+                {
+                    QueryBuilder filterBoolQueryBuilder = boolQueryBuilder.filter().get(0);
+                    assertThat(filterBoolQueryBuilder, instanceOf(BoolQueryBuilder.class));
+                    BoolQueryBuilder filter = (BoolQueryBuilder) filterBoolQueryBuilder;
+
+                    assertThat(filter.should().size(), is(2));
+                    assertThat(filter.minimumShouldMatch(), is("1"));
+                    Set<String> valuesExpected = Sets.newHashSet("BRD1", "BRD2");
+                    Set<String> actualValues = new HashSet<>();
+                    for (QueryBuilder qb : filter.should()) {
+                        assertThat(qb, instanceOf(MatchQueryBuilder.class));
+                        MatchQueryBuilder matchQB = (MatchQueryBuilder) qb;
+                        String fieldName = matchQB.fieldName();
+                        assertThat(fieldName, equalTo("category"));
+                        String value = (String) matchQB.value();
+                        actualValues.add(value);
+                    }
+                    assertThat(actualValues, equalTo(valuesExpected));
+                }
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Set;
 
@@ -112,6 +113,12 @@ public class SubsetResult {
         } else if (left != null && right == null) {
             return left;
         } else if (left.result == right.result) {
+            return new SubsetResult(left.result, Sets.union(left.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames,
+                    right.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames));
+        } else if (left.result == Result.NO && EnumSet.of(Result.YES, Result.MAYBE).contains(right.result)) {
+            return new SubsetResult(right.result, Sets.union(left.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames,
+                    right.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames));
+        } else if (right.result == Result.NO && EnumSet.of(Result.YES, Result.MAYBE).contains(left.result)) {
             return new SubsetResult(left.result, Sets.union(left.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames,
                     right.combineDLSQueriesFromIndexPrivilegeMatchingTheseNames));
         } else if (left.result == Result.MAYBE && right.result == Result.YES) {

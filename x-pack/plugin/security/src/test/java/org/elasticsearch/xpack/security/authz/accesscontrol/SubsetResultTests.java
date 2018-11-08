@@ -59,7 +59,7 @@ public class SubsetResultTests extends ESTestCase {
         SubsetResult isASubsetResult1 = SubsetResult.isASubset();
         SubsetResult isNotASubsetResult2 = SubsetResult.isNotASubset();
         SubsetResult result = SubsetResult.merge(isASubsetResult1, isNotASubsetResult2);
-        assertThat(result.result(), equalTo(SubsetResult.Result.NO));
+        assertThat(result.result(), equalTo(SubsetResult.Result.YES));
         assertThat(result.setOfIndexNamesForCombiningDLSQueries(), equalTo(Collections.emptySet()));
     }
 
@@ -68,17 +68,15 @@ public class SubsetResultTests extends ESTestCase {
         SubsetResult maybeASubsetResult2 = SubsetResult.mayBeASubset(Sets.newHashSet("abc", "def"));
         SubsetResult result = SubsetResult.merge(isASubsetResult1, maybeASubsetResult2);
         assertThat(result.result(), equalTo(SubsetResult.Result.MAYBE));
-        Set<Set<String>> expected = new HashSet<>();
-        expected.add(Sets.newHashSet("abc", "def"));
-        assertThat(result.setOfIndexNamesForCombiningDLSQueries(), equalTo(expected));
+        assertThat(result.setOfIndexNamesForCombiningDLSQueries(), equalTo(Collections.singleton(Sets.newHashSet("abc", "def"))));
     }
 
     public void testMergeWhenOneIsNoAndOtherIsMaybe() {
         SubsetResult isNotASubsetResult1 = SubsetResult.isNotASubset();
         SubsetResult maybeASubsetResult2 = SubsetResult.mayBeASubset(Sets.newHashSet("abc", "def"));
         SubsetResult result = SubsetResult.merge(isNotASubsetResult1, maybeASubsetResult2);
-        assertThat(result.result(), equalTo(SubsetResult.Result.NO));
-        assertThat(result.setOfIndexNamesForCombiningDLSQueries(), equalTo(Collections.emptySet()));
+        assertThat(result.result(), equalTo(SubsetResult.Result.MAYBE));
+        assertThat(result.setOfIndexNamesForCombiningDLSQueries(), equalTo(Collections.singleton(Sets.newHashSet("abc", "def"))));
     }
 
     public void testMergeWhenBothAreMaybe() {

@@ -86,8 +86,9 @@ public class TestZenDiscovery extends ZenDiscovery {
                         () -> new InMemoryPersistedState(0L, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings))
                             .nodes(DiscoveryNodes.builder().add(transportService.getLocalNode())
                                 .localNodeId(transportService.getLocalNode().getId()).build()).build());
-                    return new Coordinator("test_node", fixedSettings, clusterSettings, transportService, allocationService, masterService,
-                            persistedStateSupplier, hostsProvider, clusterApplier, new Random(Randomness.get().nextLong()));
+                    return new Coordinator("test_node", fixedSettings, clusterSettings, transportService, namedWriteableRegistry,
+                        allocationService, masterService, persistedStateSupplier, hostsProvider, clusterApplier,
+                        new Random(Randomness.get().nextLong()));
                 } else {
                     return new TestZenDiscovery(fixedSettings, threadPool, transportService, namedWriteableRegistry, masterService,
                         clusterApplier, clusterSettings, hostsProvider, allocationService);

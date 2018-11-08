@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.zen.PublishClusterStateStats;
 import org.elasticsearch.discovery.zen.UnicastHostsProvider.HostsResolver;
 import org.elasticsearch.indices.cluster.FakeThreadPoolMasterService;
 import org.elasticsearch.test.ESTestCase;
@@ -64,6 +65,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -762,6 +764,81 @@ public class CoordinatorTests extends ESTestCase {
         cluster.stabilise();
     }
 
+    public void testDiffBasedPublishing() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        final long finalValue = randomLong();
+        final Map<ClusterNode, PublishClusterStateStats> prePublishStats = cluster.clusterNodes.stream().collect(
+            Collectors.toMap(Function.identity(), cn -> cn.coordinator.stats().getPublishStats()));
+        logger.info("--> submitting value [{}] to [{}]", finalValue, leader);
+        leader.submitValue(finalValue);
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        final Map<ClusterNode, PublishClusterStateStats> postPublishStats = cluster.clusterNodes.stream().collect(
+            Collectors.toMap(Function.identity(), cn -> cn.coordinator.stats().getPublishStats()));
+
+        for (ClusterNode cn : cluster.clusterNodes) {
+            assertThat(value(cn.getLastAppliedClusterState()), is(finalValue));
+            if (cn == leader) {
+                // leader does not update publish stats as it's not using the serialized state
+                assertEquals(prePublishStats.get(cn).getFullClusterStateReceivedCount(),
+                    postPublishStats.get(cn).getFullClusterStateReceivedCount());
+                assertEquals(prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount(),
+                    postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
+                assertEquals(prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
+                    postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
+            } else {
+                // followers receive a diff
+                assertEquals(prePublishStats.get(cn).getFullClusterStateReceivedCount(),
+                    postPublishStats.get(cn).getFullClusterStateReceivedCount());
+                assertEquals(prePublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount() + 1,
+                    postPublishStats.get(cn).getCompatibleClusterStateDiffReceivedCount());
+                assertEquals(prePublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount(),
+                    postPublishStats.get(cn).getIncompatibleClusterStateDiffReceivedCount());
+            }
+        }
+    }
+
+    public void testJoiningNodeReceivesFullState() {
+        final Cluster cluster = new Cluster(randomIntBetween(1, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        cluster.addNodesAndStabilise(1);
+        final ClusterNode newNode = cluster.clusterNodes.get(cluster.clusterNodes.size() - 1);
+        final PublishClusterStateStats newNodePublishStats = newNode.coordinator.stats().getPublishStats();
+        // initial cluster state send when joining
+        assertEquals(1L, newNodePublishStats.getFullClusterStateReceivedCount());
+        // possible follow-up reconfiguration was published as a diff
+        assertEquals(cluster.size() % 2, newNodePublishStats.getCompatibleClusterStateDiffReceivedCount());
+        assertEquals(0L, newNodePublishStats.getIncompatibleClusterStateDiffReceivedCount());
+    }
+
+    public void testIncompatibleDiffResendsFullState() {
+        final Cluster cluster = new Cluster(randomIntBetween(2, 5));
+        cluster.runRandomly();
+        cluster.stabilise();
+
+        final ClusterNode leader = cluster.getAnyLeader();
+        final ClusterNode follower = cluster.getAnyNodeExcept(leader);
+        follower.blackhole();
+        final PublishClusterStateStats prePublishStats = follower.coordinator.stats().getPublishStats();
+        leader.submitValue(randomLong());
+        cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY + defaultMillis(PUBLISH_TIMEOUT_SETTING), "publish first state");
+        follower.heal();
+        leader.submitValue(randomLong());
+        cluster.stabilise(DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
+        final PublishClusterStateStats postPublishStats = follower.coordinator.stats().getPublishStats();
+        assertEquals(prePublishStats.getFullClusterStateReceivedCount() + 1,
+            postPublishStats.getFullClusterStateReceivedCount());
+        assertEquals(prePublishStats.getCompatibleClusterStateDiffReceivedCount(),
+            postPublishStats.getCompatibleClusterStateDiffReceivedCount());
+        assertEquals(prePublishStats.getIncompatibleClusterStateDiffReceivedCount() + 1,
+            postPublishStats.getIncompatibleClusterStateDiffReceivedCount());
+    }
+
     private static long defaultMillis(Setting<TimeValue> setting) {
         return setting.get(Settings.EMPTY).millis() + Cluster.DEFAULT_DELAY_VARIABILITY;
     }
@@ -1294,7 +1371,7 @@ public class CoordinatorTests extends ESTestCase {
                 transportService = mockTransport.createTransportService(
                     settings, deterministicTaskQueue.getThreadPool(runnable -> onNode(localNode, runnable)), NOOP_TRANSPORT_INTERCEPTOR,
                     a -> localNode, null, emptySet());
-                coordinator = new Coordinator("test_node", settings, clusterSettings, transportService,
+                coordinator = new Coordinator("test_node", settings, clusterSettings, transportService, writableRegistry(),
                     ESAllocationTestCase.createAllocationService(Settings.EMPTY), masterService, this::getPersistedState,
                     Cluster.this::provideUnicastHosts, clusterApplier, Randomness.get());
                 masterService.setClusterStatePublisher(coordinator);

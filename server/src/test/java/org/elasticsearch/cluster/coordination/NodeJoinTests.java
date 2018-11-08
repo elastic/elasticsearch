@@ -163,7 +163,7 @@ public class NodeJoinTests extends ESTestCase {
             x -> initialState.nodes().getLocalNode(),
             clusterSettings, Collections.emptySet());
         coordinator = new Coordinator("test_node", Settings.EMPTY, clusterSettings,
-            transportService,
+            transportService, writableRegistry(),
             ESAllocationTestCase.createAllocationService(Settings.EMPTY),
             masterService,
             () -> new InMemoryPersistedState(term, initialState), r -> emptyList(),

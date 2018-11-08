@@ -459,6 +459,13 @@
   - match: { analysis_limits.model_memory_limit: "30mb" }
 
 ---
+"Test delete job that does not exist":
+  - do:
+      catch: missing
+      xpack.ml.delete_job:
+        job_id: not-a-job
+
+---
 "Test delete job that is referred by a datafeed":
   - do:
       xpack.ml.put_job:

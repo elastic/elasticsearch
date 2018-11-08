@@ -231,9 +231,6 @@ Engine::
 * Add read-only Engine {pull}33563[#33563] (issues: {issue}32844[#32844], {issue}32867[#32867])
 * Allow engine to recover from translog upto a seqno {pull}33032[#33032] (issue: {issue}32867[#32867])
 
-ILM::
-* 6.x - HLRC: Add ILM Status to HLRC (#33283) {pull}33448[#33448] (issue: {issue}33283[#33283])
-
 Index APIs::
 * Introduce index settings version {pull}34429[#34429]
 * Add cluster-wide shard limit warnings {pull}34021[#34021] (issues: {issue}20705[#20705], {issue}32856[#32856])

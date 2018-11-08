@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.Loggers;
 import org.junit.rules.ExternalResource;
 
 import java.sql.Connection;
@@ -20,7 +20,7 @@ import java.util.Locale;
 import java.util.Properties;
 
 public class LocalH2 extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
-    private final Logger logger = Loggers.getLogger(getClass());
+    private final Logger logger = LogManager.getLogger(getClass());
 
     /*
      * The syntax on the connection string is fairly particular:

@@ -16,21 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.join.aggregations;
 
-public abstract class JoinAggregationBuilders {
-    /**
-     * Create a new {@link Children} aggregation with the given name.
-     */
-    public static ChildrenAggregationBuilder children(String name, String childType) {
-        return new ChildrenAggregationBuilder(name, childType);
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
+
+import java.io.IOException;
+
+public class ParsedParent extends ParsedSingleBucketAggregation implements Parent {
+
+    @Override
+    public String getType() {
+        return ParentAggregationBuilder.NAME;
     }
 
-    /**
-     * Create a new {@link Parent} aggregation with the given name.
-     */
-    public static ParentAggregationBuilder parent(String name, String childType) {
-        return new ParentAggregationBuilder(name, childType);
+    public static ParsedParent fromXContent(XContentParser parser, final String name) throws IOException {
+        return parseXContent(parser, new ParsedParent(), name);
     }
 }

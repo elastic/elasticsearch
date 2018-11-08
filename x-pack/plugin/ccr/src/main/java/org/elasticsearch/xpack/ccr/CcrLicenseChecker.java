@@ -128,10 +128,10 @@ public final class CcrLicenseChecker {
                         return;
                     }
 
-                    final Client remoteCluster = client.getRemoteClusterClient(clusterAlias);
-                    hasPrivilegesToFollowIndices(remoteCluster, new String[] {leaderIndex}, e -> {
+                    final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
+                    hasPrivilegesToFollowIndices(remoteClient, new String[] {leaderIndex}, e -> {
                         if (e == null) {
-                            fetchLeaderHistoryUUIDs(remoteCluster, leaderIndexMetaData, onFailure, historyUUIDs ->
+                            fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetaData, onFailure, historyUUIDs ->
                                     consumer.accept(historyUUIDs, leaderIndexMetaData));
                         } else {
                             onFailure.accept(e);

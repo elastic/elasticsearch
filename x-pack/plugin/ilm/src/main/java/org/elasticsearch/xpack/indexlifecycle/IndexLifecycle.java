@@ -120,7 +120,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         return Arrays.asList(
             LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
             LifecycleSettings.LIFECYCLE_NAME_SETTING,
-            RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING);
+            RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
+            RolloverAction.LIFECYCLE_ROLLOVER_TIMEOUT_SETTING);
     }
 
     @Override

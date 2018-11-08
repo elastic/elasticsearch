@@ -28,6 +28,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -101,6 +102,8 @@ public class DelayedDataDetector {
         GetBucketsAction.Request request = new GetBucketsAction.Request(job.getId());
         request.setStart(Long.toString(start));
         request.setEnd(Long.toString(end));
+        request.setSort("timestamp");
+        request.setDescending(false);
         request.setExcludeInterim(true);
         request.setPageParams(new PageParams(0, (int)((end - start)/bucketSpan)));
 
@@ -186,12 +189,36 @@ public class DelayedDataDetector {
            this.bucket = bucket;
         }
 
+        public long getTimeStamp() {
+            return bucket.getEpoch();
+        }
+
         public Bucket getBucket() {
             return bucket;
         }
 
         public long getMissingDocumentCount() {
             return missingDocumentCount;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other == this) {
+                return true;
+            }
+
+            if (other == null || other instanceof BucketWithMissingData == false) {
+                return false;
+            }
+
+            BucketWithMissingData that = (BucketWithMissingData)other;
+
+            return Objects.equals(that.bucket, bucket) && Objects.equals(that.missingDocumentCount, missingDocumentCount);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(bucket, missingDocumentCount);
         }
     }
 }

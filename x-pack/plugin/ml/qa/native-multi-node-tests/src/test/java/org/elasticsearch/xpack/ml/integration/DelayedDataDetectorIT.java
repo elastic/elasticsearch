@@ -34,6 +34,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createDatafeedBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,6 +94,9 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
         response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
         assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo(missingDocs));
+        // Assert that the are returned in order
+        List<Long> timeStamps = response.stream().map(BucketWithMissingData::getTimeStamp).collect(Collectors.toList());
+        assertEquals(timeStamps.stream().sorted().collect(Collectors.toList()), timeStamps);
     }
 
     public void testMissingDataDetectionInSpecificBucket() throws Exception {
@@ -135,6 +139,10 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
             }
         }
         assertThat(hasBucketWithMissing, equalTo(true));
+
+        // Assert that the are returned in order
+        List<Long> timeStamps = response.stream().map(BucketWithMissingData::getTimeStamp).collect(Collectors.toList());
+        assertEquals(timeStamps.stream().sorted().collect(Collectors.toList()), timeStamps);
     }
 
     public void testMissingDataDetectionWithAggregationsAndQuery() throws Exception {
@@ -184,6 +192,9 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
         response = delayedDataDetector.detectMissingData(lastBucket.getEpoch()*1000);
         assertThat(response.stream().mapToLong(BucketWithMissingData::getMissingDocumentCount).sum(), equalTo((missingDocs+1)/2));
+        // Assert that the are returned in order
+        List<Long> timeStamps = response.stream().map(BucketWithMissingData::getTimeStamp).collect(Collectors.toList());
+        assertEquals(timeStamps.stream().sorted().collect(Collectors.toList()), timeStamps);
     }
 
     private Job.Builder createJob(String id, TimeValue bucketSpan, String function, String field) {

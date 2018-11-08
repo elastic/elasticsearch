@@ -12,6 +12,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -43,7 +44,7 @@ class DatafeedJob {
 
     private static final Logger LOGGER = LogManager.getLogger(DatafeedJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
-    private static final int BUCKETS_BETWEEN_MISSING_DATA_CHECK = 1;
+    static final long MISSING_DATA_CHECK_INTERVAL = 600_000;
 
     private final Auditor auditor;
     private final String jobId;
@@ -57,7 +58,8 @@ class DatafeedJob {
 
     private volatile long lookbackStartTimeMs;
     private volatile long latestFinalBucketEndTimeMs;
-    private volatile long lastBucketDataCheckTimeMs;
+    private volatile long lastDataCheckTimeMs;
+    private volatile int lastDataCheckAudit;
     private volatile Long lastEndTimeMs;
     private AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
@@ -166,19 +168,28 @@ class DatafeedJob {
         if (isRunning() && !isIsolated && checkForMissingDataTriggered()) {
 
             // Keep track of the last bucket time for which we did a missing data check
-            this.lastBucketDataCheckTimeMs = this.latestFinalBucketEndTimeMs;
+            this.lastDataCheckTimeMs = this.currentTimeSupplier.get();
             List<DelayedDataDetector.BucketWithMissingData> response = delayedDataDetector.detectMissingData(latestFinalBucketEndTimeMs);
             if (response.isEmpty() == false) {
+
                 long totalRecordsMissing = response.stream()
                     .mapToLong(DelayedDataDetector.BucketWithMissingData::getMissingDocumentCount)
                     .sum();
-                auditor.warning(jobId, Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing));
+                // The response is sorted by asc timestamp, so the last entry is the last bucket
+                Date lastBucketDate = response.get(response.size()-1).getBucket().getTimestamp();
+                int newAudit = Objects.hash(totalRecordsMissing, lastBucketDate);
+                if (newAudit != lastDataCheckAudit) {
+                    auditor.warning(jobId,
+                        Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, totalRecordsMissing,
+                            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(lastBucketDate.getTime())));
+                    lastDataCheckAudit = newAudit;
+                }
             }
         }
     }
 
     private boolean checkForMissingDataTriggered() {
-        return this.latestFinalBucketEndTimeMs > this.lastBucketDataCheckTimeMs * BUCKETS_BETWEEN_MISSING_DATA_CHECK;
+        return this.currentTimeSupplier.get() > this.lastDataCheckTimeMs + MISSING_DATA_CHECK_INTERVAL;
     }
 
     /**

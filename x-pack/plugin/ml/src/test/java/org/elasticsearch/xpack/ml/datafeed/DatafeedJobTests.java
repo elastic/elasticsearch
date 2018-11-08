@@ -10,6 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
@@ -202,10 +203,12 @@ public class DatafeedJobTests extends ESTestCase {
 
     public void testRealtimeRun() throws Exception {
         flushJobResponse = new FlushJobAction.Response(true, new Date(2000));
+        Bucket bucket = mock(Bucket.class);
+        when(bucket.getTimestamp()).thenReturn(new Date(2000));
         when(flushJobFuture.actionGet()).thenReturn(flushJobResponse);
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
         when(delayedDataDetector.detectMissingData(2000))
-            .thenReturn(Collections.singletonList(DelayedDataDetector.BucketWithMissingData.fromMissingAndBucket(10, mock(Bucket.class))));
+            .thenReturn(Collections.singletonList(DelayedDataDetector.BucketWithMissingData.fromMissingAndBucket(10, bucket)));
         currentTime = 60000L;
         long frequencyMs = 100;
         long queryDelayMs = 1000;
@@ -220,8 +223,7 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
 
-        // Execute a second valid time, but do NOT change the last finalized bucket to verify that we do not call the delayed detector again
-        // The verification is done on the Audit, we want it only called once for this finalized bucket end time
+        // Execute a second valid time, but do so in a smaller window than the interval
         currentTime = 62000L;
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
@@ -230,7 +232,19 @@ public class DatafeedJobTests extends ESTestCase {
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         datafeedJob.runRealtime();
 
-        verify(auditor, times(1)).warning(jobId,  Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA, 10));
+        // Execute a third time, but this time make sure we exceed the data check interval, but keep the delayedDataDetector response
+        // the same
+        currentTime = 62000L + DatafeedJob.MISSING_DATA_CHECK_INTERVAL + 1;
+        inputStream = new ByteArrayInputStream(contentBytes);
+        when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
+        when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
+        datafeedJob.runRealtime();
+
+        verify(auditor, times(1)).warning(jobId,
+            Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
+                10,
+                XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(2000)));
     }
 
     public void testEmptyDataCountGivenlookback() throws Exception {

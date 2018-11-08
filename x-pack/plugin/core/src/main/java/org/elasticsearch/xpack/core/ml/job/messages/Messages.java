@@ -71,7 +71,8 @@ public final class Messages {
     public static final String JOB_AUDIT_DATAFEED_LOOKBACK_NO_DATA = "Datafeed lookback retrieved no data";
     public static final String JOB_AUDIT_DATAFEED_NO_DATA = "Datafeed has been retrieving no data for a while";
     public static final String JOB_AUDIT_DATAFEED_MISSING_DATA =
-        "Datafeed has missed {0} documents due to ingest latency. Consider increasing query_delay";
+        "Datafeed has missed {0} documents due to ingest latency, latest bucket with missing data is [{1}]." +
+            " Consider increasing query_delay";
     public static final String JOB_AUDIT_DATAFEED_RECOVERED = "Datafeed has recovered data extraction and analysis";
     public static final String JOB_AUDIT_DATAFEED_STARTED_FROM_TO = "Datafeed started (from: {0} to: {1}) with frequency [{2}]";
     public static final String JOB_AUDIT_DATAFEED_STARTED_REALTIME = "Datafeed started in real-time";

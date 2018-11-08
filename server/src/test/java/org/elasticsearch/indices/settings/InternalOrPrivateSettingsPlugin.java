@@ -126,14 +126,12 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
 
         @Inject
         public TransportUpdateInternalOrPrivateAction(
-                final Settings settings,
                 final TransportService transportService,
                 final ClusterService clusterService,
                 final ThreadPool threadPool,
                 final ActionFilters actionFilters,
                 final IndexNameExpressionResolver indexNameExpressionResolver) {
             super(
-                    settings,
                     UpdateInternalOrPrivateAction.NAME,
                     transportService,
                     clusterService,

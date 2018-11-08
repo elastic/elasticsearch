@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -20,10 +22,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -298,15 +301,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         private final IndicesService indicesService;
 
         @Inject
-        public TransportAction(Settings settings,
-                               ThreadPool threadPool,
+        public TransportAction(ThreadPool threadPool,
                                ClusterService clusterService,
                                TransportService transportService,
                                ActionFilters actionFilters,
                                IndexNameExpressionResolver indexNameExpressionResolver,
                                IndicesService indicesService) {
-            super(settings, NAME, threadPool, clusterService, transportService, actionFilters,
-                    indexNameExpressionResolver, Request::new, ThreadPool.Names.SEARCH);
+            super(NAME, threadPool, clusterService, transportService, actionFilters,
+                indexNameExpressionResolver, Request::new, ThreadPool.Names.SEARCH);
             this.indicesService = indicesService;
         }
 
@@ -360,6 +362,21 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             } else {
                 super.asyncShardOperation(request, shardId, listener);
             }
+        }
+
+        @Override
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            ActionListener<Response> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof IllegalStateException && cause.getMessage().contains("Not all operations between from_seqno [")) {
+                    String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
+                        IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
+                    listener.onFailure(new ElasticsearchException(message, e));
+                } else {
+                    listener.onFailure(e);
+                }
+            });
+            super.doExecute(task, request, wrappedListener);
         }
 
         private void globalCheckpointAdvanced(

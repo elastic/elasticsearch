@@ -83,7 +83,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -240,22 +239,22 @@ public abstract class TransportReplicationAction<
         return resolveIndex() ? indexNameExpressionResolver.concreteSingleIndex(state, request).getName() : request.index();
     }
 
-    private Optional<ClusterBlockException> handleBlockExceptions(final ClusterState state, final String indexName) {
+    private ClusterBlockException blockExceptions(final ClusterState state, final String indexName) {
         ClusterBlockLevel globalBlockLevel = globalBlockLevel();
         if (globalBlockLevel != null) {
             ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel);
             if (blockException != null) {
-                return Optional.of(blockException);
+                return blockException;
             }
         }
         ClusterBlockLevel indexBlockLevel = indexBlockLevel();
         if (indexBlockLevel != null) {
             ClusterBlockException blockException = state.blocks().indexBlockedException(indexBlockLevel, indexName);
             if (blockException != null) {
-                return Optional.of(blockException);
+                return blockException;
             }
         }
-        return Optional.empty();
+        return null;
     }
 
     protected boolean retryPrimaryException(final Throwable e) {
@@ -335,7 +334,13 @@ public abstract class TransportReplicationAction<
             try {
                 final ClusterState clusterState = clusterService.state();
                 final IndexMetaData indexMetaData = clusterState.metaData().getIndexSafe(primaryShardReference.routingEntry().index());
-                handleBlockExceptions(clusterState, indexMetaData.getIndex().getName()).ifPresent(this::handleBlockException);
+
+                final ClusterBlockException blockException = blockExceptions(clusterState, indexMetaData.getIndex().getName());
+                if (blockException != null) {
+                    logger.trace("cluster is blocked, action failed on primary", blockException);
+                    throw blockException;
+                }
+
                 if (primaryShardReference.isRelocated()) {
                     primaryShardReference.close(); // release shard operation lock as soon as possible
                         setPhase(replicationTask, "primary_delegation");
@@ -380,11 +385,6 @@ public abstract class TransportReplicationAction<
                 Releasables.closeWhileHandlingException(primaryShardReference); // release shard operation lock before responding to caller
                 onFailure(e);
             }
-        }
-
-        private void handleBlockException(final ClusterBlockException blockException) {
-            logger.trace("cluster is blocked, action failed on primary", blockException);
-            throw blockException;
         }
 
         @Override
@@ -729,9 +729,14 @@ public abstract class TransportReplicationAction<
             final ClusterState state = observer.setAndGetObservedState();
             final String concreteIndex = concreteIndex(state, request);
 
-            Optional<ClusterBlockException> blockException = handleBlockExceptions(state, concreteIndex);
-            if (blockException.isPresent()) {
-                handleBlockException(blockException.get());
+            final ClusterBlockException blockException = blockExceptions(state, concreteIndex);
+            if (blockException != null) {
+                if (blockException.retryable()) {
+                    logger.trace("cluster is blocked, scheduling a retry", blockException);
+                    retry(blockException);
+                } else {
+                    finishAsFailed(blockException);
+                }
             } else {
                 // request does not have a shardId yet, we need to pass the concrete index to resolve shardId
                 final IndexMetaData indexMetaData = state.metaData().index(concreteIndex);
@@ -813,15 +818,6 @@ public abstract class TransportReplicationAction<
         private ShardRouting primary(ClusterState state) {
             IndexShardRoutingTable indexShard = state.getRoutingTable().shardRoutingTable(request.shardId());
             return indexShard.primaryShard();
-        }
-
-        private void handleBlockException(ClusterBlockException blockException) {
-            if (blockException.retryable()) {
-                logger.trace("cluster is blocked, scheduling a retry", blockException);
-                retry(blockException);
-            } else {
-                finishAsFailed(blockException);
-            }
         }
 
         private void performAction(final DiscoveryNode node, final String action, final boolean isPrimaryAction,

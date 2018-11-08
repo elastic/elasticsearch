@@ -228,9 +228,9 @@ public final class TokenService {
                                 boolean includeRefreshToken) throws IOException {
         ensureEnabled();
         if (authentication == null) {
-            listener.onFailure(traceLog("create token", null, new IllegalArgumentException("authentication must be provided")));
+            listener.onFailure(traceLog("create token", new IllegalArgumentException("authentication must be provided")));
         } else if (originatingClientAuth == null) {
-            listener.onFailure(traceLog("create token", null,
+            listener.onFailure(traceLog("create token",
                 new IllegalArgumentException("originating client authentication must be provided")));
         } else {
             final Instant created = clock.instant();
@@ -636,7 +636,7 @@ public final class TokenService {
                         if (bulkItemResponse.isFailed()) {
                             Throwable cause = bulkItemResponse.getFailure().getCause();
                             logger.error(cause.getMessage());
-                            traceLog("(bwc) invalidate all tokens", null, cause);
+                            traceLog("(bwc) invalidate tokens",  cause);
                             if (isShardNotAvailableException(cause)) {
                                 retryTokenIds.add(getTokenIdFromInvalidatedTokenDocumentId(bulkItemResponse.getFailure().getId()));
                             } else if ((cause instanceof VersionConflictEngineException) == false){
@@ -652,7 +652,7 @@ public final class TokenService {
                     indexInvalidation(tokenIds, listener, attemptCount, "access_token", previousResult);
                 }, e -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    traceLog("(bwc) invalidate all tokens", null, cause);
+                    traceLog("(bwc) invalidate tokens", cause);
                     if (isShardNotAvailableException(e)) {
                         attemptCount.incrementAndGet();
                         indexBwcInvalidation(tokenIds, listener, attemptCount, expirationEpochMilli, previousResult);
@@ -692,7 +692,7 @@ public final class TokenService {
                 bulkRequestBuilder.add(request);
             }
             bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-            securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", null, ex)),
+            securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequestBuilder.request(),
                     ActionListener.<BulkResponse>wrap(bulkResponse -> {
                         ArrayList<String> retryTokenDocIds = new ArrayList<>();
@@ -740,7 +740,7 @@ public final class TokenService {
                         listener.onResponse(result);
                     }, e -> {
                         Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        traceLog("invalidate tokens", null, cause);
+                        traceLog("invalidate tokens", cause);
                         if (isShardNotAvailableException(cause)) {
                             attemptCount.incrementAndGet();
                             indexInvalidation(tokenIds, listener, attemptCount, srcPrefix, previousResult);
@@ -1328,28 +1328,40 @@ public final class TokenService {
     }
 
     /**
-     * Logs an exception at TRACE level (if enabled)
+     * Logs an exception concerning a specific Token at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, @Nullable String identifier, E exception) {
+    private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof ElasticsearchException) {
                 final ElasticsearchException esEx = (ElasticsearchException) exception;
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    if (Strings.isNullOrEmpty(identifier)) {
-                        logger.trace("Failure in [{}] - [{}] [{}]", action, detail, esEx.getDetailedMessage());
-                    } else {
-                        logger.trace("Failure in [{}] for id [{}] - [{}] [{}]", action, identifier, detail, esEx.getDetailedMessage());
-                    }
+                    logger.trace("Failure in [{}] for id [{}] - [{}] [{}]", action, identifier, detail, esEx.getDetailedMessage());
                 } else {
-                    if (Strings.isNullOrEmpty(identifier)) {
-                        logger.trace("Failure in [{}] - [{}]", action, esEx.getDetailedMessage());
-                    } else {
-                        logger.trace("Failure in [{}] for id [{}] - [{}]", action, identifier, esEx.getDetailedMessage());
-                    }
+                    logger.trace("Failure in [{}] for id [{}] - [{}]", action, identifier, esEx.getDetailedMessage());
                 }
             } else {
                 logger.trace("Failure in [{}] for id [{}] - [{}]", action, identifier, exception.toString());
+            }
+        }
+        return exception;
+    }
+
+    /**
+     * Logs an exception at TRACE level (if enabled)
+     */
+    private <E extends Throwable> E traceLog(String action, E exception) {
+        if (logger.isTraceEnabled()) {
+            if (exception instanceof ElasticsearchException) {
+                final ElasticsearchException esEx = (ElasticsearchException) exception;
+                final Object detail = esEx.getHeader("error_description");
+                if (detail != null) {
+                    logger.trace("Failure in [{}] - [{}] [{}]", action, detail, esEx.getDetailedMessage());
+                } else {
+                    logger.trace("Failure in [{}] - [{}]", action, esEx.getDetailedMessage());
+                }
+            } else {
+                logger.trace("Failure in [{}] - [{}]", action, exception.toString());
             }
         }
         return exception;

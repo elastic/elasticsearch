@@ -73,6 +73,9 @@ public class TestClustersPlugin implements Plugin<Project> {
         // There's a single Gradle instance for multi project builds, this means that some configuration needs to be
         // done only once even if the plugin is applied multiple times as a part of multi project build
         if (rootProject.getConfigurations().findByName(HELPER_CONFIGURATION_NAME) == null) {
+            // We use a single configuration on the root project to resolve all testcluster dependencies ( like distros )
+            // at once, only once without the need to repeat it for each project. This pays off assuming that most
+            // projects use the same dependencies.
             Configuration helperConfiguration = project.getRootProject().getConfigurations().create(HELPER_CONFIGURATION_NAME);
             helperConfiguration.setDescription(
                 "Internal helper configuration used by cluster configuration to download " +
@@ -89,7 +92,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             // the clusters will look for artifacts there based on the naming conventions.
             // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
             // the build.
-            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, SyncTestclustersConfiguration.class);
+            rootProject.getTasks().create(SYNC_ARTIFACTS_TASK_NAME, SyncTestClustersConfiguration.class);
 
             // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
             // that are defined in the build script and the ones that will actually be used in this invocation of gradle

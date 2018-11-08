@@ -26,20 +26,29 @@ import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-public class SyncTestclustersConfiguration extends DefaultTask {
+public class SyncTestClustersConfiguration extends DefaultTask {
 
     @InputFiles
     public FileCollection getDependencies() {
+        Set<File> nonZip = getProject().getConfigurations()
+            .getByName(TestClustersPlugin.HELPER_CONFIGURATION_NAME)
+            .getFiles()
+            .stream()
+            .filter(file -> file.getName().endsWith(".zip") == false)
+            .collect(Collectors.toSet());
+        if(nonZip.isEmpty() == false) {
+            throw new IllegalStateException("Expected only zip files in configuration : " +
+                TestClustersPlugin.HELPER_CONFIGURATION_NAME + " but found " +
+                nonZip
+            );
+        }
         return getProject().files(
             getProject().getConfigurations()
                 .getByName(TestClustersPlugin.HELPER_CONFIGURATION_NAME)
                 .getFiles()
-                .stream()
-                // only zip is supported for now
-                .filter(file -> file.getName().endsWith(".zip"))
-                .collect(Collectors.toSet())
         );
     }
 

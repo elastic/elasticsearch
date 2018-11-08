@@ -83,6 +83,7 @@ public class TransportGetDiscoveredNodesAction extends HandledTransportAction<Ge
         final ListenableFuture<GetDiscoveredNodesResponse> listenableFuture = new ListenableFuture<>();
         final ThreadPool threadPool = transportService.getThreadPool();
         listenableFuture.addListener(listener, directExecutor, threadPool.getThreadContext());
+        // TODO make it so that listenableFuture copes with multiple completions, and then remove listenerNotified
 
         final Consumer<Iterable<DiscoveryNode>> respondIfRequestSatisfied = new Consumer<Iterable<DiscoveryNode>>() {
             @Override

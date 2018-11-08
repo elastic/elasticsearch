@@ -67,7 +67,7 @@ public class GetTaskRequest implements Validatable {
     }
 
     /**
-     * Timeout to wait for any async actions this request must take. It must take anywhere from 0 to 2.
+     * Timeout to wait for any async actions this request must take.
      */
     public GetTaskRequest setTimeout(TimeValue timeout) {
         this.timeout = timeout;

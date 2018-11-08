@@ -1020,11 +1020,6 @@ final class RequestConverters {
             return this;
         }
 
-        EndpointBuilder addColonSeparatedPathParts(String... parts) {
-            addPathPart(String.join(":", parts));
-            return this;
-        }
-        
         EndpointBuilder addCommaSeparatedPathParts(String[] parts) {
             addPathPart(String.join(",", parts));
             return this;

@@ -59,7 +59,7 @@ final class TasksRequestConverters {
 
     static Request getTask(GetTaskRequest getTaskRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_tasks")
-                .addColonSeparatedPathParts(getTaskRequest.getNodeId(), Long.toString(getTaskRequest.getTaskId()))
+                .addPathPartAsIs(getTaskRequest.getNodeId() + ":" + Long.toString(getTaskRequest.getTaskId()))
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);

@@ -29,6 +29,8 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 public class GetTaskResponse {
     private final boolean completed;
     private final TaskInfo taskInfo;
+    public static final ParseField COMPLETED = new ParseField("completed");
+    public static final ParseField TASK = new ParseField("task");
     
     public GetTaskResponse(boolean completed, TaskInfo taskInfo) {
         this.completed = completed;
@@ -46,8 +48,8 @@ public class GetTaskResponse {
     private static final ConstructingObjectParser<GetTaskResponse, Void> PARSER = new ConstructingObjectParser<>("get_task",
             true, a -> new GetTaskResponse((boolean) a[0],  (TaskInfo) a[1]));
     static {
-        PARSER.declareBoolean(constructorArg(), new ParseField("completed"));
-        PARSER.declareObject(constructorArg(), (p, c) -> TaskInfo.fromXContent(p), new ParseField("task"));
+        PARSER.declareBoolean(constructorArg(), COMPLETED);
+        PARSER.declareObject(constructorArg(), (p, c) -> TaskInfo.fromXContent(p), TASK);
     }    
 
     public static GetTaskResponse fromXContent(XContentParser parser) {

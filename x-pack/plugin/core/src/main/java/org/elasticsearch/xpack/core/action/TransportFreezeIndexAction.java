@@ -5,31 +5,28 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,20 +40,18 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public final class TransportOpenIndexAndFreezeAction extends
-    TransportMasterNodeAction<TransportOpenIndexAndFreezeAction.OpenIndexAndFreezeRequest, OpenIndexResponse> {
+public final class TransportFreezeIndexAction extends
+    TransportMasterNodeAction<TransportFreezeIndexAction.FreezeRequest, AcknowledgedResponse> {
 
-    private final MetaDataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
-    public TransportOpenIndexAndFreezeAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                             ThreadPool threadPool, MetaDataIndexStateService indexStateService,
-                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                             DestructiveOperations destructiveOperations) {
-        super(OpenIndexAndFreezeAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            OpenIndexAndFreezeRequest::new);
-        this.indexStateService = indexStateService;
+    public TransportFreezeIndexAction(TransportService transportService, ClusterService clusterService,
+                                      ThreadPool threadPool, ActionFilters actionFilters,
+                                      IndexNameExpressionResolver indexNameExpressionResolver,
+                                      DestructiveOperations destructiveOperations) {
+        super(FreezeIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
+            FreezeRequest::new);
         this.destructiveOperations = destructiveOperations;
     }
     @Override
@@ -65,27 +60,28 @@ public final class TransportOpenIndexAndFreezeAction extends
     }
 
     @Override
-    protected void doExecute(Task task, OpenIndexAndFreezeRequest request, ActionListener<OpenIndexResponse> listener) {
+    protected void doExecute(Task task, FreezeRequest request, ActionListener<AcknowledgedResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);
     }
 
     @Override
-    protected OpenIndexResponse newResponse() {
-        return new OpenIndexResponse();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
-    protected void masterOperation(OpenIndexAndFreezeRequest request, ClusterState state, ActionListener<OpenIndexResponse> listener) {
+    protected void masterOperation(FreezeRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new OpenIndexResponse(true, true));
             return;
         }
 
-        clusterService.submitStateUpdateTask("toggle-frozen-settings", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("toggle-frozen-settings",
+            new AckedClusterStateUpdateTask<AcknowledgedResponse>(Priority.URGENT, request, listener) {
             @Override
-            public ClusterState execute(final ClusterState currentState) throws Exception {
+            public ClusterState execute(final ClusterState currentState) {
                 final MetaData.Builder builder = MetaData.builder(currentState.metaData());
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 for (Index index : concreteIndices) {
@@ -111,64 +107,43 @@ public final class TransportOpenIndexAndFreezeAction extends
             }
 
             @Override
-            public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
-                OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
-                    .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
-                    .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
-                indexStateService.openIndex(updateRequest, new ActionListener<OpenIndexClusterStateUpdateResponse>() {
-
-                    @Override
-                    public void onResponse(OpenIndexClusterStateUpdateResponse response) {
-                        listener.onResponse(new OpenIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged()));
-                    }
-
-                    @Override
-                    public void onFailure(Exception t) {
-                        logger.debug(() -> new ParameterizedMessage("failed to open indices [{}]", (Object) concreteIndices), t);
-                        listener.onFailure(t);
-                    }
-                });
+            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                return new AcknowledgedResponse(acknowledged);
             }
-
-            @Override
-            public void onFailure(final String source, final Exception e) {
-                listener.onFailure(e);
-            }
-
         });
     }
 
     @Override
-    protected ClusterBlockException checkBlock(OpenIndexAndFreezeRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(FreezeRequest request, ClusterState state) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
             indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
-    public static class OpenIndexAndFreezeAction extends Action<OpenIndexResponse> {
+    public static class FreezeIndexAction extends Action<AcknowledgedResponse> {
 
-        public static final OpenIndexAndFreezeAction INSTANCE = new OpenIndexAndFreezeAction();
-        public static final String NAME = "indices:admin/open_and_freeze";
+        public static final FreezeIndexAction INSTANCE = new FreezeIndexAction();
+        public static final String NAME = "indices:admin/freeze";
 
-        private OpenIndexAndFreezeAction() {
+        private FreezeIndexAction() {
             super(NAME);
         }
 
         @Override
-        public OpenIndexResponse newResponse() {
-            return new OpenIndexResponse();
+        public AcknowledgedResponse newResponse() {
+            return new AcknowledgedResponse();
         }
     }
 
-    public static class OpenIndexAndFreezeRequest extends AcknowledgedRequest<OpenIndexAndFreezeRequest>
+    public static class FreezeRequest extends AcknowledgedRequest<FreezeRequest>
         implements IndicesRequest.Replaceable {
         private OpenIndexRequest openIndexRequest;
         private boolean freeze = true;
 
-        public OpenIndexAndFreezeRequest() {
+        public FreezeRequest() {
             openIndexRequest = new OpenIndexRequest();
         }
 
-        public OpenIndexAndFreezeRequest(String... indices) {
+        public FreezeRequest(String... indices) {
             openIndexRequest = new OpenIndexRequest(indices);
         }
 
@@ -216,24 +191,9 @@ public final class TransportOpenIndexAndFreezeAction extends
             return this;
         }
 
-        public OpenIndexAndFreezeRequest indicesOptions(IndicesOptions indicesOptions) {
+        public FreezeRequest indicesOptions(IndicesOptions indicesOptions) {
             openIndexRequest.indicesOptions(indicesOptions);
             return this;
         }
-
-        public ActiveShardCount waitForActiveShards() {
-            return openIndexRequest.waitForActiveShards();
-        }
-
-        public OpenIndexAndFreezeRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
-            openIndexRequest.waitForActiveShards(waitForActiveShards);
-            return this;
-        }
-
-        public OpenIndexAndFreezeRequest waitForActiveShards(int waitForActiveShards) {
-            openIndexRequest.waitForActiveShards(waitForActiveShards);
-            return this;
-        }
     }
-
 }

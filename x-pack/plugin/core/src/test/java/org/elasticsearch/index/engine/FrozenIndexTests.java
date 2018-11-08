@@ -6,12 +6,12 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -28,7 +28,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.action.TransportOpenIndexAndFreezeAction;
+import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -37,6 +37,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public class FrozenIndexTests extends ESSingleNodeTestCase {
@@ -55,9 +56,10 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareFlush("index").get();
         client().admin().indices().prepareClose("index").get();
         XPackClient xPackClient = new XPackClient(client());
-        PlainActionFuture<OpenIndexResponse> future = new PlainActionFuture<>();
-        xPackClient.openAndFreeze(new TransportOpenIndexAndFreezeAction.OpenIndexAndFreezeRequest("index"), future);
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+        xPackClient.freeze(new TransportFreezeIndexAction.FreezeRequest("index"), future);
         future.get();
+        assertAcked(client().admin().indices().prepareOpen("index"));
         expectThrows(ClusterBlockException.class, () -> client().prepareIndex("index", "_doc", "4").setSource("field", "value")
             .setRefreshPolicy(IMMEDIATE).get());
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
@@ -105,11 +107,12 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareFlush("index").get();
         client().admin().indices().prepareClose("index").get();
         XPackClient xPackClient = new XPackClient(client());
-        PlainActionFuture<OpenIndexResponse> future = new PlainActionFuture<>();
-        TransportOpenIndexAndFreezeAction.OpenIndexAndFreezeRequest request =
-            new TransportOpenIndexAndFreezeAction.OpenIndexAndFreezeRequest("index");
-        xPackClient.openAndFreeze(request, future);
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+        TransportFreezeIndexAction.FreezeRequest request =
+            new TransportFreezeIndexAction.FreezeRequest("index");
+        xPackClient.freeze(request, future);
         future.get();
+        assertAcked(client().admin().indices().prepareOpen("index"));
         int numRequests = randomIntBetween(20, 50);
         CountDownLatch latch = new CountDownLatch(numRequests);
         ActionListener listener = ActionListener.wrap(latch::countDown);
@@ -151,11 +154,12 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareFlush("index").get();
         client().admin().indices().prepareClose("index").get();
         XPackClient xPackClient = new XPackClient(client());
-        PlainActionFuture<OpenIndexResponse> future = new PlainActionFuture<>();
-        TransportOpenIndexAndFreezeAction.OpenIndexAndFreezeRequest request =
-            new TransportOpenIndexAndFreezeAction.OpenIndexAndFreezeRequest("index");
-        xPackClient.openAndFreeze(request, future);
+        PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
+        TransportFreezeIndexAction.FreezeRequest request =
+            new TransportFreezeIndexAction.FreezeRequest("index");
+        xPackClient.freeze(request, future);
         future.get();
+        assertAcked(client().admin().indices().prepareOpen("index"));
         {
             IndicesService indexServices = getInstanceFromNode(IndicesService.class);
             Index index = resolveIndex("index");
@@ -167,9 +171,10 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().admin().indices().prepareClose("index").get();
         }
         request.setFreeze(false);
-        PlainActionFuture<OpenIndexResponse> future1= new PlainActionFuture<>();
-        xPackClient.openAndFreeze(request, future1);
+        PlainActionFuture<AcknowledgedResponse> future1= new PlainActionFuture<>();
+        xPackClient.freeze(request, future1);
         future1.get();
+        assertAcked(client().admin().indices().prepareOpen("index"));
         client().admin().indices().prepareUpdateSettings("index").setSettings(Settings.builder().put("index.blocks.write", false)).get();
         {
             IndicesService indexServices = getInstanceFromNode(IndicesService.class);

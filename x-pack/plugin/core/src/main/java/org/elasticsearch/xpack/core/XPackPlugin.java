@@ -57,7 +57,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.action.TransportOpenIndexAndFreezeAction;
+import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
@@ -269,8 +269,8 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(XPackInfoAction.INSTANCE, TransportXPackInfoAction.class));
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, TransportXPackUsageAction.class));
-        actions.add(new ActionHandler<>(TransportOpenIndexAndFreezeAction.OpenIndexAndFreezeAction.INSTANCE,
-            TransportOpenIndexAndFreezeAction.class));
+        actions.add(new ActionHandler<>(TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
+            TransportFreezeIndexAction.class));
         actions.addAll(licensing.getActions());
         return actions;
     }

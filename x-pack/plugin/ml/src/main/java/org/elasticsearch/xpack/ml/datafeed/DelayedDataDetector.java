@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.joda.time.DateTime;
@@ -47,6 +48,17 @@ public class DelayedDataDetector {
         this.job = job;
         this.bucketSpan = job.getAnalysisConfig().getBucketSpan().millis();
         this.datafeedConfig = datafeedConfig;
+        if (datafeedConfig.getShouldRunDelayedDataCheck()) {
+            // These validations should have occurred through DatafeedJobValidator.validate
+            // However, since this class is public, we need to protect other consumers executing outside of that code path
+            long window = datafeedConfig.getDelayedDataCheckWindow().millis();
+            if (window < bucketSpan) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL));
+            }
+            if (Intervals.alignToFloor(window/bucketSpan, bucketSpan) >= 10000) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_LARGE));
+            }
+        }
         this.client = client;
     }
 

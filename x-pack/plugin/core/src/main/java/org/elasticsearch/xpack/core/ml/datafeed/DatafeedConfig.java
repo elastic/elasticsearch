@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
-import org.elasticsearch.xpack.core.security.support.Exceptions;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -82,15 +82,15 @@ public final class InvalidateTokenRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.isNullOrEmpty(realmName) == false) {
-            if (Strings.isNullOrEmpty(tokenString) == false) {
+        if (Strings.hasText(realmName)) {
+            if (Strings.hasText(tokenString)) {
                 validationException = addValidationError("token string must not be provided when realm name is specified", null);
             }
             if (tokenType != null) {
                 validationException = addValidationError("token type must not be provided when realm name is specified", null);
             }
-        } else if (Strings.isNullOrEmpty(userName) == false) {
-            if (Strings.isNullOrEmpty(tokenString) == false) {
+        } else if (Strings.hasText(userName)) {
+            if (Strings.hasText(tokenString)) {
                 validationException = addValidationError("token string must not be provided when username is specified", null);
             }
             if (tokenType != null) {

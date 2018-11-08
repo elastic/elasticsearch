@@ -561,7 +561,7 @@ public final class TokenService {
                 }, listener::onFailure));
             } else {
                 Predicate filter = null;
-                if (Strings.isNullOrEmpty(username) == false) {
+                if (Strings.hasText(username)) {
                     filter = isOfUser(username);
                 }
                 findActiveTokensForRealm(realmName, ActionListener.wrap(tokenTuples -> {
@@ -689,7 +689,7 @@ public final class TokenService {
             securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", null, ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequestBuilder.request(),
                     ActionListener.<BulkResponse>wrap(bulkResponse -> {
-                        ArrayList<String> retryTokenIds = new ArrayList<>();
+                        ArrayList<String> retryTokenDocIds = new ArrayList<>();
                         ArrayList<String> failedRequestResponses = new ArrayList<>();
                         ArrayList<String> previouslyInvalidated = new ArrayList<>();
                         ArrayList<String> invalidated = new ArrayList<>();
@@ -705,9 +705,9 @@ public final class TokenService {
                                     failedRequestResponses.add("Error invalidating " + bulkItemResponse.getFailure().getId() + ": " +
                                         cause.getMessage());
                                 } else if (isShardNotAvailableException(cause)) {
-                                    retryTokenIds.add(bulkItemResponse.getFailure().getId());
+                                    retryTokenDocIds.add(bulkItemResponse.getFailure().getId());
                                 } else if (cause instanceof VersionConflictEngineException) {
-                                    retryTokenIds.add(bulkItemResponse.getFailure().getId());
+                                    retryTokenDocIds.add(bulkItemResponse.getFailure().getId());
                                 }
                             } else {
                                 UpdateResponse updateResponse = bulkItemResponse.getResponse();
@@ -719,14 +719,14 @@ public final class TokenService {
                                 }
                             }
                         }
-                        if (retryTokenIds.isEmpty() == false) {
+                        if (retryTokenDocIds.isEmpty() == false) {
                             TokensInvalidationResult incompleteResult =
                                 new TokensInvalidationResult(invalidated.toArray(new String[0]),
                                     previouslyInvalidated.toArray(new String[0]),
                                     failedRequestResponses.toArray(new String[0]),
                                     attemptCount.get());
                             attemptCount.incrementAndGet();
-                            indexInvalidation(retryTokenIds, listener, attemptCount, srcPrefix, incompleteResult);
+                            indexInvalidation(retryTokenDocIds, listener, attemptCount, srcPrefix, incompleteResult);
                         }
                         TokensInvalidationResult result =
                             new TokensInvalidationResult(invalidated.toArray(new String[0]),
@@ -1052,11 +1052,9 @@ public final class TokenService {
 
         final String refreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
         final Map<String, Object> userTokenSource = (Map<String, Object>)
-                ((Map<String, Object>) source.get("access_token")).get("user_token");
-        if (null != filter) {
-            if (filter.test(userTokenSource) == false) {
-                return null;
-            }
+            ((Map<String, Object>) source.get("access_token")).get("user_token");
+        if (null != filter && filter.test(userTokenSource) == false) {
+            return null;
         }
         final String id = (String) userTokenSource.get("id");
         final Integer version = (Integer) userTokenSource.get("version");
@@ -1086,6 +1084,7 @@ public final class TokenService {
     }
 
     private static String getTokenDocumentId(String id) {
+        // When retrying indexInvalidation, we already have the token document id, so we don't add another token_ prefix
         if (id.substring(0, "token_".length()).equals("token_") == false) {
             return "token_" + id;
         } else {

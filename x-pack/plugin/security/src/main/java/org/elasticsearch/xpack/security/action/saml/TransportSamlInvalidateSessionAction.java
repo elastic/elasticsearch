@@ -87,7 +87,7 @@ public final class TransportSamlInvalidateSessionAction
 
     private void findAndInvalidateTokens(SamlRealm realm, SamlLogoutRequestHandler.Result result, ActionListener<Integer> listener) {
         final Map<String, Object> tokenMetadata = realm.createTokenMetadata(result.getNameId(), result.getSession());
-        if (Strings.hasText((String) tokenMetadata.get(SamlRealm.TOKEN_METADATA_NAMEID_VALUE)) == false) {
+        if (Strings.isNullOrEmpty((String) tokenMetadata.get(SamlRealm.TOKEN_METADATA_NAMEID_VALUE))) {
             // If we don't have a valid name-id to match against, don't do anything
             logger.debug("Logout request [{}] has no NameID value, so cannot invalidate any sessions", result);
             listener.onResponse(0);
@@ -105,7 +105,7 @@ public final class TransportSamlInvalidateSessionAction
                     );
                     tokens.forEach(tuple -> invalidateTokenPair(tuple, groupedListener));
                 }
-            }, e -> listener.onFailure(e)
+            }, listener::onFailure
         ), containsMetadata(tokenMetadata));
     }
 
@@ -119,14 +119,6 @@ public final class TransportSamlInvalidateSessionAction
                 })), listener::onFailure));
     }
 
-    private List<Tuple<UserToken, String>> filterTokens(Collection<Tuple<UserToken, String>> tokens, Map<String, Object> requiredMetadata) {
-        return tokens.stream()
-                .filter(tup -> {
-                    Map<String, Object> actualMetadata = tup.v1().getMetadata();
-                    return requiredMetadata.entrySet().stream().allMatch(e -> Objects.equals(actualMetadata.get(e.getKey()), e.getValue()));
-                })
-                .collect(Collectors.toList());
-    }
 
     private Predicate<Map<String, Object>> containsMetadata(Map<String, Object> requiredMetadata) {
         return source -> {

@@ -31,7 +31,9 @@ is `true`, which is its default value, on each node in the cluster.
 +
 --
 NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
-node or across the cluster as a dynamic cluster setting. 
+node or across the cluster as a dynamic cluster setting. If {es} 
+{security-features} are enabled, you must have `monitor` cluster privileges to 
+view the cluster settings and `manage` cluster privileges to change them.
 
 For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
 --
@@ -41,7 +43,9 @@ node in the cluster. By default, it is is disabled (`false`).
 + 
 --
 NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
-node or across the cluster as a dynamic cluster setting. 
+node or across the cluster as a dynamic cluster setting. If {es} 
+{security-features} are enabled, you must have `monitor` cluster privileges to 
+view the cluster settings and `manage` cluster privileges to change them.
 
 For example, use the following APIs to review and change this setting:
 
@@ -57,9 +61,6 @@ PUT _cluster/settings
 }
 ----------------------------------
 // CONSOLE
-
-NOTE: If {es} {security-features} are enabled, you must have `monitor` cluster 
-privileges to view the settings and `manage` cluster privileges to change them.
 
 For more 
 information, see <<monitoring-settings>> and <<cluster-update-settings>>.

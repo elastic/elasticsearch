@@ -194,7 +194,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on
     private final ReadWriteLock closeLock = new ReentrantReadWriteLock();
-    protected final boolean compress;
+    protected final boolean compressResponses;
     private volatile BoundTransportAddress boundAddress;
     private final String transportName;
 
@@ -218,7 +218,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.bigArrays = bigArrays;
         this.circuitBreakerService = circuitBreakerService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.compress = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
+        this.compressResponses = Transport.TRANSPORT_TCP_COMPRESS.get(settings);
         this.networkService = networkService;
         this.transportName = transportName;
         this.transportLogger = new TransportLogger();
@@ -938,7 +938,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final String action,
         TransportResponseOptions options,
         byte status) throws IOException {
-        if (compress && options.compress() ==false) {
+        if (compressResponses && options.compress() == false) {
             options = TransportResponseOptions.builder(options).withCompress(true).build();
         }
 

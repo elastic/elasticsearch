@@ -94,7 +94,7 @@ public final class ConnectionProfile {
      * when opening single use connections
      */
     public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType) {
-        return buildSingleChannelProfile(channelType, null, null);
+        return buildSingleChannelProfile(channelType, null, null, null);
     }
 
     /**

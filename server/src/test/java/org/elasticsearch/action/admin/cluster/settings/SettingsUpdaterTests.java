@@ -105,8 +105,11 @@ public class SettingsUpdaterTests extends ESTestCase {
 
         try {
             updater.updateSettings(build,
-                Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), "not a float").build(),
-                Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), "not a float")
+                Settings.builder()
+                    .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), "not a float")
+                    .build(),
+                Settings.builder()
+                    .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), "not a float")
                     .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
                     .build(),
                 logger);
@@ -128,15 +131,26 @@ public class SettingsUpdaterTests extends ESTestCase {
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING, shard::set);
         SettingsUpdater updater = new SettingsUpdater(settingsService);
         MetaData.Builder metaData = MetaData.builder()
-            .persistentSettings(Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.5)
-                .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 2.5).build())
-            .transientSettings(Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 3.5)
-                .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 4.5).build());
+            .persistentSettings(
+                Settings.builder()
+                    .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.5)
+                    .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 2.5)
+                    .build()
+            )
+            .transientSettings(
+                Settings.builder()
+                    .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 3.5)
+                    .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 4.5)
+                    .build()
+            );
         ClusterState build = builder.metaData(metaData).build();
 
-        ClusterState clusterState =
-            updater.updateSettings(build, Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), true).build(),
-            Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.6)
+        ClusterState clusterState = updater.updateSettings(build,
+            Settings.builder()
+                .put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), true)
+                .build(),
+            Settings.builder()
+                .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.6)
                 .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
                 .build(),
             logger);
@@ -148,9 +162,12 @@ public class SettingsUpdaterTests extends ESTestCase {
         assertEquals(clusterState.blocks().global().size(), 0);
 
 
-        clusterState =
-            updater.updateSettings(build, Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build(),
-            Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.6)
+        clusterState = updater.updateSettings(build,
+            Settings.builder()
+                .put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
+                .build(),
+            Settings.builder()
+                .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.6)
                 .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
                 .build(),
             logger);

@@ -501,7 +501,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // TODO this is temporary until StopJob API gains the ability to block until stopped
-        awaitBusy(() -> {
+        boolean stopped = awaitBusy(() -> {
             Request request = new Request("GET", "/_xpack/rollup/job/_all");
             try {
                 Response jobsResponse = adminClient().performRequest(request);
@@ -512,6 +512,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                 return false;
             }
         }, 10, TimeUnit.SECONDS);
+
+        assertTrue("Timed out waiting for rollup job(s) to stop", stopped);
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             @SuppressWarnings("unchecked")

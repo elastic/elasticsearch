@@ -27,6 +27,7 @@ GET twitter/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id" : {"unmapped_type" : "string"}/]
 
 <1> A copy of the `_id` field with `doc_values` enabled
 
@@ -66,6 +67,7 @@ GET twitter/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
+// TEST[s/"tie_breaker_id": "asc"/"tie_breaker_id" : {"unmapped_type" : "string"}/]
 
 NOTE: The parameter `from` must be set to 0 (or -1) when `search_after` is used.
 

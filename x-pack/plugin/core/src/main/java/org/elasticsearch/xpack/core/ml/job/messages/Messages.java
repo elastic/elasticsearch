@@ -23,9 +23,11 @@ public final class Messages {
             "script_fields cannot be used in combination with aggregations";
     public static final String DATAFEED_CONFIG_INVALID_OPTION_VALUE = "Invalid {0} value ''{1}'' in datafeed configuration";
     public static final String DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL =
-        "delayed_data_check_window must be greater than the associated job's analysis_config: bucket_span";
+        "delayed_data_check_window [{0}] must be greater than the bucket_span [{1}]";
     public static final String DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_LARGE =
-        "delayed_data_check_window must be less than 10000x the associated job's analysis_config: bucket_span ";
+        "delayed_data_check_window [{0}] must be less than or equal to [24h]";
+    public static final String DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS =
+        "delayed_data_check_window [{0}] must be less than 10,000x the bucket_span [{1}]";
 
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "A job configured with datafeed cannot support latency";
     public static final String DATAFEED_NOT_FOUND = "No datafeed with id [{0}] exists";

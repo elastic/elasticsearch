@@ -109,12 +109,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());
         }
-        if (randomBoolean()) {
-            boolean shouldRunDelayedDataCheck = randomBoolean();
-            builder.setShouldRunDelayedDataCheck(shouldRunDelayedDataCheck);
-            if (shouldRunDelayedDataCheck) {
-                builder.setDelayedDataCheckWindow(new TimeValue(randomLongBetween(bucketSpanMillis,bucketSpanMillis*10)));
-            }
+        boolean shouldRunDelayedDataCheck = randomBoolean();
+        builder.setShouldRunDelayedDataCheck(shouldRunDelayedDataCheck);
+        if (shouldRunDelayedDataCheck || randomBoolean()) {
+            builder.setDelayedDataCheckWindow(new TimeValue(randomLongBetween(bucketSpanMillis,bucketSpanMillis*2)));
         }
         return builder.build();
     }
@@ -506,8 +504,13 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             () -> builder.setDelayedDataCheckWindow(TimeValue.MINUS_ONE));
         assertThat(e.getMessage(), containsString("cannot be less or equal than 0"));
 
+        builder.setDelayedDataCheckWindow(null);
         e = expectThrows(IllegalArgumentException.class, builder::build);
         assertThat(e.getMessage(), equalTo("[delayed_data_check_window] must not be null."));
+
+        builder.setDelayedDataCheckWindow(TimeValue.timeValueHours(25));
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, builder::build);
+        assertThat(exception.getMessage(), equalTo("delayed_data_check_window [25h] must be less than or equal to [24h]"));
     }
 
     public static String randomValidDatafeedId() {

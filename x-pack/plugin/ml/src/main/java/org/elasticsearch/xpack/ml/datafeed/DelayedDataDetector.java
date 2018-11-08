@@ -9,6 +9,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -39,7 +40,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 public class DelayedDataDetector {
 
     private static final String DATE_BUCKETS = "date_buckets";
+    private static final int FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN = 7;
     private final long bucketSpan;
+    private final long window;
     private final DatafeedConfig datafeedConfig;
     private final Client client;
     private final Job job;
@@ -48,16 +51,11 @@ public class DelayedDataDetector {
         this.job = job;
         this.bucketSpan = job.getAnalysisConfig().getBucketSpan().millis();
         this.datafeedConfig = datafeedConfig;
+
         if (datafeedConfig.getShouldRunDelayedDataCheck()) {
-            // These validations should have occurred through DatafeedJobValidator.validate
-            // However, since this class is public, we need to protect other consumers executing outside of that code path
-            long window = datafeedConfig.getDelayedDataCheckWindow().millis();
-            if (window < bucketSpan) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL));
-            }
-            if (Intervals.alignToFloor(window/bucketSpan, bucketSpan) >= 10000) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_LARGE));
-            }
+            this.window = calculateWindowSize(datafeedConfig.getDelayedDataCheckWindow(), job.getAnalysisConfig().getBucketSpan());
+        } else {
+            this.window = 0; //implies that start == end and no queries are made
         }
         this.client = client;
     }
@@ -79,8 +77,12 @@ public class DelayedDataDetector {
         }
 
         final long end = Intervals.alignToFloor(latestFinalizedBucketMs, bucketSpan);
-        final long start = Intervals.alignToFloor(latestFinalizedBucketMs - datafeedConfig.getDelayedDataCheckWindow().millis(),
-            bucketSpan);
+        final long start = Intervals.alignToFloor(latestFinalizedBucketMs - window, bucketSpan);
+
+        if (end <= start) {
+            return Collections.emptyList();
+        }
+
         List<Bucket> finalizedBuckets = checkBucketEvents(start, end);
         Map<Long, Long> indexedData = checkCurrentBucketEventCount(start, end);
         return finalizedBuckets.stream()
@@ -89,6 +91,10 @@ public class DelayedDataDetector {
             .filter(bucket -> calculateMissing(indexedData, bucket) > 0)
             .map(bucket -> BucketWithMissingData.fromMissingAndBucket(calculateMissing(indexedData, bucket), bucket))
             .collect(Collectors.toList());
+    }
+
+    long getWindow() { // for testing purposes
+        return window;
     }
 
     private List<Bucket> checkBucketEvents(long start, long end) {
@@ -137,6 +143,29 @@ public class DelayedDataDetector {
         } else {
             return -1L;
         }
+    }
+
+    private static long calculateWindowSize(TimeValue currentWindow, TimeValue bucketSpan) {
+        if (currentWindow == null || bucketSpan == null) {
+            return 0;
+        }
+
+        if (currentWindow.compareTo(bucketSpan) < 0) {
+            // If it is the default value, we assume the user did not set it and the bucket span is very large
+            if (currentWindow.equals(DatafeedConfig.DEFAULT_DELAYED_DATA_WINDOW)) {
+                //TODO What if bucket_span > 24h?, weird but possible case...
+                return bucketSpan.millis() * FALLBACK_NUMBER_OF_BUCKETS_TO_SPAN;
+            } else {
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, currentWindow.getStringRep(),
+                        bucketSpan.getStringRep()));
+            }
+        } else if (currentWindow.millis() > bucketSpan.millis() * 10_000) {
+            throw new IllegalArgumentException(
+                Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, currentWindow.getStringRep(),
+                    bucketSpan.getStringRep()));
+        }
+        return currentWindow.millis();
     }
 
     private static long calculateMissing(Map<Long, Long> indexedData, Bucket bucket) {

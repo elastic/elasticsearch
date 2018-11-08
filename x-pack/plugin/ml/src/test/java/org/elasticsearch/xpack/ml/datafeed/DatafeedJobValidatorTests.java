@@ -180,7 +180,7 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
         ac.setSummaryCountFieldName("some_count");
-        ac.setBucketSpan(TimeValue.timeValueMinutes(5));
+        ac.setBucketSpan(TimeValue.timeValueSeconds(2));
         builder.setAnalysisConfig(ac);
         Job job = builder.build(new Date());
         DatafeedConfig.Builder datafeedBuilder = createValidDatafeedConfig();
@@ -189,15 +189,16 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueMinutes(10));
         DatafeedJobValidator.validate(datafeedBuilder.build(), job);
 
-        datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueMinutes(1));
+        datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueSeconds(1));
         ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
             () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job));
-        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, "1s", "2s"), e.getMessage());
 
-        datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueMinutes(5_000_000));
+        datafeedBuilder.setDelayedDataCheckWindow(TimeValue.timeValueHours(24));
         e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
             () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job));
-        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_LARGE), e.getMessage());
+        assertEquals(Messages.getMessage(
+            Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, "1d", "2s"), e.getMessage());
     }
 
     private static Job.Builder buildJobBuilder(String id) {

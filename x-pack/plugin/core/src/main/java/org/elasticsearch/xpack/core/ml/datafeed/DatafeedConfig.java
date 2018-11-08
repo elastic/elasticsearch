@@ -55,6 +55,8 @@ import java.util.concurrent.TimeUnit;
 public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
 
     public static final int DEFAULT_SCROLL_SIZE = 1000;
+    public static final TimeValue MAX_DELAYED_DATA_WINDOW = TimeValue.timeValueHours(24);
+    public static final TimeValue DEFAULT_DELAYED_DATA_WINDOW = TimeValue.timeValueHours(2);
 
     private static final int SECONDS_IN_MINUTE = 60;
     private static final int TWO_MINS_SECONDS = 2 * SECONDS_IN_MINUTE;
@@ -483,8 +485,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
         private ChunkingConfig chunkingConfig;
         private Map<String, String> headers = Collections.emptyMap();
-        private TimeValue delayedDataCheckWindow;
-        private boolean shouldRunDelayedDataCheck;
+        private TimeValue delayedDataCheckWindow = DEFAULT_DELAYED_DATA_WINDOW;
+        private boolean shouldRunDelayedDataCheck = true;
 
         public Builder() {
         }
@@ -597,6 +599,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             }
             if (shouldRunDelayedDataCheck) {
                 ExceptionsHelper.requireNonNull(delayedDataCheckWindow, DELAYED_DATA_CHECK_WINDOW.getPreferredName());
+            }
+            if (delayedDataCheckWindow != null && delayedDataCheckWindow.compareTo(MAX_DELAYED_DATA_WINDOW) > 0) {
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_LARGE,
+                    delayedDataCheckWindow.getStringRep()));
             }
 
             validateAggregations();

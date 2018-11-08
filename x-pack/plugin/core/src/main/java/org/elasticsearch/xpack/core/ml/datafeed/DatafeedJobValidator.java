@@ -32,14 +32,22 @@ public final class DatafeedJobValidator {
             checkValidHistogramInterval(datafeedConfig, analysisConfig);
             checkFrequencyIsMultipleOfHistogramInterval(datafeedConfig);
         }
-        if (datafeedConfig.getShouldRunDelayedDataCheck()) {
-            if (datafeedConfig.getDelayedDataCheckWindow().compareTo(analysisConfig.getBucketSpan()) < 0) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL));
+
+        TimeValue delayedDataCheckWindow =  datafeedConfig.getDelayedDataCheckWindow();
+        TimeValue bucketSpan = analysisConfig.getBucketSpan();
+        if (datafeedConfig.getShouldRunDelayedDataCheck()
+            && delayedDataCheckWindow.equals(DatafeedConfig.DEFAULT_DELAYED_DATA_WINDOW) == false) {
+            if (delayedDataCheckWindow.compareTo(bucketSpan) < 0) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL,
+                        delayedDataCheckWindow,
+                        bucketSpan));
             }
-            long bucketSpan = analysisConfig.getBucketSpan().millis();
-            long window = datafeedConfig.getDelayedDataCheckWindow().millis();
-            if (Intervals.alignToFloor(window/bucketSpan, bucketSpan) >= 10000) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_LARGE));
+            if (Intervals.alignToFloor(delayedDataCheckWindow.millis()/bucketSpan.millis(), bucketSpan.millis()) >= 10_000) {
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS,
+                        delayedDataCheckWindow,
+                        bucketSpan));
             }
         }
     }

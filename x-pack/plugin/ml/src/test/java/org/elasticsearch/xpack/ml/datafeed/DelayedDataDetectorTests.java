@@ -24,29 +24,36 @@ import static org.mockito.Mockito.mock;
 
 public class DelayedDataDetectorTests extends ESTestCase {
 
-
     public void testConstructor() {
-            Job job = createJob(TimeValue.timeValueMinutes(5));
+            Job job = createJob(TimeValue.timeValueSeconds(2));
 
             DatafeedConfig datafeedConfig = createDatafeed(false, null);
 
             // Should not throw
-            DelayedDataDetector delayedDataDetector = new DelayedDataDetector(job, datafeedConfig, mock(Client.class));
+            new DelayedDataDetector(job, datafeedConfig, mock(Client.class));
 
             datafeedConfig = createDatafeed(true, TimeValue.timeValueMinutes(10));
 
             // Should not throw
-            delayedDataDetector = new DelayedDataDetector(job, datafeedConfig, mock(Client.class));
+            new DelayedDataDetector(job, datafeedConfig, mock(Client.class));
 
-            DatafeedConfig tooSmallDatafeedConfig = createDatafeed(true, TimeValue.timeValueMinutes(1));
+            DatafeedConfig tooSmallDatafeedConfig = createDatafeed(true, TimeValue.timeValueSeconds(1));
             IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class,
                 () -> new DelayedDataDetector(job, tooSmallDatafeedConfig, mock(Client.class)));
-            assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL), e.getMessage());
+            assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, "1s", "2s"), e.getMessage());
 
-            DatafeedConfig tooBigDatafeedConfig = createDatafeed(true, TimeValue.timeValueMinutes(5_000_000));
+            DatafeedConfig tooBigDatafeedConfig = createDatafeed(true, TimeValue.timeValueHours(12));
             e = ESTestCase.expectThrows(IllegalArgumentException.class,
                 () -> new DelayedDataDetector(job, tooBigDatafeedConfig, mock(Client.class)));
-            assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_LARGE), e.getMessage());
+            assertEquals(Messages.getMessage(
+                Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, "12h", "2s"), e.getMessage());
+
+            Job withBigBucketSpan = createJob(TimeValue.timeValueHours(3));
+            datafeedConfig = createDatafeed(true, DatafeedConfig.DEFAULT_DELAYED_DATA_WINDOW);
+
+            // Should not throw
+            DelayedDataDetector delayedDataDetector = new DelayedDataDetector(withBigBucketSpan, datafeedConfig, mock(Client.class));
+            assertThat(delayedDataDetector.getWindow(), equalTo(TimeValue.timeValueHours(3).millis() * 7));
     }
 
     public void testDetectMissingData_WhenShouldDetectDelayedDataIsFalse() {

@@ -95,7 +95,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
             contextsToCompilers.put(context, new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz,
-                PainlessLookupBuilder.buildFromWhitelists(entry.getValue())));
+                    PainlessLookupBuilder.buildFromWhitelists(entry.getValue())));
         }
 
         this.contextsToCompilers = Collections.unmodifiableMap(contextsToCompilers);
@@ -261,7 +261,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
 
         GeneratorAdapter constructor = new GeneratorAdapter(Opcodes.ASM5, init,
-            writer.visitMethod(Opcodes.ACC_PUBLIC, init.getName(), init.getDescriptor(), null, null));
+                writer.visitMethod(Opcodes.ACC_PUBLIC, init.getName(), init.getDescriptor(), null, null));
         constructor.visitCode();
         constructor.loadThis();
         constructor.invokeConstructor(OBJECT_TYPE, init);
@@ -288,8 +288,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
             MethodType.methodType(void.class, reflect.getParameterTypes()).toMethodDescriptorString());
 
         GeneratorAdapter adapter = new GeneratorAdapter(Opcodes.ASM5, instance,
-            writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                instance.getName(), instance.getDescriptor(), null, null));
+                writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
+                                   instance.getName(), instance.getDescriptor(), null, null));
         adapter.visitCode();
         adapter.newInstance(classType);
         adapter.dup();

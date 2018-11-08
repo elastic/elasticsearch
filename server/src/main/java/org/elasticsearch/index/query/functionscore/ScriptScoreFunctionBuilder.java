@@ -100,7 +100,8 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
         }
     }
 
-    public static ScriptScoreFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
+    public static ScriptScoreFunctionBuilder fromXContent(XContentParser parser)
+            throws IOException, ParsingException {
         Script script = null;
         String currentFieldName = null;
         XContentParser.Token token;

@@ -72,11 +72,11 @@ for (Version version : bwcVersions.wireCompatible) {
     systemProperty 'tests.rest.suite', 'old_cluster'
   }
 
-  Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure unicastSeed ->
+  Closure configureUpgradeCluster = {String name, Task lastRunner, int stopNode, Closure getOtherUnicastHostAddresses ->
     configure(extensions.findByName("${baseName}#${name}")) {
       dependsOn lastRunner, "${baseName}#oldClusterTestCluster#node${stopNode}.stop"
       clusterName = 'rolling-upgrade'
-      otherUnicastHostAddresses = { unicastSeed() }
+      otherUnicastHostAddresses = { getOtherUnicastHostAddresses() }
       minimumMasterNodes = { 2 }
       /* Override the data directory so the new node always gets the node we
       * just stopped's data directory. */

@@ -32,11 +32,14 @@ import java.util.function.Consumer;
 public class TransportStopRollupAction extends TransportTasksAction<RollupJobTask, StopRollupJobAction.Request,
     StopRollupJobAction.Response, StopRollupJobAction.Response> {
 
+    private final ThreadPool threadPool;
+
     @Inject
-    public TransportStopRollupAction(TransportService transportService,
-                           ActionFilters actionFilters, ClusterService clusterService) {
+    public TransportStopRollupAction(TransportService transportService, ActionFilters actionFilters,
+                                     ClusterService clusterService, ThreadPool threadPool) {
         super(StopRollupJobAction.NAME, clusterService, transportService, actionFilters,
             StopRollupJobAction.Request::new, StopRollupJobAction.Response::new, ThreadPool.Names.SAME);
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -53,7 +56,7 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
     protected void taskOperation(StopRollupJobAction.Request request, RollupJobTask jobTask,
                                  ActionListener<StopRollupJobAction.Response> listener) {
         if (jobTask.getConfig().getId().equals(request.getId())) {
-            jobTask.stop(maybeWrapWithBlocking(request, jobTask, listener));
+            jobTask.stop(maybeWrapWithBlocking(request, jobTask, listener, threadPool));
         } else {
             listener.onFailure(new RuntimeException("ID of rollup task [" + jobTask.getConfig().getId()
                     + "] does not match request's ID [" + request.getId() + "]"));
@@ -62,26 +65,31 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
 
     private static ActionListener<StopRollupJobAction.Response> maybeWrapWithBlocking(StopRollupJobAction.Request request,
                                                                   RollupJobTask jobTask,
-                                                                  ActionListener<StopRollupJobAction.Response> listener) {
+                                                                  ActionListener<StopRollupJobAction.Response> listener,
+                                                                  ThreadPool threadPool) {
         if (request.waitForCompletion()) {
             return ActionListener.wrap(response -> {
                 if (response.isStopped()) {
                     // The Task acknowledged that it is stopped/stopping... wait until the status actually
-                    // changes over before returning
-                    try {
-                        boolean stopped = awaitBusy(() -> ((RollupJobStatus) jobTask.getStatus())
-                            .getIndexerState().equals(IndexerState.STOPPED), request.timeout());
+                    // changes over before returning.  Switch over to Generic threadpool so
+                    // we don't block the network thread
+                    threadPool.generic().execute(() -> {
+                        try {
+                            boolean stopped = awaitBusy(() -> ((RollupJobStatus) jobTask.getStatus())
+                                .getIndexerState().equals(IndexerState.STOPPED), request.timeout());
 
-                        if (stopped) {
-                            // We have successfully confirmed a stop, send back the response
-                            listener.onResponse(response);
-                        } else {
-                            listener.onFailure(new ElasticsearchTimeoutException("Timed out after [" + request.timeout().getStringRep()
-                                + "] while waiting for rollup job [" + request.getId() + "] to stop"));
+                            if (stopped) {
+                                // We have successfully confirmed a stop, send back the response
+                                listener.onResponse(response);
+                            } else {
+                                listener.onFailure(new ElasticsearchTimeoutException("Timed out after [" + request.timeout().getStringRep()
+                                    + "] while waiting for rollup job [" + request.getId() + "] to stop"));
+                            }
+                        } catch (InterruptedException e) {
+                            listener.onFailure(e);
                         }
-                    } catch (InterruptedException e) {
-                        listener.onFailure(e);
-                    }
+                    });
+
                 } else {
                     // Did not acknowledge stop, just return the response
                     listener.onResponse(response);

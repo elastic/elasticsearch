@@ -2,14 +2,164 @@
 [[getting-started-index-lifecycle-management]]
 == Getting started with {ilm}
 
-Create a policy that rolls over after 1 day deletes an index after 30 days
+Let's jump into {ILM} by working through a hands-on scenario.
+This section will leverage many new concepts unique to {ILM} that
+you may not be familiar with. The following sections will explore
+these in more details.
 
-Show create policy API req/res
+The goal of this example is to set up a set of indices that will encapsulate
+the logs from our logging source. We can imagine there is a system
+like {filebeat-ref}[Filebeat] that continuously indexes documents into
+our writing index. We wish to roll over the index after one day and delete
+indices older than 30 days.
 
-Show assign policy to index API req/res
+=== Setting up a new policy
 
-Show both the API and how it is done with `index.lifecyce.name` using the
-create-index API
+There are many new APIs introduced by {ILM}, but we will only focus on
+a few that are needed for our example. For starters, we will use the
+<<ilm-put-policy,Put Policy>> API to define our first policy. Lifecycle
+policies are defined in JSON and include specific <<phases and actions>>.
 
-Show explain API to show current state, but ignore the “step” related info,
-only focus on managed/phase/action
+[source,js]
+------------------------
+PUT _ilm/policy/logs_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_age": "1d"
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+------------------------
+// CONSOLE
+
+=== Applying a policy to our index
+
+There are <<set-up-lifecycle-policy,a few ways>> to associate a
+policy to an index. Since we wish specific settings to be applied to
+the new index created from Rollover, we will set the policy via
+index templates.
+
+
+[source,js]
+-----------------------
+PUT _template/logs_template
+{
+  "index_patterns": ["logs-*"],
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1,
+    "index.lifecycle.name": "log_policy",
+    "index.lifecycle.rollover_alias": "logs"
+  }
+}
+-----------------------
+// CONSOLE
+
+The above index template introduces a few new settings specific to {ILM}. The first
+being `index.lifecycle.name`. This setting will configure the "log_policy" to the index
+applying this template. Given how index templates work, this means that all newly created
+indices prefixed "logs-" will be managed by our policy. The other settings used here is
+`index.lifecycle.rollover_alias`. This setting is important to associate which alias to
+rollover on behalf of this index. The intention here is that the rollover alias is also defined
+on the index.
+
+To begin, we will want to bootstrap our first index to write to.
+
+
+[source,js]
+-----------------------
+PUT logs-00001
+{
+  "aliases": {
+    "logs": {
+      "is_write_index": true
+    }
+  }
+}
+-----------------------
+// CONSOLE
+
+When creating our index, we have to consider a few important configurations that
+are tie our index and our policy together correctly. We need to make sure that
+our index name matches our index template pattern of "logs-*", which it does. We
+are using the rollover action in our policy, which requires that our index name ends
+with a number. In our case, we used `00001`. This is important so that Rollover can
+increment this number when naming the new index created from rolling over.
+
+Our index creation request leverages its template to apply our settings, but we
+must also configure out rollover alias: "logs". To do this, we take advantage of
+<<write-index,write indices>>. This is a way to define an alias to be used for
+both reading and writing, with only one index being the index that is being written
+to at a time. Rollover swaps the write index to be the new index created from rollover,
+and sets the alias to be read-only for the source index.
+
+
+=== Checking progress
+
+Now that we have an index managed by our policy, how do we tell what is going on?
+Which phase are we in? is something broken? This section will go over a few APIs
+and their responses to help us introspect our indices with respect to {ILM}.
+
+With the help of the <<ilm-explain,Explain API>>, we can know things like which
+phase we're in and when we entered that phase. The API will also provide further
+info if errors occurred, or we are blocked on certain checks within actions.
+
+[source,js]
+--------------------------------------------------
+GET logs-*/_ilm/explain
+--------------------------------------------------
+// CONSOLE
+
+The above request will retrieve {ILM} execution information for all our managed indices.
+
+
+[source,js]
+--------------------------------------------------
+{
+  "indices": {
+    "logs-00001": {
+      "index": "my_index",
+      "managed": true,
+      "policy": "log_policy",
+      "lifecycle_date_millis": 1538475653281,
+      "phase": "new",
+      "phase_time_millis": 1538475653317,
+      "action": "complete",
+      "action_time_millis": 1538475653317,
+      "step": "complete",
+      "step_time_millis": 1538475653317
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+There is a lot of information to explain here. To learn more about all the
+different attributes, read more <<here,here>>. For now, let's focus on how
+the response details which phase/action we're in. We are in the "new" phase,
+and "complete" action.
+
+=== Next Steps
+
+That's it! We have our first logging use-case managed by {ILM}. As time goes on,
+new will be created and deleted. With `logs-00002` being created after the first
+day, and `logs-00003` created after that. We will be able to search across all
+of our managed indices using the "logs" alias, and we will be able to write to our
+to-be-rolled-over write indices using that same alias. Our delete phase will execute
+once our rolled over indices are 30 days old. 30 days being the time elapsed after
+being rolled over, so 31 days total.
+
+To learn more about all our APIs, check out <<ilm-apis,ILM APIs>>.

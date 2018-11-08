@@ -55,8 +55,6 @@ final class MigrationRequestConverters {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
         RequestConverters.Params params = new RequestConverters.Params(request)
-            .withTimeout(indexUpgradeRequest.timeout())
-            .withIndicesOptions(indexUpgradeRequest.indicesOptions())
             .withWaitForCompletion(waitForCompletion);
 
         return request;

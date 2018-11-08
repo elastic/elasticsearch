@@ -104,9 +104,6 @@ public class MigrationClientDocumentationIT extends ESRestHighLevelClientTestCas
         IndexUpgradeRequest request = new IndexUpgradeRequest("test"); // <1>
         // end::upgrade-request
 
-        // tag::upgrade-request-indices-options
-        request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
-        // end::upgrade-request-indices-options
         try {
 
             // tag::upgrade-execute
@@ -117,7 +114,6 @@ public class MigrationClientDocumentationIT extends ESRestHighLevelClientTestCas
             assertThat(e.getMessage(), containsString("cannot be upgraded"));
         }
     }
-
 
     public void testUpgradeAsync() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();

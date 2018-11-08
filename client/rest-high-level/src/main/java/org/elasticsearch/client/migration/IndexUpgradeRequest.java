@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.client.migration;
 
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.TimedRequest;
+import org.elasticsearch.client.Validatable;
 
 import java.util.Objects;
 
@@ -27,25 +26,16 @@ import java.util.Objects;
  * A request for performing Upgrade on Index
  * Part of Migration API
  */
-public class IndexUpgradeRequest extends TimedRequest {
+public class IndexUpgradeRequest implements Validatable {
 
     private String index;
-    private IndicesOptions indicesOptions = IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
 
     public IndexUpgradeRequest(String index) {
         this.index = index;
     }
 
-    public void indicesOptions(IndicesOptions indicesOptions) {
-        this.indicesOptions = indicesOptions;
-    }
-
     public String index() {
         return index;
-    }
-
-    public IndicesOptions indicesOptions() {
-        return indicesOptions;
     }
 
     @Override
@@ -53,12 +43,11 @@ public class IndexUpgradeRequest extends TimedRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexUpgradeRequest request = (IndexUpgradeRequest) o;
-        return Objects.equals(index, request.index) &&
-            Objects.equals(indicesOptions.toString(), request.indicesOptions.toString());
+        return Objects.equals(index, request.index);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, indicesOptions);
+        return Objects.hash(index);
     }
 }

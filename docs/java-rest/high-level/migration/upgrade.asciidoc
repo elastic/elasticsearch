@@ -12,16 +12,6 @@ include-tagged::{doc-tests}/MigrationClientDocumentationIT.java[upgrade-request]
 --------------------------------------------------
 <1> Create a new request instance
 
-==== Optional arguments
-The following arguments can optionally be provided:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/MigrationClientDocumentationIT.java[upgrade-request-indices-options]
---------------------------------------------------
-<1> Set the `IndicesOptions` to control how unavailable indices are resolved and
-how wildcard expressions are expanded
-
 [[java-rest-high-migration-upgrade-execution]]
 ==== Execution
 

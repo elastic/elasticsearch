@@ -20,7 +20,9 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.client.migration.IndexUpgradeRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -41,6 +43,22 @@ public class MigrationRequestConvertersTests extends ESTestCase {
             expectedParams);
         Request request = MigrationRequestConverters.getMigrationAssistance(upgradeInfoRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(expectedEndpoint, request.getEndpoint());
+        assertNull(request.getEntity());
+        assertEquals(expectedParams, request.getParameters());
+    }
+
+    public void testUpgradeRequest() {
+        String[] indices = RequestConvertersTests.randomIndicesNames(1, 1);
+        IndexUpgradeRequest upgradeInfoRequest = new IndexUpgradeRequest(indices[0]);
+
+        String expectedEndpoint = "/_xpack/migration/upgrade/" + indices[0];
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put("wait_for_completion", Boolean.TRUE.toString());
+
+        Request request = MigrationRequestConverters.migrate(upgradeInfoRequest);
+
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(expectedEndpoint, request.getEndpoint());
         assertNull(request.getEntity());
         assertEquals(expectedParams, request.getParameters());

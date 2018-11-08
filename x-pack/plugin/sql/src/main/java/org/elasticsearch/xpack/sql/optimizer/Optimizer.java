@@ -1464,7 +1464,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     continue;
                 }
                 Object eqValue = eq.right().fold();
-
+                
                 for (int i = 0; i < ranges.size(); i++) {
                     Range range = ranges.get(i);
 
@@ -1473,33 +1473,33 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (range.lower().foldable()) {
                             Integer compare = BinaryComparison.compare(range.lower().fold(), eqValue);
                             if (compare != null && (
-                                // eq outside the lower boundary
-                                compare > 0 ||
-                                    // eq matches the boundary but should not be included
-                                    (compare == 0 && !range.includeLower()))
-                            ) {
+                                 // eq outside the lower boundary
+                                 compare > 0 ||
+                                 // eq matches the boundary but should not be included
+                                 (compare == 0 && !range.includeLower()))
+                                ) {
                                 return FALSE;
                             }
                         }
                         if (range.upper().foldable()) {
                             Integer compare = BinaryComparison.compare(range.upper().fold(), eqValue);
                             if (compare != null && (
-                                // eq outside the upper boundary
-                                compare < 0 ||
-                                    // eq matches the boundary but should not be included
-                                    (compare == 0 && !range.includeUpper()))
-                            ) {
+                                 // eq outside the upper boundary
+                                 compare < 0 ||
+                                 // eq matches the boundary but should not be included
+                                 (compare == 0 && !range.includeUpper()))
+                                ) {
                                 return FALSE;
                             }
                         }
-
+                        
                         // it's in the range and thus, remove it
                         ranges.remove(i);
                         changed = true;
                     }
                 }
             }
-
+            
             return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, equals, ranges)) : and;
         }
     }
@@ -1519,7 +1519,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
             return e;
         }
-
+        
         // combine conjunction
         private Expression combine(And and) {
             List<Range> ranges = new ArrayList<>();
@@ -1548,7 +1548,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     exps.add(ex);
                 }
             }
-
+            
             // finally try combining any left BinaryComparisons into possible Ranges
             // this could be a different rule but it's clearer here wrt the order of comparisons
 
@@ -1557,37 +1557,37 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 for (int j = i + 1; j < bcs.size(); j++) {
                     BinaryComparison other = bcs.get(j);
-
+                    
                     if (main.left().semanticEquals(other.left())) {
                         // >/>= AND </<=
                         if ((main instanceof GreaterThan || main instanceof GreaterThanOrEqual)
-                            && (other instanceof LessThan || other instanceof LessThanOrEqual)) {
+                                && (other instanceof LessThan || other instanceof LessThanOrEqual)) {
                             bcs.remove(j);
                             bcs.remove(i);
-
+                            
                             ranges.add(new Range(and.location(), main.left(),
-                                main.right(), main instanceof GreaterThanOrEqual,
-                                other.right(), other instanceof LessThanOrEqual));
+                                    main.right(), main instanceof GreaterThanOrEqual,
+                                    other.right(), other instanceof LessThanOrEqual));
 
                             changed = true;
                         }
                         // </<= AND >/>=
                         else if ((other instanceof GreaterThan || other instanceof GreaterThanOrEqual)
-                            && (main instanceof LessThan || main instanceof LessThanOrEqual)) {
+                                && (main instanceof LessThan || main instanceof LessThanOrEqual)) {
                             bcs.remove(j);
                             bcs.remove(i);
-
+                            
                             ranges.add(new Range(and.location(), main.left(),
-                                other.right(), other instanceof GreaterThanOrEqual,
-                                main.right(), main instanceof LessThanOrEqual));
+                                    other.right(), other instanceof GreaterThanOrEqual,
+                                    main.right(), main instanceof LessThanOrEqual));
 
                             changed = true;
                         }
                     }
                 }
             }
-
-
+            
+            
             return changed ? Predicates.combineAnd(CollectionUtils.combine(exps, bcs, ranges)) : and;
         }
 
@@ -1653,17 +1653,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             lowerEq = comp == 0 && main.includeLower() == other.includeLower();
                             // AND
                             if (conjunctive) {
-                                // (2 < a < 3) AND (1 < a < 3) -> (1 < a < 3)
+                                        // (2 < a < 3) AND (1 < a < 3) -> (1 < a < 3)
                                 lower = comp > 0 ||
-                                    // (2 < a < 3) AND (2 < a <= 3) -> (2 < a < 3)
-                                    (comp == 0 && !main.includeLower() && other.includeLower());
+                                        // (2 < a < 3) AND (2 < a <= 3) -> (2 < a < 3)
+                                        (comp == 0 && !main.includeLower() && other.includeLower());
                             }
                             // OR
                             else {
-                                // (1 < a < 3) OR (2 < a < 3) -> (1 < a < 3)
+                                        // (1 < a < 3) OR (2 < a < 3) -> (1 < a < 3)
                                 lower = comp < 0 ||
-                                    // (2 <= a < 3) OR (2 < a < 3) -> (2 <= a < 3)
-                                    (comp == 0 && main.includeLower() && !other.includeLower()) || lowerEq;
+                                        // (2 <= a < 3) OR (2 < a < 3) -> (2 <= a < 3)
+                                        (comp == 0 && main.includeLower() && !other.includeLower()) || lowerEq;
                             }
                         }
                     }
@@ -1679,17 +1679,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                             // AND
                             if (conjunctive) {
-                                // (1 < a < 2) AND (1 < a < 3) -> (1 < a < 2)
+                                        // (1 < a < 2) AND (1 < a < 3) -> (1 < a < 2)
                                 upper = comp < 0 ||
-                                    // (1 < a < 2) AND (1 < a <= 2) -> (1 < a < 2)
-                                    (comp == 0 && !main.includeUpper() && other.includeUpper());
+                                        // (1 < a < 2) AND (1 < a <= 2) -> (1 < a < 2)
+                                        (comp == 0 && !main.includeUpper() && other.includeUpper());
                             }
                             // OR
                             else {
-                                // (1 < a < 3) OR (1 < a < 2) -> (1 < a < 3)
+                                        // (1 < a < 3) OR (1 < a < 2) -> (1 < a < 3)
                                 upper = comp > 0 ||
-                                    // (1 < a <= 3) OR (1 < a < 3) -> (2 < a < 3)
-                                    (comp == 0 && main.includeUpper() && !other.includeUpper()) || upperEq;
+                                        // (1 < a <= 3) OR (1 < a < 3) -> (2 < a < 3)
+                                        (comp == 0 && main.includeUpper() && !other.includeUpper()) || upperEq;
                             }
                         }
                     }
@@ -1700,11 +1700,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (lower || upper) {
                             ranges.remove(i);
                             ranges.add(i,
-                                new Range(main.location(), main.value(),
-                                    lower ? main.lower() : other.lower(),
-                                    lower ? main.includeLower() : other.includeLower(),
-                                    upper ? main.upper() : other.upper(),
-                                    upper ? main.includeUpper() : other.includeUpper()));
+                                    new Range(main.location(), main.value(),
+                                            lower ? main.lower() : other.lower(),
+                                            lower ? main.includeLower() : other.includeLower(),
+                                            upper ? main.upper() : other.upper(),
+                                            upper ? main.includeUpper() : other.includeUpper()));
                         }
 
                         // range was comparable
@@ -1716,11 +1716,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (lower && upper) {
                             ranges.remove(i);
                             ranges.add(i,
-                                new Range(main.location(), main.value(),
-                                    lower ? main.lower() : other.lower(),
-                                    lower ? main.includeLower() : other.includeLower(),
-                                    upper ? main.upper() : other.upper(),
-                                    upper ? main.includeUpper() : other.includeUpper()));
+                                    new Range(main.location(), main.value(),
+                                            lower ? main.lower() : other.lower(),
+                                            lower ? main.includeLower() : other.includeLower(),
+                                            upper ? main.upper() : other.upper(),
+                                            upper ? main.includeUpper() : other.includeUpper()));
                             return true;
                         }
 
@@ -1734,28 +1734,28 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         private boolean findConjunctiveComparisonInRange(BinaryComparison main, List<Range> ranges) {
             Object value = main.right().fold();
-
+            
             // NB: the loop modifies the list (hence why the int is used)
             for (int i = 0; i < ranges.size(); i++) {
                 Range other = ranges.get(i);
-
+                
                 if (main.left().semanticEquals(other.value())) {
-
+ 
                     if (main instanceof GreaterThan || main instanceof GreaterThanOrEqual) {
                         if (other.lower().foldable()) {
                             Integer comp = BinaryComparison.compare(value, other.lower().fold());
                             if (comp != null) {
                                 // 2 < a AND (2 <= a < 3) -> 2 < a < 3
                                 boolean lowerEq = comp == 0 && other.includeLower() && main instanceof GreaterThan;
-                                // 2 < a AND (1 < a < 3) -> 2 < a < 3
+                                 // 2 < a AND (1 < a < 3) -> 2 < a < 3
                                 boolean lower = comp > 0 || lowerEq;
-
+                                
                                 if (lower) {
                                     ranges.remove(i);
                                     ranges.add(i,
-                                        new Range(other.location(), other.value(),
-                                            main.right(), lowerEq ? true : other.includeLower(),
-                                            other.upper(), other.includeUpper()));
+                                            new Range(other.location(), other.value(),
+                                                    main.right(), lowerEq ? true : other.includeLower(),
+                                                    other.upper(), other.includeUpper()));
                                 }
 
                                 // found a match
@@ -1774,8 +1774,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 if (upper) {
                                     ranges.remove(i);
                                     ranges.add(i, new Range(other.location(), other.value(),
-                                        other.lower(), other.includeLower(),
-                                        main.right(), upperEq ? true : other.includeUpper()));
+                                            other.lower(), other.includeLower(),
+                                            main.right(), upperEq ? true : other.includeUpper()));
                                 }
 
                                 // found a match
@@ -1789,14 +1789,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
             return false;
         }
-
+    
         /**
          * Find commonalities between the given comparison in the given list.
          * The method can be applied both for conjunctive (AND) or disjunctive purposes (OR).
          */
         private static boolean findExistingComparison(BinaryComparison main, List<BinaryComparison> bcs, boolean conjunctive) {
             Object value = main.right().fold();
-
+            
             // NB: the loop modifies the list (hence why the int is used)
             for (int i = 0; i < bcs.size(); i++) {
                 BinaryComparison other = bcs.get(i);
@@ -1807,24 +1807,24 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // if bc is a higher/lower value or gte vs gt, use it instead
                 if ((other instanceof GreaterThan || other instanceof GreaterThanOrEqual) &&
                     (main instanceof GreaterThan || main instanceof GreaterThanOrEqual)) {
-
+                    
                     if (main.left().semanticEquals(other.left())) {
                         Integer compare = BinaryComparison.compare(value, other.right().fold());
-
+                        
                         if (compare != null) {
-                            // AND
+                                 // AND
                             if ((conjunctive &&
-                                // a > 3 AND a > 2 -> a > 3
-                                (compare > 0 ||
-                                    // a > 2 AND a >= 2 -> a > 2
-                                    (compare == 0 && main instanceof GreaterThan && other instanceof GreaterThanOrEqual)))
+                                  // a > 3 AND a > 2 -> a > 3
+                                  (compare > 0 ||
+                                  // a > 2 AND a >= 2 -> a > 2
+                                  (compare == 0 && main instanceof GreaterThan && other instanceof GreaterThanOrEqual)))
                                 ||
                                 // OR
                                 (!conjunctive &&
-                                    // a > 2 OR a > 3 -> a > 2
-                                    (compare < 0 ||
-                                        // a >= 2 OR a > 2 -> a >= 2
-                                        (compare == 0 && main instanceof GreaterThanOrEqual && other instanceof GreaterThan)))) {
+                                  // a > 2 OR a > 3 -> a > 2
+                                  (compare < 0 ||
+                                  // a >= 2 OR a > 2 -> a >= 2
+                                  (compare == 0 && main instanceof GreaterThanOrEqual && other instanceof GreaterThan)))) {
                                 bcs.remove(i);
                                 bcs.add(i, main);
                             }
@@ -1837,28 +1837,28 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
                 // if bc is a lower/higher value or lte vs lt, use it instead
                 else if ((other instanceof LessThan || other instanceof LessThanOrEqual) &&
-                    (main instanceof LessThan || main instanceof LessThanOrEqual)) {
-
+                        (main instanceof LessThan || main instanceof LessThanOrEqual)) {
+                    
                     if (main.left().semanticEquals(other.left())) {
                         Integer compare = BinaryComparison.compare(value, other.right().fold());
-
+                        
                         if (compare != null) {
-                            // AND
+                                 // AND
                             if ((conjunctive &&
-                                // a < 2 AND a < 3 -> a < 2
-                                (compare < 0 ||
-                                    // a < 2 AND a <= 2 -> a < 2
-                                    (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual)))
+                                  // a < 2 AND a < 3 -> a < 2
+                                  (compare < 0 ||
+                                  // a < 2 AND a <= 2 -> a < 2
+                                  (compare == 0 && main instanceof LessThan && other instanceof LessThanOrEqual)))
                                 ||
                                 // OR
                                 (!conjunctive &&
-                                    // a < 2 OR a < 3 -> a < 3
-                                    (compare > 0 ||
-                                        // a <= 2 OR a < 2 -> a <= 2
-                                        (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
+                                  // a < 2 OR a < 3 -> a < 3
+                                  (compare > 0 ||
+                                  // a <= 2 OR a < 2 -> a <= 2
+                                  (compare == 0 && main instanceof LessThanOrEqual && other instanceof LessThan)))) {
                                 bcs.remove(i);
                                 bcs.add(i, main);
-
+                                
                             }
                             // found a match
                             return true;
@@ -1868,7 +1868,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
             }
-
+                
             return false;
         }
     }
@@ -1972,7 +1972,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         public final LogicalPlan apply(LogicalPlan plan) {
             return direction == TransformDirection.DOWN ? plan.transformExpressionsDown(this::rule) : plan
-                .transformExpressionsUp(this::rule);
+                    .transformExpressionsUp(this::rule);
         }
 
         @Override
@@ -1987,3 +1987,4 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         UP, DOWN
     };
 }
+

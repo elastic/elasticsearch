@@ -746,7 +746,8 @@ public abstract class TransportReplicationAction<
                 // resolve all derived request fields, so we can route and apply it
                 resolveRequest(indexMetaData, request);
                 assert request.shardId() != null : "request shardId must be set in resolveRequest";
-                assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "request waitForActiveShards must be set in resolveRequest";
+                assert request.waitForActiveShards() != ActiveShardCount.DEFAULT :
+                    "request waitForActiveShards must be set in resolveRequest";
 
                 final ShardRouting primary = primary(state);
                 if (retryIfUnavailable(state, primary)) {

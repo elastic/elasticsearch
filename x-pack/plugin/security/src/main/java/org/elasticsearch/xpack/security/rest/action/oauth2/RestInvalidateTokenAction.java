@@ -62,9 +62,7 @@ public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
                     @Override
                     public RestResponse buildResponse(InvalidateTokenResponse invalidateResp,
                                                       XContentBuilder builder) throws Exception {
-                        builder.startObject();
                         invalidateResp.toXContent(builder, channel.request());
-                        builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
                 });

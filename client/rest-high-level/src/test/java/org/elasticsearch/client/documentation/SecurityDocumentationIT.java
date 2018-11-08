@@ -852,8 +852,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Setup user
             final char[] password = "password".toCharArray();
-            PutUserRequest putUserRequest = new PutUserRequest("invalidate_token", password,
-                Collections.singletonList("kibana_user"), null, null, true, null, RefreshPolicy.IMMEDIATE);
+            User invalidate_token_user = new User("invalidate_token", Collections.singletonList("kibana_user"));
+            PutUserRequest putUserRequest = new PutUserRequest(invalidate_token_user, password, true, RefreshPolicy.IMMEDIATE);
             PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
             assertTrue(putUserResponse.isCreated());
 

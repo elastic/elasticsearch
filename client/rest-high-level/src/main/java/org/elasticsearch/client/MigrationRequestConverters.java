@@ -21,12 +21,13 @@ package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.client.migration.IndexUpgradeRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.client.migration.IndexUpgradeRequest;
 
 final class MigrationRequestConverters {
 
-    private MigrationRequestConverters() {}
+    private MigrationRequestConverters() {
+    }
 
     static Request getMigrationAssistance(IndexUpgradeInfoRequest indexUpgradeInfoRequest) {
         RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
@@ -49,13 +50,14 @@ final class MigrationRequestConverters {
 
     private static Request prepareMigrateRequest(IndexUpgradeRequest indexUpgradeRequest, boolean waitForCompletion) {
         RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_xpack/migration/upgrade")
-            .addCommaSeparatedPathParts(indexUpgradeRequest.indices());
+            .addPathPartAsIs("_xpack", "migration", "upgrade", indexUpgradeRequest.index());
         String endpoint = endpointBuilder.build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params(request);
-        params.withWaitForCompletion(waitForCompletion);
+        RequestConverters.Params params = new RequestConverters.Params(request)
+            .withTimeout(indexUpgradeRequest.timeout())
+            .withIndicesOptions(indexUpgradeRequest.indicesOptions())
+            .withWaitForCompletion(waitForCompletion);
 
         return request;
     }

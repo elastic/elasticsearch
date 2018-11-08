@@ -18,38 +18,34 @@
  */
 package org.elasticsearch.client.migration;
 
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
 
-import java.util.Arrays;
 import java.util.Objects;
 
 /**
  * A request for performing Upgrade on Index
  * Part of Migration API
  */
-public class IndexUpgradeRequest extends TimedRequest implements IndicesRequest {
+public class IndexUpgradeRequest extends TimedRequest {
 
-    private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
+    private String index;
+    private IndicesOptions indicesOptions = IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
 
     public IndexUpgradeRequest(String index) {
-        indices = new String[]{index};
-    }
-
-    @Override
-    public String[] indices() {
-        return indices;
-    }
-
-    @Override
-    public IndicesOptions indicesOptions() {
-        return indicesOptions;
+        this.index = index;
     }
 
     public void indicesOptions(IndicesOptions indicesOptions) {
         this.indicesOptions = indicesOptions;
+    }
+
+    public String index() {
+        return index;
+    }
+
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
     }
 
     @Override
@@ -57,12 +53,12 @@ public class IndexUpgradeRequest extends TimedRequest implements IndicesRequest 
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexUpgradeRequest request = (IndexUpgradeRequest) o;
-        return Arrays.equals(indices, request.indices) &&
+        return Objects.equals(index, request.index) &&
             Objects.equals(indicesOptions.toString(), request.indicesOptions.toString());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(indices), indicesOptions.toString());
+        return Objects.hash(index, indicesOptions);
     }
 }

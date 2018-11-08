@@ -30,11 +30,10 @@ import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
 import org.elasticsearch.client.migration.IndexUpgradeRequest;
 import org.elasticsearch.client.migration.UpgradeActionRequired;
+import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.client.migration.IndexUpgradeSubmissionResponse;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,6 +41,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This class is used to generate the Java Migration API documentation.
@@ -144,7 +145,6 @@ public class MigrationClientDocumentationIT extends ESRestHighLevelClientTestCas
         // end::upgrade-async-execute
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
-
     }
 
     public void testUpgradeWithTaskApi() throws IOException {
@@ -153,11 +153,10 @@ public class MigrationClientDocumentationIT extends ESRestHighLevelClientTestCas
         // tag::upgrade-task-api
         IndexUpgradeRequest request = new IndexUpgradeRequest("test");
 
-        IndexUpgradeSubmissionResponse response = client.migration()
+        TaskSubmissionResponse response = client.migration()
             .submitUpgradeTask(request, RequestOptions.DEFAULT);
-        TaskId taskId = response.getTask();
+        String taskId = response.getTask();
         // end::upgrade-task-api
-        assertNotNull(taskId);
-
+        assertThat(taskId, not(isEmptyOrNullString()));
     }
 }

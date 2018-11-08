@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
 import org.elasticsearch.client.migration.IndexUpgradeRequest;
-import org.elasticsearch.client.migration.IndexUpgradeSubmissionResponse;
+import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -64,7 +64,7 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
 
         IndexUpgradeRequest request = new IndexUpgradeRequest("test");
 
-        IndexUpgradeSubmissionResponse upgrade = highLevelClient().migration()
+        TaskSubmissionResponse upgrade = highLevelClient().migration()
             .submitUpgradeTask(request, RequestOptions.DEFAULT);
 
         assertNotNull(upgrade.getTask());
@@ -77,10 +77,10 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
      * Using low-level api as high-level-rest-client's getTaskById work is in progress.
      * TODO revisit once that work is finished
      */
-    private BooleanSupplier checkCompletionStatus(IndexUpgradeSubmissionResponse upgrade) {
+    private BooleanSupplier checkCompletionStatus(TaskSubmissionResponse upgrade) {
         return () -> {
             try {
-                Response response = client().performRequest(new Request("GET", "/_tasks/" + upgrade.getTask().toString()));
+                Response response = client().performRequest(new Request("GET", "/_tasks/" + upgrade.getTask()));
                 return (boolean) entityAsMap(response).get("completed");
             } catch (IOException e) {
                 fail(e.getMessage());

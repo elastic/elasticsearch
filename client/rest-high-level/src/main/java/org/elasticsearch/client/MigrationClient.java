@@ -22,7 +22,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.migration.IndexUpgradeSubmissionResponse;
+import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.client.migration.IndexUpgradeRequest;
 
@@ -63,9 +63,9 @@ public final class MigrationClient {
             BulkByScrollResponse::fromXContent, Collections.emptySet());
     }
 
-    public IndexUpgradeSubmissionResponse submitUpgradeTask(IndexUpgradeRequest request, RequestOptions options) throws IOException {
+    public TaskSubmissionResponse submitUpgradeTask(IndexUpgradeRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, MigrationRequestConverters::submitMigrateTask, options,
-            IndexUpgradeSubmissionResponse::fromXContent, Collections.emptySet());
+            TaskSubmissionResponse::fromXContent, Collections.emptySet());
     }
 
     public void upgradeAsync(IndexUpgradeRequest request, RequestOptions options, ActionListener<BulkByScrollResponse> listener)  {

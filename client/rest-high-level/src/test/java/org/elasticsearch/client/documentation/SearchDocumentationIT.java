@@ -174,8 +174,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             sourceBuilder.fetchSource(false);
             // end::search-source-filtering-off
             // tag::search-source-filtering-includes
-            String[] includeFields = new String[] {"title", "user", "innerObject.*"};
-            String[] excludeFields = new String[] {"_type"};
+            String[] includeFields = new String[] {"title", "innerObject.*"};
+            String[] excludeFields = new String[] {"user"};
             sourceBuilder.fetchSource(includeFields, excludeFields);
             // end::search-source-filtering-includes
             sourceBuilder.fetchSource(true);
@@ -247,7 +247,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             for (SearchHit hit : searchHits) {
                 // tag::search-hits-singleHit-properties
                 String index = hit.getIndex();
-                String type = hit.getType();
                 String id = hit.getId();
                 float score = hit.getScore();
                 // end::search-hits-singleHit-properties
@@ -263,8 +262,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertEquals(3, totalHits);
             assertNotNull(hits.getHits()[0].getSourceAsString());
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("title"));
-            assertNotNull(hits.getHits()[0].getSourceAsMap().get("user"));
             assertNotNull(hits.getHits()[0].getSourceAsMap().get("innerObject"));
+            assertNull(hits.getHits()[0].getSourceAsMap().get("user"));
         }
     }
 

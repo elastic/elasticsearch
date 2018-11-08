@@ -75,7 +75,8 @@ public final class NoOpEngine extends ReadOnlyEngine {
     }
 
     @Override
-    protected DirectoryReader open(final Directory directory) throws IOException {
+    protected DirectoryReader open(final IndexCommit commit) throws IOException {
+        final Directory directory = commit.getDirectory();
         final List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
         assert indexCommits.size() == 1 : "expected only one commit point";
         IndexCommit indexCommit = indexCommits.get(indexCommits.size() - 1);

@@ -116,7 +116,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 for (int i = 0; i < numDocs; i++) {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
-                        System.nanoTime(), -1, false));
+                        System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
                     if (rarely()) {
                         engine.flush();
                     }
@@ -147,7 +147,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 for (int i = 0; i < numDocs; i++) {
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
-                        System.nanoTime(), -1, false));
+                        System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
                     if (rarely()) {
                         engine.flush();
                     }
@@ -167,7 +167,8 @@ public class NoOpEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
+            Path translogPath = createTempDir();
+            EngineConfig config = config(defaultSettings, store, translogPath, NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
             final int numDocs = scaledRandomIntBetween(10, 3000);
             int deletions = 0;
             try (InternalEngine engine = createEngine(config)) {
@@ -190,7 +191,6 @@ public class NoOpEngineTests extends EngineTestCase {
                 }
                 engine.waitForOpsToComplete(numDocs + deletions - 1);
                 flushAndTrimTranslog(engine);
-                engine.close();
             }
 
             final DocsStats expectedDocStats;

@@ -26,6 +26,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -526,6 +527,16 @@ public class MLRequestConvertersTests extends ESTestCase {
             MlFilter parsedFilter = MlFilter.PARSER.apply(parser, null).build();
             assertThat(parsedFilter, equalTo(filter));
         }
+    }
+
+    public void testDeleteFilter() throws IOException {
+        MlFilter filter = MlFilterTests.createRandom("foo");
+        DeleteFilterRequest deleteFilterRequest = new DeleteFilterRequest(filter.getId());
+
+        Request request = MLRequestConverters.deleteFilter(deleteFilterRequest);
+
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/filters/foo"));
     }
 
     private static Job createValidJob(String jobId) {

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.expression.predicate.logical;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator.Negateable;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -36,18 +35,5 @@ public class Or extends BinaryLogic implements Negateable {
     @Override
     public And negate() {
         return new And(location(), new Not(location(), left()), new Not(location(), right()));
-    }
-
-    @Override
-    public boolean nullable() {
-        if (left().nullable() && Foldables.foldsAndMatches(right(), o -> o == Boolean.FALSE)) {
-            return true;
-        }
-
-        if (right().nullable() && Foldables.foldsAndMatches(left(), o -> o == Boolean.FALSE)) {
-            return true;
-        }
-
-        return false;
     }
 }

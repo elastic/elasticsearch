@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Predicate;
 
 public abstract class Foldables {
 
@@ -56,9 +55,5 @@ public abstract class Foldables {
 
     public static List<Double> doubleValuesOf(List<Expression> list) {
         return valuesOf(list, DataType.DOUBLE);
-    }
-
-    public static boolean foldsAndMatches(Expression e, Predicate<Object> predicate) {
-        return e.foldable() && predicate.test(e.fold());
     }
 }

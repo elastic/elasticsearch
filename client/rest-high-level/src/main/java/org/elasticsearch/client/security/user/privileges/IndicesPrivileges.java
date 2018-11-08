@@ -49,21 +49,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public final class IndicesPrivileges implements ToXContentObject {
 
-    public static final String NONE_PRIVILEGE_NAME = "none";
-    public static final String ALL_PRIVILEGE_NAME = "all";
-    public static final String READ_PRIVILEGE_NAME = "read";
-    public static final String READ_CROSS_CLUSTER_PRIVILEGE_NAME = "read_cross_cluster";
-    public static final String CREATE_PRIVILEGE_NAME = "create";
-    public static final String INDEX_PRIVILEGE_NAME = "index";
-    public static final String DELETE_PRIVILEGE_NAME = "delete";
-    public static final String WRITE_PRIVILEGE_NAME = "write";
-    public static final String MONITOR_PRIVILEGE_NAME = "monitor";
-    public static final String MANAGE_PRIVILEGE_NAME = "manage";
-    public static final String DELETE_INDEX_PRIVILEGE_NAME = "delete_index";
-    public static final String CREATE_INDEX_PRIVILEGE_NAME = "create_index";
-    public static final String VIEW_INDEX_METADATA_PRIVILEGE_NAME = "view_index_metadata";
-    public static final String MANAGE_FOLLOW_INDEX_PRIVILEGE_NAME = "manage_follow_index";
-
     public static final ParseField NAMES = new ParseField("names");
     public static final ParseField PRIVILEGES = new ParseField("privileges");
     public static final ParseField FIELD_PERMISSIONS = new ParseField("field_security");
@@ -234,7 +219,7 @@ public final class IndicesPrivileges implements ToXContentObject {
         builder.field(PRIVILEGES.getPreferredName(), privileges);
         if (isUsingFieldLevelSecurity()) {
             builder.startObject(FIELD_PERMISSIONS.getPreferredName());
-            if (limitsGrantedFields()) {
+            if (grantedFields != null) {
                 builder.field(GRANT_FIELDS.getPreferredName(), grantedFields);
             }
             if (hasDeniedFields()) {

@@ -47,25 +47,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public final class Role implements ToXContentObject {
 
-    public static final String NONE_CLUSTER_PRIVILEGE_NAME = "none";
-    public static final String ALL_CLUSTER_PRIVILEGE_NAME = "all";
-    public static final String MONITOR_CLUSTER_PRIVILEGE_NAME = "monitor";
-    public static final String MONITOR_ML_CLUSTER_PRIVILEGE_NAME = "monitor_ml";
-    public static final String MONITOR_WATCHER_CLUSTER_PRIVILEGE_NAME = "monitor_watcher";
-    public static final String MONITOR_ROLLUP_CLUSTER_PRIVILEGE_NAME = "monitor_rollup";
-    public static final String MANAGE_CLUSTER_PRIVILEGE_NAME = "manage";
-    public static final String MANAGE_ML_CLUSTER_PRIVILEGE_NAME = "manage_ml";
-    public static final String MANAGE_WATCHER_CLUSTER_PRIVILEGE_NAME = "manage_watcher";
-    public static final String MANAGE_ROLLUP_CLUSTER_PRIVILEGE_NAME = "manage_rollup";
-    public static final String MANAGE_INDEX_TEMPLATES_CLUSTER_PRIVILEGE_NAME = "manage_index_templates";
-    public static final String MANAGE_INGEST_PIPELINES_CLUSTER_PRIVILEGE_NAME = "manage_ingest_pipelines";
-    public static final String TRANSPORT_CLIENT_CLUSTER_PRIVILEGE_NAME = "transport_client";
-    public static final String MANAGE_SECURITY_CLUSTER_PRIVILEGE_NAME = "manage_security";
-    public static final String MANAGE_SAML_CLUSTER_PRIVILEGE_NAME = "manage_saml";
-    public static final String MANAGE_PIPELINE_CLUSTER_PRIVILEGE_NAME = "manage_pipeline";
-    public static final String MANAGE_CCR_CLUSTER_PRIVILEGE_NAME = "manage_ccr";
-    public static final String READ_CCR_CLUSTER_PRIVILEGE_NAME = "read_ccr";
-
     public static final ParseField CLUSTER = new ParseField("cluster");
     public static final ParseField GLOBAL = new ParseField("global");
     public static final ParseField INDICES = new ParseField("indices");
@@ -233,7 +214,7 @@ public final class Role implements ToXContentObject {
             return this;
         }
 
-        public Builder manageApplicationPrivileges(GlobalPrivileges globalApplicationPrivileges) {
+        public Builder glabalApplicationPrivileges(GlobalPrivileges globalApplicationPrivileges) {
             this.globalApplicationPrivileges = globalApplicationPrivileges;
             return this;
         }
@@ -280,6 +261,50 @@ public final class Role implements ToXContentObject {
             return new Role(clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
                     runAsPrivilege, metadata);
         }
+    }
+
+    /**
+     * Canonical cluster privilege names. There is no enforcement to only use these.
+     */
+    public static class ClusterPrivilegeName {
+        public static final String NONE = "none";
+        public static final String ALL = "all";
+        public static final String MONITOR = "monitor";
+        public static final String MONITOR_ML = "monitor_ml";
+        public static final String MONITOR_WATCHER = "monitor_watcher";
+        public static final String MONITOR_ROLLUP = "monitor_rollup";
+        public static final String MANAGE = "manage";
+        public static final String MANAGE_ML = "manage_ml";
+        public static final String MANAGE_WATCHER = "manage_watcher";
+        public static final String MANAGE_ROLLUP = "manage_rollup";
+        public static final String MANAGE_INDEX_TEMPLATES = "manage_index_templates";
+        public static final String MANAGE_INGEST_PIPELINES = "manage_ingest_pipelines";
+        public static final String TRANSPORT_CLIENT = "transport_client";
+        public static final String MANAGE_SECURITY = "manage_security";
+        public static final String MANAGE_SAML = "manage_saml";
+        public static final String MANAGE_PIPELINE = "manage_pipeline";
+        public static final String MANAGE_CCR = "manage_ccr";
+        public static final String READ_CCR = "read_ccr";
+    }
+
+    /**
+     * Canonical index privilege names. There is no enforcement to only use these.
+     */
+    public static class IndexPrivilegeName {
+        public static final String NONE = "none";
+        public static final String ALL = "all";
+        public static final String READ = "read";
+        public static final String READ_CROSS = "read_cross_cluster";
+        public static final String CREATE = "create";
+        public static final String INDEX = "index";
+        public static final String DELETE = "delete";
+        public static final String WRITE = "write";
+        public static final String MONITOR = "monitor";
+        public static final String MANAGE = "manage";
+        public static final String DELETE_INDEX = "delete_index";
+        public static final String CREATE_INDEX = "create_index";
+        public static final String VIEW_INDEX_METADATA = "view_index_metadata";
+        public static final String MANAGE_FOLLOW_INDEX = "manage_follow_index";
     }
 
 }

@@ -31,15 +31,26 @@ import java.util.Set;
  */
 public class ManageApplicationPrivilege extends GlobalOperationPrivilege {
 
-    private static final String SCOPE = "manage";
-    private static final String APPLICATIONS = "applications";
+    private static final String CATEGORY = "application";
+    private static final String OPERATION = "manage";
+    private static final String KEY = "applications";
 
     public ManageApplicationPrivilege(Collection<String> applications) {
-        super(SCOPE, Collections.singletonMap(APPLICATIONS, new HashSet<String>(Objects.requireNonNull(applications))));
+        super(CATEGORY, OPERATION, Collections.singletonMap(KEY, new HashSet<String>(Objects.requireNonNull(applications))));
     }
 
     @SuppressWarnings("unchecked")
-    public Set<String> getApplications() {
-        return (Set<String>)getRaw().get(APPLICATIONS);
+    public Set<String> getManagedApplications() {
+        return (Set<String>)getRaw().get(KEY);
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        return super.equals(o);
+    }
+
+    @Override
+    public int hashCode() {
+        return super.hashCode();
     }
 }

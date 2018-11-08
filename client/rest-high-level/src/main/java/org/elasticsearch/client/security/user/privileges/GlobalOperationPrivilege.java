@@ -27,9 +27,11 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Represents generic global application privileges that can be scoped for each
- * application. The privilege definition, as well as the scope identifier, are
- * outside of the Elasticsearch jurisdiction.
+ * Represents generic global cluster privileges that can be scoped by categories
+ * and then by operations. The privilege definition, as well as the operation
+ * identifier, are outside of the Elasticsearch jurisdiction. Categories are
+ * predefined and enforced by Elasticsearch. It is not permitted to define
+ * different privileges for the same category and operation.
  */
 public class GlobalOperationPrivilege {
 
@@ -38,13 +40,15 @@ public class GlobalOperationPrivilege {
     private final Map<String, Object> privilege;
 
     /**
-     * Constructs privileges under some "scope". The "scope" is commonly an
-     * "application" name but there is really no constraint over this identifier
-     * from Elasticsearch's POV. The privilege definition is also out of
-     * Elasticsearch's control.
+     * Constructs privileges under a certain {@code category} and for some
+     * {@code operation}. There is no constraint over the {@code operation}
+     * identifier, only the categories are predefined. The privilege definition is
+     * also out of Elasticsearch's control.
      * 
-     * @param scope
-     *            The scope of the privilege.
+     * @param category
+     *            The category of the privilege.
+     * @param operation
+     *            The operation of the privilege.
      * @param privilege
      *            The privilege definition. This is out of the Elasticsearch's
      *            control.
@@ -70,11 +74,11 @@ public class GlobalOperationPrivilege {
         return privilege;
     }
 
-    public static GlobalOperationPrivilege fromXContent(String category, String scope, XContentParser parser) throws IOException {
+    public static GlobalOperationPrivilege fromXContent(String category, String operation, XContentParser parser) throws IOException {
         // parser is still placed on the field name, advance to next token (field value)
         assert parser.currentToken().equals(XContentParser.Token.FIELD_NAME);
         parser.nextToken();
-        return new GlobalOperationPrivilege(category, scope, parser.map());
+        return new GlobalOperationPrivilege(category, operation, parser.map());
     }
 
     @Override
@@ -82,7 +86,7 @@ public class GlobalOperationPrivilege {
         if (this == o) {
             return true;
         }
-        if (o == null || this.getClass() != o.getClass()) {
+        if (o == null || (false == this instanceof GlobalOperationPrivilege)) {
             return false;
         }
         final GlobalOperationPrivilege that = (GlobalOperationPrivilege) o;

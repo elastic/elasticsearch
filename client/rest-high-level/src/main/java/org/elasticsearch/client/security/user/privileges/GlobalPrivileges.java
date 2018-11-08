@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,18 +40,19 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 /**
  * Represents global privileges. "Global Privilege" is a mantra for granular
- * privileges over applications. {@code ApplicationResourcePrivileges} model
- * application privileges over resources. This models user privileges over
- * applications. Every client is responsible to manage the applications as well
- * as the privileges for them.
+ * generic cluster privileges. These privileges are organized into categories.
+ * Elasticsearch defines the set of categories. Under each category there are
+ * operations that are under the clients jurisdiction. The privilege is hence
+ * defined under an operation under a category.
  */
 public final class GlobalPrivileges implements ToXContentObject {
 
-    // when categories change, adapting this field should suffice
+    // When categories change, adapting this field should suffice. Categories are NOT
+    // opaque "named_objects", we wish to maintain control over these namespaces
     static final List<String> CATEGORIES = Collections.unmodifiableList(Arrays.asList("application"));
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>("global_application_privileges",
+    static final ConstructingObjectParser<GlobalPrivileges, Void> PARSER = new ConstructingObjectParser<>("global_category_privileges",
             false, constructorObjects -> {
                 // ignore_unknown_fields is irrelevant here anyway, but let's keep it to false
                 // because this conveys strictness (woop woop)
@@ -68,30 +70,37 @@ public final class GlobalPrivileges implements ToXContentObject {
     private final Set<? extends GlobalOperationPrivilege> privileges;
 
     /**
-     * Constructs global privileges by bundling the set of application privileges.
+     * Constructs global privileges by bundling the set of privileges.
      * 
-     * @param applicationPrivileges
-     *            The privileges over applications.
+     * @param privileges
+     *            The privileges under a category and for an operation in that category.
      */
-    public GlobalPrivileges(Collection<? extends GlobalOperationPrivilege> applicationPrivileges) {
-        if (applicationPrivileges == null || applicationPrivileges.isEmpty()) {
-            throw new IllegalArgumentException("Application privileges cannot be empty or null");
+    public GlobalPrivileges(Collection<? extends GlobalOperationPrivilege> privileges) {
+        if (privileges == null || privileges.isEmpty()) {
+            throw new IllegalArgumentException("Privileges cannot be empty or null");
         }
-        this.privileges = Collections.unmodifiableSet(new HashSet<>(Objects.requireNonNull(applicationPrivileges)));
-        final Set<String> allScopes = this.privileges.stream().map(p -> p.getScope()).collect(Collectors.toSet());
-        if (allScopes.size() != this.privileges.size()) {
-            throw new IllegalArgumentException(
-                    "Application privileges have the same scope but the privileges differ. Only one privilege for any one scope is allowed.");
+        // duplicates are just ignored
+        this.privileges = Collections.unmodifiableSet(new HashSet<>(Objects.requireNonNull(privileges)));
+        final Map<String, List<GlobalOperationPrivilege>> privilegesByCategoryMap =
+                this.privileges.stream().collect(Collectors.groupingBy(GlobalOperationPrivilege::getCategory));
+        for (final Map.Entry<String, List<GlobalOperationPrivilege>> privilegesByCategory : privilegesByCategoryMap.entrySet()) {
+            // all operations for a specific category
+            final Set<String> allOperations = privilegesByCategory.getValue().stream().map(p -> p.getOperation()).collect(Collectors.toSet());
+            if (allOperations.size() != privilegesByCategory.getValue().size()) {
+                throw new IllegalArgumentException("Different privileges for the same category and operation are not permitted");
+            }
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        final Map<String, List<GlobalOperationPrivilege>> privilegesByCategoryMap =
+                this.privileges.stream().collect(Collectors.groupingBy(GlobalOperationPrivilege::getCategory));
         builder.startObject();
-        for (final String category : CATEGORIES) {
-            builder.startObject(category);
-            for (final GlobalOperationPrivilege privilege : privileges) {
-                builder.field(privilege.getScope(), privilege.getRaw());
+        for (final Map.Entry<String, List<GlobalOperationPrivilege>> privilegesByCategory : privilegesByCategoryMap.entrySet()) {
+            builder.startObject(privilegesByCategory.getKey());
+            for (final GlobalOperationPrivilege privilege : privilegesByCategory.getValue()) {
+                builder.field(privilege.getOperation(), privilege.getRaw());
             }
             builder.endObject();
         }

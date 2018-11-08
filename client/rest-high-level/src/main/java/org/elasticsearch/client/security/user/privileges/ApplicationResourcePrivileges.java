@@ -40,7 +40,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 /**
  * Represents privileges over resources that are scoped under an application.
  * The application, resources and privileges are completely managed by the
- * client and can be "arbitrary" string identifiers. Elasticsearch is not
+ * client and can be arbitrary string identifiers. Elasticsearch is not
  * concerned by any resources under an application scope.
  */
 public final class ApplicationResourcePrivileges implements ToXContentObject {

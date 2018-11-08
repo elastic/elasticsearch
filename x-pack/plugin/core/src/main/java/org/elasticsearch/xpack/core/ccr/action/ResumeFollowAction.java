@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +41,7 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
         return new AcknowledgedResponse();
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
         static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
         static final ParseField MAX_READ_REQUEST_OPERATION_COUNT = new ParseField("max_read_request_operation_count");
@@ -259,13 +259,14 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
             return e;
         }
 
-        @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             followerIndex = in.readString();
             maxReadRequestOperationCount = in.readOptionalVInt();
             maxOutstandingReadRequests = in.readOptionalVInt();
             maxReadRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
+            maxWriteRequestOperationCount = in.readOptionalVInt();
+            maxWriteRequestSize = in.readOptionalWriteable(ByteSizeValue::new);
             maxOutstandingWriteRequests = in.readOptionalVInt();
             maxWriteBufferCount = in.readOptionalVInt();
             maxWriteBufferSize = in.readOptionalWriteable(ByteSizeValue::new);
@@ -280,6 +281,8 @@ public final class ResumeFollowAction extends Action<AcknowledgedResponse> {
             out.writeOptionalVInt(maxReadRequestOperationCount);
             out.writeOptionalVInt(maxOutstandingReadRequests);
             out.writeOptionalWriteable(maxReadRequestSize);
+            out.writeOptionalVInt(maxWriteRequestOperationCount);
+            out.writeOptionalWriteable(maxWriteRequestSize);
             out.writeOptionalVInt(maxOutstandingWriteRequests);
             out.writeOptionalVInt(maxWriteBufferCount);
             out.writeOptionalWriteable(maxWriteBufferSize);

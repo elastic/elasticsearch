@@ -159,8 +159,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
         AutoFollower operation = new AutoFollower(handler, followerClusterState) {
 
             @Override
-            void getLeaderClusterState(final Map<String, String> headers,
-                                       final String remoteCluster,
+            void getLeaderClusterState(final String remoteCluster,
                                        final BiConsumer<ClusterState, Exception> handler) {
                 final ClusterStateRequest request = new ClusterStateRequest();
                 request.clear();
@@ -168,7 +167,6 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
                 ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                     client,
-                    headers,
                     remoteCluster,
                     request,
                     e -> handler.accept(null, e),
@@ -249,7 +247,7 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
                 final String remoteCluster = autoFollowPattern.getRemoteCluster();
 
                 Map<String, String> headers = autoFollowMetadata.getHeaders().get(autoFollowPattenName);
-                getLeaderClusterState(headers, remoteCluster, (leaderClusterState, e) -> {
+                getLeaderClusterState(remoteCluster, (leaderClusterState, e) -> {
                     if (leaderClusterState != null) {
                         assert e == null;
                         final List<String> followedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(autoFollowPattenName);
@@ -413,13 +411,10 @@ public class AutoFollowCoordinator implements ClusterStateApplier {
 
         /**
          * Fetch the cluster state from the leader with the specified cluster alias
-         *
-         * @param headers            the client headers
          * @param remoteCluster      the name of the leader cluster
          * @param handler            the callback to invoke
          */
         abstract void getLeaderClusterState(
-            Map<String, String> headers,
             String remoteCluster,
             BiConsumer<ClusterState, Exception> handler
         );

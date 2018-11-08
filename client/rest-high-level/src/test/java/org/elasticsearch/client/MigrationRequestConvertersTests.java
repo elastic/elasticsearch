@@ -20,7 +20,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.protocol.xpack.migration.IndexUpgradeInfoRequest;
+import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
@@ -28,7 +28,7 @@ import java.util.Map;
 
 public class MigrationRequestConvertersTests extends ESTestCase {
 
-    public static void testGetMigrationAssistance() {
+    public void testGetMigrationAssistance() {
         IndexUpgradeInfoRequest upgradeInfoRequest = new IndexUpgradeInfoRequest();
         String expectedEndpoint = "/_xpack/migration/assistance";
         if (randomBoolean()) {

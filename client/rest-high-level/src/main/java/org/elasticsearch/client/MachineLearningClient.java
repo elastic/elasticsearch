@@ -61,12 +61,15 @@ import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
+import org.elasticsearch.client.ml.PutFilterRequest;
+import org.elasticsearch.client.ml.PutFilterResponse;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
+import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 
@@ -492,6 +495,46 @@ public final class MachineLearningClient {
                 PutDatafeedResponse::fromXContent,
                 listener,
                 Collections.emptySet());
+    }
+
+    /**
+     * Updates a Machine Learning Datafeed
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-datafeed.html">
+     *     ML Update datafeed documentation</a>
+     *
+     * @param request The UpdateDatafeedRequest containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedUpdate} settings
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return PutDatafeedResponse with enclosed, updated {@link org.elasticsearch.client.ml.datafeed.DatafeedConfig} object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutDatafeedResponse updateDatafeed(UpdateDatafeedRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::updateDatafeed,
+            options,
+            PutDatafeedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Updates a Machine Learning Datafeed asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-datafeed.html">
+     *     ML Update datafeed documentation</a>
+     *
+     * @param request The request containing the {@link org.elasticsearch.client.ml.datafeed.DatafeedUpdate} settings
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void updateDatafeedAsync(UpdateDatafeedRequest request, RequestOptions options, ActionListener<PutDatafeedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::updateDatafeed,
+            options,
+            PutDatafeedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
     }
 
     /**
@@ -1125,4 +1168,43 @@ public final class MachineLearningClient {
                 listener,
                 Collections.emptySet());
     }
+
+    /**
+     * Creates a new Machine Learning Filter
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-filter.html">ML PUT Filter documentation</a>
+     *
+     * @param request The PutFilterRequest containing the {@link org.elasticsearch.client.ml.job.config.MlFilter} settings
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return PutFilterResponse with enclosed {@link org.elasticsearch.client.ml.job.config.MlFilter} object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutFilterResponse putFilter(PutFilterRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::putFilter,
+            options,
+            PutFilterResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Machine Learning Filter asynchronously and notifies listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-filter.html">ML PUT Filter documentation</a>
+     *
+     * @param request  The request containing the {@link org.elasticsearch.client.ml.job.config.MlFilter} settings
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void putFilterAsync(PutFilterRequest request, RequestOptions options, ActionListener<PutFilterResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::putFilter,
+            options,
+            PutFilterResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
 }

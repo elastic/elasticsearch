@@ -34,11 +34,11 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
-import org.elasticsearch.xpack.sql.expression.function.scalar.Negateable;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
+import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
@@ -1175,6 +1175,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             } else if (e.nullable() && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                 return Literal.of(e, null);
             }
+
             return e;
         }
     }
@@ -1339,8 +1340,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return TRUE;
             }
 
-            if (c instanceof Negateable) {
-                return ((Negateable) c).negate();
+            if (c instanceof Negatable) {
+                return ((Negatable) c).negate();
             }
 
             if (c instanceof Not) {

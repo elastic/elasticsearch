@@ -18,7 +18,7 @@ public class CheckNullProcessor implements Processor {
     public enum CheckNullOperation implements Function<Object, Boolean> {
 
         IS_NULL(Objects::isNull, "IS NULL"),
-        IS_NOT_NULL(o -> !Objects.isNull(o), "IS NOT NULL");
+        IS_NOT_NULL(Objects::nonNull, "IS NOT NULL");
 
         private final Function<Object, Boolean> process;
         private final String symbol;

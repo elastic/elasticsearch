@@ -3,10 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.expression.function.scalar;
+package org.elasticsearch.xpack.sql.expression.predicate;
 
-public interface Negateable {
+import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 
-    ScalarFunction negate();
+public interface Negatable<T extends ScalarFunction> {
+
+    T negate();
 
 }

@@ -276,13 +276,13 @@ public class JobManager {
         jobConfigProvider.expandJobsIdsWithoutMissingCheck(expression, false, ActionListener.wrap(
                 jobIdsAndGroups -> {
                     // Check for duplicate job Ids
-                    jobIdsAndGroups.getJobs().forEach(id -> {
+                    for (String id : jobIdsAndGroups.getJobs()) {
                         if (clusterStateJobIds.contains(id)) {
                             jobsListener.onFailure(new IllegalStateException("Job [" + id + "] configuration " +
                                     "exists in both clusterstate and index"));
                             return;
                         }
-                    });
+                    }
 
                     requiredMatches.filterMatchedIds(jobIdsAndGroups.getJobs());
                     requiredMatches.filterMatchedIds(jobIdsAndGroups.getGroups());

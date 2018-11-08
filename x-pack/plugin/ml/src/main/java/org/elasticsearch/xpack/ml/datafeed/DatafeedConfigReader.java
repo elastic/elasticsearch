@@ -16,11 +16,11 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.ExpandedIdsMatcher;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -116,14 +116,8 @@ public class DatafeedConfigReader {
     }
 
     private Map<String, DatafeedConfig> expandClusterStateDatafeeds(String datafeedExpression, ClusterState clusterState) {
-
-        Map<String, DatafeedConfig> configById = new HashMap<>();
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
         Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(datafeedExpression);
-
-        for (String expandedDatafeedId : expandedDatafeedIds) {
-            configById.put(expandedDatafeedId, mlMetadata.getDatafeed(expandedDatafeedId));
-        }
-        return configById;
+        return expandedDatafeedIds.stream().collect(Collectors.toMap(Function.identity(), mlMetadata::getDatafeed));
     }
 }

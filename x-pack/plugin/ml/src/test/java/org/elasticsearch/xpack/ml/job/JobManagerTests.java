@@ -224,6 +224,38 @@ public class JobManagerTests extends ESTestCase {
         assertThat(jobIds, contains("foo-cs-1", "foo-cs-2", "foo-index"));
     }
 
+    public void testExpandJob_GivenDuplicateConfig() throws IOException {
+        Job csJob = buildJobBuilder("dupe").build();
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(csJob, false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        List<BytesReference> docsAsBytes = new ArrayList<>();
+        Job.Builder indexJob = buildJobBuilder("dupe");
+        docsAsBytes.add(toBytesReference(indexJob.build()));
+
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
+        mockClientBuilder.prepareSearch(AnomalyDetectorsIndex.configIndexName(), docsAsBytes);
+
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
+        AtomicReference<QueryPage<Job>> jobsHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        jobManager.expandJobs("_all", true, ActionListener.wrap(
+                jobsHolder::set,
+                exceptionHolder::set
+        ));
+
+        assertNull(jobsHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(IllegalStateException.class));
+        assertEquals("Job [dupe] configuration exists in both clusterstate and index", exceptionHolder.get().getMessage());
+    }
+
     public void testExpandJobs_SplitBetweenClusterStateAndIndex() throws IOException {
         Job csJob = buildJobBuilder("cs-job").build();
 
@@ -300,6 +332,43 @@ public class JobManagerTests extends ESTestCase {
         assertThat(jobsHolder.get().results(), hasSize(2));
         jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
         assertThat(jobIds, contains("foo-cs-1", "foo-cs-2"));
+    }
+
+    public void testExpandJobIds_GivenDuplicateConfig() {
+        Job csJob = buildJobBuilder("dupe").build();
+
+        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
+        mlMetadata.putJob(csJob, false);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder()
+                        .putCustom(MlMetadata.TYPE, mlMetadata.build()))
+                .build();
+        when(clusterService.state()).thenReturn(clusterState);
+
+        Map<String, DocumentField> fieldMap = new HashMap<>();
+        fieldMap.put(Job.ID.getPreferredName(),
+                new DocumentField(Job.ID.getPreferredName(), Collections.singletonList("dupe")));
+        fieldMap.put(Job.GROUPS.getPreferredName(),
+                new DocumentField(Job.ID.getPreferredName(), Collections.emptyList()));
+
+        List<Map<String, DocumentField>> fieldHits = new ArrayList<>();
+        fieldHits.add(fieldMap);
+
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("jobmanager-test");
+        mockClientBuilder.prepareSearchFields(AnomalyDetectorsIndex.configIndexName(), fieldHits);
+
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
+        AtomicReference<SortedSet<String>> jobIdsHolder = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        jobManager.expandJobIds("_all", true, ActionListener.wrap(
+                jobIdsHolder::set,
+                exceptionHolder::set
+        ));
+
+        assertNull(jobIdsHolder.get());
+        assertThat(exceptionHolder.get(), instanceOf(IllegalStateException.class));
+        assertEquals("Job [dupe] configuration exists in both clusterstate and index", exceptionHolder.get().getMessage());
     }
 
     public void testExpandJobIdsFromClusterStateAndIndex_GivenAll() {

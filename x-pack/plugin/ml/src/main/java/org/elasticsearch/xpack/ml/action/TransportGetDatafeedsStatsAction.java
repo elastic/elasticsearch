@@ -41,7 +41,7 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                                             ClusterService clusterService, ThreadPool threadPool,
                                             ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                            Client client,NamedXContentRegistry xContentRegistry) {
+                                            Client client, NamedXContentRegistry xContentRegistry) {
         super(settings, GetDatafeedsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, GetDatafeedsStatsAction.Request::new);
         this.datafeedConfigReader = new DatafeedConfigReader(client, xContentRegistry);

@@ -22,9 +22,11 @@ package org.elasticsearch.upgrades;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.test.rest.TypesRemovalWarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedFunction;
@@ -79,6 +81,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
     public void setIndex() throws IOException {
         index = getTestName().toLowerCase(Locale.ROOT);
     }
+
 
     public void testSearch() throws Exception {
         int count;
@@ -567,8 +570,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertNotNull(stringValue);
         String type = (String) bestHit.get("_type");
         String id = (String) bestHit.get("_id");
+
         Request explanationRequest = new Request("GET", "/" + index + "/" + type + "/" + id + "/_explain");
         explanationRequest.setJsonEntity("{ \"query\": { \"match_all\" : {} }}");
+
+        RequestOptions.Builder explanationOptions = RequestOptions.DEFAULT.toBuilder();
+        explanationOptions.setWarningsHandler(TypesRemovalWarningsHandler.INSTANCE);
+        explanationRequest.setOptions(explanationOptions);
+
         String explanation = toStr(client().performRequest(explanationRequest));
         assertFalse("Could not find payload boost in explanation\n" + explanation, explanation.contains("payloadBoost"));
 

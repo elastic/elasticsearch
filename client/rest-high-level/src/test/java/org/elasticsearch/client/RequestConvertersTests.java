@@ -1225,10 +1225,12 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testExplain() throws IOException {
         String index = randomAlphaOfLengthBetween(3, 10);
-        String type = randomAlphaOfLengthBetween(3, 10);
+        String type = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
 
-        ExplainRequest explainRequest = new ExplainRequest(index, type, id);
+        ExplainRequest explainRequest = type == null
+            ? new ExplainRequest(index, id)
+            : new ExplainRequest(index, type, id);
         explainRequest.query(QueryBuilders.termQuery(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10)));
 
         Map<String, String> expectedParams = new HashMap<>();
@@ -1254,14 +1256,14 @@ public class RequestConvertersTests extends ESTestCase {
         }
 
         Request request = RequestConverters.explain(explainRequest);
-        StringJoiner endpoint = new StringJoiner("/", "/", "");
-        endpoint.add(index)
-            .add(type)
-            .add(id)
-            .add("_explain");
-
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals(endpoint.toString(), request.getEndpoint());
+
+        if (type == null) {
+            assertEquals("/" + index + "/_explain/" + id, request.getEndpoint());
+        } else {
+            assertEquals("/" + index + "/" + type + "/" + id + "/_explain", request.getEndpoint());
+        }
+
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(explainRequest, request.getEntity());
     }

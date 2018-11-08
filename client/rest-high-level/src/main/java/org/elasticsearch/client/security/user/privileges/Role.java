@@ -76,6 +76,9 @@ public final class Role implements ToXContentObject {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Role, Void> PARSER = new ConstructingObjectParser<>("role_descriptor", false,
             constructorObjects -> {
+                // Don't ignore unknown fields. It is dangerous if the object we parse is also
+                // part of a request that we build later on, and the fields that we now ignore
+                // will end up being implicitly set to null in that request.
                 int i = 0;
                 final Collection<String> clusterPrivileges = (Collection<String>) constructorObjects[i++];
                 final GlobalPrivileges globalApplicationPrivileges = (GlobalPrivileges) constructorObjects[i++];

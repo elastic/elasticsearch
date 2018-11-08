@@ -33,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TransportPutAutoFollowPatternAction extends
@@ -75,41 +76,40 @@ public class TransportPutAutoFollowPatternAction extends
             return;
         }
         final Client leaderClient = client.getRemoteClusterClient(request.getRemoteCluster());
+        final Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
+            .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        Consumer<ClusterState> consumer = leaderClusterState -> {
+            String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
+            ccrLicenseChecker.hasPrivilegesToFollowIndices(leaderClient, indices, e -> {
+                if (e == null) {
+                    clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getRemoteCluster(),
+                        new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
+
+                            @Override
+                            protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                                return new AcknowledgedResponse(acknowledged);
+                            }
+
+                            @Override
+                            public ClusterState execute(ClusterState currentState) throws Exception {
+                                return innerPut(request, filteredHeaders, currentState, leaderClusterState);
+                            }
+                        });
+                } else {
+                    listener.onFailure(e);
+                }
+            });
+        };
+
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear();
         clusterStateRequest.metaData(true);
 
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-            .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(client, filteredHeaders, request.getRemoteCluster(),
+            clusterStateRequest, listener::onFailure, consumer);
 
-        String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
-        ccrLicenseChecker.hasPrivilegesToFollowIndices(leaderClient, indices, e -> {
-            if (e == null) {
-                leaderClient.admin().cluster().state(
-                    clusterStateRequest,
-                    ActionListener.wrap(
-                        clusterStateResponse -> {
-                            final ClusterState leaderClusterState = clusterStateResponse.getState();
-                            clusterService.submitStateUpdateTask("put-auto-follow-pattern-" + request.getRemoteCluster(),
-                                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
-                                    @Override
-                                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                                        return new AcknowledgedResponse(acknowledged);
-                                    }
-
-                                    @Override
-                                    public ClusterState execute(ClusterState currentState) throws Exception {
-                                        return innerPut(request, filteredHeaders, currentState, leaderClusterState);
-                                    }
-                                });
-                        },
-                        listener::onFailure));
-            } else {
-                listener.onFailure(e);
-            }
-        });
     }
 
     static ClusterState innerPut(PutAutoFollowPatternAction.Request request,

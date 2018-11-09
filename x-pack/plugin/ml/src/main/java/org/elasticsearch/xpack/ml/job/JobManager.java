@@ -334,7 +334,7 @@ public class JobManager {
 
         // Check for the job in the cluster state first
         MlMetadata currentMlMetadata = MlMetadata.getMlMetadata(state);
-        if (currentMlMetadata.getJobs().containsKey(job.getId())) {
+        if (ClusterStateJobUpdate.jobIsInClusterState(currentMlMetadata, job.getId())) {
             actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
             return;
         }
@@ -419,7 +419,7 @@ public class JobManager {
 
     public void updateJob(UpdateJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterService.state());
-        if (mlMetadata.getJobs().containsKey(request.getJobId())) {
+        if (ClusterStateJobUpdate.jobIsInClusterState(mlMetadata, request.getJobId())) {
             updateJobClusterState(request, actionListener);
         } else {
             updateJobIndex(request, ActionListener.wrap(
@@ -607,10 +607,25 @@ public class JobManager {
             return;
         }
 
+        // Read both cluster state and index jobs
+        Map<String, Job> clusterStateJobs = expandJobsFromClusterState(MetaData.ALL, true, clusterService.state());
+
         jobConfigProvider.findJobsWithCustomRules(ActionListener.wrap(
-                jobBuilders -> {
+                indexJobs -> {
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                        for (Job job: jobBuilders) {
+
+                        List<Job> allJobs = new ArrayList<>();
+                        // Check for duplicate jobs
+                        for (Job indexJob : indexJobs) {
+                            if (clusterStateJobs.containsKey(indexJob.getId())) {
+                                logger.error("[" + indexJob.getId() + "] job configuration exists in both clusterstate and index");
+                            } else {
+                                allJobs.add(indexJob);
+                            }
+                        }
+                        allJobs.addAll(clusterStateJobs.values());
+
+                        for (Job job: allJobs) {
                             Set<String> jobFilters = job.getAnalysisConfig().extractReferencedFilters();
                             ClusterState clusterState = clusterService.state();
                             if (jobFilters.contains(filter.getId())) {
@@ -668,13 +683,25 @@ public class JobManager {
             return;
         }
 
-        // calendarJobIds may be a group or job
+        // Get the cluster state jobs that match
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
+        List<String> existingJobsOrGroups =
+                calendarJobIds.stream().filter(mlMetadata::isGroupOrJob).collect(Collectors.toList());
+
+        Set<String> clusterStateIds = new HashSet<>();
+        existingJobsOrGroups.forEach(jobId -> clusterStateIds.addAll(mlMetadata.expandJobIds(jobId, true)));
+
+        // calendarJobIds may be a group or job.
+        // Expand the groups to the constituent job ids
         jobConfigProvider.expandGroupIds(calendarJobIds, ActionListener.wrap(
                 expandedIds -> {
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
                         // Merge the expended group members with the request Ids which
                         // which are job ids rather than group Ids.
                         expandedIds.addAll(calendarJobIds);
+
+                        // Merge in the cluster state job ids
+                        expandedIds.addAll(clusterStateIds);
 
                         for (String jobId : expandedIds) {
                             if (isJobOpen(clusterState, jobId)) {
@@ -727,21 +754,51 @@ public class JobManager {
 
         // Step 1. update the job
         // -------
-        Consumer<Long> updateJobHandler = response -> {
-            JobUpdate update = new JobUpdate.Builder(request.getJobId())
-                    .setModelSnapshotId(modelSnapshot.getSnapshotId())
-                    .setEstablishedModelMemory(response)
-                    .build();
 
-            jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(
-                    job -> {
-                        auditor.info(request.getJobId(),
-                                Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
-                        updateHandler.accept(Boolean.TRUE);
-                    },
-                    actionListener::onFailure
-            ));
-        };
+        Consumer<Long> updateJobHandler;
+
+        if (ClusterStateJobUpdate.jobIsInClusterState(clusterService.state(), request.getJobId())) {
+            updateJobHandler = response -> clusterService.submitStateUpdateTask("revert-snapshot-" + request.getJobId(),
+                    new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(updateHandler, actionListener::onFailure)) {
+
+                        @Override
+                        protected Boolean newResponse(boolean acknowledged) {
+                            if (acknowledged) {
+                                auditor.info(request.getJobId(),
+                                        Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
+                                return true;
+                            }
+                            actionListener.onFailure(new IllegalStateException("Could not revert modelSnapshot on job ["
+                                    + request.getJobId() + "], not acknowledged by master."));
+                            return false;
+                        }
+
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            Job job = MlMetadata.getMlMetadata(currentState).getJobs().get(request.getJobId());
+                            Job.Builder builder = new Job.Builder(job);
+                            builder.setModelSnapshotId(modelSnapshot.getSnapshotId());
+                            builder.setEstablishedModelMemory(response);
+                            return ClusterStateJobUpdate.updateClusterState(builder.build(), true, currentState);
+                        }
+                    });
+        } else {
+            updateJobHandler = response -> {
+                JobUpdate update = new JobUpdate.Builder(request.getJobId())
+                        .setModelSnapshotId(modelSnapshot.getSnapshotId())
+                        .setEstablishedModelMemory(response)
+                        .build();
+
+                jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(
+                        job -> {
+                            auditor.info(request.getJobId(),
+                                    Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
+                            updateHandler.accept(Boolean.TRUE);
+                        },
+                        actionListener::onFailure
+                ));
+            };
+        }
 
         // Step 0. Find the appropriate established model memory for the reverted job
         // -------
